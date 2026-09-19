@@ -1,0 +1,25 @@
+{
+  "checked_at": "2026-09-14",
+  "width": 1536,
+  "height": 2288,
+  "mode": "RGBA",
+  "sha256": "d1368e19bab0e0283ec705f5e02747dd4455c242641439216a5eb260448b2e37",
+  "standard_frame_counts": [
+    6,
+    8,
+    8,
+    4,
+    5,
+    8,
+    6,
+    6,
+    6
+  ],
+  "neutral_cell": [
+    0,
+    6
+  ],
+  "look_cells": 16,
+  "cell_occupancy_errors": [],
+  "scope": "仅检查实际下载文件尺寸、透明度和有效帧是否存在；视觉语义见 SOURCE.md。"
+}

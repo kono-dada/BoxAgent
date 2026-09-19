@@ -1,0 +1,21 @@
+.env
+.env.*
+!.env.local.example
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+models/
+results/
+.runtime/
+.venv-pet/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# 本机截图、界面文本与运行记录可能含私人信息。
+docs/assets/
+artifacts/
+logs/

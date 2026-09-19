@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "description": "Codex Pet Share 精灵图集契约，播放时序采用站点 Playground 的实现约定。",
+  "source": "https://github.com/portons/codex-pet-share/blob/22725091da2787e8e525c9289cb7826a34be4950/src/playground/core/config.ts",
+  "layoutSource": "https://github.com/portons/codex-pet-share/blob/22725091da2787e8e525c9289cb7826a34be4950/src/domain/config.ts",
+  "cellWidth": 192,
+  "cellHeight": 208,
+  "columns": 8,
+  "coordinateSystem": "左上角为原点，列向右、行向下，从 0 开始。",
+  "formats": {
+    "1": { "width": 1536, "height": 1872, "rows": 9 },
+    "2": { "width": 1536, "height": 2288, "rows": 11 }
+  },
+  "animations": {
+    "idle": { "row": 0, "frames": 6, "fps": 6, "loop": true },
+    "running-right": { "row": 1, "frames": 8, "fps": 12, "loop": true },
+    "running-left": { "row": 2, "frames": 8, "fps": 12, "loop": true },
+    "waving": { "row": 3, "frames": 4, "fps": 5, "loop": false },
+    "jumping": { "row": 4, "frames": 5, "fps": 14, "loop": false },
+    "failed": { "row": 5, "frames": 8, "fps": 6, "loop": false },
+    "waiting": { "row": 6, "frames": 6, "fps": 4, "loop": true },
+    "running": { "row": 7, "frames": 6, "fps": 12, "loop": true },
+    "review": { "row": 8, "frames": 6, "fps": 6, "loop": true }
+  },
+  "gaze": {
+    "minimumSpriteVersion": 2,
+    "neutral": { "row": 0, "column": 6 },
+    "directionCount": 16,
+    "stepDegrees": 22.5,
+    "zeroDirection": "up",
+    "rotation": "clockwise",
+    "animated": false,
+    "directions": [
+      { "index": 0, "degrees": 0, "row": 9, "column": 0 },
+      { "index": 1, "degrees": 22.5, "row": 9, "column": 1 },
+      { "index": 2, "degrees": 45, "row": 9, "column": 2 },
+      { "index": 3, "degrees": 67.5, "row": 9, "column": 3 },
+      { "index": 4, "degrees": 90, "row": 9, "column": 4 },
+      { "index": 5, "degrees": 112.5, "row": 9, "column": 5 },
+      { "index": 6, "degrees": 135, "row": 9, "column": 6 },
+      { "index": 7, "degrees": 157.5, "row": 9, "column": 7 },
+      { "index": 8, "degrees": 180, "row": 10, "column": 0 },
+      { "index": 9, "degrees": 202.5, "row": 10, "column": 1 },
+      { "index": 10, "degrees": 225, "row": 10, "column": 2 },
+      { "index": 11, "degrees": 247.5, "row": 10, "column": 3 },
+      { "index": 12, "degrees": 270, "row": 10, "column": 4 },
+      { "index": 13, "degrees": 292.5, "row": 10, "column": 5 },
+      { "index": 14, "degrees": 315, "row": 10, "column": 6 },
+      { "index": 15, "degrees": 337.5, "row": 10, "column": 7 }
+    ]
+  }
+}
