@@ -12,7 +12,7 @@ from . import config
 
 def main():
     parser = argparse.ArgumentParser(description="BoxAgent 桌宠")
-    parser.add_argument("--pet", type=Path, default=DEFAULT_PET)
+    parser.add_argument("--pet", type=Path, help="本次启动指定本地形象目录；默认恢复上次选择")
     parser.add_argument("--log-dir", type=Path, default=config.LOG_DIR,
                         help="诊断日志目录，默认 .runtime/pet；相对路径以当前工作目录为准")
     parser.add_argument("--require-approval", action="store_true",
@@ -44,17 +44,26 @@ def main():
     from .runtime import Runtime
     from .voice import QwenVoice
     from .context import WindowSummary
+    from .pets.catalog import PetCatalog
 
     app = AK.NSApplication.sharedApplication()
     app.setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
-    appearance = CodexPetsAppearance(args.pet)
+    catalog = PetCatalog()
+    directory = args.pet.expanduser().resolve() if args.pet else catalog.current_directory()
+    try:
+        appearance = CodexPetsAppearance(directory)
+    except (OSError, ValueError, KeyError, TypeError):
+        if args.pet:
+            raise
+        print("上次形象无法显示，已恢复内置小鸭。", flush=True)
+        appearance = CodexPetsAppearance(DEFAULT_PET)
     backend = Backend(lambda publish: Runtime(publish,
         lambda task_id: CodexExecutor(task_id, auto_approve=not args.require_approval), QwenVoice))
     backend.runtime.observer = WindowSummary(backend.runtime.emit, args.context_interval or 15,
                                              max_size=args.context_size)
     if args.context_interval:
         backend.submit(backend.runtime.toggle_context())
-    delegate = Desktop.alloc().init().configure(backend, appearance)
+    delegate = Desktop.alloc().init().configure(backend, appearance, catalog)
     app.setDelegate_(delegate)
     signal.signal(signal.SIGTERM, lambda *_: AppHelper.callAfter(delegate.quit_, None))
     signal.signal(signal.SIGINT, lambda *_: AppHelper.callAfter(delegate.quit_, None))

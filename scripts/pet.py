@@ -26,6 +26,9 @@ if __name__ == "__main__":
     elif "--check-context" in sys.argv:
         from scripts.check_window_summary import main
         asyncio.run(main())
+    elif "--check-pets-ui" in sys.argv:
+        from scripts.check_pet_store import main
+        main()
     elif "--check-ui" in sys.argv:
         from scripts.check_pet_ui import main
         main()

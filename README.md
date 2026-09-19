@@ -56,7 +56,11 @@ BOXAGENT_VOICE_MODEL=qwen3.5-omni-flash-realtime uv run --script scripts/pet.py
 
 后台沿用工作区已有 `.runtime/codex-0.153.0/` 的官方 Codex 和配套 `codex-code-mode-host`，模型默认 `gpt-5.6-luna`，使用已有 Codex 登录；也需要已安装的 Codex Computer Use 执行器。可用 `BOXAGENT_TASK_MODEL` 单独调整后台模型。具体已验证路径见 [Python Computer Use 记录](docs/python-codex-computer-use.md)。
 
-**形象系统可以独立替换。** 当前复用 codex-pets.net 对应公开仓库的 Debug Duck v2 及 9 个动画状态、16 方向图格，来源和 MIT 许可保存在 [assets/pet](assets/pet/README.md)。其他兼容包可以用 `--pet /绝对路径/角色目录` 加载。完全不同的形象实现只需实现 `Appearance` 接口，并修改入口的适配器装配；不用修改语音、任务和生命周期。文件边界与状态映射见 [实现说明](docs/poc-implementation.md)。
+**右键桌宠或点击菜单栏 ◉ →「形象商店…」即可换形象。** 可以搜索、翻页、查看分享者的来源页，点击「下载并使用」后立即切换；「已下载」中的形象支持离线使用，也可以随时「换回小鸭」。切换失败会保留原形象，成功后下次启动自动恢复。下载和切图在后台进行，切换保留桌宠位置、输入草稿和现有语音／任务生命周期。
+
+形象来自 codex-pets.net，支持 V1/V2 图集。下载资源和选择保存在 `.runtime/pets/`，不随 `--log-dir` 改变；不会提交到 Git。分享者、来源与站点提供的许可信息随资源保存，未提供许可时不推断授权。内置 Debug Duck 的来源和 MIT 许可保存在 [assets/pet](assets/pet/README.md)。
+
+本地兼容包仍可用 `--pet /绝对路径/角色目录` 加载，仅覆盖本次启动；未指定时依次使用上次有效选择、内置小鸭。完全不同的形象实现仍可通过 `Appearance` 接口接入。实现与验收方式见 [形象商店](docs/pet-store.md)。
 
 运行记录保存在 `.runtime/pet/`：`events.jsonl` 是状态和字幕，`tasks/` 是操作、界面观察和结果；`position.json` 保存位置。此阶段没有长期记忆或时间线；除本地定时摘要外，操作应用时也会按需读取该应用的界面和截图。
 

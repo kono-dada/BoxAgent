@@ -182,8 +182,10 @@ def symbol_button(name, description, frame, target, action, button_class=AK.NSBu
 
 class Desktop(NSObject):
     @objc.python_method
-    def configure(self, backend, appearance):
+    def configure(self, backend, appearance, catalog=None):
         self.backend, self.appearance = backend, appearance
+        self.pet_catalog = catalog
+        self.pet_store = None
         self.state = Snapshot()
         self.bubble_open = False
         self.last_revision = -1
@@ -215,7 +217,7 @@ class Desktop(NSObject):
         self.drag.owner = self
         self.drag.addSubview_(self.appearance.view)
         self.pet.setContentView_(self.drag)
-        self.pet.setTitle_("BoxAgent 小鸭")
+        self.pet.setTitle_("BoxAgent 桌宠")
         self.makeBubble()
         self.makeContextBubble()
         self.makeMenu()
@@ -322,6 +324,7 @@ class Desktop(NSObject):
         AK.NSApplication.sharedApplication().setMainMenu_(main_menu)
         self.menu = AK.NSMenu.alloc().initWithTitle_("BoxAgent")
         for title, selector in [("显示／收起对话", "toggleBubble:"), ("开启／关闭麦克风  ⌃⌥空格", "toggleMic:"),
+                                ("形象商店…", "showPetStore:"),
                                 ("开启屏幕总结", "toggleContext:"),
                                 ("停止后台任务", "cancelTask:"), ("退出 BoxAgent", "quit:")]:
             item = AK.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(title, selector, "")
@@ -333,6 +336,31 @@ class Desktop(NSObject):
         self.status_item.button().setTitle_("◉")
         self.status_item.button().setToolTip_("BoxAgent · ⌃⌥空格切换麦克风")
         self.status_item.setMenu_(self.menu)
+
+    def showPetStore_(self, _sender):
+        from .pets.catalog import PetCatalog
+        from .pets.window import PetStoreWindow
+        if self.pet_catalog is None:
+            self.pet_catalog = PetCatalog()
+        if self.pet_store is None:
+            self.pet_store = PetStoreWindow.alloc().init().configure(self, self.pet_catalog)
+        self.pet_store.show()
+
+    @objc.python_method
+    def replaceAppearance(self, appearance, catalog):
+        """先验证视图并落盘；任一步失败都保留正在显示的形象和运行状态。"""
+        previous = self.appearance
+        if appearance.size != previous.size:
+            raise ValueError("新形象的显示尺寸不兼容")
+        appearance.present(self.state, time.monotonic())
+        self.drag.addSubview_(appearance.view)
+        try:
+            catalog.commit(appearance.directory)
+        except Exception:
+            appearance.view.removeFromSuperview()
+            raise
+        previous.view.removeFromSuperview()
+        self.appearance = appearance
 
     @objc.python_method
     def makeContextBubble(self):
@@ -598,6 +626,8 @@ class Desktop(NSObject):
             self.closing = True
             self.hotkey.close()
             self.timer.invalidate()
+            if self.pet_store is not None:
+                self.pet_store.shutdown()
             self.savePosition()
             self.backend.close()
             (DATA / "app.pid").unlink(missing_ok=True)

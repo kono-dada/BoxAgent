@@ -9,6 +9,7 @@
 | `set-key.zsh` | 交互写入本地语音密钥，不提交输出 |
 | `download-qwen-mlx.zsh` | 下载模型至忽略目录，需网络、jq 与磁盘空间 |
 | `check_pet_ui.py` | `pet.py --check-ui`，仅测试窗口、合成文字和替身；结果在 `.runtime/pet/ui-check/` |
+| `check_pet_store.py` | `pet.py --check-pets-ui`，访问真实商店并下载 V1/V2 素材，显示原生窗口；语音与任务使用替身，不录音、不操作其他应用，缓存与截图隔离在 `.runtime/pet-store-check/` |
 | `check_window_summary.py` | `pet.py --check-context`，读取真实前台窗口，运行本地模型 |
 | `smoke_pet.py` | `pet.py --smoke`，真实自然语言执行／语音检查；会操作应用和使用云端模型，`--dry-run` 仅将执行器替换为目标记录器，语音仍可调用云端 |
 | `smoke_desktop.py` | `pet.py --smoke-desktop --audio /绝对路径/请求.wav`，真实语音、授权界面与桌面操作检查；显式要求 PCM16、16 kHz、单声道 WAV，不再依赖未提交的固定录音 |
