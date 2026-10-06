@@ -6,7 +6,7 @@ BoxAgent 的目标是一个长期运行在 MacBook 上的桌宠 Agent：既能�
 
 最初设想中的体验包括：说一句“随便放一首钢琴曲”，桌宠先回应，再在后台完成操作；交代“接下来专心学习一小时”，它安静观察，发现持续偏离学习目标时及时提醒；晚上问“我今天做了什么”，它按有依据的时间段回顾当天活动。用户工作时尽量不受干扰，耗时执行也不阻塞继续交谈。
 
-**当前已完成全双工语音、本地端模型和 Computer Use 的初步技术验证与桌宠统合。** 接下来要把这些能力连接成能持续履行委托的系统。以下是演进方向，后续阶段尚未实现，具体边界随实际体验调整。
+**当前已完成全双工语音、统一 Qwen 前台交互、Computer Use、持久 Product Session、任务完成通知、显式长期记忆与模块化架构重写。** 文字和语音先进入 Qwen Realtime，普通聊天由前台直答，需要操作电脑时再异步委托 Codex Runtime；后台任务不阻塞继续对话，终态先进入持久 Outbox，再由语音、桌宠或系统通知送达。以下是演进方向，具体边界随实际体验调整。
 
 - [x] **全双工语音：技术验证与统合。** 接入千问实时语音，支持快捷键对话、插话和后台任务期间继续交谈。
 - [x] **本地端模型：技术验证与统合。** 接入 MLX Qwen3.5-0.8B，定期解读前台窗口并在桌宠旁展示摘要，支持开关。
@@ -15,11 +15,16 @@ BoxAgent 的目标是一个长期运行在 MacBook 上的桌宠 Agent：既能�
 - [ ] **持续委托与及时响应。** 从“专注学习一小时”开始，将桌面观察交给决策层；支持委托启动、修改、暂停与结束，在有效时间内判断是否提醒，避免重复或过时打扰。
 - [ ] **多场景监控与动态扩展。** 用第二种不同的委托验证通用性，例如下载完成提醒；复用事件来源、计时、生命周期与输出机制，让各场景的判断和调优独立，探索按需生成监控与热加载。
 - [ ] **活动时间线。** 结合窗口变化、闲置等活动信号（如 ActivityWatch）与屏幕观察，形成有证据的活动区间；先支持短时回顾，再扩展到全天，保留采集空白。
-- [ ] **长期记忆与上下文协同。** 从用户明确要求保存的偏好开始，区分临时委托和长期设置；逐步探索记忆提炼、检索与更新，为后续决策提供相关上下文。
+- [x] **显式长期记忆。** 用户可通过语音明确要求记住、回忆和删除文本形态的偏好、约定或事实；Memory Service 通过独立 Jev-Mem Worker 持久化。自动提炼屏幕/语音内容、冲突更新和 Agent Runtime 自动注入尚未实现。
+- [x] **原生记忆看板。** 从 macOS 右上角 `◉` 菜单或桌宠右键菜单打开“记忆看板…”，可搜索记忆、查看选中节点的一跳关系与详情，并在原生确认后按精确 ID 删除。
+- [ ] **自动长期记忆。** 已确定采用异步提取、Canonical Memory Ledger、三档准入和低延迟分层召回；详见 [Phase 4 长期记忆设计](docs/BoxAgent-Phase4-Memory-设计.md)。
+- [x] **本地 Skill 管理。** BoxAgent 自己管理内置与用户 Skill、启停状态和 Engine IPC CRUD；可从菜单打开原生页面新建、编辑、启停和删除用户 Skill。Codex App Server 只接收受控目录与 allowlist 投影，不再启用用户全局目录中的无关 Skill。
 
 整个系统围绕事件驱动设计。用户消息、桌面观察、执行结果、定时器及外部 Feed 都可以成为事件；决策结合事件本身、当前时间、有效委托、相关记忆与可用工具，选择保持安静、更新桌宠表现、发送消息或委托执行。事件处理与具体执行分离，按事件的时效要求处理；每种监控维护自己的判断逻辑和状态，减少场景之间的相互影响。
 
-端云分工沿用已验证的方向：本地模型提供桌面观察，云端模型负责语音交互和复杂判断、执行。**目前本地摘要仅用于展示，尚未接入语音或执行决策；持续监控、时间线和长期记忆也尚未落地。** 当前有状态事件与独立任务生命周期，通用事件决策、时效调度和动态监控框架仍需后续探索。
+当前代码按 `entrypoints → bootstrap → application/domain/agent ← infrastructure` 组织，macOS 与 Engine IPC 放在 `interfaces/`。`domain/<能力>/models.py` 保存领域数据，`contracts.py` 定义该能力需要的端口，`service.py` 实现用例；`agent/harness/` 编译上下文与策略，`agent/runtime/` 只定义 Runtime 合同和模型 Profile；Codex、Qwen、Jev 与本地持久化均在 `infrastructure/` 实现。`bootstrap/desktop.py` 和 `bootstrap/engine.py` 是两个进程唯一的生产装配点，旧路径不保留 import 兼容层。详见 [架构重构方案](docs/BoxAgent-架构重构方案.md)。
+
+端云分工沿用已验证的方向：本地模型提供桌面观察，云端模型负责语音交互和复杂判断、执行。**目前本地摘要仅用于展示，尚未自动写入记忆或接入执行决策；长期记忆已支持用户显式写入、检索和精确删除，但尚未自动注入 Agent Runtime。** 持续监控、时间线、通用事件决策和时效调度仍需后续探索。
 
 长期运行质量贯穿各阶段：持续验证真人全双工体验、后台操作对工作的干扰、读屏质量与资源占用，以及断网、睡眠唤醒、退出清理等恢复行为。初步技术验证和 POC 统合不等于这些可靠性问题已经全部解决，已验证范围见 [验收记录](docs/poc-verification.md)。
 
@@ -53,23 +58,33 @@ uv run --script scripts/pet.py
 uv run --script scripts/pet.py --log-dir ./logs/boxagent
 ```
 
+开发环境默认启用 Engine 源码监听：AppKit 桌宠保持运行，`application/`、`agent/`、
+`domain/`、`infrastructure/` 及 Engine 服务端代码变化时，只重启独立后端进程并自动重连。
+修改 `interfaces/macos/` 或 IPC 客户端代码仍需重启整个应用。如需关闭监听，可设置
+`BOXAGENT_ENGINE_WATCH=0`。
+
 默认日志目录为 `.runtime/pet/`。`.runtime/` 和 `logs/` 均由 Git 忽略；选择其他目录时也应将其加入忽略规则。日志保留任务目标、工具参数与界面文字，可能包含私人信息，不应直接上传或提交。
 
 默认自动允许 Computer Use 的操作授权请求，不再逐次弹出确认。需要恢复手动确认时，启动命令加上 `--require-approval`。这个设置不代替 macOS 的系统权限；系统授权仍需用户授予。
 
-任务退出时，宿主会按本轮会话标识发送 `turn-ended` 通知，最多等待 8 秒，再退出执行器。`result.json` 的 `cursor_cleanup` 和事件日志记录通知状态；`notified` 仅表示客户端成功返回，不代表已经验证光标消失。该流程不重启共享服务，不清理其他会话。
+每个任务结束时，宿主会按本轮标识发送 `turn-ended` 通知并释放任务租约，但不会退出共享的 Codex App Server。模型、稳定指令和工具 schema 未变化时，同一 Product Session 继续使用同一 Codex Thread；这些条件变化时创建新的 Runtime Epoch。Thread Binding 保存在 BoxAgent Session 目录中，Engine 重启后优先通过 `thread/resume` 恢复。
 
 也可以双击 `启动桌宠.command`，或使用 Codex 项目的 Run 按钮。uv 根据脚本依赖及 `scripts/pet.py.lock` 管理独立缓存环境，保留原来用于 MLX 的 `.venv`。首次运行需要下载依赖；PyAudio 依赖本机已有的 PortAudio。
 
 - **Control + Option + 空格**：开启／关闭麦克风。初始麦克风关闭。
 - **点击小鸭**：展开／收起对话；**拖动小鸭**：移动位置。
-- **输入任务后按回车或点击箭头**：直接交给后台执行器，无需开启麦克风。运行期间可编辑下一条草稿；等待完成或停止当前任务后再提交。
+- **输入文字后按回车或点击箭头**：先交给 Qwen 前台交互 Runtime。普通聊天直接回答；需要操作电脑时才委托后台 Codex。后台任务运行期间仍可继续提交聊天消息。
 - **右键小鸭或菜单栏 ◉**：打开控制菜单，或退出。终端 `Ctrl+C` 也可退出。
 - 试说：“用计算器帮我算一下，503 加 219。”先听到回应，后台开始执行；等待时可以继续聊天。
 - 也可以直接说：“帮我打开哔哩哔哩 App，然后随机点开播放一个视频。”前台把完整目标交给同一个通用 Agent，由它观察和选择操作。
 - 后台动态发现 Computer Use 的应用列表、读界面、点击、输入、滚动等工具；代码不按应用分派，也没有场景模板或专用任务定义。具体能否完成取决于应用界面、工具能力和模型判断。
 - 使用 `--require-approval` 时，工具请求授权后，气泡显示当前请求，可允许或拒绝。已允许的同一请求在本次进程内复用；默认自动允许不显示此按钮。
 - 说“取消任务”或点“停止任务”，停止后续动作。普通插话只中断播报；关闭麦克风后后台任务继续，结果保留在气泡中。
+- 说“记住我喜欢简洁的回答”会先在本地 Canonical Ledger 完成 durable commit，再由后台建立 Jev 索引；普通对话完成后也会异步提取稳定、低敏感且有原文证据的用户偏好。询问过去偏好时会先检索记忆。删除时先检索精确记忆 ID，匹配不唯一时需要用户确认，不执行模糊批量删除。
+- 点击菜单栏 `◉` →“记忆看板…”可打开本地原生看板；可查看 Canonical 状态、类型、revision、语义槽、来源和索引状态，并对 `pending_review` 执行批准/拒绝、对 `index_failed` 重试索引或精确删除。看板不会启动 HTTP 服务，也不会直接编辑 Jev 文件。
+- 点击菜单栏 `◉` →“Skill 管理…”可打开本地原生管理页；内置 Skill 只读但可启停，用户 Skill 可新建、编辑、启停和删除。
+- 后台任务结束后先写入 `<BOXAGENT_DATA_DIR>/notifications/outbox.json`。Qwen 在线时等待安静窗口主动语音播报，开始播放后才记为送达；Realtime 离线时回退到桌宠未读状态和 macOS 系统通知。
+- Qwen 重连使用“Stable Profile + Context Checkpoint + 最近原生消息”恢复；Checkpoint 由独立 Codex structured turn 异步生成。完成 Interaction 还会 durable enqueue 自动记忆提取，候选通过本地策略后写 Canonical Ledger，再由 Jev 建图索引。原始 Session Event 不会因摘要或记忆写入而删除。
 
 建议戴耳机体验插话；当前没有客户端回声消除。首次开启麦克风时，macOS 可能要求允许启动它的终端或 Codex 访问麦克风；直接 uv 启动没有独立的 BoxAgent 权限身份。
 
@@ -79,7 +94,23 @@ uv run --script scripts/pet.py --log-dir ./logs/boxagent
 BOXAGENT_VOICE_MODEL=qwen3.5-omni-flash-realtime uv run --script scripts/pet.py
 ```
 
-后台沿用工作区已有 `.runtime/codex-0.153.0/` 的官方 Codex 和配套 `codex-code-mode-host`，模型默认 `gpt-5.6-luna`，使用已有 Codex 登录；也需要已安装的 Codex Computer Use 执行器。可用 `BOXAGENT_TASK_MODEL` 单独调整后台模型。具体已验证路径见 [Python Computer Use 记录](docs/python-codex-computer-use.md)。
+后台需要一套同时包含 `codex` 和 `codex-code-mode-host` 的 App Server 运行时，依次查找 `BOXAGENT_CODEX_BIN`、工作区 `.runtime/codex-0.153.0/`、Codex 插件运行时与 `PATH`；也需要已安装的 Codex Computer Use 执行器。Codex Agent Runtime 默认模型为 `gpt-5.6-luna`，可用 `BOXAGENT_TASK_MODEL` 调整。具体路径见 [Python Computer Use 记录](docs/python-codex-computer-use.md)。
+
+桌面规划模型现可切换为 DeepSeek，但 Computer Use 工具传输仍依赖上述本机 Codex App Server 与执行器：
+
+```sh
+./scripts/run-deepseek.sh
+```
+
+脚本会固定使用 Codex Runtime 的 DeepSeek 模型 Profile，默认模型为 `deepseek-flash`，并将其他参数透传给桌宠，例如 `./scripts/run-deepseek.sh --context-interval 0`。也可直接使用 `--task-provider deepseek --task-model deepseek-flash`。DeepSeek 读取 `.env.local` 或环境变量中的 `DEEPSEEK_API_KEY`；语音仍由千问 Realtime 提供，不会随任务模型一起切换。
+
+人格可通过 `BOXAGENT_SOUL_FILE=/绝对路径/SOUL.md` 自定义；未指定时先读取本地私有的 `.runtime/pet/SOUL.md`，不存在则使用仓库内置的 `assets/personas/default/SOUL.md`。人格只控制语气、称呼和互动风格，不能覆盖权限、安全边界和任务完成验证。
+
+BoxAgent 官方 Skill 位于 `skills/builtin/`，用户创建的 Skill 默认位于
+`.runtime/pet/skills/`，也可通过 `BOXAGENT_SKILLS_DIR=/绝对路径` 调整。每个 Skill
+使用标准的 `<skill-id>/SKILL.md` 结构。启用状态由 BoxAgent 保存并同步给 Codex
+App Server；`~/.agents/skills` 中的个人全局 Skill 不会自动进入 BoxAgent 的启用集合。
+可在原生 Skill 管理页中直接编辑 `name`、`description` 和正文。ZIP/Git 导入、依赖检查、版本升级和 Skill 市场尚未实现。
 
 **右键桌宠或点击菜单栏 ◉ →「形象商店…」即可换形象。** 可以搜索、翻页、查看分享者的来源页，点击「下载并使用」后立即切换；「已下载」中的形象支持离线使用，也可以随时「换回小鸭」。切换失败会保留原形象，成功后下次启动自动恢复。下载和切图在后台进行，切换保留桌宠位置、输入草稿和现有语音／任务生命周期。
 
@@ -87,9 +118,9 @@ BOXAGENT_VOICE_MODEL=qwen3.5-omni-flash-realtime uv run --script scripts/pet.py
 
 本地兼容包仍可用 `--pet /绝对路径/角色目录` 加载，仅覆盖本次启动；未指定时依次使用上次有效选择、内置小鸭。完全不同的形象实现仍可通过 `Appearance` 接口接入。实现与验收方式见 [形象商店](docs/pet-store.md)。
 
-运行记录保存在 `.runtime/pet/`：`events.jsonl` 是状态和字幕，`tasks/` 是操作、界面观察和结果；`position.json` 保存位置。此阶段没有长期记忆或时间线；除本地定时摘要外，操作应用时也会按需读取该应用的界面和截图。
+运行记录保存在 `.runtime/pet/`：`events.jsonl` 是状态和字幕，`tasks/` 是操作、界面观察和结果；`position.json` 保存位置。Session 原始轨迹位于 `conversations/`，Canonical Memory 位于 `memory/ledger/`，提取任务位于 `memory/extraction/jobs.jsonl`，稳定画像位于 `memory/profiles/stable-profile.json`，Jev 派生索引位于 `memory/jev/`。当前只保存有文本证据的长期记忆，不保存原始音频、连续截图或自动活动时间线。真实 Jev 模式会把写入/检索决策所需的文本发送给 TypeSafe；自动候选提取和 Checkpoint 会调用当前配置的任务模型，因此不应宣称为全本地处理。
 
-指定 `--log-dir` 后，`events.jsonl`、`tasks/` 和 `context-worker.log` 改写到指定目录，窗口位置和单实例锁仍留在 `.runtime/pet/`。每个任务目录包含 `task.json`（目标、模型、开始时间）、`status.json`（最近心跳与执行阶段）、`events.jsonl`（RPC 耗时、动作、失败、异常堆栈及退出事件）、`agent-result.json`（模型原始结果）、`result.json`（成功、失败或取消的最终记录）及 `codex.log`。截图单独保存，不把 base64 写进事件日志。进程意外终止时可能没有最终记录；应结合心跳时间与进程状态判断，不能仅凭旧的 `running` 字段认为仍在运行。
+指定 `--log-dir` 后，`events.jsonl`、`tasks/`、`runtime/codex/codex.log` 和 `context-worker.log` 改写到指定目录，窗口位置和单实例锁仍留在 `.runtime/pet/`。每个任务目录包含 `task.json`、`status.json`、`events.jsonl`、`agent-result.json`、`result.json` 和步骤证据；`result.json.runtime_process_alive` 表示共享 Runtime 是否仍在服务。截图单独保存，不把 base64 写进事件日志。进程意外终止时可能没有最终记录；应结合心跳时间与进程状态判断，不能仅凭旧的 `running` 字段认为仍在运行。
 
 个人电脑截图、界面文本及历史实验记录只保存在已被 Git 忽略的 `.runtime/private/`、`.runtime/pet/` 和 `results/`。`docs/assets/` 与旧 `artifacts/` 目录也加入忽略规则，避免再次误提交；角色素材仍保留在 `assets/pet/`。
 

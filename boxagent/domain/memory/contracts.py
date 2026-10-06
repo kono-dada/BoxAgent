@@ -1,0 +1,49 @@
+"""Memory backend port owned by the feature layer."""
+
+from typing import Protocol
+
+from boxagent.domain.memory.models import (
+    CanonicalMemory,
+    MemoryCandidate,
+    MemoryExtractionJob,
+)
+
+
+class MemoryUnavailable(RuntimeError):
+    """The configured memory backend is unavailable or violated its protocol."""
+
+
+class MemoryBackend(Protocol):
+    async def health(self) -> dict: ...
+    async def remember(self, observations: list[dict]) -> dict: ...
+    async def query(self, question: str, *, top_k: int = 5) -> dict: ...
+    async def inspect(self, *, query: str = "", selected_id: str | None = None,
+                      node_limit: int = 100, edge_limit: int = 200) -> dict: ...
+    async def forget(self, memory_ids: list[str]) -> dict: ...
+    async def save(self) -> dict: ...
+    async def close(self) -> None: ...
+
+
+class MemoryCandidateExtractor(Protocol):
+    version: str
+    provider: str
+    model: str
+
+    async def extract(self, *, target_messages: tuple,
+                      context_messages: tuple,
+                      existing_memories: tuple[CanonicalMemory, ...]) \
+            -> tuple[MemoryCandidate, ...]: ...
+
+
+class MemoryLedger(Protocol):
+    async def start(self) -> None: ...
+    async def enqueue_job(self, *, session_id: str, interaction_id: str,
+                          source_hash: str, extractor_version: str) \
+            -> MemoryExtractionJob: ...
+    async def jobs(self, *, statuses: set[str] | None = None) \
+            -> list[MemoryExtractionJob]: ...
+    async def update_job(self, job: MemoryExtractionJob) -> MemoryExtractionJob: ...
+    async def memories(self, *, statuses: set[str] | None = None) \
+            -> list[CanonicalMemory]: ...
+    async def save_memory(self, memory: CanonicalMemory) -> CanonicalMemory: ...
+    async def memory(self, memory_id: str) -> CanonicalMemory | None: ...
