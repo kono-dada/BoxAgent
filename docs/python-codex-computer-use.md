@@ -1,6 +1,6 @@
 # Python Computer Use 接入预实验（历史记录）
 
-本文记录 2026-09-14 的实验接口及当时默认值。当前桌宠使用 `boxagent/executor.py`，不导入这里的计算器限定接口；已支持通用目标、图片回传和默认自动授权。当前使用方式见 [README](../README.md)，实现见 [当前实现](poc-implementation.md)。
+本文记录 2026-09-14 的实验接口及当时默认值。当前桌宠已改用 `harness/` 与 `runtime/codex/`，不导入这里的计算器限定接口；已支持通用目标、图片回传和默认自动授权。当前使用方式见 [README](../README.md)，实现见 [当前实现](poc-implementation.md)。
 
 > 最新进展：`gpt-5.6-luna` 的自然语言任务循环也已通过。必须补齐同版本的官方 `codex-code-mode-host`，并使用下文的 `--agent --dynamic-tool` 路径。此前“模型路径未通过”的记录已由这次实测更新。
 

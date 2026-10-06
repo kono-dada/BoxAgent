@@ -12,14 +12,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from boxagent.audio import AudioIO
-from boxagent.config import DATA
-from boxagent.executor import CodexExecutor
-from boxagent.runtime import Runtime
-from boxagent.voice import QwenVoice
+from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
+from boxagent.application.assistant import BoxAgentApplication
+from boxagent.bootstrap.engine import create_task_executor
+from boxagent.bootstrap.settings import load_settings
+from boxagent.infrastructure.audio import AudioIO
 
 
 async def main():
+    app_settings = load_settings()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--audio", type=Path)
     parser.add_argument("--goal", default="打开计算器，计算137+248，并检查结果")
@@ -31,7 +32,7 @@ async def main():
     args = parser.parse_args()
     if not args.allow_app and not args.dry_run:
         parser.error("真实系统测试须用 --allow-app 指定允许的应用名称或标识，可重复")
-    output = DATA / "smoke" / time.strftime("%Y%m%d-%H%M%S")
+    output = app_settings.data_dir / "smoke" / time.strftime("%Y%m%d-%H%M%S")
     output.mkdir(parents=True)
     started = time.monotonic()
     events = []
@@ -57,9 +58,11 @@ async def main():
 
     voice = None
 
-    def make_voice(handler, emit):
+    def make_voice(handler, emit, **callbacks):
         nonlocal voice
-        voice = QwenVoice(handler, emit, microphone=False, playback=False, trace=log, audio_factory=RecordingAudio)
+        voice = QwenRealtimeSession(handler, emit, model=app_settings.voice_model,
+                          key=app_settings.qwen_api_key, microphone=False, playback=False,
+                          trace=log, audio_factory=RecordingAudio, **callbacks)
         return voice
 
     class ObserveExecutor:
@@ -74,8 +77,10 @@ async def main():
             pass
 
     # 验收脚本必须经过下方的授权回调，不能沿用产品的默认自动授权。
-    runtime = Runtime(publish, ObserveExecutor if args.dry_run else
-                      lambda task_id: CodexExecutor(task_id, auto_approve=False), make_voice)
+    runtime = BoxAgentApplication(publish, ObserveExecutor if args.dry_run else
+                      lambda task_id: create_task_executor(
+                          task_id, provider="codex", auto_approve=False,
+                          app_settings=app_settings), make_voice)
     async def approve(params):
         app = params.get("app", "")
         allowed = any(app.casefold() == value.casefold() or Path(app).stem.casefold() == value.casefold()
@@ -130,7 +135,9 @@ async def main():
             await asyncio.sleep(15)
         summary = {"result": runtime.last_result, "elapsed": round(time.monotonic() - started, 3),
                    "task_id": runtime.state.task_id, "generated_audio_bytes": len(generated_audio),
-                   "actions": runtime.executor.actions, "subprocess_stopped": runtime.executor.process is None or runtime.executor.process.returncode is not None}
+                   "actions": runtime.executor.actions,
+                   "runtime_process_alive": runtime.executor.process is not None
+                   and runtime.executor.process.returncode is None}
         (output / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
         print(json.dumps(summary, ensure_ascii=False), flush=True)
         if runtime.last_result["status"] not in {"succeeded", "cancelled"} and not args.dry_run:

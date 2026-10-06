@@ -10,13 +10,13 @@
 
 ## 文件边界
 
-- `boxagent/pets/catalog.py`：公开目录、按需下载、校验、本地缓存、选择持久化。
-- `boxagent/pets/network.py`：限定商店域名的 HTTPS 访问与 DNS 恢复。
-- `boxagent/pets/window.py`：原生商店窗口和后台请求生命周期。
-- `boxagent/pets/surface.py`：随系统外观变化的窗口背景。
-- `boxagent/appearance/codex_pets.py`：后台图集准备、主线程视图装配、状态播放和透明行回退。
-- `boxagent/desktop.py`：菜单入口与事务式视图更换。
-- `boxagent/__main__.py`：启动形象恢复。
+- `boxagent/interfaces/macos/pets/catalog.py`：公开目录、按需下载、校验、本地缓存、选择持久化。
+- `boxagent/interfaces/macos/pets/network.py`：限定商店域名的 HTTPS 访问与 DNS 恢复。
+- `boxagent/interfaces/macos/windows/pet_store.py`：原生商店窗口和后台请求生命周期。
+- `boxagent/interfaces/macos/pets/surface.py`：随系统外观变化的窗口背景。
+- `boxagent/interfaces/macos/pets/appearance.py`：后台图集准备、主线程视图装配、状态播放和透明行回退。
+- `boxagent/interfaces/macos/app.py`：菜单入口与事务式视图更换。
+- `boxagent/entrypoints/desktop.py`：桌面进程入口；`boxagent/bootstrap/desktop.py` 负责生产装配。
 
 沿用 BoxAgent 的动画帧表、帧率与状态映射。V1 为 8 列 9 行，V2 为 8 列 11 行，每格 192×208。透明动画行回退待机，透明朝向格保留正常动画；待机行完全透明时拒绝使用。
 

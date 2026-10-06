@@ -2,18 +2,25 @@
 
 import asyncio
 import json
+import tempfile
 import traceback
 import time
+from pathlib import Path
 
 import AppKit as AK
-from Foundation import NSRunLoop, NSDate
+from Foundation import NSRunLoop, NSDate, NSIndexSet
 from PyObjCTools import AppHelper
 
-import boxagent.desktop as host
-from boxagent.appearance.codex_pets import CodexPetsAppearance
-from boxagent.config import DATA, DEFAULT_PET
-from boxagent.domain import Snapshot
-from boxagent.runtime import Runtime
+import boxagent.interfaces.macos.app as host
+from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
+from boxagent.infrastructure.persistence import SkillFileRepository
+from boxagent.application.assistant import BoxAgentApplication
+from boxagent.bootstrap.settings import load_settings
+from boxagent.core.states import Snapshot
+from boxagent.domain.skill import SkillService
+from boxagent.interfaces.macos.inprocess_bridge import BackendBridge
+from boxagent.interfaces.macos.windows.memory import MemoryDashboardWindow
+from boxagent.interfaces.macos.windows.skills import SkillManagerWindow
 
 
 class PreviewExecutor:
@@ -28,13 +35,74 @@ class PreviewExecutor:
         pass
 
 
+class PreviewMemory:
+    def __init__(self):
+        self.nodes = [
+            {"id": "memory-1", "type": "EVENT", "content": "用户喜欢简洁直接的回答",
+             "timestamp": "2026-10-05T10:00:00", "source": "voice_explicit"},
+            {"id": "memory-2", "type": "EVENT", "content": "正在开发 BoxAgent 记忆看板",
+             "timestamp": "2026-10-05T10:05:00", "source": "explicit"},
+            {"id": "episode-1", "type": "EPISODE", "content": "BoxAgent 产品开发",
+             "timestamp": "2026-10-05T10:04:00", "source": "jev"},
+        ]
+        self.edges = [
+            {"id": "edge-1", "source": "memory-1", "target": "memory-2",
+             "type": "TEMPORAL", "subtype": "PRECEDES"},
+            {"id": "edge-2", "source": "memory-2", "target": "episode-1",
+             "type": "SEMANTIC", "subtype": "PART_OF"},
+        ]
+
+    async def inspect(self, *, query="", selected_id=None, node_limit=100, edge_limit=200):
+        if selected_id:
+            edges = [edge for edge in self.edges
+                     if selected_id in (edge["source"], edge["target"])]
+            ids = {selected_id}
+            for edge in edges:
+                ids.update((edge["source"], edge["target"]))
+            nodes = [node for node in self.nodes if node["id"] in ids]
+        else:
+            nodes = [node for node in self.nodes
+                     if not query or query.casefold() in node["content"].casefold()]
+            nodes.sort(key=lambda node: node.get("timestamp") or "", reverse=True)
+            ids = {node["id"] for node in nodes}
+            edges = [edge for edge in self.edges
+                     if edge["source"] in ids and edge["target"] in ids]
+        return {"nodes": nodes[:node_limit], "edges": edges[:edge_limit],
+                "selected_id": selected_id, "truncated": False,
+                "statistics": {"node_count": len(self.nodes), "edge_count": len(self.edges),
+                               "matched_count": len(nodes),
+                               "node_types": {"EVENT": 2, "EPISODE": 1},
+                               "link_types": {"TEMPORAL": 1, "SEMANTIC": 1}}}
+
+    async def forget(self, memory_ids):
+        deleted = [node for node in self.nodes if node["id"] in memory_ids]
+        self.nodes = [node for node in self.nodes if node["id"] not in memory_ids]
+        return {"deleted": deleted, "missing": [], "memory_count": len(self.nodes)}
+
+    async def close(self):
+        pass
+
+
 def main():
-    output = DATA / "ui-check"
+    app_settings = load_settings()
+    output = app_settings.data_dir / "ui-check"
     output.mkdir(parents=True, exist_ok=True)
-    host.DATA = output
-    host.LOG_DIR = output
-    backend = host.Backend(lambda publish: Runtime(publish, lambda _id: PreviewExecutor(), None))
-    desktop = host.Desktop.alloc().init().configure(backend, CodexPetsAppearance(DEFAULT_PET))
+    skill_sandbox = tempfile.TemporaryDirectory(prefix="boxagent-skill-ui-")
+    skill_service = SkillService(SkillFileRepository(
+        builtin_root=app_settings.builtin_skills_dir,
+        user_root=Path(skill_sandbox.name) / "skills"))
+    backend = BackendBridge(lambda publish: BoxAgentApplication(
+        publish, lambda _id: PreviewExecutor(), None, memory_backend=PreviewMemory(),
+        skill_service=skill_service),
+        log_dir=output)
+    desktop = host.Desktop.alloc().init().configure(
+        backend, CodexPetsAppearance(app_settings.default_pet,
+            contract_path=app_settings.root / "assets/pet/atlas-contract.json"),
+        data_dir=output,
+        memory_dashboard_factory=lambda owner:
+            MemoryDashboardWindow.alloc().init().configure(owner),
+        skill_manager_factory=lambda owner:
+            SkillManagerWindow.alloc().init().configure(owner))
     app = AK.NSApplication.sharedApplication()
     app.setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
     app.setDelegate_(desktop)
@@ -72,7 +140,8 @@ def main():
         print(json.dumps(result, ensure_ascii=False), flush=True)
         # terminate_ 会直接以 0 退出进程；先清理再停事件循环，让失败返回非零。
         desktop.applicationShouldTerminate_(app)
-        app.stop_(None)
+        skill_sandbox.cleanup()
+        AppHelper.stopEventLoop()
 
     def idle():
         app.setAppearance_(AK.NSAppearance.appearanceNamed_(AK.NSAppearanceNameAqua))
@@ -98,7 +167,8 @@ def main():
 
     def running():
         desktop.tick_(None)
-        check(backend.runtime.executor.goal == "帮我打开音乐，播放一首钢琴曲", "回车提交原样到达执行器")
+        check(backend.application.executor.goal == "帮我打开音乐，播放一首钢琴曲",
+              "回车提交原样到达执行器")
         check(desktop.input.stringValue() == "", "接受任务后清空已提交文字")
         check(not desktop.cancel_button.isHidden(), "运行时显示停止按钮")
         desktop.input.setStringValue_("保留这份下一步草稿")
@@ -171,6 +241,62 @@ def main():
         desktop.context_until = 0
         desktop.tick_(None)
         check(not desktop.context_bubble.isVisible(), "摘要到期自动消失")
+        titles = [item.title() for item in desktop.menu.itemArray()]
+        check("记忆看板…" in titles, "菜单栏提供记忆看板入口")
+        check("Skill 管理…" in titles, "菜单栏提供 Skill 管理入口")
+        desktop.showMemoryDashboard_(None)
+        later(dashboard)
+
+    def dashboard():
+        window = desktop.memory_dashboard
+        check(window.window.isVisible(), "记忆看板以独立原生窗口打开")
+        check(len(window.items) == 3, "看板加载脱敏记忆列表")
+        check(window.selected_node["id"] == "memory-2", "默认选择最新记忆")
+        check(len(window.graph.snapshot["nodes"]) == 3, "选中节点显示一跳邻居")
+        check("memory-2" in window.detail.string(), "详情展示精确记忆 ID")
+        window.window.displayIfNeeded()
+        NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(.2))
+        render(window.window.contentView(), output / "memory-dashboard.png")
+        result["screenshots"].append("memory-dashboard")
+        desktop.showSkillManager_(None)
+        later(skill_manager)
+
+    def skill_manager():
+        window = desktop.skill_manager
+        check(window.window.isVisible(), "Skill 管理以独立原生窗口打开")
+        check(any(item["source"] == "builtin" for item in window.items),
+              "Skill 管理加载内置 Skill")
+        window.newSkill_(None)
+        window.skill_id.setStringValue_("ui-preview")
+        window.name.setStringValue_("UI Preview")
+        window.description.setStringValue_("验证 Skill 编辑界面")
+        window.instructions.setString_("只用于本地 UI 冒烟验证。")
+        window.save_(None)
+        later(skill_saved)
+
+    def skill_saved():
+        window = desktop.skill_manager
+        created = next((item for item in window.items
+                        if item["skill_id"] == "ui-preview"), None)
+        check(created is not None, "Skill 管理可新建用户 Skill")
+        check(created["instructions"] == "只用于本地 UI 冒烟验证。",
+              "Skill 正文通过 UI 完整落盘和回读")
+        row = next(index for index, item in enumerate(window.items)
+                   if item["skill_id"] == "ui-preview")
+        window.table.selectRowIndexes_byExtendingSelection_(
+            NSIndexSet.indexSetWithIndex_(row), False)
+        window._select(window.items[row])
+        check(window.skill_id.stringValue() == "ui-preview",
+              "Skill ID 在深色模式编辑器中可回读")
+        check(window.name.stringValue() == "UI Preview",
+              "Skill 名称在深色模式编辑器中可回读")
+        check(window.save_button.attributedTitle().string() == "保存",
+              "Skill 操作按钮标题可见")
+        window.window.displayIfNeeded()
+        NSRunLoop.currentRunLoop().runUntilDate_(
+            NSDate.dateWithTimeIntervalSinceNow_(.2))
+        render(window.window.contentView(), output / "skill-manager.png")
+        result["screenshots"].append("skill-manager")
         finish()
 
     AppHelper.callLater(.8, lambda: later(idle))
