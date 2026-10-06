@@ -2156,5 +2156,12 @@ second thread_state=reused, injected_count=2
 ### 当前边界
 
 Phase 4A–4C 已实现并通过确定性与真实链路验证。Phase 4D 当前只有基础案例，尚未建立规模化
-中文质量集、precision/duplicate/p95 指标和跨版本长期漂移报告。当前更改尚未 commit 或 push；
-提交前仍需 compile、diff、凭据扫描和最终工作树审查。
+中文质量集、precision/duplicate/p95 指标和跨版本长期漂移报告。
+
+最终审查执行了 164 项测试、`compileall`、`git diff --cached --check`、161 个 staged 文件的
+凭据字面量扫描和大文件扫描，均通过；真实 `.env.local` 保持 Git ignored。实现提交为
+`6b5d2de refactor: rebuild agent architecture and memory system`。随后执行
+`git push -u origin zl_dev`，GitHub 返回当前账号 `LeonCheung033` 对
+`kono-dada/BoxAgent` 没有写权限（HTTP 403）；HTTPS 与 SSH 均解析为同一账号，且该账号下不存在
+可直接推送的 `BoxAgent` fork。本轮没有擅自创建 fork、修改远端或权限，提交已安全保留在本地
+`zl_dev` 分支，推送需仓库授权或用户指定可写远端。
