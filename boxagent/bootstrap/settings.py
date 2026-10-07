@@ -153,7 +153,7 @@ def load_settings(*, log_dir=None) -> Settings:
                          or ROOT / ".runtime/aoq-sdk/1.3.0/frameworks").expanduser().resolve(),
         aoq_work_dir=Path(read_optional_setting("BOXAGENT_AOQ_WORK_DIR")
                           or data / "runtimes/aoq").expanduser().resolve(),
-        task_provider=os.environ.get("BOXAGENT_TASK_PROVIDER", "codex"),
+        task_provider=os.environ.get("BOXAGENT_TASK_PROVIDER", "deepseek"),
         task_model=os.environ.get("BOXAGENT_TASK_MODEL", "gpt-5.6-luna"),
         deepseek_model=os.environ.get("BOXAGENT_DEEPSEEK_MODEL", "deepseek-flash"),
         deepseek_base_url=os.environ.get("BOXAGENT_DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
