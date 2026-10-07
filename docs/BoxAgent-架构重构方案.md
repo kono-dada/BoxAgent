@@ -1,709 +1,433 @@
-# BoxAgent 架构重构方案
+# BoxAgent 当前系统架构
 
-## 当前结论
+## 1. 总体结论
 
-BoxAgent 不应直接复制 MiraJelly 的 Electron、Swift、Python 三栈和数百个模块，而应复制它最有效的架构纪律：明确宿主与引擎边界、唯一装配点、单一生命周期所有者、typed contract、不可变快照、可追溯证据和自动化依赖检查。
+BoxAgent 是一个由 **macOS Host** 与 **Agent Engine** 组成的本地桌面 Agent 系统。
 
-2026-10-06 已按“内部直接重写、不保留新旧兼容层”的原则完成 Kratos/DDD 风格目录迁移和生产切换。顶层边界固定为 `application/`、`domain/`、`agent/`、`infrastructure/`、`interfaces/`、`bootstrap/` 与 `entrypoints/`；旧根级模块以及 `features/`、`adapters/`、`ui/`、`runtime/`、`harness/`、`engine/` 不再保留 Python 兼容入口。
+1. macOS Host 负责用户界面与操作系统集成。
+   1. 持有 AppKit 窗口、菜单栏、桌宠形象和系统通知。
+   2. 监督 Agent Engine 进程，并在开发模式下支持后端热重启。
+   3. 不直接创建模型、记忆或 Computer Use 实现。
+2. Agent Engine 负责业务能力与模型运行时。
+   1. 持有 Product Session、Qwen Realtime、桌面任务、Jev-Mem、Skill 和本地感知服务。
+   2. 通过 Unix Domain Socket 与 Host 通信。
+   3. 通过 `BoxAgentApplication` 统一管理启动、运行与关闭。
+3. 两类 Runtime 分工明确。
+   1. Qwen Realtime 是前台交互 Runtime，负责文字、语音、普通聊天和任务委托。
+   2. Codex Task Runtime 是后台执行 Runtime，负责规划、调用 Computer Use 工具和验证结果。
+4. 三类持久状态相互独立。
+   1. Product Session 保存用户可见的会话事实。
+   2. Jev-Mem 保存跨 Session 的长期记忆。
+   3. Notification Outbox 保存尚未完成送达的后台结果。
+5. 依赖方向固定为：
 
-Agent Engine 已拆为独立本地进程：macOS Host 持有 AppKit 窗口、进程监督和 IPC 客户端；Engine 持有 `BoxAgentApplication`、Domain Services、Harness、Runtime、Memory、Interaction 与 Perception。两者使用 Unix Socket 上的版本化 JSONL 协议，后端可在不结束 UI 的情况下重启。
+$$
+\text{Entrypoints} \rightarrow \text{Bootstrap} \rightarrow
+\{\text{Application},\text{Domain},\text{Agent}\}
+\leftarrow \text{Infrastructure}
+$$
 
-首次启动、配置检查、开发者自动跳过和后续能力修复由 Host 侧 BootCoordinator 负责，不新增第三个初始化进程。详细方案见 [BoxAgent Onboarding 与启动就绪设计](./BoxAgent-Onboarding-与启动就绪设计.md)。
+| 结论 | 当前实现 |
+| --- | --- |
+| UI 与后端隔离 | Host 与 Engine 为两个本地进程 |
+| 会话唯一来源 | append-only JSONL Product Session Event Log |
+| 长期记忆唯一 Store | Jev-Mem |
+| 后台任务执行 | 串行队列，避免多个任务同时争抢桌面 |
+| 模型扩展方式 | Provider-neutral Runtime Contract + Model Profile |
+| 具体实现装配 | 只在 `bootstrap/` 创建生产实现 |
+| Engine 通信 | 权限为 `0600` 的本地 Unix Socket JSONL 协议 |
+| 当前安全边界 | Codex 沙箱为只读，但授权的 Computer Use 工具可以改变应用状态 |
 
-开发阶段的数据底座保持本地优先：Conversation 已改用 BoxAgent 自有 append-only JSONL Session Event Log，旧 SQLite Conversation prototype 已删除；Jev-Mem 继续使用本地图、向量和关键词索引。当前不引入 Docker、云数据库或跨设备同步。
+## 2. 核心术语
 
-| 项目 | 当前状态 | 本方案目标 |
-|---|---|---|
-| UI 与运行时 | `interfaces/macos/` 通过 Engine Bridge 跨进程调用 Application，并消费 ViewState | 后续把当前字符串事件升级为完整 typed envelope |
-| 任务执行 | Harness 已拆分 Agent Runtime、Tool Gateway、Context、Persona 与 Result Policy；已接入 Conversation 原生历史、动态环境和有界 Memory Evidence | 后续引入严格的 as-of Memory Snapshot 以冻结单次长任务的读取边界 |
-| 模型扩展 | Codex Runtime 通过 Registry 选择 OpenAI/DeepSeek Model Profile；Qwen Voice 独立 | 增加 Capability 描述和可用性探测 |
-| 生命周期 | Engine 内 `BoxAgentApplication` 统一持有服务与长驻 `CodexRuntimeHost`，并按序关闭 | 增加 quiesce、失败聚合与重试状态 |
-| 上下文 | JSONL Session Store、手动 Session、Qwen/Codex 原生历史、Runtime Binding、Codex warm/resume/cold、Qwen Summary Checkpoint、动态 Environment Evidence 与通知回执已接入 | 增加上下文质量与 KV cache 指标 |
-| 长期记忆 | Jev-Mem-first 单一 Store、Final User Message durable ingestion、Profile/Narrative、L2/L3 召回、精确删除和原生看板已接入 | 扩大质量集、冲突消歧与多设备同步研究 |
-| Skill | BoxAgent 已拥有本地 Catalog、CRUD、启停状态、原生管理页与 Codex Runtime 投影；默认只允许受管 Skill | 增加 ZIP/Git 导入、依赖检查与版本升级 |
-| 数据部署 | Conversation JSONL + 本地 Jev-Mem cache + BoxAgent 专用 Codex Home | 云数据库、同步与多人分析 deferred |
-| 状态 | 可变 `Snapshot` + 裸字符串 | typed Event + 独立状态机 + UI Projection |
-| 架构约束 | 自动化测试与 AST 门禁覆盖目录、依赖方向、生产构造点、子进程位置和薄入口 | 后续随新增能力扩展门禁 |
+| 术语 | 定义 |
+| --- | --- |
+| Host | macOS 原生宿主进程，负责 UI、系统权限入口与 Engine 监督 |
+| Engine | 独立 Python 后端进程，负责应用服务、领域逻辑、Runtime 和持久化 |
+| Runtime | 执行模型交互循环的适配器；当前包括 Qwen Realtime 与 Codex Task Runtime |
+| Harness | 将用户请求、会话历史、记忆、环境和工具策略编译成 Runtime 请求的控制层 |
+| Product Session | BoxAgent 自己管理的一段用户会话，是跨 Runtime 的共同上下文边界 |
+| Interaction | 一条 Final User Message 引发的一次完整交互，可包含回答、工具调用或后台任务 |
+| Task | 需要后台执行的操作单元，拥有独立 `task_id`、状态、轨迹和终态 |
+| Domain | 不依赖具体模型、UI 或存储实现的业务规则 |
+| Port | Domain 或 Agent 声明的抽象能力接口，Python 中主要使用 `Protocol` 表达 |
+| Adapter | Infrastructure 对 Port 的具体实现，例如 Qwen、Codex、Jev-Mem 或 JSONL Store |
+| Composition Root | 创建具体实现并连接依赖的唯一位置；当前位于 `bootstrap/` |
+| Projection | 从持久事实计算出的可重建视图，例如 UI Snapshot 与 User Profile |
+| Outbox | 先持久化、后投递的通知队列，用于保证后台结果不会因断线丢失 |
 
-## 目标与边界
-
-### 目标
-
-1. 允许独立替换语音模型、Agent Runtime、Computer Use 实现、长期记忆后端和本地感知模型。
-2. 支持语音对话与后台任务并行，不由一个全局状态字符串互相覆盖。
-3. 建立可恢复、可压缩、可审计的会话上下文与长期记忆链路。
-4. 让每个后台进程、线程、模型和长任务都有唯一生命周期所有者。
-5. 为未来机箱屏幕、移动端或其他客户端复用同一个 Agent Engine。
-6. 用确定性 contract test 验证模块边界、状态转换、持久化和降级，而不只验证文件中存在某段代码。
-
-### 本轮边界
-
-- 第一阶段不迁移 Electron、Swift 或 Web 前端。
-- Agent Engine 使用本机 Unix Socket，不暴露 HTTP 端口。
-- 开发阶段不引入 Docker、云数据库或远程同步服务。
-- 不自动将所有聊天、截图或音频写入长期记忆。
-- 不把 Jev-Mem 图中的关系当作事实真相；图首先是检索与导航索引。
-- 不在架构重构中同时实现完整主动性系统。
-
-## 现状证据
-
-截至 2026-10-05，本地 BoxAgent Python 源码约 3,544 行，测试约 995 行。主要复杂度集中在：
-
-| 文件 | 约行数 | 当前职责 |
-|---|---:|---|
-| `boxagent/desktop.py` | 642 | AppKit 组件、窗口、菜单、输入、状态投影、后台桥和退出 |
-| 重构前 `boxagent/executor.py` | 477 | Codex 进程、Computer Use、工具网关、审批、日志、结果校验、生命周期 |
-| `boxagent/memory_window.py` | 316 | 记忆读取、搜索、关系图、详情、删除和 AppKit 布局 |
-| `boxagent/runtime.py` | 283 | Voice、Task、Memory、审批、Context Observer 和全局状态 |
-| `boxagent/voice.py` | 246 | Qwen 协议、音频、实时状态、工具调度和交付仲裁 |
-
-MiraJelly 的可借鉴证据包括：
-
-- `engine/nerajelly_engine/feature_composition.py` 只负责生产装配。
-- `feature_lifecycle.py` 为后台服务、线程 Worker、retention loop 和模型资源提供统一生命周期。
-- Chat、Voice、Capture 各自拥有 composition owner，避免服务在多个位置重复构造。
-- `MemorySnapshot(as_of, revision)` 固定一次 Assistant Turn 能看到的记忆边界。
-- 记忆文档是 canonical source，文本向量、视觉向量、实体图和精确索引是平行派生。
-- AST 检查限制反向依赖、重复构造、未登记进程启动和生命周期越权。
-
-同时，MiraJelly 的 `app/electron/main.ts` 已约 5,530 行，说明“存在 composition 模块”并不会自动阻止入口膨胀。BoxAgent 需要更严格地限制入口文件只做装配。
-
-## 架构原则
-
-### 1. 稳定逻辑边界支撑物理拆分
-
-模块之间通过 Contract、Command 和 Event 交互。这些边界现已映射到 Unix Socket 协议，Domain Service 不感知 UI 是同进程还是跨进程调用。
-
-### 2. Composition Root 是唯一具体实现创建者
-
-`bootstrap/desktop.py` 是 Host 根装配点，`bootstrap/engine.py` 是 Engine 根装配点；
-`bootstrap/memory.py` 是 Engine 下的 Memory 子装配点。只有 Bootstrap 边界可以创建对应进程的生产实现：
-
-- Qwen Voice Adapter；
-- Codex Agent Runtime 与 OpenAI/DeepSeek Model Profile；
-- Computer Use Transport；
-- Jev-Mem Worker；
-- JSONL Session Store；
-- UI Controller；
-- 后台观察 Worker。
-
-Domain Service 只依赖自身模型与 Contract，不读取环境变量，也不自行启动子进程。`models.py` 表示领域数据，`contracts.py` 表示该领域向外需要的能力，`service.py` 注入并调用这些 Contract 来实现用例；Infrastructure 提供具体实现，Bootstrap 负责连线。
-
-### 3. Command、Event、State 分离
-
-- Command 表示用户或系统希望发生的事情，例如 `StartTask`。
-- Event 表示已经发生的事实，例如 `TaskAccepted`。
-- State 是 Event 的投影，不作为事实来源。
-
-UI 不直接修改 Runtime 字段，只发送 Command；UI 显示由 `ViewStateProjector` 生成。
-
-### 4. 原始数据与派生数据分离
-
-- 最终对话 Turn 与 Task Result 是不可变来源证据；Jev-Mem Store 是被接纳长期记忆的唯一状态。
-- Checkpoint、Profile、Embedding、检索排序和 UI ViewState 是可重建派生物；Jev-Mem 内部关系与索引属于同一 Store 的物化结构。
-- 派生失败不能破坏原始记录。
-
-### 5. 每个资源只有一个 Owner
-
-每个进程、线程、WebSocket、音频设备、后台 Task 和数据库连接必须明确：
-
-- 谁创建；
-- 谁允许提交新工作；
-- 谁发出停止信号；
-- 谁等待物理退出；
-- 启动中途失败时谁回收。
-
-## 目标系统架构
+## 3. 系统全景
 
 ```mermaid
 flowchart TB
-    subgraph ENTRY[Entrypoints + Bootstrap]
-        DESKTOP_ENTRY[desktop entrypoint]
-        ENGINE_ENTRY[engine entrypoint]
-        DESKTOP_BOOT[desktop composition]
-        ENGINE_BOOT[engine composition]
+    subgraph HOST[macOS Host Process]
+        UI[AppKit UI]
+        MENU[菜单 / 快捷键 / 系统通知]
+        BRIDGE[Engine Bridge]
+        SUP[Engine Supervisor]
     end
 
-    subgraph INTERFACES[Interfaces]
-        MACOS[macOS AppKit UI]
-        IPC[Engine JSONL IPC]
+    subgraph ENGINE[Agent Engine Process]
+        APP[BoxAgentApplication]
+
+        subgraph DOMAIN[Domain Services]
+            CONV[Conversation]
+            INTERACTION[Interaction]
+            EXEC[Execution]
+            MEMORY[Memory]
+            NOTIFY[Notification]
+            SKILL[Skill]
+            PERCEPTION[Perception]
+        end
+
+        subgraph AGENT[Agent Layer]
+            HARNESS[Harness]
+            PORTS[Runtime Contracts]
+        end
+
+        subgraph INFRA[Infrastructure]
+            QWEN[Qwen Realtime / AOQ]
+            CODEX[Codex App Server]
+            CU[Computer Use]
+            JEV[Jev-Mem Worker]
+            VLM[MLX Vision Worker]
+            JSONL[(Local JSON / JSONL)]
+        end
     end
 
-    subgraph APP[Application]
-        ASSISTANT[BoxAgentApplication<br/>use-case coordination + lifecycle]
-        CHECKPOINT[Context Checkpoint Coordinator]
-        MEMORYAPP[Memory Module facade]
-    end
+    UI <--> BRIDGE
+    MENU --> BRIDGE
+    BRIDGE <--> |Unix Socket JSONL| APP
+    SUP --> ENGINE
 
-    subgraph DOMAIN[Domain]
-        CONV[Conversation]
-        EXEC[Execution]
-        INTERACT[Interaction]
-        MEM[Memory]
-        SKILL[Skill]
-        PERCEPTION[Perception]
-    end
-
-    subgraph AGENT[Agent]
-        HARNESS[Harness<br/>context + persona + policy]
-        PORT[Runtime contracts + model profiles]
-    end
-
-    subgraph INFRA[Infrastructure]
-        CODEX[Codex App Server Runtime]
-        QWEN[Qwen Realtime]
-        JMEM[Jev-Mem Worker]
-        VLM[Local VLM Worker]
-        STORE[(JSONL repositories)]
-    end
-
-    DESKTOP_ENTRY --> DESKTOP_BOOT --> MACOS
-    ENGINE_ENTRY --> ENGINE_BOOT --> IPC
-    MACOS <--> IPC
-    IPC --> ASSISTANT
-    ASSISTANT --> CHECKPOINT
-    ASSISTANT --> MEMORYAPP
-    ASSISTANT --> DOMAIN
-    EXEC --> HARNESS --> PORT
-    ENGINE_BOOT --> CODEX
-    ENGINE_BOOT --> QWEN
-    ENGINE_BOOT --> JMEM
-    ENGINE_BOOT --> VLM
-    ENGINE_BOOT --> STORE
-    CODEX -. implements .-> PORT
-    QWEN --> INTERACT
-    JMEM -. implements .-> MEM
-    STORE -. implements .-> CONV
-    STORE -. implements .-> SKILL
+    APP --> DOMAIN
+    INTERACTION --> QWEN
+    EXEC --> HARNESS --> PORTS --> CODEX --> CU
+    MEMORY --> JEV
+    CONV --> JSONL
+    NOTIFY --> JSONL
+    SKILL --> JSONL
+    PERCEPTION --> VLM
 ```
 
-`Host Bridge` 与 `Agent Engine` 已通过 Unix Domain Socket 上的 JSONL Command/Response/Event 交互。Engine 异常退出或受监视源码变化时，Host 保持 AppKit 存活并拉起新 Engine。
+## 4. 进程与生命周期
 
-## 已落地目录结构
+### 4.1 启动顺序
+
+1. `boxagent.entrypoints.desktop` 启动 Host。
+   1. 读取 `Settings`。
+   2. 获取单实例文件锁。
+   3. 创建 AppKit Application。
+2. `bootstrap.desktop.create_desktop_host()` 装配 Host。
+   1. 创建桌宠形象与窗口。
+   2. 创建 `EngineBridge`。
+   3. 创建角色、记忆、Skill 与形象管理界面。
+3. `EngineSupervisor` 启动 Engine 子进程。
+   1. Engine 入口为 `boxagent.entrypoints.engine`。
+   2. 通信 Socket 位于 Product Data 目录。
+   3. Socket 文件权限设置为 `0600`。
+4. `bootstrap.engine.create_application()` 装配 Engine。
+   1. 创建 Session Store、Notification Outbox 与 Skill Repository。
+   2. 创建 Codex Runtime Host、Qwen Voice Factory 与本地感知 Worker。
+   3. 通过 `bootstrap.memory.create_memory_module()` 创建完整 Memory Module。
+   4. 创建 `BoxAgentApplication` 并注入全部服务。
+5. `BoxAgentApplication.start()` 按顺序启动资源。
+   1. 恢复 Product Session 和未封口 Interaction。
+   2. 恢复未送达通知。
+   3. 启动 Codex Runtime Host 与 Context Checkpoint Coordinator。
+   4. 启动并预热 Jev-Mem Worker。
+6. Engine 发送 `engine.ready`，Host 开始展示可交互状态。
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Host as macOS Host
+    participant Sup as Engine Supervisor
+    participant Engine as Agent Engine
+    participant App as BoxAgentApplication
+
+    User->>Host: 启动应用
+    Host->>Sup: start()
+    Sup->>Engine: 创建子进程
+    Engine->>App: create_application()
+    App->>App: 恢复 Session / Outbox
+    App->>App: 启动 Runtime / Memory
+    Engine-->>Host: engine.ready + Snapshot
+    Host-->>User: 展示桌宠与当前会话
+```
+
+### 4.2 资源所有权
+
+| 资源 | 唯一 Owner | 关闭责任 |
+| --- | --- | --- |
+| AppKit UI | macOS Host | Desktop Delegate |
+| Engine 子进程 | `EngineSupervisor` | 发送 shutdown，超时后终止进程 |
+| Unix Socket Server | `EngineServer` | 停止接收、关闭客户端、删除 Socket |
+| Qwen 连接与音频设备 | `InteractionService` | 完成输入、关闭连接和音频资源 |
+| 桌面任务与排队任务 | `ExecutionService` | 取消当前任务并清空待执行队列 |
+| Codex App Server | `CodexRuntimeHost` | 停止共享 Runtime 进程 |
+| Jev-Mem Worker | `MemoryModule` | 停止 ingestion 后关闭 Worker |
+| 屏幕总结 Worker | `PerceptionService` | 取消观察并释放模型进程 |
+
+### 4.3 并发规则
+
+1. 前台对话与后台任务可以并行。
+   1. Qwen 可以在 Codex 执行期间继续响应用户。
+   2. 后台结果通过 Outbox 独立送达。
+2. 桌面操作任务串行执行。
+   1. 当前任务运行时，新任务进入 `ExecutionService.pending`。
+   2. 当前任务终结后自动启动队首任务。
+   3. 取消操作同时取消当前任务与尚未执行的排队任务。
+3. 记忆写入与 Checkpoint 生成异步执行。
+   1. 不阻塞前台首字响应。
+   2. 每个 Session 内部串行处理，避免顺序错乱。
+
+## 5. 代码分层
+
+### 5.1 目录职责
 
 ```text
 boxagent/
-  core/
-    events.py / states.py / ids.py / errors.py
-
-  domain/
-    conversation/           # models + contracts + service
-    environment/            # 当前本地时间、周几与时区快照
-    execution/              # 后台委托执行用例
-    interaction/            # Qwen 前台交互用例与 Runtime contract
-    memory/                 # 记忆模型、策略、端口与服务
-    notification/           # 持久通知模型、Repository contract 与 Outbox
-    perception/             # 短期环境感知
-    proactivity/            # 预留决策 contract
-    skill/                  # Skill 模型、Repository contract 与服务
-
-  agent/
-    harness/                # 请求编译、上下文、人格、策略与执行器
-    runtime/                # provider-neutral contracts/models/registry
-
-  application/
-    assistant.py            # 跨 Domain 用例协调与 Engine 生命周期
-    memory.py               # 唯一对外 Memory facade
-    context_checkpoint.py   # Qwen Checkpoint 异步生成与 Segment 轮换
-    memory_ingestion.py     # facade 内部：durable Job、Jev-Mem 准入与失败重试
-    memory_context.py       # facade 内部：Stable Profile 与按需 Evidence
-    memory_profile.py       # Jev-Mem Observation → 可重建 User Profile 投影
-    memory_narrative.py     # Context Checkpoint → Jev-Mem Narrative 投影
-
-  infrastructure/
-    runtimes/codex/         # App Server、CU、Session Host、Skill 与 Context Checkpoint
-    runtimes/qwen/          # Realtime Runtime
-    memory/jev-mem/             # 仓库内置 Jev-Mem 全部生产能力与 Worker Adapter
-    environment/local_system.py
-    perception/qwen_mlx.py
-    audio/pyaudio.py
-    persistence/            # JSONL Session、Memory Job、Notification、Skill repositories
-
-  interfaces/
-    engine/                 # Unix Socket protocol/client/server/supervisor
-    macos/                  # AppKit host、Bridge、窗口、形象与菜单
-
-  bootstrap/
-    engine.py               # Engine 唯一生产装配点
-    memory.py               # Memory 内部实现的唯一生产装配点
-    desktop.py              # macOS Host 唯一生产装配点
-    settings.py             # 环境变量到不可变 Settings
-
-  entrypoints/
-    engine.py               # Engine 进程入口
-    desktop.py              # 桌面进程入口
+├── core/               # 全局 ID、状态、事件发布和通用错误
+├── domain/             # 领域模型、领域端口和领域服务
+├── application/        # 跨领域用例编排与应用级 Facade
+├── agent/
+│   ├── harness/        # 请求编译、上下文、人格和执行策略
+│   └── runtime/        # Provider-neutral Runtime Contract
+├── infrastructure/     # 模型、存储、音频、感知等 Adapter
+├── interfaces/
+│   ├── engine/         # Unix Socket API、Client、Server、Supervisor
+│   └── macos/          # AppKit 页面、菜单、桌宠和系统通知
+├── bootstrap/          # Desktop、Engine、Memory 的生产装配点
+└── entrypoints/        # 可执行进程入口
 ```
 
-该目录已完成迁移。`models.py`、`contracts.py`、`service.py` 是 Domain 内的语义角色，不要求每个能力机械地凑齐三个文件：没有领域数据就不建 `models.py`，没有外部依赖就不建 `contracts.py`。旧路径已删除，不设置兼容入口。
+| 层 | 可以依赖 | 不应依赖 |
+| --- | --- | --- |
+| `domain/` | `core/`、标准库、同领域 Contract | Infrastructure、UI、Bootstrap |
+| `application/` | Domain、Agent Contract | AppKit、具体模型 SDK |
+| `agent/` | Domain 数据与 Runtime Contract | macOS UI、具体持久化 |
+| `infrastructure/` | Domain / Agent Port | Application、Interfaces、Bootstrap |
+| `interfaces/` | Application 对外能力、Core State | 具体 Infrastructure 实现 |
+| `bootstrap/` | 全部需要装配的模块 | 业务逻辑 |
+| `entrypoints/` | Bootstrap | 具体业务实现 |
 
-仓库根目录的 `skills/builtin/` 保存随应用发布、受 Git 管理的官方 Skill；用户创建或
-导入的 Skill 保存到 `<BOXAGENT_DATA_DIR>/skills/`，不写入 `assets/` 或源码包。
-Domain Skill Service 是 Skill 状态的真相来源，Codex Runtime 仅通过
-`skills/extraRoots/set`、`skills/list` 与 `skills/config/write` 接收运行时投影。
+### 5.2 Domain 组织方式
 
-## 核心合同
+1. 每个领域按实际需要使用以下文件名。
+   1. `models.py`：领域数据结构与枚举。
+   2. `contracts.py`：领域向外部请求的 Port。
+   3. `service.py`：领域规则与状态转换。
+   4. `policy.py`：纯规则、校验和安全约束。
+2. 当前领域边界如下。
 
-### EventEnvelope
+| Domain | 核心职责 |
+| --- | --- |
+| `conversation` | Session、Product Event、Runtime Binding、Checkpoint |
+| `interaction` | Qwen 连接、前台消息与工具调用生命周期 |
+| `execution` | 后台任务接收、排队、取消和终态 |
+| `memory` | 记忆写入、检索、删除和安全规则 |
+| `notification` | 后台结果的幂等入队、认领、确认与重试 |
+| `skill` | Skill Catalog、CRUD、启停状态与校验 |
+| `environment` | 当前时间、周几和时区的可信快照 |
+| `perception` | 本地前台窗口总结状态 |
+| `proactivity` | 主动行为决策 Port，目前不承载完整实现 |
 
-所有关键链路共用关联 ID：
+## 6. 核心数据流
 
-```python
-@dataclass(frozen=True)
-class EventEnvelope:
-    event_id: str
-    event_type: EventType
-    occurred_at: float
-    correlation_id: str
-    session_id: str | None
-    turn_id: str | None
-    task_id: str | None
-    source: EventSource
-    payload: Mapping[str, JsonValue]
-```
+### 6.1 普通对话
 
-`correlation_id` 将一次用户输入、语音回答、后台 Task、Provider 调用、Computer Use 步骤和 Memory 检索连在同一条诊断链上。
+1. Host 发送 `submit_text`，或 Qwen 接收一段最终语音转写。
+2. Conversation Service 写入：
+   1. `interaction.started`；
+   2. `message.final(role=user)`。
+3. Qwen 收到当前环境与相关记忆。
+4. Qwen 生成 Final Assistant Message。
+5. Conversation Service 写入：
+   1. `message.final(role=assistant)`；
+   2. `interaction.finalized(status=succeeded)`。
 
-### Agent Runtime Port
-
-Agent Runtime 负责完成一次模型推理与工具调用循环，但不拥有产品会话、记忆或主动性状态：
-
-```python
-class AgentRuntime(Protocol):
-    async def execute(
-        self,
-        request: TaskRequest,
-        tools: Sequence[ToolSpec],
-        call_tool: ToolCaller,
-    ) -> TaskDecision: ...
-```
-
-Codex App Server 是当前唯一 Runtime 实现；OpenAI 与 DeepSeek 通过不同 Model Profile 进入同一 Port 和 Agent Loop。
-
-### ComputerUse Port
-
-```python
-class ComputerUseSession(Protocol):
-    async def start(self, context: TaskInvocationContext) -> Sequence[ToolSpec]: ...
-    async def call(self, call: ToolCall) -> ToolObservation: ...
-    async def cancel(self) -> None: ...
-    async def close(self) -> None: ...
-```
-
-当前 Computer Use Session 是 Codex Runtime 的基础设施能力，不属于 Feature，也不承担产品策略。
-
-### Memory Port
-
-```python
-class MemoryModule(Protocol):
-    async def user_message_committed(self, *, session_id: str,
-                                     interaction_id: str, event,
-                                     source_hash: str) -> None: ...
-    async def remember(self, content: str, **source) -> MemoryWriteResult: ...
-    async def recall(self, query: str, *, top_k: int = 5) -> UserRecallResult: ...
-    async def prepare_context(self, query: str, *, session_id: str,
-                              top_k: int = 5) -> MemoryContext: ...
-    async def evidence(self, query: str, *, session_id: str,
-                       top_k: int = 5) -> EvidencePack: ...
-    async def stable_profile(self) -> str: ...
-    async def snapshot(self, **filters) -> MemoryGraphSnapshot: ...
-    async def delete_node(self, memory_id: str) -> ForgetResult: ...
-    async def forget(self, memory_ids: list[str]) -> ForgetResult: ...
-    async def health(self) -> dict: ...
-```
-
-当前每次 Assistant Turn 或 Task 只获取一次有界 Evidence Pack；后续若引入长程并行读取，应把
-该读取边界显式升级为 `MemorySnapshot(as_of, revision)`，保证同一任务中观察一致。
-
-## Harness Execution
-
-目标状态机：
+### 6.2 桌面任务
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Accepted
-    Accepted --> PreparingContext
-    PreparingContext --> Planning
-    Planning --> Acting: tool call
-    Acting --> Planning: observation
-    Planning --> Validating: final answer
-    Validating --> Succeeded
-    Validating --> Blocked
-    Validating --> Failed
-    Accepted --> Cancelled
-    PreparingContext --> Cancelled
-    Planning --> Cancelled
-    Acting --> Cancelled
+sequenceDiagram
+    participant U as User
+    participant Q as Qwen Realtime
+    participant E as Execution Service
+    participant H as Harness
+    participant C as Codex Runtime
+    participant CU as Computer Use
+    participant O as Notification Outbox
+
+    U->>Q: 原始请求
+    Q->>E: run_task（不改写请求）
+    E-->>Q: accepted / queued + task_id
+    E->>H: 创建 Runtime Request
+    H->>H: 历史 + 环境 + 记忆 + Skill + Policy
+    H->>C: execute(request)
+    C->>CU: observe / click / type / scroll
+    CU-->>C: 带步骤编号的证据
+    C-->>E: completed / blocked / failed
+    E->>O: 持久化终态通知
+    O-->>U: 语音或 UI / 系统通知
 ```
 
-Task Kernel 负责：
-
-1. 固定原始用户目标和 Memory Snapshot。
-2. 通过 Context Assembler 构建任务输入。
-3. 创建 Computer Use Session。
-4. 调用 Agent Runtime。
-5. 串行执行工具并记录 Observation。
-6. 通过 Result Policy 验证 outcome 和证据引用。
-7. 发布终态 Event。
-
-Agent Runtime、Computer Use、日志和 UI 均不能自行改变 Task 状态。
-
-## Conversation、Context 与 Memory
-
-### 数据分层
-
-```mermaid
-flowchart LR
-    E[(Session events.jsonl)] --> S[Recovery Checkpoint]
-    E --> Q[Durable Ingestion Job]
-    Q --> J[(Jev-Mem Graph / Vector / Keyword)]
-    S --> N[Jev-Mem Narrative]
-    N --> J
-    J --> P[User Profile Projection]
-    E --> H[Harness]
-    S --> H
-    J --> H
-    P --> H
-    H --> R[Runtime-specific Context Builder]
-```
-
-#### Conversation
-
-- V0 允许用户手动新建、选择和恢复多个 Session。
-- 每次请求统一建模为 Interaction；Task 只是需要工具或长程执行时的内部记录，不是独立对话。
-- 不按无活动时长、前台 App 或语义阈值自动创建/切换 Session；只接受用户明确操作。
-- 短期消息和 Checkpoint 按 Session 隔离；明确保存的长期 Memory 按用户级共享，并保留来源 Session/Event 用于追溯。
-- BoxAgent 自有 JSONL Event Log 保存最终用户/Assistant 消息和 Interaction 终态。
-- 流式 delta、思维过程和工具中间输出只进入 Trace，不进入产品 Conversation。
-- 使用 Provider event ID 保证幂等。
-
-详细语义、数据模型、Runtime 恢复和验收标准见 [BoxAgent Phase 3：Conversation 与 Context 设计](./BoxAgent-Phase3-Conversation-Context-设计.md)。
-
-#### Context
-
-Harness 不生成一份供所有模型使用的大 Prompt，而是按执行路径和 Runtime 生命周期选择 Context Builder：
-
-| 执行路径 | 默认内容 |
-|---|---|
-| Codex Warm Thread | 先以 `thread/inject_items` 补齐其他 Runtime 产生的原生消息，再以 `turn/start` 发送当前用户输入 + 本轮 Environment/Memory/Perception Evidence |
-| Codex Cold Thread | 新 Thread 先注入预算内的原生 user/assistant 历史；当前轮再单独注入 Environment Evidence；未来超长历史使用 Checkpoint + 近期原生消息 |
-| Qwen Realtime 重连 | 稳定 SOUL/语音工具说明 + 有限近期最终消息；每轮 User Item 前刷新 Environment Evidence |
-| Memory Ingestion | 已落盘的单条 Final User Message 原文 + 来源 ID |
-| Proactivity Evaluation | 当前感知 + 用户授权/冷却策略 + 少量相关 Memory |
-
-Codex Prompt Stack 保持为：Runtime Base/System → Codex 运行规则 → BoxAgent Developer Instructions → 工具定义 → Thread 历史 → 当前 User Input。普通对话历史通过 `thread/inject_items` 成为原生 user/assistant messages；Environment、Memory、Perception 和其他非对话证据以有来源的显式 fence 注入，不能改变本轮目标或扩大授权。
-
-#### Memory
-
-Jev-Mem Graph/Vector/Keyword/Audit 是唯一长期记忆 Store。Product Session Event Log 保存原始
-user/assistant 对话证据，`memory/jobs/ingestion.jsonl` 只保存异步投递状态，User Profile
-只是可由 Jev-Mem 节点重建的读优化；三者职责不同，不再存在第二份 Canonical Memory 真相。
-
-长期记忆默认是用户级作用域，所有 Session 共享；Jev-Mem 节点保留来源 Session、Interaction、
-Event ID 以供追溯。`application/memory.py::MemoryModule` 是唯一对外边界；Conversation、
-Harness、Qwen、Engine IPC 与原生看板都不直接持有 Jev-Mem 内部对象。
-
-### 隐式记忆策略
-
-- 用户明确说“记住”时，Observation 带 `explicit=true`，绕过 Jev-Mem 的自动丢弃阈值，但仍经过 Secret Filter。
-- 普通 Final User Message 落盘后立即创建 durable Job，原文直接进入 Jev-Mem admission/type；Assistant 内容不会成为用户记忆来源。
-- Jev-Mem 保存 admission 分数、episodic/semantic/procedural/preference 类型、来源 Event ID、关系与索引。
-- Job 使用 `pending/running/retry_wait/completed/skipped/failed` 状态和指数退避；重启恢复未终态 Job，不阻塞前台回答。
-- Context Checkpoint 完成后投影为 `NARRATIVE` 节点；原始 Session Event 永不因 compact 或记忆写入而删除。
-- L2 用原始 Query 执行一次有时限的 `direct` retrieval；L3 由 Agent 重写或拆分 Query 后调用 `recall_memory(mode=deep)`。
-
-### Forget 语义
-
-必须区分：
-
-1. 删除长期记忆：删除 Memory Record 及所有派生索引。
-2. 删除会话记录：删除原始 Turn，并使相关 Checkpoint、Narrative 和来源投影失效。
-3. 彻底忘记：同时执行前两项，仅留下不包含正文的审计事件。
-
-## 感知与主动性边界
-
-重构前 `boxagent/context.py` 实际是窗口感知模块；现已拆为 `domain/perception` 生命周期与 `infrastructure/perception/qwen_mlx.py` 实现，不再使用泛化的“上下文管理”名称。
-
-窗口截图和 VLM 摘要默认是短期感知：
-
-- 截图处理完成后删除。
-- 摘要只进入当前 Context，不默认进入 Conversation 或 Memory。
-- 只有用户确认或明确的产品策略允许时，才把感知内容转换为带来源的 Jev-Mem Observation；V0 不自动保存感知内容。
-- 未来主动性模块只能消费经过权限、隐私、时效和来源治理的 Observation。
-
-## UI 边界
-
-`Desktop` 应逐步退化为窗口编排器，不承担业务流程：
-
-```mermaid
-flowchart LR
-    VIEW[AppKit View] --> CMD[Typed Command]
-    CMD --> BRIDGE[Backend Bridge]
-    BRIDGE --> ENGINE[Application / Domain Service]
-    ENGINE --> EVT[Typed Event]
-    EVT --> PROJ[ViewState Projector]
-    PROJ --> VIEW
-```
-
-记忆看板只调用 `MemoryDashboardService`，不直接读取 Jev-Mem 文件。会话历史只调用 `ConversationQueryService`。删除确认属于 UI，删除一致性属于 Memory Service。
-
-## 生命周期设计
-
-启动顺序建议：
-
-1. 配置与数据目录校验。
-2. JSONL Session Store 初始化与尾行恢复。
-3. Event Bus 与 Domain Service。
-4. Worker Supervisor；Worker 可以 lazy start。
-5. Host Bridge 与 UI。
-6. 可选的后台观察和预热。
-
-停止顺序：
-
-1. `quiesce`：拒绝新 Voice、Task 和 Worker 请求。
-2. 取消或结束活动 Task。
-3. 停止感知 producer，避免继续唤醒 consumer。
-4. 关闭 Voice Transport（AOQ 或 WebSocket）和音频设备。
-5. flush Conversation、Memory 和诊断事件。
-6. 停止 Jev-Mem/VLM/Computer Use 子进程。
-7. 关闭数据库和 UI Bridge。
-
-所有 stop 必须幂等，并区分“已发停止信号”和“进程已经退出”。关闭失败不能被静默吞掉，应记录稳定错误码并允许再次执行 stop。
-
-## 配置与 Capability Registry
-
-环境变量应只在 bootstrap 读取，转换成不可变 Settings：
-
-```python
-@dataclass(frozen=True)
-class Settings:
-    task_provider: TaskProvider
-    task_model: str
-    voice_provider: VoiceProvider
-    memory_backend: MemoryBackend
-    conversation_db: Path
-```
-
-Registry 根据 Settings 产生 Capability 描述，UI 依据 Capability 决定功能是否可用，而不是依据显示文案或捕获异常猜测。
-
-Provider 注册表至少覆盖：
-
-- Agent Runtime Provider；
-- Voice Provider；
-- Memory Backend；
-- Perception Backend；
-- Computer Use Backend。
-
-第一阶段使用显式静态 registry，不需要动态插件加载。
-
-## 存储设计
-
-V0 的 Conversation 采用本地 append-only JSONL，而不是先建立 SQLite canonical tables：
-
-```text
-.runtime/pet/conversations/
-├── index.json
-└── sessions/<session-id>/
-    ├── metadata.json
-    ├── events.jsonl
-    ├── checkpoint.json
-    └── runtime-bindings.json
-```
-
-`events.jsonl` 保存用户可见的最终消息和 Interaction 终态；底层工具步骤、截图、thinking 和 RPC 进入独立 Trace。`checkpoint.json` 和 `runtime-bindings.json` 是可重建状态，采用临时文件 + 原子替换。Jev-Mem 自有缓存继续位于独立目录。
-
-BoxAgent 不直接解析 Codex 的 rollout JSONL。Codex Thread 通过 App Server 的 `thread/start/read/resume` 管理；BoxAgent Event Log 用于统一 Codex、Qwen 和未来其他 Runtime 的产品会话。
-
-当出现多用户并发、复杂全文查询、云端同步或分析需求时，可以增加 SQLite/Postgres 派生索引或替换 Store Adapter，而不改变 Conversation/Harness 合同。
-
-持久数据统一从 `BOXAGENT_DATA_DIR` 派生：源码开发默认使用仓库内已忽略的 `.runtime/pet/`，正式 macOS App 使用 `~/Library/Application Support/BoxAgent/`。Conversation、Jev-Mem 和 Codex Thread 不随 `--log-dir` 改变；后者只控制可轮转诊断数据。
-
-Codex 使用 `<BOXAGENT_DATA_DIR>/runtimes/codex-home/` 作为专用 Runtime Home。BoxAgent 按 Session 保存当前 Runtime Binding，包括 Thread ID、Provider、模型和指令/工具配置版本；模型或 Persona 变化时优先继续原 Thread，只有无法恢复或 Runtime 不兼容时才替换 Thread。所有生命周期操作通过 App Server 的 `thread/read/resume/archive/delete` 完成，不直接解析或修改 Codex rollout JSONL。`BOXAGENT_CODEX_BIN` 继续独立指定 Runtime 可执行文件，避免将二进制发现与 Runtime 数据路径耦合。
-
-Codex 自带的本地 Memories 与 Thread rollout 是两套状态。V0 默认关闭 BoxAgent 专用 `CODEX_HOME` 中的 Codex Memories：Codex Thread 负责 Session 内连续上下文，Jev-Mem 负责跨 Session 长期记忆，避免两套系统重复提取、重复注入和删除语义冲突。后续可将 Codex Memories 作为独立 Memory Backend 做对照实验，但不作为 Phase 3 的确定性依赖。
-
-## 可观测性
-
-每次调用至少记录：
-
-- correlation/session/turn/task ID；
-- Provider 与模型；
-- Context 各部分字符/token 预算；
-- Memory Snapshot revision；
-- 检索 route、候选数、最终 Evidence ID；
-- Runtime round、Tool step、终态与延迟；
-- 是否发生 fallback；
-- 内容字段经过脱敏，不记录密钥、完整截图或音频。
-
-“调用成功”与“任务完成”必须是不同指标。Computer Use 的点击成功不能替代最终状态验证。
-
-## 测试与架构门禁
-
-### Contract tests
-
-| 合同 | 必须覆盖 |
-|---|---|
-| Agent Runtime | 工具 schema、非法调用、取消、最终 JSON、证据引用 |
-| Computer Use | 启动、工具发现、串行操作、关闭、部分启动失败 |
-| Conversation | 重启恢复、手动 Session 创建/切换、跨 Session 隔离、Turn 去重、摘要范围 |
-| Context | 预算、fencing、当前目标优先、恶意历史文本 |
-| Memory | snapshot 一致性、来源、删除、backend fallback |
-| Lifecycle | 重复 start/stop、启动中取消、关闭失败重试 |
-| UI Projection | Voice 与 Task 并行时的展示优先级 |
-
-### 架构检查
-
-新增只读 AST 检查，至少禁止：
-
-- `interfaces/` 直接导入具体 Provider、Jev-Mem Worker 或 Computer Use 进程实现；
-- `domain/`、`agent/` 或 `application/` 读取环境变量或创建子进程；
-- 非 bootstrap 模块构造生产级核心 Service；
-- 非 lifecycle/worker supervisor 模块调用子进程启动；
-- Infrastructure 反向导入 Application 或 Interfaces；
-- 新代码导入兼容期的旧 `Runtime` 内部实现。
-
-## 分阶段重写
-
-### Phase 0：冻结合同与特征测试
-
-状态：已完成现有行为的特征测试与全仓架构门禁；typed EventEnvelope 已定义，但现有 UI 状态流仍使用轻量事件字典。
-
-- 为当前 Voice、Task、Memory、UI 状态行为补 characterization tests。
-- 定义 Event、Command、错误码、状态枚举和核心 Port。
-- 新增架构检查，但先只约束新增目录。
-- 不改变用户可见行为。
-
-验收：现有测试全部通过；新旧接口输出一致；没有真实外部写操作。
-
-### Phase 1：拆 Task Execution Kernel
-
-状态：已实现并通过自动化回归；真实 App Server 已完成无模型、无桌面动作的工具发现与进程复用冒烟。
-
-- 删除 `executor.py`，将其职责分别重写为 Computer Use Session、Task Kernel/Tool Gateway 和 Result Policy。
-- 只保留 CodexAgentRuntime，通过 Model Profile 把 DeepSeek 配成 Codex 的 Responses Provider。
-- 删除 `DeepSeekExecutor(CodexExecutor)` 的继承关系和手写 DeepSeek Agent Runtime。
-- 保持现有真实 Computer Use 路径不变。
-
-验收：Codex/DeepSeek 使用同一套 fake tools contract；真实只读冒烟结果不回归。
-
-### Phase 2：统一 Lifecycle 与 typed events
-
-状态：目录和 Application/Domain Service/UI Projection 已完成；Codex Runtime Host 已纳入应用生命周期并在任务间复用进程和 Thread。完整 typed EventEnvelope、quiesce 与关闭失败重试仍待实现。
-
-- 引入 AppLifecycle、WorkerSupervisor、CommandBus/EventBus。
-- Voice、Task、Perception、Memory 独立状态机。
-- UI 改为消费 ViewState Projection。
-- 关闭失败可观测且可以重试。
-
-验收：启动中取消、Voice 断线、Task 并行、Worker 冷启动和 App 退出均有确定性测试。
-
-### Phase 3：Conversation 与 Context
-
-状态：Phase 3A、Phase 3B、Phase 3C 与 Phase 3D 核心链路已实现。JSONL Session Store、统一 Qwen 前台入口、Runtime Binding、持久化 Thread、`thread/resume`、Qwen→Codex cursor delta、动态 Environment Evidence、持久 Notification Outbox 和真实 playback-started receipt 已接入生产装配。上下文已迁移到 App Server `thread/inject_items` 原生历史：新 Thread 注入预算内完整历史，Warm/Resumed Thread 只注入 cursor 后增量，`turn/start` 携带最新请求和本轮 Evidence；真实 DeepSeek 连续任务已验证同进程、同 Thread 与增量边界。Environment 采集与 Qwen/Codex 投影已通过确定性协议测试，本轮未重新运行真实网络模型。Checkpoint、Session 切换 UI 和自适应 `auto` 通知策略尚未实现。
-
-详细方案已拆分为独立文档：[BoxAgent Phase 3：Conversation 与 Context 设计](./BoxAgent-Phase3-Conversation-Context-设计.md)。
-
-- JSONL Session Event Log，记录最终语音/文本消息和 Interaction 终态。
-- BoxAgent Session 与 Codex Thread 按 Session 绑定；Engine 重启后优先 `thread/resume`。
-- Warm Codex Turn 先注入 Codex 尚未见过的原生跨 Runtime 消息，再只发送当前请求与按需证据。
-- Thread 不可恢复时创建新 Thread，并注入预算内的原生历史；不保留历史 JSON Prompt 兼容路径。
-- Qwen Voice、Memory Ingestion 和 Proactivity 使用各自的 Context Builder。
-- 当前本地时间、周几和时区通过 `EnvironmentContext` 每轮采集，不混入稳定 Instructions；设备信息、感知和位置不进入该基础上下文。
-- 所有动态历史和证据执行 context fencing。
-
-验收：重启恢复、重复事件、预算裁剪、恶意历史指令和 Memory 超时降级通过。
-
-### Phase 4：Jev-Mem-first 长期记忆
-
-状态：仓库内置 Jev-Mem、单一 Store、显式/自动写入、durable ingestion、Profile、Narrative、
-L2/L3 召回、精确删除与原生看板已经接入。对外消费者只依赖 `MemoryModule`，生产实现只在
-`bootstrap/memory.py` 构造。后续工作集中在冲突消歧、多尺度 consolidation、来源解释和质量评测，
-不再恢复 Canonical Ledger 或逐轮 Codex Candidate Extractor。
-- 升级时后台读取旧 `memory/ledger/snapshot.json`，只导入 active 记录；已存在的 Jev-Mem backend link 不重复写入，迁移进度以独立 marker 原子保存。
-- 记忆看板直接展示 Jev-Mem 脱敏节点、关系、来源和确认删除，不再暴露候选审批或索引重试状态。
-
-验收：删除后 Jev-Mem 图、向量、关键词和 Context 检索结果一致；旧 deleted/superseded/pending 记录不会在升级时复活。
-
-### Phase 5：拆分 UI 模块
-
-状态：物理拆分已完成；Engine Bridge、State Projection、Menu、Conversation/Pet/Memory/Skill Window 已独立，原根级 `desktop.py` 已删除。生产 UI 通过 `EngineApplicationProxy` 发送 IPC 白名单命令，不再直接持有或调用 `BoxAgentApplication`；完整 typed Command/Event Envelope 后续实现。
-
-- 抽离 Backend Bridge、State Projection、Menu 和各 Window Controller。
-- `desktop.py` 最终只保留应用与窗口编排。
-- UI 不再调用 Runtime 具体业务方法。
-
-验收：现有 UI 冒烟通过；ViewState contract 可在无 AppKit 环境测试。
-
-### Phase 6：独立 Agent Engine
-
-状态：已实现并通过单元测试、真实子进程重启冒烟和 AppKit 产品入口启停验证。
-
-- Host 使用 Unix Socket JSONL 命令/响应/事件协议调用 Engine；
-- 后端源码变化和异常退出可独立重启 Engine；
-- 健康的遗留 Engine 可由新 Host 接管，进程锁防止重复 Engine；
-- Engine 内长驻 `CodexRuntimeHost`，稳定模型/人格/工具配置下复用 App Server 进程和 Codex Thread；
-- 任务、语音和审批为瞬时状态，重启时中断；产品会话由 JSONL Session Store 恢复，长期记忆由 Jev-Mem 恢复；
-- IPC 尚未升级为完整 typed EventEnvelope；Codex Thread Binding 已持久化，Engine 重启后优先通过 `thread/resume` 恢复。
-
-### Skill 管理与 Runtime 投影
-
-状态：本地管理底座、原生管理窗口、对话式 Skill Authoring 与 Codex Runtime 投影已实现并验证；ZIP/Git 导入、依赖检查、版本升级、第三方 Skill 市场和脚本执行沙箱尚未实现。
-
-- 内置 Skill 保存于 `skills/builtin/`，用户 Skill 保存于
-  `<BOXAGENT_DATA_DIR>/skills/`；用户目录可通过 `BOXAGENT_SKILLS_DIR` 覆盖。
-- `SkillService` 提供创建、更新、启用、禁用、删除和列举能力，Engine IPC 暴露对应命令。
-- `CodexSkillAdapter` 在创建任何 Runtime Thread 前设置额外根目录、读取实际发现结果，
-  并按绝对路径禁用所有不属于 BoxAgent allowlist 的 Skill。
-- Skill 内容或启用集合变化会改变 Runtime signature；当前绑定 Thread 不再错误复用，
-  而是创建新的 Runtime Epoch。
-- Skill 文件使用稳定路径；禁用状态记录于 `registry.json`，不通过移动目录表达。
-- Qwen 暴露 `find_skill`、`prepare_skill` 和 `install_skill_draft`。其中 `prepare_skill`
-  使用当前原始 User Final、最近完成任务的有界脱敏轨迹和现有 Skill 元数据，调用独立 Codex
-  structured turn；该 Thread 固定为 `sandbox=read-only`、`dynamicTools=[]`，不能直接写文件或操作桌面。
-- 模型输出只是持久化草稿。宿主校验 Skill ID、frontmatter、长度、冲突和 instruction-only
-  边界；只有当前用户明确要求创建/安装/更新，或后续明确确认，才由 `SkillService` 原子写入。
-  内置 Skill 不允许被对话覆盖，草稿跨 Session 不可安装并在 24 小时后过期。
-- 第一阶段不接受 Shell、Python、AppleScript、二进制或依赖安装。未来脚本型 Skill 必须运行在
-  独立无 Accessibility/Keychain 权限的 SkillRunner 中，桌面与文件写能力只能经宿主 Capability
-  Broker 和风险确认获得；不能把主应用权限直接继承给 Skill 脚本。
-
-验收：文件 CRUD、路径越界、持久启停、Runtime allowlist、Engine IPC、Epoch 切换、草稿持久化、
-确认门、内置 Skill 防覆盖和脚本内容拒绝均有确定性测试。真实 DeepSeek/Codex structured turn
-已在临时目录生成 `foreground-app-readonly-check` 草稿，并由宿主安装成功；模型未获得写工具，
-测试没有操作桌面，也没有污染正式 Skill 目录。
-
-## 初步修改量评估
-
-这是跨阶段估算，不建议在一个 PR 中完成。
-
-| 阶段 | 普通代码新增/修改 | 测试新增/修改 | 风险 |
-|---|---:|---:|---|
-| Phase 0 | 180–300 | 250–400 | 低，主要是合同和特征测试 |
-| Phase 1 | 450–700 | 300–500 | 中高，触及任务主链 |
-| Phase 2 | 400–650 | 350–550 | 高，触及生命周期和 UI 状态 |
-| Phase 3 | 450–700 | 300–500 | 中，新增持久化与上下文 |
-| Phase 4 | 450–750 | 350–600 | 中高，涉及删除一致性和迁移 |
-| Phase 5 | 500–850 | 250–450 | 中，主要是 UI 回归风险 |
-
-总规模明显超过 1,000 行，必须拆成独立、可回滚的阶段；每阶段重新给出逐文件估算后再实施。
-
-## 风险与回滚
-
-| 风险 | 控制方式 |
-|---|---|
-| 重构期间破坏真实 Computer Use | 先写特征测试；新旧 Kernel 可切换；保留真实只读冒烟 |
-| Event 化增加调试难度 | EventEnvelope 必须包含 correlation ID；提供单任务时间线导出 |
-| Conversation Event 与 Jev-Mem 写入不一致 | 以不可变来源事件和 Memory provenance 关联；后台重试；不把半成功报告为已记住 |
-| 上下文恢复引入历史 prompt injection | JSON fence、system policy、恶意历史合同测试 |
-| 冷启动进一步变慢 | Worker lazy start、预热可取消、记录 p50/p95 |
-| 过度模块化 | 每个模块必须拥有明确状态、资源或策略；纯转发层不单独拆分 |
-| UI 重构影响体验 | UI Projection 先行，AppKit 结构后移，截图冒烟对比 |
-
-## 待对齐决策
-
-1. **部署形态**：已选择 AppKit Host + 独立本地 Engine，对外不暴露网络端口。
-2. **开发数据底座**：Conversation 选择本地 JSONL Session Event Log，Memory 使用本地 Jev-Mem cache；不在当前阶段引入 Docker、云数据库或同步服务。
-3. **UI 技术栈**：推荐继续 AppKit；只有主窗口、设置、会话历史明显扩张后再评估 React/Electron。
-4. **Memory 真相来源**：已选择 Jev-Mem Store；Product Session 只提供来源证据，Job/Checkpoint/Profile 都不是第二套长期记忆。
-5. **隐式记忆**：Final User Message 直接进入 Jev-Mem admission/type；Secret 先硬拒绝，显式记忆绕过自动阈值但不绕过安全规则。
-6. **下一实施阶段**：Conversation、Runtime 恢复和 Jev-Mem-first Memory 主链均已实现；下一阶段集中在 Onboarding、冲突消歧、质量集和延迟分位数。
-7. **保留策略**：仍需确定会话原文、任务诊断、感知摘要和 Jev-Mem 审计日志各自保存多久。
+1. Qwen 只能通过 `run_task` 委托桌面任务。
+   1. 当前用户原文由 Host 从 Interaction 读取。
+   2. Qwen 不负责重写或扩写任务目标。
+2. Harness 编译 `RuntimeRequest`。
+   1. `query`：原始用户目标。
+   2. `developer_instructions`：稳定执行规则与人格边界。
+   3. `history` / `history_delta`：Runtime 原生历史。
+   4. `evidence_context`：当前环境与相关长期记忆。
+   5. `tools`：经过安全策略过滤的 Computer Use 工具。
+3. Codex Runtime 只返回结构化终态。
+   1. `completed`：已用观察证据验证目标状态。
+   2. `blocked`：缺少登录、信息、权限或可见界面。
+   3. `failed`：执行或协议异常。
+
+### 6.3 长期记忆
+
+1. 用户 Final Message 成功落盘后，Memory Module 创建 durable ingestion job。
+2. Jev-Mem Worker 完成准入、类型判断、建图和索引。
+3. 被接纳的相关记忆通过两条路径使用。
+   1. L2：Harness 每轮根据原始 Query 自动直接检索。
+   2. L3：Agent 通过 `recall_memory` 主动发起深度检索。
+4. Context Checkpoint 创建后投影为 Narrative 节点。
+5. User Profile 是可重建投影，不是第二套长期记忆 Store。
+
+详细契约见 [长期记忆系统设计](./BoxAgent-Phase4-Memory-设计.md)。
+
+### 6.4 Skill
+
+1. 官方 Skill 位于 `skills/builtin/`。
+2. 用户 Skill 位于 `<BOXAGENT_DATA_DIR>/skills/`。
+3. `SkillService` 是启用状态与内容的管理边界。
+4. Codex Runtime 只接收启用 Skill 的目录投影。
+5. 对话式 Skill 创建使用独立、无工具、只读的结构化 Codex Turn。
+6. 真正写入用户目录前必须满足显式授权条件。
+
+## 7. Command、Event 与 State
+
+### 7.1 三者定义
+
+| 类型 | 含义 | 示例 |
+| --- | --- | --- |
+| Command | 请求系统执行某件事 | `submit_text`、`cancel_task`、`create_session` |
+| Product Event | 已持久发生的产品事实 | `message.final`、`interaction.finalized` |
+| UI State | 当前界面的可变投影 | `voice=ready`、`task=running`、`notification_unread=true` |
+
+### 7.2 约束
+
+1. Command 可以失败，因此不能直接当作事实。
+2. Product Event 追加后不可原地修改。
+3. UI State 可以被重建，不是审计来源。
+4. 所有跨进程 UI 更新携带单调递增的 `revision`。
+5. Session 切换时必须整体替换 Session-owned UI State，避免旧任务结果串台。
+
+## 8. 持久化布局
+
+默认 `BOXAGENT_DATA_DIR=.runtime/pet`。
+
+| 路径 | 内容 | 性质 |
+| --- | --- | --- |
+| `conversations/index.json` | Session 顺序与当前活跃 Session | 产品状态 |
+| `conversations/sessions/<session_id>/events.jsonl` | Product Event Log | 不可重建来源 |
+| `conversations/sessions/<session_id>/context.jsonl` | Checkpoint 与 Segment | 可重建压缩视图 |
+| `conversations/sessions/<session_id>/runtime-bindings.json` | Runtime Thread 绑定与 Cursor | 可恢复绑定 |
+| `memory/jev-mem/` | Jev-Mem 图、向量、关键词索引与审计 | 长期记忆 Store |
+| `memory/jobs/ingestion.jsonl` | 自动记忆写入任务状态 | 投递状态 |
+| `memory/projections/profile.json` | User Profile | 可重建投影 |
+| `notifications/outbox.json` | 未送达和已送达通知 | 持久投递状态 |
+| `runs/<date>/<time-task_id>/` | 单次任务请求、上下文、步骤与结果 | 可审计运行记录 |
+| `skills/` | 用户 Skill | 用户配置 |
+| `logs/` | Runtime、Memory、Context 与 Engine 日志 | 诊断数据 |
+
+1. JSONL 追加时执行 `flush + fsync`。
+2. JSON 文件使用临时文件与 `os.replace` 原子替换。
+3. JSONL 最后一行截断时允许修复；中间记录损坏时直接报错。
+4. Session ID、Memory ID 与 Skill ID 均在进入文件路径前校验。
+
+## 9. 安全边界
+
+### 9.1 权限分层
+
+| 层级 | 当前规则 |
+| --- | --- |
+| Codex Sandbox | `read-only`，禁止模型通过 Shell 或文件写入绕过桌面工具 |
+| Dynamic Tools | 只暴露 BoxAgent 提供的 Computer Use 工具 |
+| Tool Approval | 默认自动允许来自 `boxagent_cua` 的无参数授权请求；可启用逐次确认 |
+| macOS 权限 | 麦克风、屏幕录制和辅助功能仍由系统授权控制 |
+| Skill 写入 | 仅允许 instruction-only 内容；真正落盘由 Host 完成 |
+| Memory 写入 | Secret Filter 在调用 Jev-Mem 前拒绝凭据、Token 和验证码 |
+
+### 9.2 不变量
+
+1. Persona、历史消息、界面文字和记忆均不能覆盖安全策略。
+2. 工具返回“调用成功”不等于任务完成，必须重新观察目标状态。
+3. 发送消息、提交表单等不可逆动作必须确保目标对象明确。
+4. 删除记忆前必须先检索，并使用用户确认过的精确 Memory ID。
+5. Engine 或 Runtime 失败时必须返回 `blocked` 或 `failed`，不能伪造完成。
+
+## 10. 降级与恢复
+
+| 故障 | 当前行为 |
+| --- | --- |
+| AOQ 不可用 | 启动时回退到 Qwen WebSocket |
+| Qwen 空闲断线 | 不展示 Provider 原始错误；下次输入重新连接并恢复上下文 |
+| AOQ 临时断线 | 静默重连，重试耗尽后才提示用户 |
+| Codex Thread 可恢复 | 使用 `thread/resume` 继续原 Thread |
+| Codex Thread 不可恢复 | 创建新 Thread，并注入预算内原生历史 |
+| Jev-Mem 超时或不可用 | L2 返回空 Evidence，不阻塞当前聊天或任务 |
+| Engine 重启 | Host 保持 UI；未封口 Interaction 标记为 `interrupted` |
+| 通知送达中断 | Outbox 恢复为 `pending`，下次连接继续投递 |
+
+## 11. 可观测性与验证
+
+### 11.1 单次任务记录
+
+每个任务目录至少包含：
+
+1. `task.json`：原始目标与 Runtime 配置。
+2. `context.json`：历史、Cursor、环境和记忆证据。
+3. `request.json`：最终 Runtime Request、工具与输出 Schema。
+4. `events.jsonl`：执行阶段和 Computer Use 事件。
+5. `agent-result.json`：模型原始结构化输出。
+6. `result.json`：Host 认可的最终结果。
+7. `memory-retrieval.json`：检索输入、耗时、结果和降级状态。
+
+### 11.2 架构门禁
+
+1. `tests/test_architecture.py` 检查：
+   1. Domain 不反向依赖 Infrastructure、Interfaces、Bootstrap 或 Entrypoints。
+   2. Infrastructure 不依赖 Application 或 Interfaces。
+   3. Interfaces 不直接构造 Infrastructure。
+   4. 生产实现只在 Bootstrap 创建。
+   5. 子进程创建只允许出现在 Infrastructure 或 Engine Interface。
+2. 核心测试覆盖：
+   1. Session 与 Context；
+   2. Qwen / Codex Runtime；
+   3. Memory 写入、检索和删除；
+   4. Notification Outbox；
+   5. Skill Authoring；
+   6. Engine IPC 与 UI Projection。
+
+## 12. 当前限制
+
+| 能力 | 当前限制 |
+| --- | --- |
+| 分发 | 仍由 Qwen Function Calling 决定是否调用 `run_task`，Harness 负责协议兜底 |
+| 任务并发 | 桌面任务仅串行；尚未区分可并行的无界面任务 |
+| 沙箱 | 不是完整系统沙箱，Computer Use 仍能改变真实应用状态 |
+| Onboarding | 依赖与凭据检测尚未形成完整首次启动向导 |
+| 长期运行 | 睡眠唤醒、网络切换和多日运行仍需持续验证 |
+| 多设备 | Product Session、Memory 与 Skill 当前仅保存在单机 |
+| 主动性 | 持续委托与活动时间线尚未成为完整产品能力 |
+
+## 13. 相关文档
+
+1. [Conversation 与 Context 当前设计](./BoxAgent-Phase3-Conversation-Context-设计.md)
+2. [长期记忆系统当前设计](./BoxAgent-Phase4-Memory-设计.md)
+3. [Onboarding 与启动就绪设计](./BoxAgent-Onboarding-与启动就绪设计.md)
+4. [运行记录与上下文审计](./BoxAgent-运行记录与上下文审计.md)
+5. [本机环境准备](./setup.md)
