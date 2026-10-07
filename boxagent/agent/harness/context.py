@@ -26,7 +26,8 @@ class RuntimeContextProjector:
         self.history_character_budget = history_character_budget
 
     def runtime_messages(self, *, turns=(), after_sequence=0,
-                         character_budget=None) -> tuple[RuntimeMessage, ...]:
+                         character_budget=None,
+                         require_user_start=True) -> tuple[RuntimeMessage, ...]:
         """Project final product messages into provider-neutral native history."""
         budget = (self.history_character_budget
                   if character_budget is None else character_budget)
@@ -36,12 +37,18 @@ class RuntimeContextProjector:
                     if turn.sequence > after_sequence
                     and turn.role in {"user", "assistant"}
                     and isinstance(turn.content, str) and turn.content.strip()]
+        recent = keep_recent_turns(eligible, character_budget=budget)
+        # A character cut may otherwise leave an orphaned assistant answer at
+        # the beginning of a restored Runtime history. Start at a user turn so
+        # the provider receives a coherent conversational suffix.
+        if require_user_start:
+            while recent and recent[0].role != "user":
+                recent.pop(0)
         return tuple(RuntimeMessage(
             role=turn.role, content=redact_memory_source(turn.content.strip()),
             sequence=turn.sequence, event_id=turn.event_id,
             source=str(turn.source or turn.runtime or ""))
-            for turn in keep_recent_turns(
-                eligible, character_budget=budget))
+            for turn in recent)
 
     def environment_packet(self, environment=None) -> str:
         """Project trusted host facts without placing them in stable policy."""

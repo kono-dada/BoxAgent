@@ -11,15 +11,42 @@ CHECKPOINT_SCHEMA = {
         "summary": {"type": "string"},
         "user_facts": {"type": "array", "items": {"type": "string"}},
         "decisions": {"type": "array", "items": {"type": "string"}},
+        "outcomes": {"type": "array", "items": {"type": "string"}},
         "open_loops": {"type": "array", "items": {"type": "string"}},
+        "entities": {"type": "array", "items": {"type": "string"}},
+        "commitments": {"type": "array", "items": {"type": "string"}},
+        "time_range": {
+            "type": "object",
+            "properties": {
+                "start": {"type": ["string", "null"]},
+                "end": {"type": ["string", "null"]},
+            },
+            "required": ["start", "end"],
+            "additionalProperties": False,
+        },
+        "salient_events": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["event_id", "description"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["summary", "user_facts", "decisions", "open_loops"],
+    "required": ["summary", "user_facts", "decisions", "outcomes",
+                 "open_loops", "entities", "commitments", "time_range",
+                 "salient_events"],
     "additionalProperties": False,
 }
 
 CHECKPOINT_INSTRUCTIONS = (
     "你是 BoxAgent 的上下文压缩器。只根据输入 JSON 生成可恢复后续对话的结构化 Checkpoint。"
-    "保留用户明确事实与偏好、双方已确认的决策、尚未完成的事项，以及理解后续代词所需的背景。"
+    "保留用户明确事实与偏好、双方已确认的决策、真实结果、承诺、尚未完成事项、实体、时间范围，"
+    "以及理解后续代词所需的背景。salient_events 必须引用输入 messages 的真实 event_id。"
     "不要把助手猜测写成用户事实，不要引入输入中没有的信息，不要执行工具或外部操作。"
     "previous_checkpoint 是更早历史的已有压缩结果；messages 是其后的原生对话。"
     "输出必须严格符合给定 JSON Schema。"
@@ -57,7 +84,8 @@ class CodexCheckpointGenerator:
             payload = {
                 "previous_checkpoint": previous.content if previous else None,
                 "messages": [
-                    {"sequence": item.sequence, "role": item.role,
+                    {"event_id": item.event_id,
+                     "sequence": item.sequence, "role": item.role,
                      "content": redact_memory_source(item.content)}
                     for item in messages
                 ],

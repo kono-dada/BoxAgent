@@ -14,7 +14,7 @@ Phase 3 要解决两件不同的事：
 3. Product Session Event Log 是 Qwen Realtime、Codex 和未来 Runtime 共享的短期会话边界；Runtime Thread 只是各自可恢复的上下文投影，不是唯一真相来源。
 4. Codex Thread 本身是一条包含多个 Turn 的 Runtime Conversation。同一 Session 的健康 Thread 应持续复用；后续请求不重放 Codex 已经见过的历史，但必须增量同步由 Qwen 等其他路径产生、Codex 尚未见过的最终会话事件。
 5. Engine 重启后优先调用 `thread/resume` 恢复已持久化的 Codex Thread；由其他 Runtime 产生、Codex 尚未见过的 Final Message 使用 `thread/inject_items` 按原生 user/assistant message 注入。新 Thread 同样用原生历史重建，不再把历史 JSON 拼入当前 User Prompt。
-6. Qwen Voice、Codex Desktop、记忆提取和主动性判断是不同执行路径，共享同一 Product Session 和原始事件，但由 Harness 生成不同 Context View，不共享一份固定的大 Prompt。
+6. Qwen Voice、Codex Desktop、Jev-Mem Memory Ingestion 和主动性判断是不同执行路径，共享同一 Product Session 和原始事件，但由 Harness 生成不同 Context View，不共享一份固定的大 Prompt。
 7. 短期会话按 Session 隔离；长期记忆属于用户，默认跨 Session 检索。
 8. 后台任务的终态必须被用户感知，但“记录完成结果”不等于“每次都立即出声”。Harness 通过持久化 Notification Outbox 在语音、桌宠 UI 和 macOS 系统通知之间选择合适的送达方式。
 9. 当前本地时间、周几和时区由强类型 `EnvironmentContext` 每轮采集，作为动态可信 Evidence 投影给 Runtime；不改写稳定 Instructions，也不采集与当前交互无关的设备信息。
@@ -29,8 +29,8 @@ Phase 3 要解决两件不同的事：
 | Qwen/Codex 跨 Runtime 短期上下文增量同步 | implemented，verified；真实 DeepSeek 冷/暖 Thread 回归确认 `thread/inject_items` 只注入完整历史或 cursor 后增量，`turn/start` 只发送最新请求 |
 | 动态 Environment Context | implemented，tested；Codex 与 Qwen 共享同一强类型 Provider，每轮在当前 User Item 前注入，采集失败时降级为空 |
 | 后台任务完成通知、断线补发与送达确认 | implemented，verified；持久 Outbox 与真实 `playback_started` receipt 已接入 |
-| Memory Evidence 空实现与异步提取边界 | implemented；Phase 3 不执行自动提取或 Context 记忆注入 |
-| Jev Memory 自动候选提取、准入、更新与按需检索 | Phase 4；不作为 Phase 3 Context 主链的前置条件 |
+| Memory 降级边界 | implemented；Jev-Mem 不可用或超时时返回空 Evidence，不阻塞 Conversation 主链 |
+| Jev-Mem Memory 自动准入、Profile/Narrative 与按需检索 | implemented、verified；由 Phase 4 模块接入 Phase 3 Context Builder |
 
 ## 三类状态必须分开
 
@@ -40,7 +40,7 @@ flowchart LR
     P --> H[Harness]
     H --> C[Codex Thread]
     H --> Q[Qwen Realtime Session]
-    M[用户级 Jev Memory] --> H
+    M[用户级 Jev-Mem Memory] --> H
     E[当前环境证据] --> H
     C -. Runtime 自有历史与 compact .-> C
     Q -. Realtime 临时状态 .-> Q
@@ -52,7 +52,7 @@ flowchart LR
 |---|---|---|---|
 | Product Session Event Log | BoxAgent | 用户看到的消息、请求终态、Session 元数据与 Runtime 绑定 | 否，是产品恢复与审计记录 |
 | Runtime Conversation | Codex Thread / Qwen Realtime Session | 该 Runtime 已经看到的历史、工具 item、compact 和实时流状态 | 是，可由绑定或 BoxAgent 记录恢复 |
-| Long-term Memory | BoxAgent Memory Service + Jev | 跨 Session 的用户偏好、事实和承诺 | 独立于 Conversation 管理 |
+| Long-term Memory | BoxAgent Memory Service + Jev-Mem | 跨 Session 的用户偏好、事实和承诺 | 独立于 Conversation 管理 |
 
 这里的“产品记录”只表示“BoxAgent 认定发生过哪些交互”，不表示其中每句话都是事实真相。原设计中的“SQLite Final Turn 是对话真相来源”表述容易误解，予以删除。
 
@@ -111,8 +111,8 @@ Product Session 是两个 Runtime 之间的会话桥梁。例如第一轮由 Qwe
 │   └── sessions/<session-id>/...
 ├── notifications/
 │   └── outbox.json                  # Harness 拥有，原子替换
-├── memory/jev/                    # Jev 拥有，BoxAgent 通过 Adapter 使用
-├── memory/extraction/             # Phase 4 派生任务；可由 Session Event Log 重建
+├── memory/jev-mem/                    # Jev-Mem 拥有，BoxAgent 通过 Adapter 使用
+├── memory/jobs/ingestion.jsonl    # Phase 4 durable 投递状态；可由 Session Event Log 补偿
 │   ├── jobs.jsonl                 # append-only 的 pending/running/terminal 状态变化
 │   └── scan-checkpoint.json       # 每个 Session 已检查到的 event sequence，原子替换
 ├── runtimes/
@@ -177,9 +177,9 @@ BoxAgent V0 推荐：
 - Codex Thread 负责当前 Session 的短期连续上下文和 compact；
 - BoxAgent JSONL 负责产品级会话、UI、恢复和跨 Runtime 迁移；
 - Jev-Mem 负责用户可查看、可追溯、可删除的长期记忆；
-- BoxAgent 专用 `CODEX_HOME` 默认关闭 Codex Memories，避免 Codex Memory 与 Jev 重复提取、重复注入或产生不同删除语义。
+- BoxAgent 专用 `CODEX_HOME` 默认关闭 Codex Memories，避免 Codex Memory 与 Jev-Mem 重复提取、重复注入或产生不同删除语义。
 
-Codex Memories 可以作为以后单独实验的 Memory Backend，但目前 App Server 文档没有提供与 Jev 等价的完整记忆 CRUD、来源图和 snapshot API，而且记忆生成是后台、延迟和条件触发的，不能作为 Phase 3 的确定性依赖。
+Codex Memories 可以作为以后单独实验的 Memory Backend，但目前 App Server 文档没有提供与 Jev-Mem 等价的完整记忆 CRUD、来源图和 snapshot API，而且记忆生成是后台、延迟和条件触发的，不能作为 Phase 3 的确定性依赖。
 
 ## 核心概念
 
@@ -505,21 +505,21 @@ Outbox 是可由 Product Event 重建的物化投影。V0 使用 `<BOXAGENT_DATA
 |---|---|
 | Codex Desktop | Warm 时注入缺失的跨 Runtime `session_delta`；Cold 时注入预算内原生历史；随后只发送当前请求与按需证据 |
 | Qwen Voice | SOUL、语音工具说明、当前 Session 摘要和有限近期消息；重连时重新发送 |
-| Memory Extraction | Phase 4 使用单次已完成 Interaction、来源 ID 和少量相关 Memory；不需要桌面工具历史 |
+| Memory Ingestion | Final User Message commit 后，以原文、来源 ID 和时间创建 durable Job；不读取 Assistant 回答或桌面工具历史 |
 | Proactivity Evaluation | 当前环境状态、冷却/权限策略和少量相关 Memory；不读取整段 Conversation |
 
 这些路径由 Harness 调用各自的 Context Builder。它们共享 Session、Memory 和安全边界，但不共享一份序列化后的大 Prompt。
 
-## 自动长期记忆：Phase 3 留边界，Phase 4 再实现
+## 自动长期记忆：Phase 3 事件边界与 Phase 4 接线
 
-Phase 4 的最终决策、Ledger Schema、延迟预算和实施顺序见 [BoxAgent Phase 4：长期记忆设计](./BoxAgent-Phase4-Memory-设计.md)。本节保留 Phase 3 为后续 Memory 提供的事件和 Context 边界。
+Phase 4 的 Store、准入、检索和投影设计见 [BoxAgent Phase 4：长期记忆设计](./BoxAgent-Phase4-Memory-设计.md)。Phase 3 只规定 Conversation 何时提供不可变来源事件，以及 Runtime 如何消费 Memory Context；它不拥有 Jev-Mem 内部状态。
 
 陪伴型产品不能只依赖用户明确说“记住”。显式记忆是用户可控的强制入口，但稳定偏好、长期目标、重要关系、承诺和更正应当能够在普通交流后被自动发现。与此同时，也不能把每句话、每张截图或每次工具调用都保存为长期记忆。
 
-因此将 Conversation 与 Memory 明确分成两阶段：
+Conversation 与 Memory 的职责分为两步：
 
-1. Phase 3 先可靠记录 Product Session、Final Message 和 Interaction 终态，并定义 `MemoryEvidenceProvider` 与 `MemoryExtractionSink` 两个可空合同；默认返回空 Memory Evidence，默认不启动自动提取 Worker。
-2. Phase 4 再从已经落盘的 Interaction 派生 Memory Candidate，完成准入、去重、冲突处理和 Jev-Mem 写入。Memory 是 Event Log 的可重建派生视图，不能反过来成为 Conversation 的唯一来源。
+1. `message.final(role=user)` 成功落盘后，Conversation 立即调用 `MemoryModule.user_message_committed()`，只等待 durable Job 写入，不等待模型判断。
+2. 后台 Coordinator 按来源 ID 重新读取该条 Final User Message，执行 Secret Filter，然后把原文直接交给 Jev-Mem admission/type/store。Assistant Final Message 和 `interaction.finalized` 不会再创建第二个写入 Job。
 
 ### Jev-Mem 已经提供什么
 
@@ -527,72 +527,72 @@ Jev-Mem 的写入控制包含两类不同判断：
 
 | 判断 | Jev-Mem 能力 | 当前 BoxAgent 配置 |
 |---|---|---|
-| Admission | 根据 `should_store`、`future_utility`、`importance`、`novelty` 和 `redundancy` 计算是否保存 | `admission_enabled=false`，未启用；所有已提交的有效 observation 都会保存 |
+| Admission | 根据 `should_store`、`future_utility`、`importance`、`novelty` 和 `redundancy` 计算是否保存 | 已启用；普通消息由 Jev-Mem 决定 store/skip，显式记忆设置 `explicit=true` 绕过自动阈值 |
 | Memory Type | 为 observation 给出可重叠的 episodic、semantic、procedural、preference 分数 | 已启用，但类型分数本身不决定是否保存 |
 | Graph Relation | 在有界候选集中判断 semantic、causal 和 entity 关系；时间关系由确定性代码补充 | 已启用 |
 | Retrieval | 混合检索锚点、路由图遍历并判断何时停止 | 已启用 |
 
-Jev-Mem 的 Admission 可以回答“这段已经整理好的 observation 是否值得保存”，但当前公共写入路径不会把一轮复杂对话自动拆成多个原子事实，也不会可靠地产生 `更新旧偏好`、`使旧事实失效`、`敏感信息禁止保存` 等产品动作。因此不能把 Jev-Mem 当作完整的 Conversation Memory Extractor。
+V0 不再调用 Codex/DeepSeek Candidate Extractor。Jev-Mem 接收用户原话，保存被接纳的 Observation、类型分数、关系和来源；Profile 是其上的受限投影，复杂冲突消歧和事实拆分属于后续 consolidation，不另建第二份 Fact Ledger。
 
-V0 自动记忆采用明确的两级结构：
+当前自动记忆结构：
 
 ```mermaid
 flowchart LR
-    E[Product Session Event Log] --> T[完成 Interaction 触发器]
-    T --> X[Memory Candidate Extractor]
-    X --> P[BoxAgent Memory Policy]
-    P -->|admit| J[Jev-Mem 建图与索引]
-    P -->|ignore/review| R[记录决定，不写长期记忆]
+    E[Final User Message committed] --> D[Durable Ingestion Job]
+    D --> P[Secret Filter]
+    P -->|safe| J[Jev-Mem admission + type + store]
+    P -->|secret| R[reject]
+    J -->|admitted| V[Profile projection]
+    J -->|skipped| S[Job terminal: skipped]
 ```
 
-- `Memory Candidate Extractor` 负责从对话中提炼原子、可归因的候选事实。
-- `BoxAgent Memory Policy` 负责产品级隐私、准入、去重、更新和过期规则。
-- Jev-Mem 负责候选进入长期记忆后的类型评分、关系构建、索引和召回。
-- Jev Admission 后续可以作为附加评分信号或对照实验；在完成中文陪伴场景校准前，不作为唯一准入裁判。
+- Secret Filter 是模型调用前的确定性硬规则。
+- Jev-Mem 负责 admission、类型评分、关系构建、索引和召回，是唯一长期记忆 Store。
+- Profile/Narrative 是可删除、可重建的投影，不是独立长期记忆数据库。
 
 ### 异步触发与扫盘恢复
 
-正常触发点是 `interaction.completed` 已成功 append 到 Session Event Log 之后。自动提取不得阻塞 Assistant 最终回复，也不得在 ASR partial、模型流式 delta、thinking 或工具中间步骤上触发。
+正常触发点是 Final User Message 成功 append 到 Session Event Log 之后。自动准入不得阻塞 Assistant 回复，也不得在 ASR partial、模型流式 delta、thinking 或工具中间步骤上触发。
 
 ```mermaid
 sequenceDiagram
     participant S as Session Event Log
-    participant D as Extraction Dispatcher
-    participant W as Memory Extraction Worker
+    participant D as Ingestion Coordinator
+    participant W as Jev-Mem Worker
     participant J as Jev-Mem
 
-    S->>S: append interaction.completed
-    S-->>D: publish committed interaction id
+    S->>S: append user message.final
+    S-->>D: user_message_committed
     D->>D: create idempotent pending job
     D-->>S: return without blocking conversation
     W->>D: claim pending job
-    W->>S: read bounded final interaction view
-    W->>W: extract candidates + apply policy
-    W->>J: write admitted candidates
+    W->>S: read exact Final User Message by source id
+    W->>W: secret filter
+    W->>J: admission + type + store raw observation
     W->>D: persist completed/skipped/failed result
 ```
 
 “扫盘”只用于恢复和补偿，不用于每次对话同步遍历所有历史：
 
 - 正常运行时，Event Log commit 后立即通知 Dispatcher。
-- Engine 启动或 Worker 恢复时，扫描 `interaction.completed`，查找没有对应提取结果的 Interaction 并补建任务。
-- 幂等键使用 `extractor_version + session_id + interaction_id + source_hash`；重复通知或重启不能重复写入。
-- 任务状态至少包含 `pending/running/completed/skipped/failed/superseded`，失败采用有界重试。
-- Event Log 是来源证据；提取任务和 Jev 索引可以删除后重建。
-- Context Checkpoint 或 Runtime compact 不能被当作 Memory 提取来源；`interaction.completed` 后先持久化 Extraction Job，再允许该 Interaction 进入未来可压缩区。原始事件只有在 Context Checkpoint 与 Memory Extraction 两个 cursor 都越过后才允许按保留策略清理。完整不变式见 Phase 4 设计的“Memory 与短期 Context 压缩的顺序”。
+- Engine 启动时重放 Job Store，恢复 `pending/running/retry_wait/failed` 且未超过最大尝试次数的任务。
+- 幂等键使用 `admission_version + session_id + interaction_id + source_hash`；重复通知或重启不能重复写入。
+- 任务状态为 `pending/running/retry_wait/completed/skipped/failed`，失败采用有界指数退避。
+- Event Log 是来源证据；Job Store 只是投递状态，Jev-Mem 是长期记忆状态。
+- Context Checkpoint 或 Runtime compact 不能作为自动写入来源；原始 Product Event 不因 compact 或记忆写入而删除。
 
-Phase 4 的持久任务账本位于 `<BOXAGENT_DATA_DIR>/memory/extraction/`。`jobs.jsonl` 追加任务状态变化，`scan-checkpoint.json` 只保存每个 Session 已扫描到的 event sequence。恢复器先重放任务账本得到每个幂等键的最新状态，再从 checkpoint 之后扫描 Session Event Log；即使进程恰好在 Event Log commit 后、任务创建前崩溃，也能补出缺失任务。正常请求路径不等待扫描器、Extractor 或 Jev。
+Phase 4 的持久投递状态位于 `<BOXAGENT_DATA_DIR>/memory/jobs/ingestion.jsonl`。文件以追加方式记录每个 Job 的状态；启动时重放最新状态并恢复未完成 Job。正常请求路径只等待 User Final Message 与 Job 落盘，不等待 Jev-Mem admission、建图或 Profile 投影。
 
-显式记忆是例外路径：用户明确要求“记住”后，可在 Final User Message 落盘后创建高优先级任务并向用户确认；仍需经过敏感信息硬规则和原子化处理。普通自动记忆等 Interaction 到达终态后再执行，以获得完整的用户表达和真实任务结果。
+显式记忆是强制保存语义：用户明确调用 `remember_memory` 时设置 `explicit=true`，绕过 Jev-Mem 自动丢弃阈值，但仍经过 Secret Filter。普通 Final User Message 使用相同 Store，不建立另一条显式记忆数据库。
 
-### Extractor 的输入
+### Ingestion 的输入
 
-Extractor 不读取整段 Session，也不读取 Codex thinking 或原始工具轨迹。输入是一个有界、版本化的 `MemoryExtractionInput`：
+Coordinator 不读取整段 Session，也不读取 Assistant 内容、Codex thinking 或工具轨迹。输入是一个有界、版本化的 Observation：
 
 ```json
 {
   "schema_version": 1,
-  "extractor_version": "conversation-memory-v1",
+  "admission_version": "jev-observation-v1",
   "session_id": "ses_01",
   "interaction_id": "int_01",
   "occurred_at": "...",
@@ -602,55 +602,20 @@ Extractor 不读取整段 Session，也不读取 Codex thinking 或原始工具�
     "event_id": "evt_02",
     "content": "我以后晚上一般不喝咖啡，容易睡不着"
   },
-  "assistant_message": {
-    "event_id": "evt_03",
-    "content": "好，那晚上我会优先推荐其他饮品。"
-  },
-  "task_outcome": null,
-  "recent_context": [],
-  "related_memories": []
+  "role": "user"
 }
 ```
 
 输入规则：
 
-- `user_message` 和真实 `task_outcome` 是主要事实来源；Assistant 的推测和承诺不能自动当作用户事实。
-- `recent_context` 只为解析“他、那个、还是之前那样”等指代保留少量近期 Final Message。
-- `related_memories` 只取少量高相关项，用于识别重复、更正和冲突，不把长期记忆全集发送给模型。
+- V0 只自动处理 `user_message`；Assistant 的推测、承诺和任务总结不能自动当作用户事实。
+- 指代消解、复杂事实拆分和冲突合并不在写入前额外调用 Codex，而由 Jev-Mem 关系与后续 consolidation 演进。
 - 截图、OCR 和环境观察默认不进入聊天记忆提取；未来需要时必须携带独立授权、来源和证据等级。
 - API Key、密码、Token、验证码、身份证件和其他凭据在模型调用前由确定性规则移除，并禁止写入长期记忆。
 
-### 谁负责提取
+### 谁负责判断与输出
 
-提取器是 Harness 调度的独立后台能力，通过 Model Gateway 使用可配置的小模型，第一版可默认选择 DeepSeek Flash。它不依赖 Qwen Realtime 连接，也不占用当前 Codex Thread，因此文字、语音和后台任务共享同一策略，并且可以独立重试、评测和替换模型。
-
-模型只负责结构化候选生成，不直接写 Jev。Provider 输出必须先通过 schema 校验、证据校验和 Memory Policy；模型超时或输出无效时整项失败或跳过，不能把原始对话作为 fallback 直接写入长期记忆。
-
-### Extractor 的输出
-
-```json
-{
-  "schema_version": 1,
-  "interaction_id": "int_01",
-  "candidates": [
-    {
-      "content": "用户晚上避免饮用咖啡，因为会影响睡眠",
-      "kind": "preference",
-      "durability": "stable",
-      "operation": "add",
-      "confidence": 0.94,
-      "importance": 0.72,
-      "sensitivity": "normal",
-      "evidence": [
-        {"event_id": "evt_02", "quote": "我以后晚上一般不喝咖啡，容易睡不着"}
-      ],
-      "expires_at": null
-    }
-  ]
-}
-```
-
-候选类型至少包含 `preference/profile/relationship/goal/commitment/episodic/procedural`；它比 Jev 的图类型更接近产品语义，写入 Jev 后仍可获得 Jev 的重叠类型分数。`operation` 预留 `add/update/invalidate/ignore`，以支持“我不再喜欢……”“刚才说错了”等更正，而不是静默覆盖旧证据。
+Jev-Mem 调用 JEV Decision Model 的 System-One 决策，一次取得 admission 与 `episodic/semantic/procedural/preference` 类型分数，并在接纳后构建关系和索引。Job 只记录 admitted/rejected 数量与失败状态；产品不再保存 `MemoryCandidate`。Profile Constructor 可使用 DeepSeek Flash 从已接纳 Observation 生成受限 JSON Patch，但它只更新可重建画像，不决定 Jev-Mem 是否保存原始记忆。
 
 ### 产品级准入规则
 
@@ -658,11 +623,11 @@ Extractor 不读取整段 Session，也不读取 Codex thinking 或原始工具�
 |---|---|
 | 用户明确要求记住，且不属于禁止保存内容 | 高优先级写入 |
 | 稳定偏好、身份事实、长期目标、重要关系、承诺 | 达到置信度与证据要求后自动写入 |
-| 明确更正已有记忆 | 创建 update/invalidate 候选，保留新旧来源 |
+| 明确更正已有记忆 | 当前作为新 Observation 与关系证据保存；自动 supersede/conflict 收敛属于后续质量阶段 |
 | 一次性命令、寒暄、普通问答、临时情绪 | 默认忽略，必要时使用短期 Context 即可 |
 | Assistant 推测、未验证的桌面结果 | 禁止作为用户事实写入 |
-| 密钥、密码、Token 和验证码 | 硬拒绝，不进入模型输入和 Jev |
-| 高敏感个人信息 | 默认不自动写入，后续由产品设置决定是否请求确认 |
+| 密钥、密码、Token 和验证码 | 硬拒绝，不进入模型输入和 Jev-Mem |
+| 高敏感个人信息 | 当前依靠 Secret Filter 与 Jev-Mem admission；更细粒度敏感分类和确认流属于后续质量阶段 |
 
 自动记忆不应每次语音提示“我记住了”，避免打断交流；记忆看板应标记“自动记住/用户要求记住”、来源 Interaction、时间和可撤销入口。召回时仍按相关性注入，不因为某条信息被保存就每轮加入 Context。
 
@@ -689,7 +654,7 @@ Extractor 不读取整段 Session，也不读取 Codex thinking 或原始工具�
 {"schema_version":1,"sequence":1,"event_id":"evt_01","type":"interaction.started","session_id":"ses_01","interaction_id":"int_01","source":"voice","occurred_at":"..."}
 {"schema_version":1,"sequence":2,"event_id":"evt_02","type":"message.final","session_id":"ses_01","interaction_id":"int_01","role":"user","content":"我最近想学 Rust","source_runtime":"qwen_realtime","occurred_at":"..."}
 {"schema_version":1,"sequence":3,"event_id":"evt_03","type":"message.final","session_id":"ses_01","interaction_id":"int_01","role":"assistant","content":"可以先从所有权开始。","source_runtime":"qwen_realtime","occurred_at":"..."}
-{"schema_version":1,"sequence":4,"event_id":"evt_04","type":"interaction.completed","session_id":"ses_01","interaction_id":"int_01","runtime":"qwen_realtime","status":"succeeded","occurred_at":"..."}
+{"schema_version":1,"sequence":4,"event_id":"evt_04","type":"interaction.finalized","session_id":"ses_01","interaction_id":"int_01","runtime":"qwen_realtime","status":"succeeded","occurred_at":"..."}
 ```
 
 工具参数、截图、模型 thinking、流式 delta、心跳和底层 RPC 仍写入独立 Trace，并通过 `session_id/interaction_id/thread_id/turn_id` 关联。它们不进入用户会话，也不默认用于后续 Prompt。
@@ -739,9 +704,9 @@ sequenceDiagram
 
 | 路径 | 当前职责 |
 |---|---|
-| `domain/conversation/` | Product Session、Final Message、Runtime Binding 和 Memory Extraction Sink 合同 |
+| `domain/conversation/` | Product Session、Final Message、Runtime Binding 和 Message/Finalization Sink 合同 |
 | `infrastructure/persistence/jsonl_session_repository.py` | JSONL Session Store；不保留 SQLite 双写兼容层 |
-| `agent/harness/context.py` | 将 Product Final Message 投影为 Runtime 原生历史，并按 Consumer 预算裁剪 |
+| `agent/harness/context.py` | 将 Product Final Message 投影为 Runtime 原生历史，并按执行路径预算裁剪 |
 | `agent/harness/request_builder.py` | 把当前 Query、历史、记忆证据、人格和稳定策略编译为 `RuntimeRequest` |
 | `domain/notification/` | Completion Notification Outbox、Repository contract、claim/ack/retry 和去重 |
 | `infrastructure/persistence/json_notification_repository.py` | Notification Outbox 的原子 JSON 持久化 |
@@ -750,7 +715,7 @@ sequenceDiagram
 | `domain/interaction/service.py` | 保存 Qwen 最终转写/回答和 Provider ID，并报告 playback receipt |
 | `interfaces/engine/server.py` | 暴露 create/list/activate/archive Session 与历史读取命令 |
 | `interfaces/macos/windows/conversation.py` | Conversation UI；Session 列表与手动切换仍是后续项 |
-| Phase 4 新模块 | 自动 Memory Candidate 提取、准入和 Model Gateway 尚未实现 |
+| `application/memory*.py`、`bootstrap/memory.py` | Jev-Mem-first durable ingestion、Profile/Narrative 投影、L2/L3 召回与唯一生产装配 |
 
 ## 实施切片
 
@@ -806,9 +771,9 @@ sequenceDiagram
 - 仅为 cold recovery、跨 Runtime 切换和非 Codex 路径生成可重建 Summary Checkpoint。
 - 原始 Product Event 始终保留；Checkpoint 带 source cursor/hash。
 - 定义 `MemoryEvidenceProvider`；Memory 不可用或超时不阻止 Context 主链。
-- `MemoryExtractionSink` 在 `interaction.completed` commit 后接收 `session_id/interaction_id/source_hash`；生产装配已接入 durable 自动提取，测试或禁用场景仍可使用空实现。
-- Event Log 必须保留 Phase 4 重建 `MemoryExtractionInput` 所需的 Final Message、真实任务终态、时间和来源 ID。
-- 预留 `MemorySnapshot(as_of, revision)` 合同；Jev 暂无精确 revision 时标记 `best_effort`，但 Phase 3 不把结果注入 Runtime。
+- Message Sink 在 Final User Message commit 后接收 `session_id/interaction_id/event/source_hash`；生产装配已接入 durable Jev-Mem admission，测试或禁用场景仍可使用空实现。
+- Event Log 必须保留 Jev-Mem provenance 所需的 Final User Message、时间和来源 ID。
+- 预留 `MemorySnapshot(as_of, revision)` 合同；Jev-Mem 暂无精确 revision 时标记 `best_effort`，但 Phase 3 不把结果注入 Runtime。
 
 当前状态：Summary Checkpoint 已实现。Qwen 累积完成消息超过配置阈值后，后台通过独立、
 无动态工具的 Codex ephemeral Thread 请求结构化 JSON；结果与 `RuntimeContextSegment`、
@@ -816,7 +781,7 @@ source cursor/hash 一起追加到 Session 的 `context.jsonl`。Qwen 重连顺�
 最新 Checkpoint、Checkpoint 之后的原生 user/assistant 消息。Codex 任务 Thread 继续使用原生
 compact，不读取私有 rollout 中的 `compacted.payload.message` 作为生产接口。
 
-`MemorySnapshot` 已由 Canonical Memory Ledger 的 `snapshot.json` 实现；自动提取和 Runtime
+`MemorySnapshot` 由 Jev-Mem Worker 的脱敏图快照实现；自动准入和 Runtime
 注入的当前状态详见 Phase 4 设计。原始 Product Event 不会因 Checkpoint 被删除。
 
 ### Phase 3F：跨 Runtime Checkpoint（implemented、verified）
@@ -830,14 +795,14 @@ compact，不读取私有 rollout 中的 `compacted.payload.message` 作为生�
 - 触发阈值与单次输入上限分别由 `BOXAGENT_QWEN_CHECKPOINT_TRIGGER_CHARS` 和
   `BOXAGENT_CHECKPOINT_SOURCE_CHARS` 配置。
 
-### Phase 4：自动长期记忆
+### Phase 4：Jev-Mem-first 自动长期记忆（核心链路 implemented、verified）
 
-- 实现持久化 Extraction Dispatcher、任务账本、增量扫盘恢复和有界重试。
-- 通过 Model Gateway 接入可配置的 Memory Candidate Extractor，首个配置可使用 DeepSeek Flash。
-- 实现 schema/evidence/secret 校验、产品级 admission、语义去重、update/invalidate 和来源追溯。
-- 将通过准入的原子候选写入 Jev-Mem，并补充记忆看板中的自动/显式来源与撤销能力。
-- 实现按需 Memory Retrieval；只有当前请求相关且满足预算的 Evidence 才进入 Qwen/Codex Context。
-- 使用陪伴场景测试集标定自动记忆 precision、遗漏率、冲突更新和敏感信息拒绝率，再决定是否启用 Jev Admission 作为第二级过滤。
+- Final User Message durable ingestion、重启恢复和有界重试已实现。
+- Jev-Mem admission/type/store 直接接收用户原文；Codex Candidate Extractor 与 Canonical Ledger 已删除。
+- Secret Filter、显式记忆、来源追溯、Profile/Narrative 投影、L2 direct 与 L3 deep recall 已接入。
+- 记忆看板直接读取 Jev-Mem 脱敏节点；删除同时清理图、向量、关键词索引和 Profile 来源。
+- Mock 与真实 JEV Decision backend 的 Jev-Mem 连续 E2E 已覆盖跨 Session L2、Narrative、Secret 拒绝和删除不复活。
+- 后续使用陪伴场景质量集标定 precision、遗漏率、冲突更新和敏感信息拒绝率。
 
 ## 验收标准
 
@@ -876,7 +841,7 @@ compact，不读取私有 rollout 中的 `compacted.payload.message` 作为生�
 - 产品会话使用 BoxAgent 自有 JSONL Event Log；Codex Thread 是 Runtime Conversation，通过官方 API start/resume/read。
 - Harness 按执行路径和 Runtime 生命周期组装输入，不采用固定 L0–L5 大 Prompt。
 - Phase 3 不实现自动长期记忆，也不要求 Context 注入 Memory；只保留可空合同和可恢复的来源事件。
-- Phase 4 使用完成 Interaction 驱动异步候选提取，BoxAgent 负责产品准入，Jev-Mem 负责候选入库后的类型、关系、索引和召回。
+- Phase 4 使用 Final User Message commit 驱动异步 Jev-Mem admission；BoxAgent 负责 Secret Filter、durable delivery 与产品投影，Jev-Mem 负责准入、类型、关系、索引和召回。
 
 待评审：
 

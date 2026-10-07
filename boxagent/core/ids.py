@@ -35,5 +35,9 @@ def new_memory_id() -> str:
     return "mem_" + uuid.uuid4().hex[:16]
 
 
-def new_extraction_job_id() -> str:
+def new_memory_job_id() -> str:
     return "mjob_" + uuid.uuid4().hex[:16]
+
+
+def new_skill_draft_id() -> str:
+    return "skd_" + uuid.uuid4().hex[:16]

@@ -14,10 +14,45 @@ RESULT_SCHEMA = {
 }
 
 
+def _parse_result_object(text: str) -> dict:
+    """Accept strict JSON and a final JSON object preceded by model prose.
+
+    Some OpenAI-compatible providers do not enforce App Server outputSchema and
+    may emit a short natural-language sentence before the requested object.  We
+    still require a syntactically complete object with the terminal result keys;
+    arbitrary prose or a partial object remains invalid.
+    """
+    if not isinstance(text, str):
+        raise TypeError("task result must be text")
+    stripped = text.strip()
+    try:
+        value = json.loads(stripped)
+    except ValueError:
+        value = None
+    if isinstance(value, dict):
+        return value
+
+    decoder = json.JSONDecoder()
+    candidates = []
+    for offset, character in enumerate(text):
+        if character != "{":
+            continue
+        try:
+            value, _end = decoder.raw_decode(text, offset)
+        except ValueError:
+            continue
+        if isinstance(value, dict) and {
+                "outcome", "summary", "evidence_steps"}.issubset(value):
+            candidates.append(value)
+    if candidates:
+        return candidates[-1]
+    raise ValueError("no terminal result object")
+
+
 def validate_task_result(text: str, observations: dict[int, dict],
                          tool_errors: list[dict]) -> dict:
     try:
-        result = json.loads(text)
+        result = _parse_result_object(text)
     except (ValueError, TypeError) as exc:
         raise TaskFailure("invalid_result", "执行结果无法解析，请检查目标应用后重试", text) from exc
     if not isinstance(result, dict):

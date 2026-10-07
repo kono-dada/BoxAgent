@@ -37,7 +37,7 @@ async def wait_for_interaction(application, interaction_id, *, timeout):
             return None
         events = await application.session_events(session.session_id)
         return next((item for item in reversed(events)
-                     if item.get("type") == "interaction.completed"
+                     if item.get("type") == "interaction.finalized"
                      and item.get("interaction_id") == interaction_id), None)
 
     deadline = asyncio.get_running_loop().time() + timeout

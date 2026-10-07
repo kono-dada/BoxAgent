@@ -67,19 +67,6 @@ class EngineApplicationProxy:
     async def memory_snapshot(self, **arguments):
         return await self.bridge.request("memory_snapshot", arguments)
 
-    async def pending_memories(self):
-        return await self.bridge.request("pending_memories")
-
-    async def approve_memory(self, memory_id):
-        return await self.bridge.request("approve_memory", {"memory_id": memory_id})
-
-    async def reject_memory(self, memory_id):
-        return await self.bridge.request("reject_memory", {"memory_id": memory_id})
-
-    async def retry_memory_index(self, memory_id):
-        return await self.bridge.request(
-            "retry_memory_index", {"memory_id": memory_id})
-
     async def delete_memory_node(self, memory_id):
         return await self.bridge.request("delete_memory_node", {"memory_id": memory_id})
 
@@ -120,7 +107,8 @@ class EngineBridge:
     )
 
     def __init__(self, *, root, data_dir, log_dir, task_provider, task_model=None,
-                 auto_approve=True, context_interval=15, context_size=960, watch=True):
+                 auto_approve=True, context_interval=15, context_size=960, watch=True,
+                 soul_file=None):
         self.root, self.data_dir, self.log_dir = root, data_dir, log_dir
         self.events = queue.SimpleQueue()
         self.loop = asyncio.new_event_loop()
@@ -138,6 +126,7 @@ class EngineBridge:
         )
         self.client = EngineClient(self.socket_path, self.publish)
         self.watch = watch
+        self.soul_file = soul_file
         self.closing = False
         self.engine_pid = None
         self.restart_lock = None
@@ -230,6 +219,13 @@ class EngineBridge:
                     continue
         for name in self.WATCH_FILES:
             path = self.root / "boxagent" / name
+            try:
+                snapshot[str(path)] = path.stat().st_mtime_ns
+            except OSError:
+                continue
+        for path in {self.data_dir / "SOUL.md", self.soul_file}:
+            if path is None:
+                continue
             try:
                 snapshot[str(path)] = path.stat().st_mtime_ns
             except OSError:

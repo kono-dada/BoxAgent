@@ -41,32 +41,27 @@ class ContextCheckpointGenerator(Protocol):
 
 
 class ContextCheckpointSink(Protocol):
-    async def interaction_completed(self, *, session_id: str, interaction_id: str,
+    async def interaction_finalized(self, *, session_id: str, interaction_id: str,
                                     source_hash: str) -> None: ...
 
 
-class MemoryEvidenceProvider(Protocol):
-    async def recall(self, query: str, *, session_id: str) -> list[dict]: ...
+class UserMessageCommitSink(Protocol):
+    """Observe a durable Final User Message without coupling to a feature."""
+
+    async def user_message_committed(self, *, session_id: str,
+                                     interaction_id: str,
+                                     event: ProductEvent,
+                                     source_hash: str) -> None: ...
 
 
-class MemoryExtractionSink(Protocol):
-    async def interaction_completed(self, *, session_id: str, interaction_id: str,
+class InteractionFinalizationSink(Protocol):
+    """Observe a sealed interaction without implying successful execution."""
+
+    async def interaction_finalized(self, *, session_id: str, interaction_id: str,
                                     source_hash: str) -> None: ...
-
-
-class EmptyMemoryEvidenceProvider:
-    async def recall(self, query: str, *, session_id: str) -> list[dict]:
-        del query, session_id
-        return []
-
-
-class NullMemoryExtractionSink:
-    async def interaction_completed(self, *, session_id: str, interaction_id: str,
-                                    source_hash: str) -> None:
-        del session_id, interaction_id, source_hash
 
 
 class NullContextCheckpointSink:
-    async def interaction_completed(self, *, session_id: str, interaction_id: str,
+    async def interaction_finalized(self, *, session_id: str, interaction_id: str,
                                     source_hash: str) -> None:
         del session_id, interaction_id, source_hash

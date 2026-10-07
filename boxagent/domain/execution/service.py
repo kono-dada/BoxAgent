@@ -3,6 +3,7 @@
 import asyncio
 import re
 import time
+from collections import deque
 
 from boxagent.core.errors import TaskFailure
 from boxagent.core.ids import new_task_id
@@ -20,6 +21,9 @@ class ExecutionService:
         self.approval_future = None
         self.approved_requests = set()
         self.last_result = {"status": "idle"}
+        self.pending = deque()
+        self.start_lock = asyncio.Lock()
+        self.closed = False
 
     @property
     def state(self):
@@ -28,9 +32,30 @@ class ExecutionService:
     async def start(self, goal, *, from_text=False, interaction=None):
         if not isinstance(goal, str) or not goal.strip():
             return {"status": "failed", "message": "请输入要完成的事情"}
-        if self.job and not self.job.done():
-            return {"status": "busy", "message": "请等待当前任务结束，或先停止任务"}
         task_id = new_task_id()
+        async with self.start_lock:
+            if ((self.job and not self.job.done()) or self.pending):
+                self.pending.append({
+                    "goal": goal, "from_text": from_text,
+                    "interaction": interaction, "task_id": task_id,
+                })
+                result = {
+                    "status": "queued", "task_id": task_id,
+                    "position": len(self.pending),
+                    "message": f"任务已排队，前面还有 {len(self.pending)} 个任务",
+                }
+                if interaction:
+                    result.update(
+                        session_id=interaction.session.session_id,
+                        interaction_id=interaction.interaction_id)
+                return result
+            return await self._start_now(
+                goal, from_text=from_text, interaction=interaction,
+                task_id=task_id)
+
+    async def _start_now(self, goal, *, from_text=False, interaction=None,
+                         task_id=None):
+        task_id = task_id or new_task_id()
         self.interaction = interaction
         context = {}
         if self.conversation and self.conversation.store and self.interaction is None:
@@ -64,6 +89,7 @@ class ExecutionService:
 
     async def _run(self, goal, interaction=None, task_id=None):
         task_id = task_id or self.state.task_id or new_task_id()
+        terminal_result = None
         self.events.emit("task.started", task="running")
         monitor = asyncio.create_task(self._monitor())
         try:
@@ -73,6 +99,7 @@ class ExecutionService:
             status = "succeeded" if result["outcome"] == "completed" else result["outcome"]
             self.last_result = {"status": status, "task_id": self.state.task_id,
                                 "goal": goal, **result}
+            terminal_result = dict(self.last_result)
             self.events.emit("task." + status, task=status, task_text=result["summary"],
                              assistant_text=result["summary"], approval="",
                              task_ended_at=time.time())
@@ -83,11 +110,13 @@ class ExecutionService:
                     data={key: result[key] for key in
                           ("outcome", "assessment", "steps", "error_code")
                           if key in result})
+                self.events.emit("conversation.updated")
             await self._notify_terminal(
                 interaction, task_id, status, result["summary"])
         except asyncio.CancelledError:
             self.last_result = {"status": "cancelled",
                                 "message": "已停止后续操作；已发生的操作不会撤销。"}
+            terminal_result = dict(self.last_result)
             self.events.emit("task.cancelled", task="cancelled",
                              task_text="任务已停止；已发生的操作不会撤销",
                              assistant_text="任务已停止；已发生的操作不会撤销",
@@ -97,6 +126,7 @@ class ExecutionService:
                     interaction, status="cancelled",
                     assistant_content=self.last_result["message"],
                     task_id=task_id)
+                self.events.emit("conversation.updated")
             await self._notify_terminal(
                 interaction, task_id, "cancelled", self.last_result["message"])
         except Exception as exc:
@@ -106,6 +136,7 @@ class ExecutionService:
             self.last_result = {"status": "failed", "task_id": self.state.task_id,
                                 "message": message,
                                 "error_code": getattr(exc, "code", "execution_error")}
+            terminal_result = dict(self.last_result)
             self.events.emit("task.failed", task="failed", task_text=message,
                              assistant_text=message, approval="", task_ended_at=time.time())
             if interaction:
@@ -113,11 +144,38 @@ class ExecutionService:
                     interaction, status="failed", assistant_content=message,
                     task_id=task_id,
                     data={"error_code": self.last_result["error_code"]})
+                self.events.emit("conversation.updated")
             await self._notify_terminal(interaction, task_id, "failed", message)
         finally:
             monitor.cancel()
             await asyncio.gather(monitor, return_exceptions=True)
-        return self.last_result
+            await self._start_next()
+        return terminal_result or self.last_result
+
+    async def _start_next(self):
+        async with self.start_lock:
+            if self.closed or not self.pending:
+                return
+            item = self.pending.popleft()
+            await self._start_now(**item)
+
+    async def _cancel_pending(self):
+        """Finalize queued Product Interactions when the user cancels the queue."""
+        cancelled = []
+        async with self.start_lock:
+            while self.pending:
+                cancelled.append(self.pending.popleft())
+        for item in cancelled:
+            interaction = item.get("interaction")
+            task_id = item["task_id"]
+            message = "排队任务已取消；未执行任何操作。"
+            if interaction and self.conversation:
+                await self.conversation.finish_interaction(
+                    interaction, status="cancelled",
+                    assistant_content=message, task_id=task_id)
+                self.events.emit("conversation.updated")
+            await self._notify_terminal(
+                interaction, task_id, "cancelled", message)
 
     async def _notify_terminal(self, interaction, task_id, outcome, summary):
         if self.on_terminal is None:
@@ -170,8 +228,10 @@ class ExecutionService:
             self.approval_future.set_result(allowed)
 
     async def cancel(self):
+        await self._cancel_pending()
         if not self.job or self.job.done():
             return
+        task_id = self.state.task_id
         self.events.emit("task.cancelling", task="cancelling",
                          task_text="正在停止后续操作…")
         await self.answer_approval(False)
@@ -179,9 +239,12 @@ class ExecutionService:
         self.job.cancel()
         await asyncio.gather(self.job, return_exceptions=True)
         if self.state.task == "cancelling":
-            self.last_result = {"status": "cancelled", "message": "任务已停止"}
+            self.last_result = {"status": "cancelled", "task_id": task_id,
+                                "message": "任务已停止"}
             self.events.emit("task.cancelled", task="cancelled", task_text="任务已停止",
                              approval="", task_ended_at=time.time())
 
     async def close(self):
+        self.closed = True
+        self.pending.clear()
         await self.cancel()

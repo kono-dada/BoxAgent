@@ -95,6 +95,19 @@ class SkillFileRepositoryTests(unittest.TestCase):
             (self.builtin / "desktop-assistant/SKILL.md").resolve(),
         }))
 
+    def test_find_returns_only_enabled_relevant_skills(self):
+        self.service.create(
+            "music-helper", name="Music Helper", description="control music playback",
+            instructions="Use desktop tools to play music.")
+        self.service.create(
+            "calendar-helper", name="Calendar Helper", description="manage calendar",
+            instructions="Use desktop tools to manage calendar.")
+        self.service.set_enabled("calendar-helper", False)
+
+        found = self.service.find("music")
+
+        self.assertEqual([item.skill_id for item in found], ["music-helper"])
+
 
 class CodexSkillAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_sync_disables_external_skills_and_enables_managed_skills(self):

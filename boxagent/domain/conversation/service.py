@@ -5,17 +5,16 @@ import time
 from dataclasses import replace
 
 from boxagent.core.ids import new_event_id, new_interaction_id
-from boxagent.domain.conversation.contracts import (
-    NullContextCheckpointSink,
-    NullMemoryExtractionSink,
-)
+from boxagent.domain.conversation.contracts import NullContextCheckpointSink
 from boxagent.domain.conversation.models import InteractionContext, ProductEvent, RuntimeBinding
 
 
 class ConversationService:
-    def __init__(self, store=None, *, extraction_sink=None, checkpoint_sink=None):
+    def __init__(self, store=None, *, message_sinks=(), finalization_sinks=(),
+                 checkpoint_sink=None):
         self.store = store
-        self.extraction_sink = extraction_sink or NullMemoryExtractionSink()
+        self.message_sinks = tuple(message_sinks)
+        self.finalization_sinks = tuple(finalization_sinks)
         self.checkpoint_sink = checkpoint_sink or NullContextCheckpointSink()
 
     async def start(self):
@@ -69,6 +68,15 @@ class ConversationService:
             session_id=session.session_id, interaction_id=interaction_id,
             task_id=task_id, runtime=runtime, role="user", content=content,
             source=source, occurred_at=occurred_at))
+        source_hash = hashlib.sha256(
+            f"{user_event.event_id}:{user_event.content}".encode()).hexdigest()
+        for sink in self.message_sinks:
+            await sink.user_message_committed(
+                session_id=session.session_id,
+                interaction_id=interaction_id,
+                event=user_event,
+                source_hash=source_hash,
+            )
         if session.title == "新会话":
             session = await self.store.rename_session(
                 session.session_id, self._title_from(content))
@@ -85,7 +93,7 @@ class ConversationService:
             await self.append_assistant_message(
                 context, assistant_content, runtime=runtime, task_id=task_id)
         terminal = await self.store.append_event(ProductEvent(
-            sequence=0, event_id=new_event_id(), type="interaction.completed",
+            sequence=0, event_id=new_event_id(), type="interaction.finalized",
             session_id=context.session.session_id,
             interaction_id=context.interaction_id,
             task_id=task_id or context.user_event.task_id,
@@ -102,11 +110,12 @@ class ConversationService:
                     previous_threads=binding.previous_threads))
         source_hash = hashlib.sha256(
             f"{context.user_event.event_id}:{terminal.event_id}".encode()).hexdigest()
-        await self.extraction_sink.interaction_completed(
-            session_id=context.session.session_id,
-            interaction_id=context.interaction_id,
-            source_hash=source_hash)
-        await self.checkpoint_sink.interaction_completed(
+        for sink in self.finalization_sinks:
+            await sink.interaction_finalized(
+                session_id=context.session.session_id,
+                interaction_id=context.interaction_id,
+                source_hash=source_hash)
+        await self.checkpoint_sink.interaction_finalized(
             session_id=context.session.session_id,
             interaction_id=context.interaction_id,
             source_hash=source_hash)
@@ -136,11 +145,11 @@ class ConversationService:
             for event in events:
                 if event.type == "interaction.started" and event.interaction_id:
                     open_interactions[event.interaction_id] = event
-                elif event.type == "interaction.completed" and event.interaction_id:
+                elif event.type == "interaction.finalized" and event.interaction_id:
                     open_interactions.pop(event.interaction_id, None)
             for interaction_id, started in open_interactions.items():
                 await self.store.append_event(ProductEvent(
-                    sequence=0, event_id=new_event_id(), type="interaction.completed",
+                    sequence=0, event_id=new_event_id(), type="interaction.finalized",
                     session_id=session.session_id, interaction_id=interaction_id,
                     task_id=started.task_id, runtime=started.runtime,
                     source="engine_recovery", status="interrupted",
@@ -164,6 +173,15 @@ class ConversationService:
         messages = await self.recent_messages(
             session_id, after_sequence=cursor, limit=limit)
         return checkpoint, messages
+
+    async def latest_task_id(self, session_id, *, exclude_interaction_id=""):
+        """Resolve the latest durable task instead of process-local last_result."""
+        events = await self.store.read_events(session_id)
+        for event in reversed(events):
+            if (event.type == "interaction.finalized" and event.task_id
+                    and event.interaction_id != exclude_interaction_id):
+                return event.task_id
+        return ""
 
     async def bind_runtime(self, session_id, *, runtime, provider, model, thread_id):
         self._require_store()

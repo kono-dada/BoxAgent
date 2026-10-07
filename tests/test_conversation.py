@@ -1,5 +1,6 @@
 """Product Session persistence and Runtime context contracts."""
 
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,11 +19,160 @@ from boxagent.domain.conversation import (
 from boxagent.domain.interaction.service import InteractionService
 from boxagent.agent.harness.context import RuntimeContextProjector
 from boxagent.agent.harness.request import HarnessInput
-from boxagent.agent.harness.persona import load_persona
+from boxagent.agent.harness.persona import Persona, load_persona
 from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
 
 
 class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_session_replaces_previous_session_task_projection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            published = []
+            conversation = ConversationService(
+                JsonlSessionStore(Path(directory) / "conversations"))
+            application = BoxAgentApplication(
+                published.append, lambda *_args, **_kwargs: None, None,
+                conversation_service=conversation)
+            await application.start()
+            application.events.emit(
+                "task.succeeded", task="succeeded", task_id="old-task",
+                task_text="上一会话已完成", user_text="旧请求",
+                assistant_text="旧回复", task_started_at=1,
+                task_ended_at=2, task_activity_at=2,
+                notification_id="old-notification",
+                notification_text="旧提醒", notification_unread=True)
+
+            created = await application.create_session("新的会话")
+            state = published[-1]["state"]
+
+            self.assertEqual(state["session_id"], created["session_id"])
+            self.assertEqual(state["task"], "idle")
+            self.assertEqual(state["task_id"], "")
+            self.assertEqual(state["task_text"], "")
+            self.assertEqual(state["user_text"], "")
+            self.assertEqual(state["assistant_text"], "")
+            self.assertFalse(state["notification_unread"])
+            await application.close()
+
+    async def test_new_session_disconnects_runtime_bound_to_previous_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            conversation = ConversationService(
+                JsonlSessionStore(Path(directory) / "conversations"))
+            application = BoxAgentApplication(
+                lambda _event: None, lambda *_args, **_kwargs: None, None,
+                conversation_service=conversation)
+            await application.start()
+            application.interaction_service.reset_session = AsyncMock()
+
+            await application.create_session("隔离上下文")
+
+            application.interaction_service.reset_session.assert_awaited_once()
+
+    async def test_voice_toggle_waits_for_pending_utterance_before_stopping(self):
+        stopped = asyncio.Event()
+
+        class Voice:
+            finish_pending_input = AsyncMock(return_value=True)
+
+            async def stop(self):
+                stopped.set()
+
+        service = InteractionService(
+            StateEvents(lambda _event: None), None, AsyncMock())
+        service.voice = Voice()
+        service.connection_microphone = True
+        service.task = asyncio.create_task(stopped.wait())
+
+        await service.toggle()
+
+        Voice.finish_pending_input.assert_awaited_once()
+        self.assertTrue(stopped.is_set())
+
+    async def test_text_realtime_idle_timeout_is_silent_and_reconnectable(self):
+        events = []
+
+        class IdleVoice:
+            async def run(self):
+                raise RuntimeError(
+                    "received 1007: Your session was closed because no user input "
+                    "was received for 180 seconds.")
+
+        service = InteractionService(
+            StateEvents(events.append), None, AsyncMock())
+        voice = IdleVoice()
+        service.voice = voice
+        service.connection_microphone = False
+
+        await service._run(voice, microphone=False)
+
+        self.assertEqual(events[-1]["type"], "front.idle_disconnected")
+        self.assertEqual(events[-1]["state"]["error"], "")
+        self.assertIsNone(service.voice)
+
+    async def test_provider_response_idle_close_is_silent_for_open_microphone(self):
+        events = []
+
+        class IdleVoice:
+            async def run(self):
+                raise RuntimeError(
+                    "received 1007 (invalid frame payload data) Your session "
+                    "was closed because no response was generated for 180 "
+                    "seconds.; then sent 1007 (invalid frame payload data)")
+
+        service = InteractionService(
+            StateEvents(events.append), None, AsyncMock())
+        voice = IdleVoice()
+        service.voice = voice
+        service.connection_microphone = True
+
+        await service._run(voice, microphone=True)
+
+        self.assertNotIn("voice.error", [event["type"] for event in events])
+        self.assertEqual(events[-1]["type"], "voice.off")
+        self.assertEqual(events[-1]["state"]["error"], "")
+
+    async def test_aoq_disconnect_reconnects_without_showing_transient_error(self):
+        events = []
+        disconnect = asyncio.Event()
+        keep_connected = asyncio.Event()
+        voices = []
+
+        class Voice:
+            def __init__(self, first):
+                self.first = first
+                self.ready = asyncio.Event()
+
+            async def run(self):
+                self.ready.set()
+                if self.first:
+                    await disconnect.wait()
+                    raise RuntimeError("AOQ 语音连接已断开")
+                await keep_connected.wait()
+
+            async def stop(self):
+                keep_connected.set()
+
+        def factory(*_args, **_kwargs):
+            voice = Voice(first=not voices)
+            voices.append(voice)
+            return voice
+
+        service = InteractionService(
+            StateEvents(events.append), factory, AsyncMock(),
+            reconnect_delays=(0, 0, 0))
+        await service.toggle()
+        disconnect.set()
+
+        for _attempt in range(20):
+            if len(voices) == 2 and service.is_connected:
+                break
+            await asyncio.sleep(.01)
+
+        self.assertEqual(len(voices), 2)
+        self.assertTrue(service.is_connected)
+        self.assertNotIn("voice.error", [event["type"] for event in events])
+        self.assertIn("voice.reconnecting", [event["type"] for event in events])
+        await service.close()
+
     async def test_default_session_round_trip_and_duplicate_event_are_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             store = JsonlSessionStore(Path(directory) / "conversations")
@@ -40,7 +190,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(active.session_id, session.session_id)
             self.assertEqual([item.type for item in events], [
                 "interaction.started", "message.final", "message.final",
-                "interaction.completed"])
+                "interaction.finalized"])
             self.assertEqual([item.sequence for item in events], [1, 2, 3, 4])
             self.assertEqual(active.title, "请记住我喜欢简洁回答")
 
@@ -125,7 +275,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             await service.start()
             events = await service.events(session.session_id)
 
-            terminal = [item for item in events if item.type == "interaction.completed"]
+            terminal = [item for item in events if item.type == "interaction.finalized"]
             self.assertEqual(len(terminal), 1)
             self.assertEqual(terminal[0].status, "interrupted")
 
@@ -158,7 +308,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(captured["interaction_id"], accepted["interaction_id"])
             self.assertEqual([item.type for item in events], [
                 "interaction.started", "message.final", "message.final",
-                "interaction.completed"])
+                "interaction.finalized"])
             self.assertEqual(events[1].content, "打开音乐")
             self.assertEqual(events[2].content, "已经打开音乐")
             await application.close()
@@ -183,7 +333,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             events = await conversation.events(session.session_id)
             self.assertEqual([item.type for item in events], [
                 "interaction.started", "message.final", "message.final",
-                "interaction.completed"])
+                "interaction.finalized"])
             self.assertEqual([item.content for item in events if item.type == "message.final"],
                              ["你还记得我吗", "当然记得。"])
             self.assertEqual(events[-1].status, "succeeded")
@@ -209,7 +359,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             events = await conversation.events(session.session_id)
             self.assertEqual([item.type for item in events], [
                 "interaction.started", "message.final", "message.final",
-                "interaction.completed"])
+                "interaction.finalized"])
             self.assertEqual([item.content for item in events
                               if item.type == "message.final"],
                              ["你还记得我吗", "当然记得。"])
@@ -242,7 +392,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
                               if item.type == "message.final"],
                              ["新的问题", "新的回答"])
             self.assertEqual([item.status for item in events
-                              if item.type == "interaction.completed"],
+                              if item.type == "interaction.finalized"],
                              ["succeeded"])
 
     async def test_late_cancelled_response_cannot_close_new_voice_interaction(self):
@@ -267,7 +417,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
 
             session = await conversation.active_session()
             events = await conversation.events(session.session_id)
-            terminals = [item for item in events if item.type == "interaction.completed"]
+            terminals = [item for item in events if item.type == "interaction.finalized"]
             self.assertEqual([item.status for item in terminals],
                              ["interrupted", "succeeded"])
             self.assertEqual([item.content for item in events
@@ -324,7 +474,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             events = await conversation.events(session.session_id)
             user_messages = [item for item in events
                              if item.type == "message.final" and item.role == "user"]
-            terminals = [item for item in events if item.type == "interaction.completed"]
+            terminals = [item for item in events if item.type == "interaction.finalized"]
             self.assertEqual(result["status"], "accepted")
             self.assertEqual(task_result["status"], "succeeded")
             self.assertEqual([item.content for item in user_messages],
@@ -369,7 +519,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
                               if item.type == "message.final"],
                              ["新的聊天", "继续聊吧"])
             self.assertEqual([item.status for item in events
-                              if item.type == "interaction.completed"],
+                              if item.type == "interaction.finalized"],
                              ["succeeded"])
 
     async def test_non_task_tool_result_completes_its_original_interaction(self):
@@ -410,7 +560,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
                               if item.type == "message.final"],
                              ["记住我喜欢爵士乐", "已经记住了"])
             self.assertEqual(len([item for item in events
-                                  if item.type == "interaction.completed"]), 1)
+                                  if item.type == "interaction.finalized"]), 1)
             self.assertEqual(handled[0][0], "remember_memory")
 
 
@@ -426,7 +576,10 @@ class ContextCheckpointCoordinatorTests(unittest.IsolatedAsyncioTestCase):
             async def generate(self, *, previous, messages):
                 self.calls.append((previous, messages))
                 return {"summary": "用户喜欢爵士乐", "user_facts": ["用户喜欢爵士乐"],
-                        "decisions": [], "open_loops": []}
+                        "decisions": [], "outcomes": [], "open_loops": [],
+                        "entities": [], "commitments": [],
+                        "time_range": {"start": None, "end": None},
+                        "salient_events": []}
 
         with tempfile.TemporaryDirectory() as directory:
             store = JsonlSessionStore(Path(directory) / "conversations")
@@ -480,7 +633,23 @@ class RuntimeContextProjectorTests(unittest.TestCase):
         ]
         result = RuntimeContextProjector().runtime_messages(
             turns=turns, character_budget=10)
-        self.assertEqual([item.content for item in result], ["新" * 10])
+        self.assertEqual(list(result), [])
+
+    def test_recent_turn_budget_starts_at_a_complete_user_turn(self):
+        turns = [
+            ProductEvent(1, "1", "message.final", "ses_test", 1.0,
+                         role="user", content="很长的旧问题"),
+            ProductEvent(2, "2", "message.final", "ses_test", 2.0,
+                         role="assistant", content="旧回答"),
+            ProductEvent(3, "3", "message.final", "ses_test", 3.0,
+                         role="user", content="新的问题"),
+            ProductEvent(4, "4", "message.final", "ses_test", 4.0,
+                         role="assistant", content="新的回答"),
+        ]
+        result = RuntimeContextProjector().runtime_messages(
+            turns=turns, character_budget=12)
+        self.assertEqual([(item.role, item.content) for item in result], [
+            ("user", "新的问题"), ("assistant", "新的回答")])
 
     def test_warm_runtime_request_keeps_history_out_of_current_goal(self):
         turn = ProductEvent(1, "1", "message.final", "ses_test", 1.0,
@@ -518,8 +687,7 @@ class RuntimeContextProjectorTests(unittest.TestCase):
         ]
         result = RuntimeContextProjector().runtime_messages(
             turns=turns, character_budget=8)
-        self.assertEqual([(item.role, item.content) for item in result], [
-            ("assistant", "最近回答")])
+        self.assertEqual(list(result), [])
 
     def test_qwen_restore_keeps_checkpoint_separate_from_native_messages(self):
         checkpoint = ContextCheckpoint(
@@ -561,6 +729,15 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("叫用户队长", request.developer_instructions)
         self.assertIn("不能修改工具权限", request.developer_instructions)
         self.assertEqual(request.persona_source, str(path.resolve()))
+
+    def test_persona_name_overrides_product_name_for_self_identity(self):
+        path = Path("SOUL.md")
+        request = RuntimeRequestBuilder(persona=Persona(
+            content="名字：reze\n\n保持自然简洁。", source=path, name="reze"
+        )).prepare("你是谁？")
+
+        self.assertIn("当前角色名称是“reze”", request.developer_instructions)
+        self.assertIn("不要自称产品名、系统名或模型名", request.developer_instructions)
 
     def test_default_soul_file_is_available(self):
         from boxagent.bootstrap.settings import load_settings

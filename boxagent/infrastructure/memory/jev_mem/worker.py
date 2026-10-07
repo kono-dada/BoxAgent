@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Expose an installed Jev-Mem checkout through a JSONL worker protocol."""
+"""Expose BoxAgent's vendored Jev-Mem through a JSONL worker protocol."""
 
 import argparse
 import contextlib
+from dataclasses import replace
+from datetime import datetime, timezone
 import json
 import os
 import sys
@@ -12,10 +14,17 @@ from pathlib import Path
 
 def node_payload(node):
     attributes = dict(getattr(node, "attributes", {}) or {})
+    node_type = str(_enum_value(getattr(node, "node_type", "UNKNOWN")))
+    content = (getattr(node, "content_narrative", "")
+               or getattr(node, "summary", "")
+               or getattr(node, "title", ""))
+    timestamp = (getattr(node, "timestamp", None)
+                 or getattr(node, "start_timestamp", None))
     return {
         "id": node.node_id,
-        "content": node.content_narrative,
-        "timestamp": node.timestamp.isoformat() if node.timestamp else None,
+        "type": node_type,
+        "content": content,
+        "timestamp": timestamp.isoformat() if hasattr(timestamp, "isoformat") else None,
         "metadata": attributes,
     }
 
@@ -27,6 +36,14 @@ def _enum_value(value):
 def inspect_node_payload(node):
     """Return only fields needed by the local dashboard."""
     attributes = getattr(node, "attributes", {}) or {}
+    safe_attributes = {
+        key: attributes.get(key) for key in (
+            "source", "session_id", "interaction_id", "source_event_id",
+            "source_event_ids", "checkpoint_id", "narrative_level", "jev_mem",
+            "legacy_canonical_id", "legacy_revision", "legacy_kind",
+            "legacy_source_mode",
+        ) if key in attributes
+    }
     content = getattr(node, "content_narrative", "") or getattr(node, "summary", "")
     title = getattr(node, "title", "")
     if title and content and title not in content:
@@ -43,6 +60,7 @@ def inspect_node_payload(node):
         "content": str(content or "")[:8000],
         "timestamp": timestamp.isoformat() if hasattr(timestamp, "isoformat") else (str(timestamp) if timestamp else None),
         "source": str(source)[:200] if isinstance(source, (str, int, float, bool)) else None,
+        "metadata": safe_attributes,
     }
 
 
@@ -58,20 +76,44 @@ def inspect_link_payload(link):
     }
 
 
+def _source_event_ids(metadata):
+    """Normalize provenance so automatic and explicit writes share one identity."""
+    if not isinstance(metadata, dict):
+        return set()
+    values = []
+    if metadata.get("source_event_id"):
+        values.append(metadata["source_event_id"])
+    values.extend(metadata.get("source_event_ids") or ())
+    return {str(value).strip() for value in values if str(value).strip()}
+
+
 class Worker:
-    def __init__(self, source, cache_dir, backend):
-        sys.path.insert(0, str(source))
+    def __init__(self, cache_dir, backend):
         # Third-party initialization can print progress; stdout belongs solely
         # to the JSONL protocol, so redirect incidental output to stderr.
         with contextlib.redirect_stdout(sys.stderr):
-            from jev_mem import JevMemConfig, JevMemSystem
+            from boxagent.infrastructure.memory.jev_mem.api import JevMemConfig, JevMemSystem
+            from boxagent.infrastructure.memory.jev_mem.core.query_engine import QueryEngine
             use_jev = backend == "jev" or (backend == "auto" and bool(os.getenv("TYPESAFE_API_KEY")))
             config = JevMemConfig(write_enabled=True, read_enabled=True,
-                                  admission_enabled=False, jev_mock=not use_jev,
+                                  admission_enabled=True, jev_mock=not use_jev,
                                   audit_path=str(cache_dir / "decisions.jsonl"))
             self.system = JevMemSystem(cache_dir=str(cache_dir), jev_config=config)
             if (cache_dir / "graph.json").is_file():
                 self.system.load_memory()
+            direct_config = replace(
+                config, anchor_count=min(config.anchor_count, 5),
+                answer_top_k=min(config.answer_top_k, 8),
+                multihop_top_k=min(config.multihop_top_k, 12),
+                maximum_depth=min(config.maximum_depth, 2),
+                maximum_nodes=min(config.maximum_nodes, 12),
+                maximum_edges=min(config.maximum_edges, 40),
+                maximum_jev_calls=min(config.maximum_jev_calls, 3),
+                max_latency_seconds=min(config.max_latency_seconds, 0.30),
+            )
+            self.direct_query_engine = QueryEngine(
+                self.system.trg_memory, self.system.memory_builder.node_index,
+                jev_config=direct_config, jev_client=self.system.memory_builder.jev)
         self.cache_dir = cache_dir
         self.backend = "jev" if use_jev else "mock"
 
@@ -85,27 +127,78 @@ class Worker:
             observations = request.get("observations")
             if not isinstance(observations, list) or not observations:
                 raise ValueError("observations must be a non-empty list")
+            reused = []
+            pending = []
+            nodes = tuple(self.system.graph_db.nodes.values())
+            for observation in observations:
+                metadata = observation.get("metadata") or {}
+                provenance = _source_event_ids(metadata)
+                existing = next((node for node in nodes
+                                 if provenance & _source_event_ids(
+                                     getattr(node, "attributes", {}) or {})), None)
+                if existing is None:
+                    pending.append(observation)
+                    continue
+                # A Final User Message may first enter the automatic admission
+                # queue and later trigger the explicit remember tool. They are
+                # the same evidence, not two memories. Preserve one Jev node
+                # and strengthen its provenance when the explicit path wins.
+                attributes = getattr(existing, "attributes", {}) or {}
+                combined = _source_event_ids(attributes) | provenance
+                attributes["source_event_ids"] = sorted(combined)
+                if metadata.get("explicit"):
+                    attributes["explicit"] = True
+                    attributes["source"] = metadata.get("source", "explicit")
+                existing.attributes = attributes
+                reused.append(existing)
             before = set(self.system.graph_db.nodes)
             with contextlib.redirect_stdout(sys.stderr):
-                result = self.system.build_memory_from_conversation(observations)
+                result = (self.system.build_memory_from_conversation(pending)
+                          if pending else {"admitted": 0, "rejected": 0})
                 self.system.save_memory()
             created_ids = [node_id for node_id in self.system.graph_db.nodes
                            if node_id not in before]
             return {**result,
+                    "admitted": int(result.get("admitted") or 0) + len(reused),
+                    "deduplicated": len(reused),
                     "created": [node_payload(self.system.graph_db.nodes[node_id])
                                 for node_id in created_ids],
+                    "reused": [node_payload(node) for node in reused],
+                    "memory_count": len(self.system.graph_db.nodes)}
+        if operation == "remember_narrative":
+            checkpoint = request.get("checkpoint")
+            if not isinstance(checkpoint, dict):
+                raise ValueError("checkpoint must be an object")
+            summary = str(checkpoint.get("summary") or "").strip()
+            if not summary:
+                raise ValueError("checkpoint summary must be non-empty")
+            metadata = dict(request.get("metadata") or {})
+            metadata.update(source="context_checkpoint",
+                            checkpoint=checkpoint)
+            with contextlib.redirect_stdout(sys.stderr):
+                node = self.system.memory_builder._build_magma(
+                    summary, timestamp=datetime.now(timezone.utc),
+                    metadata=metadata)
+                from boxagent.infrastructure.memory.jev_mem.core.graph_db import NodeType
+                node.node_type = NodeType.NARRATIVE
+                self.system.save_memory()
+            return {"created": [node_payload(node)],
                     "memory_count": len(self.system.graph_db.nodes)}
         if operation == "query":
             question = request.get("question")
             top_k = request.get("top_k", 5)
+            mode = request.get("mode", "deep")
             if not isinstance(question, str) or not question.strip():
                 raise ValueError("question must be non-empty text")
             if type(top_k) is not int or not 1 <= top_k <= 50:
                 raise ValueError("top_k must be between 1 and 50")
+            if mode not in {"direct", "deep"}:
+                raise ValueError("mode must be direct or deep")
             with contextlib.redirect_stdout(sys.stderr):
-                context, evidence = self.system.query_engine.query(question, top_k=top_k)
+                engine = self.direct_query_engine if mode == "direct" else self.system.query_engine
+                context, evidence = engine.query(question, top_k=top_k)
             return {"evidence": evidence, "memories": [node_payload(node) for node in context.anchor_nodes],
-                    "trace": context.metadata}
+                    "trace": {**context.metadata, "mode": mode}}
         if operation == "inspect":
             query = request.get("query", "")
             selected_id = request.get("selected_id")
@@ -222,12 +315,11 @@ class Worker:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--backend", choices=("auto", "jev", "mock"), default="auto")
     args = parser.parse_args()
     args.cache_dir.mkdir(parents=True, exist_ok=True)
-    worker = Worker(args.source.resolve(), args.cache_dir.resolve(), args.backend)
+    worker = Worker(args.cache_dir.resolve(), args.backend)
     for line in sys.stdin:
         request = None
         stop = False

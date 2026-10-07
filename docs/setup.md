@@ -15,10 +15,27 @@ uv run --script scripts/pet.py --log-dir ./logs/boxagent
 
 源码 checkout 默认将 Agent 后端运行在独立 Engine 进程，并监视后端 Python 文件。
 后端变更会触发 Engine 重启，AppKit 窗口和菜单栏进程保持不变。正在执行的任务、语音和
-审批会被中断；SQLite 中的会话、记忆与配置仍可在新 Engine 中读取。修改原生 UI 或 IPC
+审批会被中断；JSONL Product Session、Jev-Mem 长期记忆和本地配置仍可在新 Engine 中恢复。修改原生 UI 或 IPC
 客户端时必须重启整个应用。通过 `BOXAGENT_ENGINE_WATCH=0` 可禁用后端源码监听。
 
 密钥用于北京地域 DashScope，脚本写入忽略的 `.env.local`。也可通过环境变量 `DASHSCOPE_API_KEY` 提供。没有语音密钥时仍能打开桌宠、提交文字任务；开启麦克风才会读取密钥。
+
+外放全双工语音默认优先使用 AOQ，由原生 SDK 同时管理麦克风、扬声器、回声消除和降噪。开发环境先执行：
+
+```sh
+./scripts/setup-aoq-sdk.sh
+```
+
+再在 `.env.local` 配置百炼 Workspace ID：
+
+```sh
+BOXAGENT_QWEN_TRANSPORT=auto
+BOXAGENT_DASHSCOPE_WORKSPACE_ID=<your-workspace-id>
+BOXAGENT_DASHSCOPE_REGION=cn-beijing
+```
+
+`auto` 会在 Workspace ID 和两个 Framework 都就绪时选择 AOQ；否则回退到原 WebSocket，原因写入
+`<BOXAGENT_DATA_DIR>/logs/runtime/qwen/events.jsonl`。可用 `websocket` 强制保留旧链路。AOQ Token 开发期由 Engine 用 API Key 换取；正式发布应改为业务 AppServer 下发短期 Token，不应将 API Key 放入客户端安装包。
 
 如果使用 `BOXAGENT_TASK_PROVIDER=deepseek`，还需在同一文件或进程环境中配置 `DEEPSEEK_API_KEY`。Bootstrap 启动时读取配置，并只把该密钥以 `DEEPSEEK_API_KEY` 环境变量注入 Codex App Server 子进程；命令行和模型目录只包含环境变量名，不包含真实密钥。Codex 通过仓库内的 DeepSeek 模型目录和 `wire_api="responses"` 调用 `deepseek-flash`，不再维护第二套模型工具循环。
 配置完成后，可从项目根目录一键启动 DeepSeek 规划路径：
@@ -63,28 +80,29 @@ MLX 依赖目前记录了核心版本，但没有独立的完整依赖锁文件�
 记忆适配层使用独立虚拟环境，不把 Torch、Transformers 和 FAISS 装入桌宠的 PEP 723 环境：
 
 ```sh
-./scripts/setup-jev-memory.sh
+./scripts/setup-jev-mem.sh
 ```
 
-默认源码位于 `.runtime/jev-mem-src`，解释器位于 `.runtime/jev-mem-venv/bin/python`，持久化目录为 `.runtime/pet/memory/jev`。可分别用 `BOXAGENT_JEV_MEMORY_SOURCE`、`BOXAGENT_JEV_MEMORY_PYTHON` 和 `BOXAGENT_JEV_MEMORY_CACHE` 覆盖。
+Jev-Mem 源码已经随 BoxAgent 固定在 `boxagent/infrastructure/memory/jev_mem/`，不再从 `.runtime/` 克隆或导入源码。独立解释器默认位于 `.runtime/jev-mem-venv/bin/python`，只负责隔离重型依赖；新安装的持久化目录为 `.runtime/pet/memory/jev-mem`。可分别用 `BOXAGENT_JEV_MEM_PYTHON` 和 `BOXAGENT_JEV_MEM_CACHE` 覆盖；已有 `.runtime/pet/memory/jev` 时会继续读取旧 Store，避免升级后看不到已有记忆。
 
-`BOXAGENT_JEV_MEMORY_BACKEND=auto` 会在有 `TYPESAFE_API_KEY` 时使用真实 Jev，否则使用上游 mock System-One；mock 只用于开发和协议验证，不代表生产记忆质量。强制设为 `jev` 但缺少密钥时，适配器会在启动前失败。
+`BOXAGENT_JEV_MEM_BACKEND=auto` 会在有 `TYPESAFE_API_KEY` 时调用 TypeSafe.ai 的 JEV Decision Model，否则使用 Jev-Mem 自带的 mock System-One；mock 只用于开发和协议验证，不代表生产记忆质量。强制设为 `jev` 但缺少密钥时，适配器会在启动前失败。
 
 Qwen 冷恢复默认在完成消息累计到 18000 字符时异步生成 Context Checkpoint，单次摘要输入
 上限为 32000 字符。可分别用 `BOXAGENT_QWEN_CHECKPOINT_TRIGGER_CHARS` 和
-`BOXAGENT_CHECKPOINT_SOURCE_CHARS` 调整；后者不能小于前者。Checkpoint 与自动记忆提取都
-通过独立的 Codex structured turn 执行，不进入桌面任务 Thread，也不会阻塞当前回复。
+`BOXAGENT_CHECKPOINT_SOURCE_CHARS` 调整；后者不能小于前者。Checkpoint 通过独立的
+Codex structured turn 生成，不进入桌面任务 Thread；自动记忆准入则把已落盘的原始
+Final User Message 直接交给 Jev-Mem，不再调用 Codex 候选提取器，两者都不阻塞当前回复。
 
 产品数据默认落在 `<BOXAGENT_DATA_DIR>`：Session 原始事件与 Checkpoint 位于
-`conversations/`，Canonical Memory 位于 `memory/ledger/`，提取任务账本位于
-`memory/extraction/jobs.jsonl`，Qwen 有界稳定画像位于
-`memory/profiles/stable-profile.json`，Jev 派生索引位于 `memory/jev/`。
+`conversations/`；Jev-Mem 是长期记忆唯一 Store，图、向量、关键词索引与审计位于
+`memory/jev-mem/`；异步投递状态位于 `memory/jobs/ingestion.jsonl`；可重建 User Profile
+投影位于 `memory/projections/profile.json`。Job 和 Profile 都不是第二份记忆真相。
 
-桌宠启动时会装配记忆 Worker，但只在首次建立索引、回忆或删除时启动重依赖子进程。首次请求需加载本地 embedding 模型，可能明显慢于后续请求。显式“记住”只等待 Canonical 本地落盘，Jev 索引在后台完成；普通 Interaction 完成后会异步提取稳定用户偏好。屏幕摘要、原始音频、普通寒暄和未经验证的桌面操作中间状态不会自动入库。
+桌宠启动时会后台预热记忆 Worker。首次启动仍需加载本地 embedding 模型，可能明显慢于后续请求。Final User Message 一经 Session Store 持久化就创建 durable ingestion job，Jev-Mem 完成是否保存、类型判断、关系构造和索引；Assistant 消息、屏幕摘要、原始音频和未经验证的桌面操作中间状态不会进入自动写入链路。显式“记住”带 `explicit` 标记并强制进入 Jev-Mem，但仍经过本地 Secret Filter。
 
-启动桌宠后，可从 macOS 右上角 `◉` 菜单或桌宠右键菜单打开“记忆看板…”。看板以 Canonical Ledger 为主数据源，并从同一个 Worker 获取脱敏、限量的关系边；不开放本机端口，也不直接读取 `graph.json`。页面可批准/拒绝待确认候选、重试失败索引和删除精确 ID；删除会先显示原生确认框。
+启动桌宠后，可从 macOS 右上角 `◉` 菜单或桌宠右键菜单打开“记忆看板…”。看板通过同一个 Worker 读取 Jev-Mem 的脱敏、限量图快照；不开放本机端口，也不直接读取 `graph.json`。删除使用 Jev-Mem 的精确节点 ID，并在界面显示原生确认框。
 
-持久化文件保留在本机，但真实 Jev 后端会接收决策所需的记忆文本和查询；语音回忆命中的精简内容会通过 Function Calling 结果返回当前千问 Realtime 会话。不应将敏感信息写入当前记忆实现，也不应将这一路径描述为纯本地处理。
+持久化文件保留在本机，但启用真实后端时，Jev-Mem 会把决策所需的记忆文本和查询发送给 TypeSafe.ai JEV Decision Model；语音回忆命中的精简内容会通过 Function Calling 结果返回当前千问 Realtime 会话。不应将敏感信息写入当前记忆实现，也不应将这一路径描述为纯本地处理。
 
 这些二进制与登录信息不随仓库提交。当前代码依赖这个本机组件布局及已验证版本组合，没有自动安装程序，也没有承诺稳定第三方 SDK 支持。版本兼容性历史见 [Computer Use 预实验](python-codex-computer-use.md)。
 

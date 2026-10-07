@@ -9,21 +9,19 @@ from pathlib import Path
 from boxagent.domain.memory.contracts import MemoryUnavailable
 
 
-class JevMemoryWorker:
+class JevMemWorker:
     """Run Jev-Mem behind a serialized JSONL request/response boundary."""
 
-    def __init__(self, *, python=None, source=None, cache_dir=None, backend="auto",
-                 worker_script=None, workspace=None, typesafe_api_key="",
+    def __init__(self, *, python=None, cache_dir=None, backend="auto",
+                 workspace=None, typesafe_api_key="",
                  startup_timeout=90, request_timeout=30, command=None, log_path=None):
         workspace = Path(workspace or Path.cwd())
         self.python = Path(python or workspace / ".runtime/jev-mem-venv/bin/python").expanduser()
-        self.source = Path(source or workspace / ".runtime/jev-mem-src").expanduser()
-        self.cache_dir = Path(cache_dir or workspace / ".runtime/pet/memory/jev").expanduser()
+        self.cache_dir = Path(cache_dir or workspace / ".runtime/pet/memory/jev-mem").expanduser()
         self.backend = backend
         self.startup_timeout = startup_timeout
         self.request_timeout = request_timeout
         self.command = list(command) if command else None
-        self.worker_script = Path(worker_script or workspace / "scripts/jev_memory_worker.py")
         self.workspace = workspace
         self.typesafe_api_key = typesafe_api_key
         self.log_path = Path(log_path or workspace / ".runtime/pet/memory-worker.log")
@@ -37,10 +35,8 @@ class JevMemoryWorker:
             return self.command
         if not self.python.is_file():
             raise MemoryUnavailable(f"Jev-Mem Python 不存在：{self.python}")
-        if not (self.source / "jev_mem").is_dir():
-            raise MemoryUnavailable(f"Jev-Mem 源码不存在：{self.source}")
-        return [str(self.python), str(self.worker_script),
-                "--source", str(self.source), "--cache-dir", str(self.cache_dir),
+        return [str(self.python), "-m", "boxagent.infrastructure.memory.jev_mem.worker",
+                "--cache-dir", str(self.cache_dir),
                 "--backend", self.backend]
 
     def _environment(self):
@@ -52,13 +48,14 @@ class JevMemoryWorker:
         if self.typesafe_api_key:
             env["TYPESAFE_API_KEY"] = self.typesafe_api_key
         elif self.backend == "jev":
-            raise MemoryUnavailable("BOXAGENT_JEV_MEMORY_BACKEND=jev 时需要 TYPESAFE_API_KEY")
+            raise MemoryUnavailable(
+                "BOXAGENT_JEV_MEM_BACKEND=jev 时需要 TYPESAFE_API_KEY")
         env.update(PYTHONUNBUFFERED="1", TOKENIZERS_PARALLELISM="false")
         return env
 
     async def _start_unlocked(self):
         if self.process and self.process.returncode is None:
-            return
+            return False
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.stderr = self.log_path.open("ab")
         try:
@@ -67,6 +64,7 @@ class JevMemoryWorker:
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                 stderr=self.stderr,
             )
+            return True
         except Exception:
             self.stderr.close()
             self.stderr = None
@@ -94,11 +92,11 @@ class JevMemoryWorker:
 
     async def _request(self, operation, **payload):
         async with self.lock:
-            await self._start_unlocked()
+            started = await self._start_unlocked()
             self.sequence += 1
             request_id = self.sequence
             request = {"id": request_id, "operation": operation, **payload}
-            timeout = self.startup_timeout if request_id == 1 else self.request_timeout
+            timeout = self.startup_timeout if started else self.request_timeout
             try:
                 self.process.stdin.write((json.dumps(request, ensure_ascii=False) + "\n").encode())
                 await self.process.stdin.drain()
@@ -132,12 +130,22 @@ class JevMemoryWorker:
             raise ValueError("observations 必须是非空列表")
         return await self._request("remember", observations=observations)
 
-    async def query(self, question, *, top_k=5):
+    async def remember_narrative(self, checkpoint, *, metadata=None):
+        if not isinstance(checkpoint, dict):
+            raise ValueError("checkpoint 必须是 object")
+        return await self._request(
+            "remember_narrative", checkpoint=checkpoint,
+            metadata=dict(metadata or {}))
+
+    async def query(self, question, *, top_k=5, mode="deep"):
         if not isinstance(question, str) or not question.strip():
             raise ValueError("question 必须是非空文本")
         if type(top_k) is not int or not 1 <= top_k <= 50:
             raise ValueError("top_k 必须在 1 到 50 之间")
-        return await self._request("query", question=question, top_k=top_k)
+        if mode not in {"direct", "deep"}:
+            raise ValueError("mode 必须是 direct 或 deep")
+        return await self._request("query", question=question, top_k=top_k,
+                                   mode=mode)
 
     async def inspect(self, *, query="", selected_id=None, node_limit=100, edge_limit=200):
         if not isinstance(query, str) or len(query) > 500:

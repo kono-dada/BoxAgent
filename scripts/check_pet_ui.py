@@ -15,9 +15,11 @@ import boxagent.interfaces.macos.app as host
 from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
 from boxagent.infrastructure.persistence import SkillFileRepository
 from boxagent.application.assistant import BoxAgentApplication
+from boxagent.application.memory import MemoryModule
 from boxagent.bootstrap.settings import load_settings
 from boxagent.core.states import Snapshot
 from boxagent.domain.skill import SkillService
+from boxagent.domain.memory.service import MemoryService
 from boxagent.interfaces.macos.inprocess_bridge import BackendBridge
 from boxagent.interfaces.macos.windows.memory import MemoryDashboardWindow
 from boxagent.interfaces.macos.windows.skills import SkillManagerWindow
@@ -43,7 +45,7 @@ class PreviewMemory:
             {"id": "memory-2", "type": "EVENT", "content": "正在开发 BoxAgent 记忆看板",
              "timestamp": "2026-10-05T10:05:00", "source": "explicit"},
             {"id": "episode-1", "type": "EPISODE", "content": "BoxAgent 产品开发",
-             "timestamp": "2026-10-05T10:04:00", "source": "jev"},
+             "timestamp": "2026-10-05T10:04:00", "source": "jev_mem"},
         ]
         self.edges = [
             {"id": "edge-1", "source": "memory-1", "target": "memory-2",
@@ -92,7 +94,8 @@ def main():
         builtin_root=app_settings.builtin_skills_dir,
         user_root=Path(skill_sandbox.name) / "skills"))
     backend = BackendBridge(lambda publish: BoxAgentApplication(
-        publish, lambda _id: PreviewExecutor(), None, memory_backend=PreviewMemory(),
+        publish, lambda _id: PreviewExecutor(), None,
+        memory=MemoryModule(MemoryService(PreviewMemory())),
         skill_service=skill_service),
         log_dir=output)
     desktop = host.Desktop.alloc().init().configure(

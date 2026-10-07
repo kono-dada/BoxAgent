@@ -65,35 +65,55 @@ class PetTransport:
     def resolved(self, url, limit):
         with self.dns_lock:
             self.resolve_addresses()
-            address = self.addresses[0]
+            addresses = list(self.addresses)
         target = urllib.parse.urlsplit(url)
-        connection = http.client.HTTPSConnection(target.hostname, timeout=12)
-        try:
-            # 显式连接公开地址，证书和 SNI 仍使用原域名；不关闭 TLS 校验。
-            sock = socket.create_connection((address, 443), timeout=12)
+        last_error = None
+        for address in addresses:
+            connection = http.client.HTTPSConnection(target.hostname, timeout=12)
             try:
-                connection.sock = ssl.create_default_context().wrap_socket(sock, server_hostname=target.hostname)
-            except BaseException:
-                sock.close()
-                raise
-            connection.request("GET", urllib.parse.urlunsplit(("", "", target.path, target.query, "")),
-                               headers={"Accept": "*/*"})
-            response = connection.getresponse()
-            if response.status != 200:
-                raise ValueError(f"商店返回 HTTP {response.status}")
-            return read_limited(response, limit)
-        finally:
-            connection.close()
+                # 显式连接可信 DoH 返回的公开地址，证书和 SNI 仍使用原域名。
+                sock = socket.create_connection((address, 443), timeout=12)
+                try:
+                    connection.sock = ssl.create_default_context().wrap_socket(
+                        sock, server_hostname=target.hostname)
+                except BaseException:
+                    sock.close()
+                    raise
+                connection.request("GET", urllib.parse.urlunsplit(("", "", target.path, target.query, "")),
+                                   headers={"Accept": "*/*"})
+                response = connection.getresponse()
+                if response.status != 200:
+                    raise ValueError(f"商店返回 HTTP {response.status}")
+                return read_limited(response, limit)
+            except (OSError, ValueError, http.client.HTTPException) as exc:
+                last_error = exc
+            finally:
+                connection.close()
+        raise last_error or ValueError("形象商店没有可用的公开地址")
 
     def resolve_addresses(self):
         if not self.addresses or self.addresses_until <= time.monotonic():
-            request = urllib.request.Request(
+            endpoints = (
+                "https://dns.google/resolve?name=codex-pets.net&type=A",
                 "https://cloudflare-dns.com/dns-query?name=codex-pets.net&type=A",
-                headers={"Accept": "application/dns-json"})
-            with self.opener.open(request, timeout=6) as response:
-                data = json.loads(read_limited(response, 65536))
-            self.addresses = [item["data"] for item in data.get("Answer", [])
-                              if item.get("type") == 1 and ipaddress.ip_address(item["data"]).is_global]
+                "https://dns.alidns.com/resolve?name=codex-pets.net&type=A",
+            )
+            addresses = []
+            last_error = None
+            for endpoint in endpoints:
+                try:
+                    request = urllib.request.Request(
+                        endpoint, headers={"Accept": "application/dns-json"})
+                    with self.opener.open(request, timeout=6) as response:
+                        data = json.loads(read_limited(response, 65536))
+                    addresses.extend(item["data"] for item in data.get("Answer", [])
+                                     if item.get("type") == 1
+                                     and ipaddress.ip_address(item["data"]).is_global)
+                    if addresses:
+                        break
+                except (OSError, ValueError, KeyError, TypeError, urllib.error.URLError) as exc:
+                    last_error = exc
+            self.addresses = list(dict.fromkeys(addresses))
             self.addresses_until = time.monotonic() + 300
         if not self.addresses:
-            raise ValueError("形象商店没有可用的公开地址")
+            raise ValueError("形象商店没有可用的公开地址") from last_error

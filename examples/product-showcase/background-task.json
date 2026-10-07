@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "scenario_id": "background-task",
+  "title": "音乐、知乎与后台持续聊天",
+  "execution": "live_safe",
+  "capabilities": [
+    "runtime_routing",
+    "background_task",
+    "desktop_action",
+    "parallel_chat",
+    "proactive_notification",
+    "history_ordering",
+    "evidence_verification",
+    "skill_creation"
+  ],
+  "turns": [
+    {
+      "session": "任务会话",
+      "role": "user",
+      "text": "打开音乐 App 播放一首歌，确认真的开始播放。"
+    },
+    {
+      "session": "任务会话",
+      "role": "assistant",
+      "text": "我开始处理啦，你可以继续聊天。"
+    },
+    {
+      "session": "任务会话",
+      "role": "user",
+      "text": "趁后台执行，给我一句很短的鼓励。"
+    },
+    {
+      "session": "任务会话",
+      "role": "assistant",
+      "text": "先把这一小步做完，你已经很接近了。"
+    },
+    {
+      "session": "任务会话",
+      "role": "assistant",
+      "text": "音乐已经开始播放；我观察到播放状态和进度变化。"
+    },
+    {
+      "session": "任务会话",
+      "role": "system",
+      "text": "执行已结束 · 主动语音通知已送达"
+    },
+    {
+      "session": "任务会话",
+      "role": "user",
+      "text": "用 Safari 去知乎找一篇最近关于 AI Agent 记忆的文章，打开让我看看；不要点赞、关注或评论。"
+    },
+    {
+      "session": "任务会话",
+      "role": "assistant",
+      "text": "我会按只读方式查找并打开文章，不进行任何社交操作。"
+    },
+    {
+      "session": "任务会话",
+      "role": "user",
+      "text": "把刚才这段知乎找文章的成功轨迹沉淀成一个 Skill，并安装。"
+    },
+    {
+      "session": "任务会话",
+      "role": "assistant",
+      "text": "我会先对照现有 Skill 和真实轨迹生成草稿，校验后再安装。"
+    }
+  ],
+  "assertions": [
+    "delegated_goal_equals_original_user_query",
+    "parallel_chat_finishes_before_background_task",
+    "music_playback_state_and_progress_are_verified",
+    "notification_receipt_is_playback_started",
+    "task_result_is_after_parallel_chat_in_event_order",
+    "zhihu_task_is_read_only",
+    "skill_draft_uses_completed_task_trace",
+    "skill_is_installed_only_after_validation"
+  ]
+}

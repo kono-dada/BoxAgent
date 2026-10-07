@@ -160,14 +160,6 @@ class EngineServer:
             return await self.application.forget_memory(params.get("memory_ids") or [])
         if method == "memory_snapshot":
             return await self.application.memory_snapshot(**params)
-        if method == "pending_memories":
-            return await self.application.pending_memories()
-        if method == "approve_memory":
-            return await self.application.approve_memory(params.get("memory_id", ""))
-        if method == "reject_memory":
-            return await self.application.reject_memory(params.get("memory_id", ""))
-        if method == "retry_memory_index":
-            return await self.application.retry_memory_index(params.get("memory_id", ""))
         if method == "delete_memory_node":
             return await self.application.delete_memory_node(params.get("memory_id", ""))
         if method == "list_skills":

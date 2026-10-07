@@ -5,6 +5,7 @@
 #   "websockets>=15,<17",
 #   "pyobjc-framework-Cocoa>=11,<13",
 #   "pyobjc-framework-Quartz>=11,<13",
+#   "pyobjc-framework-WebKit>=11,<13",
 #   "pillow>=11,<13",
 # ]
 # ///
@@ -31,6 +32,9 @@ if __name__ == "__main__":
         main()
     elif "--check-ui" in sys.argv:
         from scripts.check_pet_ui import main
+        main()
+    elif "--check-memory-graph-ui" in sys.argv:
+        from scripts.check_memory_graph_ui import main
         main()
     elif "--smoke-desktop" in sys.argv:
         from scripts.smoke_desktop import main

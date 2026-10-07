@@ -14,7 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description="BoxAgent 桌宠")
     parser.add_argument("--pet", type=Path, help="本次启动指定本地形象目录；默认恢复上次选择")
     parser.add_argument("--log-dir", type=Path, default=app_settings.log_dir,
-                        help="诊断日志目录，默认 .runtime/pet；相对路径以当前工作目录为准")
+                        help="诊断日志目录，默认 <data-dir>/logs；"
+                             "任务运行记录始终保存在 <data-dir>/runs")
     parser.add_argument("--require-approval", action="store_true",
                         help="电脑操作需要手动确认；默认自动允许（不影响 macOS 系统权限）")
     parser.add_argument("--task-provider", choices=("codex", "deepseek"), default=app_settings.task_provider,

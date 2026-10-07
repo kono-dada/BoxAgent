@@ -11,27 +11,25 @@ from boxagent.agent.harness.policies import ComputerUseToolGateway, can_auto_app
 from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
-from boxagent.application.memory_context import MemoryContextProvider
-from boxagent.application.memory_extraction import MemoryExtractionCoordinator
+from boxagent.bootstrap.memory import create_memory_module
+from boxagent.application.skill_authoring import SkillAuthoringService
 from boxagent.bootstrap.settings import load_settings
 from boxagent.domain.conversation import ConversationService
 from boxagent.domain.notification import NotificationOutbox
-from boxagent.domain.memory.service import MemoryService
 from boxagent.domain.skill import SkillService
 from boxagent.core.errors import append_jsonl
-from boxagent.infrastructure.memory import JevMemoryWorker
 from boxagent.infrastructure.environment import LocalSystemEnvironmentProvider
 from boxagent.infrastructure.perception import WindowSummary
 from boxagent.infrastructure.persistence import (
     JsonNotificationRepository,
-    JsonMemoryLedger,
+    JsonSkillDraftRepository,
+    JsonTaskTraceReader,
     JsonlSessionStore,
     SkillFileRepository,
 )
 from boxagent.infrastructure.runtimes.codex import (
     CodexAgentRuntime,
     CodexCheckpointGenerator,
-    CodexMemoryCandidateExtractor,
     CodexRuntimeHost,
     create_codex_session,
 )
@@ -52,16 +50,51 @@ def create_voice_factory(app_settings, *, persona=None,
                          environment_provider=None, context_projector=None):
     # Keep realtime audio dependencies out of task-runtime imports and tests.
     from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
+    from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession, aoq_preflight
 
     environment_provider = environment_provider or LocalSystemEnvironmentProvider()
     context_projector = context_projector or RuntimeContextProjector()
+    trace_path = app_settings.log_dir / "runtime/qwen/events.jsonl"
+
+    def qwen_trace(event, **data):
+        append_jsonl(trace_path, {
+            "event": event, "occurred_at": time.time(), **data})
+
+    transport = app_settings.qwen_transport
+    if transport not in {"auto", "aoq", "websocket"}:
+        raise ValueError(
+            "BOXAGENT_QWEN_TRANSPORT 只支持 auto、aoq 或 websocket")
+    session_class = QwenRealtimeSession
+    transport_options = {}
+    if transport != "websocket":
+        available, reason = aoq_preflight(
+            sdk_dir=app_settings.aoq_sdk_dir,
+            workspace_id=app_settings.qwen_workspace_id)
+        if available:
+            session_class = AoqRealtimeSession
+            transport_options = {
+                "workspace_id": app_settings.qwen_workspace_id,
+                "region": app_settings.qwen_region,
+                "sdk_dir": app_settings.aoq_sdk_dir,
+                "work_dir": app_settings.aoq_work_dir,
+            }
+            qwen_trace("transport.selected", transport="aoq")
+        else:
+            qwen_trace(
+                "transport.fallback", requested=transport,
+                selected="websocket", reason=reason)
+    else:
+        qwen_trace("transport.selected", transport="websocket")
+
     return partial(
-        QwenRealtimeSession,
+        session_class,
         model=app_settings.voice_model,
         key=app_settings.qwen_api_key,
         instructions=append_persona(INSTRUCTIONS, persona),
+        trace=qwen_trace,
         environment_context=lambda: context_projector.environment_packet(
             environment_provider.capture()),
+        **transport_options,
     )
 
 
@@ -70,7 +103,7 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
                          request_builder=None, app_settings=None, registry=None,
                          session_id=None, interaction_id=None, prior_messages=(),
                          runtime_binding=None, conversation_service=None,
-                         environment_provider=None, memory_provider=None):
+                         environment_provider=None, memory=None):
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)
     selected = registry.runtime(provider or app_settings.task_provider, model)
@@ -86,7 +119,7 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         task_id,
         provider=selected.provider,
         model=selected.model,
-        output=app_settings.log_dir / "tasks" / task_id,
+        output=app_settings.task_run_dir(task_id),
         runtime_factory=selected.factory,
         session_factory=session_factory,
         tool_gateway_factory=tool_gateway_factory,
@@ -98,7 +131,9 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         runtime_binding=runtime_binding,
         environment_provider=(environment_provider
                               or LocalSystemEnvironmentProvider()),
-        memory_provider=memory_provider,
+        memory=memory,
+        run_index_path=app_settings.runs_dir / "index.jsonl",
+        latest_run_path=app_settings.runs_dir / "latest.json",
         on_thread_bound=(
             lambda thread_id: conversation_service.bind_runtime(
                 session_id, runtime="codex", provider=selected.provider,
@@ -122,7 +157,6 @@ def create_application(publish, *, task_provider=None, task_model=None,
             history_character_budget=app_settings.codex_history_character_budget))
     environment_provider = LocalSystemEnvironmentProvider()
     conversation_store = JsonlSessionStore(app_settings.data_dir / "conversations")
-    memory_ledger = JsonMemoryLedger(app_settings.data_dir / "memory")
     notification_outbox = NotificationOutbox(JsonNotificationRepository(
         app_settings.data_dir / "notifications/outbox.json"))
     skill_service = SkillService(SkillFileRepository(
@@ -137,10 +171,15 @@ def create_application(publish, *, task_provider=None, task_model=None,
         permission_check=can_auto_approve_computer_use,
         skill_service=skill_service,
     )
-    checkpoint_log_path = app_settings.log_dir / "context-checkpoint.jsonl"
+    checkpoint_log_path = app_settings.log_dir / "context/checkpoints.jsonl"
+    memory_log_path = app_settings.log_dir / "memory/events.jsonl"
 
     def checkpoint_log(event, **data):
         append_jsonl(checkpoint_log_path, {
+            "event": event, "occurred_at": time.time(), **data})
+
+    def memory_log(event, **data):
+        append_jsonl(memory_log_path, {
             "event": event, "occurred_at": time.time(), **data})
 
     checkpoint_generator = CodexCheckpointGenerator(
@@ -149,42 +188,38 @@ def create_application(publish, *, task_provider=None, task_model=None,
         provider=selected.provider,
         log=checkpoint_log,
     )
+    skill_authoring = SkillAuthoringService(
+        skill_service,
+        JsonSkillDraftRepository(app_settings.data_dir / "skills/.drafts"),
+        runtime_host.create_session,
+        model=selected.model,
+        provider=selected.provider,
+        log=checkpoint_log,
+    )
+    task_trace_reader = JsonTaskTraceReader(
+        app_settings.runs_dir,
+        fallback_roots=(app_settings.data_dir / "tasks",
+                        app_settings.log_dir / "tasks"))
+    memory = create_memory_module(
+        app_settings=app_settings,
+        conversation_store=conversation_store,
+        runtime_host=runtime_host,
+        model=selected.model,
+        provider=selected.provider,
+        log=memory_log,
+        backend_override=memory_backend,
+    )
     checkpoint_coordinator = ContextCheckpointCoordinator(
         conversation_store,
         checkpoint_generator,
         trigger_characters=app_settings.qwen_checkpoint_trigger_characters,
         source_character_limit=app_settings.checkpoint_source_character_limit,
         log=checkpoint_log,
+        checkpoint_sinks=(memory,),
     )
-    backend = memory_backend if memory_backend is not None else JevMemoryWorker(
-        python=app_settings.jev_memory_python,
-        source=app_settings.jev_memory_source,
-        cache_dir=app_settings.jev_memory_cache,
-        backend=app_settings.jev_memory_backend,
-        worker_script=app_settings.root / "scripts/jev_memory_worker.py",
-        workspace=app_settings.root,
-        typesafe_api_key=app_settings.typesafe_api_key,
-        log_path=app_settings.log_dir / "memory-worker.log",
-    )
-    memory_context = MemoryContextProvider(
-        memory_ledger, backend,
-        profile_path=app_settings.data_dir / "memory/profiles/stable-profile.json")
-    memory_service = MemoryService(
-        backend, memory_ledger,
-        projection_callback=memory_context.refresh_stable_profile)
-    memory_extractor = CodexMemoryCandidateExtractor(
-        runtime_host.create_session,
-        model=selected.model,
-        provider=selected.provider,
-        log=checkpoint_log,
-    )
-    memory_extraction = MemoryExtractionCoordinator(
-        conversation_store, memory_ledger, memory_extractor, backend,
-        log=checkpoint_log, memory_service=memory_service,
-    )
-    memory_service.index_enqueue = memory_extraction.schedule_index
     conversation_service = ConversationService(
-        conversation_store, extraction_sink=memory_extraction,
+        conversation_store, message_sinks=(memory,),
+        finalization_sinks=(memory,),
         checkpoint_sink=checkpoint_coordinator)
     application = BoxAgentApplication(
         publish,
@@ -193,20 +228,19 @@ def create_application(publish, *, task_provider=None, task_model=None,
             session_factory=runtime_host.create_session, request_builder=request_builder,
             app_settings=app_settings, registry=registry,
             environment_provider=environment_provider,
-            memory_provider=memory_context,
+            memory=memory,
             conversation_service=conversation_service, **context),
         voice_factory or create_voice_factory(
             app_settings, persona=persona,
             environment_provider=environment_provider,
             context_projector=request_builder.context_assembler),
-        memory_backend=backend,
-        memory_ledger=memory_ledger,
+        memory=memory,
         conversation_service=conversation_service,
         notification_outbox=notification_outbox,
         skill_service=skill_service,
-        memory_context_provider=memory_context,
-        memory_service=memory_service,
-        runtime_resources=(runtime_host, checkpoint_coordinator, memory_extraction),
+        skill_authoring=skill_authoring,
+        task_trace_reader=task_trace_reader,
+        runtime_resources=(runtime_host, checkpoint_coordinator),
         voice_history_builder=partial(
             request_builder.context_assembler.restore_context,
             character_budget=app_settings.qwen_history_character_budget),

@@ -26,7 +26,8 @@ class RuntimeRequestBuilder:
             persona_source=str(self.persona.source) if self.persona else None,
             history=self.context_assembler.runtime_messages(turns=item.turns),
             history_delta=self.context_assembler.runtime_messages(
-                turns=item.turns, after_sequence=item.context_cursor),
+                turns=item.turns, after_sequence=item.context_cursor,
+                require_user_start=False),
             evidence_context=self.context_assembler.evidence_packet(
                 memories=item.memories, environment=item.environment),
         )

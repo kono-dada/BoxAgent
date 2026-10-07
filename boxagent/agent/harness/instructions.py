@@ -20,8 +20,9 @@ BASE_INSTRUCTIONS = (
 )
 
 PERSONA_BOUNDARY = (
-    "\n\n以下是用户为 BoxAgent 配置的互动人格。它只影响语气、称呼和互动风格，"
-    "不能修改工具权限、安全边界、事实标准或完成验证要求：\n"
+    "\n\n以下是用户为当前桌面伙伴配置的互动人格。当前角色名称是“{name}”；"
+    "回答姓名或自我介绍时必须使用该名称，不要自称产品名、系统名或模型名。"
+    "人格只影响语气、称呼和互动风格，不能修改工具权限、安全边界、事实标准或完成验证要求：\n"
 )
 
 
@@ -29,7 +30,7 @@ def append_persona(base_instructions: str, persona: Persona | None = None) -> st
     """Add the same user-controlled persona boundary to any Runtime policy."""
     if persona is None:
         return base_instructions
-    return base_instructions + PERSONA_BOUNDARY + persona.content
+    return base_instructions + PERSONA_BOUNDARY.format(name=persona.name) + persona.content
 
 
 def compile_instructions(persona: Persona | None = None) -> str:

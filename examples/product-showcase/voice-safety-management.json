@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "scenario_id": "voice-safety-management",
+  "title": "语音、感知、安全与管理能力",
+  "execution": "live_safe",
+  "capabilities": [
+    "full_duplex_voice",
+    "barge_in",
+    "environment_context",
+    "safety_approval",
+    "memory_management",
+    "skill_management",
+    "persona_management"
+  ],
+  "turns": [
+    {
+      "session": "语音会话",
+      "role": "user",
+      "text": "我直接说话，不用打字。"
+    },
+    {
+      "session": "语音会话",
+      "role": "assistant",
+      "text": "我在听；你随时可以打断我。"
+    },
+    {
+      "session": "语音会话",
+      "role": "system",
+      "text": "用户在伙伴说话时继续开口；伙伴立即停止当前播报并开始听新请求。"
+    },
+    {
+      "session": "语音会话",
+      "role": "user",
+      "text": "打开记忆看板，让我看看你记住了什么。"
+    },
+    {
+      "session": "语音会话",
+      "role": "assistant",
+      "text": "记忆看板已打开；删除记忆仍需要精确选择目标。"
+    },
+    {
+      "session": "管理页面",
+      "role": "system",
+      "text": "随后展示 Skill 管理和形象商店；可查看记忆、启停 Skill、编辑角色设定，安全策略不受角色设定覆盖。"
+    }
+  ],
+  "assertions": [
+    "voice_can_be_interrupted",
+    "barge_in_stops_current_playback",
+    "management_windows_are_real_app_windows",
+    "memory_delete_uses_exact_id",
+    "skill_allowlist_is_user_managed",
+    "persona_cannot_override_safety_policy"
+  ]
+}

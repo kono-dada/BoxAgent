@@ -1,6 +1,7 @@
 """原生桌面宿主：位置、菜单和字幕。角色通过 Appearance 注入。"""
 
 import json
+import logging
 import math
 import os
 import time
@@ -10,11 +11,13 @@ import objc
 from Foundation import (NSObject, NSTimer, NSAttributedString,
                         NSMutableAttributedString, NSUserNotification,
                         NSUserNotificationCenter,
-                        NSUserNotificationDefaultSoundName)
+                        NSUserNotificationDefaultSoundName, NSURL)
 
 from boxagent.core.states import Snapshot
+from boxagent.agent.harness.persona import update_persona_name
 from boxagent.interfaces.macos.hotkey import Hotkey
 from boxagent.interfaces.macos.menu import install_menus
+from boxagent.interfaces.macos.run_records import SessionRunRecords
 from boxagent.interfaces.macos.state import ACTIVE_TASK_STATES, mode_text, transcript_sections
 from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, RoundedSurface,
                                    SendButton, button, label, symbol_button)
@@ -26,7 +29,10 @@ class Desktop(NSObject):
     def configure(self, backend, appearance, catalog=None, *, data_dir=None,
                   appearance_factory=None, appearance_preparer=None,
                   pet_store_factory=None, memory_dashboard_factory=None,
-                  skill_manager_factory=None):
+                  skill_manager_factory=None, persona_settings_factory=None,
+                  persona=None,
+                  persona_loader=None, soul_file=None,
+                  editable_soul_file=None):
         self.backend, self.appearance = backend, appearance
         self.data_dir = data_dir or backend.log_dir
         self.pet_catalog = catalog
@@ -35,16 +41,27 @@ class Desktop(NSObject):
         self.pet_store_factory = pet_store_factory
         self.memory_dashboard_factory = memory_dashboard_factory
         self.skill_manager_factory = skill_manager_factory
+        self.persona_settings_factory = persona_settings_factory
+        self.persona_loader = persona_loader
+        self.soul_file = soul_file
+        self.editable_soul_file = editable_soul_file or soul_file
+        self.agent_name = getattr(persona, "name", None) or "伙伴"
         self.pet_store = None
         self.memory_dashboard = None
         self.skill_manager = None
+        self.persona_settings = None
         self.state = Snapshot()
         self.bubble_open = False
         self.last_revision = -1
         self.closing = False
         self.submission = None
+        self.pending_user_text = ""
         self.input_feedback = ""
         self.content_signature = None
+        self.conversation_events = []
+        self.history_request = None
+        self.history_request_session = ""
+        self.history_refresh_pending = False
         self.context_until = 0
         self.context_reveal_at = 0
         return self
@@ -69,10 +86,12 @@ class Desktop(NSObject):
         self.drag.owner = self
         self.drag.addSubview_(self.appearance.view)
         self.pet.setContentView_(self.drag)
-        self.pet.setTitle_("BoxAgent 桌宠")
+        self.pet.setTitle_(self.agent_name)
         self.makeBubble()
         self.makeContextBubble()
         self.makeMenu()
+        if self.pet_catalog is not None:
+            self.syncAppearanceName(self.pet_catalog)
         self.pet.orderFrontRegardless()
         self.hotkey = Hotkey(lambda: self.toggleMic_(None))
         if not self.hotkey.registered:
@@ -97,12 +116,12 @@ class Desktop(NSObject):
             AK.NSWindowStyleMaskBorderless | AK.NSWindowStyleMaskNonactivatingPanel, AK.NSBackingStoreBuffered, False)
         self.preparePanel(self.bubble)
         self.bubble.setBecomesKeyOnlyIfNeeded_(True)
-        self.bubble.setTitle_("BoxAgent 对话")
+        self.bubble.setTitle_(self.agent_name)
         view = RoundedSurface.alloc().initWithFrame_(((0, 0), (360, 178)))
         view.kind = "panel"
         self.bubble.setContentView_(view)
         self.bubble_view = view
-        self.title_label = label("BoxAgent", ((18, 138), (112, 24)), 15)
+        self.title_label = label(self.agent_name, ((18, 138), (112, 24)), 15)
         self.title_label.setFont_(AK.NSFont.systemFontOfSize_weight_(15, AK.NSFontWeightSemibold))
         self.mode_label = label("", ((139, 140), (166, 20)), 11, AK.NSColor.secondaryLabelColor())
         self.mode_label.setAlignment_(AK.NSTextAlignmentRight)
@@ -134,7 +153,7 @@ class Desktop(NSObject):
         self.input.setBordered_(False)
         self.input.setDrawsBackground_(False)
         self.input.setFocusRingType_(AK.NSFocusRingTypeNone)
-        self.input.setPlaceholderString_("和 BoxAgent 说点什么…")
+        self.input.setPlaceholderString_(f"和 {self.agent_name} 说点什么…")
         self.input.setAccessibilityLabel_("对话输入")
         self.input.setTarget_(self)
         self.input.setAction_("submitText:")
@@ -193,6 +212,54 @@ class Desktop(NSObject):
             self.skill_manager = self.skill_manager_factory(self)
         self.skill_manager.show()
 
+    def openRunRecords_(self, _sender):
+        records = SessionRunRecords(self.data_dir / "runs")
+        self._openDirectory(records.materialize_view(self.state.session_id))
+
+    def openLatestRun_(self, _sender):
+        records = SessionRunRecords(self.data_dir / "runs")
+        latest = records.latest(self.state.session_id)
+        self._openDirectory(
+            latest or records.materialize_view(self.state.session_id))
+
+    def openDiagnosticLogs_(self, _sender):
+        self._openDirectory(self.backend.log_dir)
+
+    @objc.python_method
+    def _openDirectory(self, path):
+        path.mkdir(parents=True, exist_ok=True)
+        AK.NSWorkspace.sharedWorkspace().openURL_(
+            NSURL.fileURLWithPath_(str(path)))
+
+    def editSoul_(self, _sender):
+        if (self.persona_settings_factory is None
+                or self.editable_soul_file is None or self.soul_file is None):
+            self.state.error = "角色设定文件未配置"
+            self.updateLabels()
+            return
+        if self.persona_settings is None:
+            self.persona_settings = self.persona_settings_factory(
+                self, self.soul_file, self.editable_soul_file)
+        self.persona_settings.show()
+
+    @objc.python_method
+    def reloadPersona(self):
+        if self.persona_loader is None or self.soul_file is None:
+            return
+        try:
+            persona = self.persona_loader(self.soul_file)
+        except (OSError, RuntimeError, ValueError):
+            return
+        self.agent_name = persona.name
+        self.title_label.setStringValue_(self.agent_name)
+        self.input.setPlaceholderString_(f"和 {self.agent_name} 说点什么…")
+        self.bubble.setTitle_(self.agent_name)
+        self.pet.setTitle_(self.agent_name)
+        self.status_item.button().setToolTip_(
+            f"{self.agent_name} · ⌃⌥空格切换麦克风")
+        self.content_signature = None
+        self.updateLabels()
+
     @objc.python_method
     def replaceAppearance(self, appearance, catalog):
         """先验证视图并落盘；任一步失败都保留正在显示的形象和运行状态。"""
@@ -208,6 +275,27 @@ class Desktop(NSObject):
             raise
         previous.view.removeFromSuperview()
         self.appearance = appearance
+        self.syncAppearanceName(catalog)
+
+    @objc.python_method
+    def syncAppearanceName(self, catalog):
+        """Use the selected appearance name, with a neutral packaged fallback."""
+        try:
+            directory = self.appearance.directory.resolve()
+            name = ("伙伴" if directory == catalog.default_pet
+                    else str(self.appearance.manifest.get("displayName") or "伙伴")[:24])
+            source = (self.editable_soul_file if self.editable_soul_file.is_file()
+                      else self.soul_file)
+            content = source.read_text(encoding="utf-8")
+            updated = update_persona_name(content, name)
+            self.editable_soul_file.parent.mkdir(parents=True, exist_ok=True)
+            if (not self.editable_soul_file.is_file()
+                    or self.editable_soul_file.read_text(encoding="utf-8") != updated):
+                self.editable_soul_file.write_text(updated, encoding="utf-8")
+            self.soul_file = self.editable_soul_file
+            self.reloadPersona()
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            logging.getLogger(__name__).exception("形象已切换，但角色名称同步失败")
 
     @objc.python_method
     def makeContextBubble(self):
@@ -263,6 +351,26 @@ class Desktop(NSObject):
         else:
             self.showBubble()
 
+    def createSession_(self, _sender):
+        alert = AK.NSAlert.alloc().init()
+        alert.setMessageText_("新建会话")
+        alert.setInformativeText_("新会话拥有独立的短期上下文；长期记忆仍然跨会话可用。")
+        alert.addButtonWithTitle_("创建")
+        alert.addButtonWithTitle_("取消")
+        title_input = AK.NSTextField.alloc().initWithFrame_(((0, 0), (280, 24)))
+        title_input.setPlaceholderString_("例如：产品演示")
+        alert.setAccessoryView_(title_input)
+        alert.window().setInitialFirstResponder_(title_input)
+        if alert.runModal() != AK.NSAlertFirstButtonReturn:
+            return
+        title = title_input.stringValue().strip() or "新会话"
+        self.pending_user_text = ""
+        self.input_feedback = "正在创建新会话…"
+        self.conversation_events = []
+        self.showBubble()
+        self.backend.submit(self.backend.application.create_session(title))
+        self.updateLabels()
+
     @objc.python_method
     def savePosition(self):
         point = self.pet.frame().origin
@@ -299,22 +407,40 @@ class Desktop(NSObject):
         if not draft.strip() or self.submission:
             return
         self.submitted_draft = draft
+        self.pending_user_text = draft
+        self.input.setStringValue_("")
+        self.input_feedback = ""
         self.submission = self.backend.submit(self.backend.application.submit_text(draft))
         self.updateLabels()
 
     def tick_(self, _timer):
         changed = False
+        if self.history_request and self.history_request.done():
+            try:
+                events = self.history_request.result()
+                if self.history_request_session == self.state.session_id:
+                    self.conversation_events = events
+            except Exception:
+                pass
+            self.history_request = None
+            if self.history_refresh_pending:
+                self.history_refresh_pending = False
+                self.requestConversationHistory()
+            changed = True
         if self.submission and self.submission.done():
             try:
                 result = self.submission.result()
                 if result["status"] == "accepted":
-                    if self.input.stringValue() == self.submitted_draft:
-                        self.input.setStringValue_("")
                     self.input_feedback = ""
                 else:
+                    if not self.input.stringValue():
+                        self.input.setStringValue_(self.submitted_draft)
                     self.input_feedback = result.get("message", "未能提交，请重试")
             except Exception:
+                if not self.input.stringValue():
+                    self.input.setStringValue_(self.submitted_draft)
                 self.input_feedback = "未能提交，请重试"
+            self.pending_user_text = ""
             self.submission = None
             changed = True
         while not self.backend.events.empty():
@@ -340,6 +466,18 @@ class Desktop(NSObject):
                     self.context_until = self.context_reveal_at + 2 + max(8, len(self.state.context_text) / 8)
                 elif event["type"] in {"context.paused", "context.stale", "context.waiting", "context.error"}:
                     self.context_until = 0
+                if event["type"] in {
+                        "engine.ready", "session.ready", "session.created",
+                        "session.activated", "session.archived", "front.user_text", "task.accepted",
+                        "conversation.updated"}:
+                    if event["type"] in {"session.created", "session.activated",
+                                         "session.archived"}:
+                        self.input_feedback = ""
+                    if (event["type"] in {"session.created", "session.activated",
+                                          "session.archived"}
+                            and self.history_request_session != self.state.session_id):
+                        self.conversation_events = []
+                    self.requestConversationHistory()
                 if event["type"] in {"task.approval", "task.succeeded", "task.failed",
                                      "task.blocked", "voice.error",
                                      "notification.pending",
@@ -359,6 +497,7 @@ class Desktop(NSObject):
             elif event.get("type") in {"backend.connected", "backend.reconnected"}:
                 if self.state.error.startswith("后台正在重新加载"):
                     self.state.error = ""
+                self.reloadPersona()
             changed = True
         if changed or self.last_revision < 0:
             self.updateLabels()
@@ -414,7 +553,7 @@ class Desktop(NSObject):
     def _show_system_notification(self, text):
         try:
             notification = NSUserNotification.alloc().init()
-            notification.setTitle_("BoxAgent 任务提醒")
+            notification.setTitle_(f"{self.agent_name} 任务提醒")
             notification.setInformativeText_(text or "后台任务已经结束")
             notification.setSoundName_(NSUserNotificationDefaultSoundName)
             NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification_(
@@ -425,7 +564,10 @@ class Desktop(NSObject):
 
     @objc.python_method
     def updateTranscript(self):
-        sections = transcript_sections(self.state, self.input_feedback)
+        sections = transcript_sections(
+            self.state, self.input_feedback, history=self.conversation_events,
+            assistant_name=self.agent_name,
+            pending_user_text=self.pending_user_text)
         signature = tuple(sections)
         if signature == self.content_signature:
             return
@@ -459,6 +601,18 @@ class Desktop(NSObject):
         self.transcript.setFrameSize_((328, text_height))
         self.transcript.scrollRangeToVisible_((content.length(), 0))
         self.positionBubble()
+
+    @objc.python_method
+    def requestConversationHistory(self):
+        session_id = self.state.session_id
+        if not session_id:
+            return
+        if self.history_request is not None:
+            self.history_refresh_pending = True
+            return
+        self.history_request_session = session_id
+        self.history_request = self.backend.submit(
+            self.backend.application.session_events(session_id, limit=240))
 
     def quit_(self, _sender):
         AK.NSApplication.sharedApplication().terminate_(None)
