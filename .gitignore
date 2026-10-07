@@ -19,3 +19,4 @@ build/
 docs/assets/
 artifacts/
 logs/
+tmp/

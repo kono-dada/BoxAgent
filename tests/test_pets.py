@@ -8,8 +8,10 @@ import unittest
 
 from PIL import Image
 
-from boxagent.config import DEFAULT_PET
-from boxagent.pets.catalog import PetCatalog, SOURCE, asset_url, decode_image
+from boxagent.bootstrap.settings import load_settings
+
+DEFAULT_PET = load_settings().default_pet
+from boxagent.interfaces.macos.pets.catalog import PetCatalog, SOURCE, asset_url, decode_image
 
 
 def atlas(version=2):
@@ -110,7 +112,7 @@ class PetTests(unittest.TestCase):
         self.assertEqual(self.catalog.current_directory(), DEFAULT_PET)
 
     def test_adapter_detects_empty_rows_and_rejects_invisible_pet(self):
-        from boxagent.appearance.codex_pets import CodexPetsAppearance
+        from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
         directory = self.catalog.prepare("test-pet")
         image = Image.new("RGBA", (1536, 2288))
         image.paste((40, 100, 170, 255), (0, 0, 192, 208))

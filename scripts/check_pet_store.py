@@ -1,6 +1,7 @@
 """真实商店与原生换装验收；任务和语音使用替身，不录音、不操作其他应用。"""
 
 import asyncio
+from functools import partial
 import json
 import time
 import traceback
@@ -9,12 +10,14 @@ import AppKit as AK
 from Foundation import NSDate, NSRunLoop
 from PyObjCTools import AppHelper
 
-import boxagent.desktop as host
-from boxagent.appearance.codex_pets import CodexPetsAppearance
-from boxagent.config import DEFAULT_PET, ROOT
-from boxagent.domain import Snapshot
-from boxagent.pets.catalog import PetCatalog
-from boxagent.runtime import Runtime
+import boxagent.interfaces.macos.app as host
+from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
+from boxagent.bootstrap.settings import load_settings
+from boxagent.core.states import Snapshot
+from boxagent.interfaces.macos.pets.catalog import PetCatalog
+from boxagent.interfaces.macos.windows.pet_store import PetStoreWindow
+from boxagent.application.assistant import BoxAgentApplication
+from boxagent.interfaces.macos.inprocess_bridge import BackendBridge
 
 
 class PreviewExecutor:
@@ -26,7 +29,7 @@ class PreviewExecutor:
 
 
 class PreviewVoice:
-    def __init__(self, handle_tool, emit):
+    def __init__(self, handle_tool, emit, **_callbacks):
         self.emit = emit
         self.done = asyncio.Event()
 
@@ -49,15 +52,24 @@ class PreviewHotkey:
 
 
 def main():
-    output = ROOT / ".runtime/pet-store-check"
+    app_settings = load_settings()
+    output = app_settings.root / ".runtime/pet-store-check"
     output.mkdir(parents=True, exist_ok=True)
-    host.DATA = host.LOG_DIR = output
     host.Hotkey = PreviewHotkey
-    catalog = PetCatalog(output / "pets")
-    backend = host.Backend(lambda publish: Runtime(publish, lambda _id: PreviewExecutor(), PreviewVoice))
+    catalog = PetCatalog(output / "pets", default_pet=app_settings.default_pet)
+    backend = BackendBridge(lambda publish: BoxAgentApplication(
+        publish, lambda _id: PreviewExecutor(), PreviewVoice), log_dir=output)
     app = AK.NSApplication.sharedApplication()
     app.setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
-    desktop = host.Desktop.alloc().init().configure(backend, CodexPetsAppearance(DEFAULT_PET), catalog)
+    contract_path = app_settings.root / "assets/pet/atlas-contract.json"
+    appearance_factory = partial(CodexPetsAppearance, contract_path=contract_path)
+    desktop = host.Desktop.alloc().init().configure(
+        backend, appearance_factory(app_settings.default_pet), catalog, data_dir=output,
+        appearance_factory=appearance_factory,
+        appearance_preparer=partial(CodexPetsAppearance.prepare,
+                                    contract_path=contract_path),
+        pet_store_factory=lambda owner, selected_catalog:
+            PetStoreWindow.alloc().init().configure(owner, selected_catalog))
     app.setDelegate_(desktop)
     result = {"checks": [], "screenshots": [], "network": "真实公开商店", "voice_and_executor": "替身"}
     finished = False
@@ -136,18 +148,19 @@ def main():
         desktop.appearance.present(Snapshot(), time.monotonic())
         capture("v1", desktop.drag)
         check(PetCatalog(catalog.root).current_directory().name == "guga", "新实例离线恢复已选 V1")
-        backend.submit(backend.runtime.submit_text("换装期间保持这个测试任务运行"))
-        backend.submit(backend.runtime.toggle_voice())
+        backend.submit(backend.application.submit_text("换装期间保持这个测试任务运行"))
+        backend.submit(backend.application.toggle_voice())
         store = desktop.pet_store
         store.search.setStringValue_("gugahd")
         store.search_(None)
         wait_for(lambda: any(p["id"] == "gugahd" for p in store.items)
-                 and backend.runtime.state.voice == "ready" and backend.runtime.state.task == "running", choose_v2)
+                 and backend.application.state.voice == "ready"
+                 and backend.application.state.task == "running", choose_v2)
 
     def choose_v2():
         desktop.tick_(None)
         desktop.input.setStringValue_("换装后仍保留的草稿")
-        result["task_id"] = backend.runtime.state.task_id
+        result["task_id"] = backend.application.state.task_id
         result["position"] = [desktop.pet.frame().origin.x, desktop.pet.frame().origin.y]
         store = desktop.pet_store
         index = next(i for i, pet in enumerate(store.items) if pet["id"] == "gugahd")
@@ -157,8 +170,10 @@ def main():
     def switched_v2():
         check(desktop.appearance.directory.name == "gugahd", "点击商店按钮下载并切换真实 V2")
         check(desktop.appearance.version == 2, "V2 按十一行图集播放")
-        check(backend.runtime.state.task_id == result["task_id"] and not backend.runtime.job.done(), "换装不替换或取消正在运行的任务")
-        check(not backend.runtime.voice_task.done() and backend.runtime.state.voice == "ready", "换装保留语音会话生命周期")
+        check(backend.application.state.task_id == result["task_id"]
+              and not backend.application.job.done(), "换装不替换或取消正在运行的任务")
+        check(not backend.application.voice_task.done()
+              and backend.application.state.voice == "ready", "换装保留语音会话生命周期")
         check(desktop.input.stringValue() == "换装后仍保留的草稿", "换装保留输入草稿")
         check(result["position"] == [desktop.pet.frame().origin.x, desktop.pet.frame().origin.y], "换装保留桌宠位置")
         desktop.appearance.present(Snapshot(), time.monotonic(), (100, 100))
@@ -198,8 +213,8 @@ def main():
         wait_for(lambda: not desktop.pet_store.selecting, restored)
 
     def restored():
-        check(desktop.appearance.directory == DEFAULT_PET, "可恢复内置小鸭")
-        check(catalog.current_directory() == DEFAULT_PET, "恢复小鸭写入启动选择")
+        check(desktop.appearance.directory == app_settings.default_pet, "可恢复内置小鸭")
+        check(catalog.current_directory() == app_settings.default_pet, "恢复小鸭写入启动选择")
         store = desktop.pet_store
         store.catalog = PetCatalog(output / "empty-pets", lambda *_: (_ for _ in ()).throw(OSError("断网")))
         store.search_(None)

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BoxAgent Memory Graph</title>
+  <script src="vendor/vis-network.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --surface: #171719;
+      --surface-raised: rgba(39, 39, 43, .94);
+      --border: rgba(255, 255, 255, .13);
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+    }
+    * { box-sizing: border-box; }
+    html, body, #graph { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: var(--surface); font: 12px -apple-system, BlinkMacSystemFont, sans-serif; }
+    #graph { border-radius: 12px; }
+    #toolbar {
+      position: absolute; left: 10px; top: 10px; z-index: 3;
+      display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px);
+      pointer-events: none;
+    }
+    #toolbar button {
+      pointer-events: auto; border: 1px solid var(--border); color: var(--muted);
+      background: var(--surface-raised); border-radius: 999px; padding: 4px 9px;
+      font: inherit; cursor: pointer; backdrop-filter: blur(12px);
+    }
+    #toolbar button.active { color: var(--text); border-color: var(--edge); }
+    #toolbar button:hover { color: var(--text); }
+    #status {
+      position: absolute; right: 10px; bottom: 8px; z-index: 3;
+      color: var(--muted); background: rgba(23, 23, 25, .82);
+      border: 1px solid var(--border); border-radius: 6px; padding: 4px 7px;
+      pointer-events: none;
+    }
+    #empty {
+      position: absolute; inset: 0; display: none; place-items: center;
+      color: var(--muted); font-size: 13px; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="graph"></div>
+  <div id="toolbar">
+    <button data-kind="TEMPORAL" style="--edge:#7494d1">时间</button>
+    <button data-kind="SEMANTIC" style="--edge:#3daf8c">语义</button>
+    <button data-kind="CAUSAL" style="--edge:#e86b52">因果</button>
+    <button data-kind="ENTITY" style="--edge:#ad7ad6">实体</button>
+  </div>
+  <div id="status">等待数据</div>
+  <div id="empty">暂无可显示的记忆关系</div>
+  <script>
+    (() => {
+      const nodeStyles = {
+        EVENT: { color: '#4a76e0', shape: 'dot' },
+        EPISODE: { color: '#9459d1', shape: 'diamond' },
+        NARRATIVE: { color: '#d97a3d', shape: 'box' },
+        ENTITY: { color: '#35a079', shape: 'hexagon' },
+        SESSION: { color: '#5794b0', shape: 'triangle' },
+      };
+      const edgeColors = {
+        TEMPORAL: '#7494d1', SEMANTIC: '#3daf8c', CAUSAL: '#e86b52',
+        ENTITY: '#ad7ad6', RELATED: '#7a858f',
+      };
+      const edgeLabels = {
+        TEMPORAL: '时间', SEMANTIC: '语义', CAUSAL: '因果',
+        ENTITY: '实体', RELATED: '相关',
+      };
+      const relationLabels = {
+        RELATED_TO: '相关', LEADS_TO: '导致', PRECEDES: '先于',
+        SUCCEEDS: '后于', TEMPORALLY_CLOSE: '时间接近',
+      };
+      let nodes = new vis.DataSet();
+      let edges = new vis.DataSet();
+      const enabledKinds = new Set(Object.keys(edgeColors));
+      const container = document.getElementById('graph');
+      const status = document.getElementById('status');
+      const empty = document.getElementById('empty');
+      let rawEdges = [];
+      let layoutGeneration = 0;
+      let layoutFallback = null;
+      let redrawFallbacks = [];
+
+      const network = new vis.Network(container, { nodes, edges }, {
+        autoResize: true,
+        physics: {
+          enabled: true,
+          solver: 'forceAtlas2Based',
+          forceAtlas2Based: {
+            gravitationalConstant: -70,
+            centralGravity: .012,
+            springLength: 150,
+            springConstant: .045,
+            damping: .52,
+            avoidOverlap: .72,
+          },
+          stabilization: { enabled: true, iterations: 180, updateInterval: 20 },
+        },
+        layout: { improvedLayout: true, randomSeed: 17 },
+        nodes: {
+          borderWidth: 2,
+          borderWidthSelected: 4,
+          size: 24,
+          shadow: { enabled: true, color: 'rgba(0,0,0,.35)', size: 10, x: 0, y: 4 },
+          font: { color: '#f4f4f5', size: 12, face: '-apple-system', strokeWidth: 4,
+                  strokeColor: '#171719', vadjust: 5 },
+          chosen: true,
+        },
+        edges: {
+          width: 1.5,
+          selectionWidth: 2.5,
+          hoverWidth: 2.5,
+          arrows: { to: { enabled: true, scaleFactor: .55 } },
+          font: { color: '#d4d4d8', size: 9, face: '-apple-system', align: 'middle',
+                  strokeWidth: 5, strokeColor: '#171719', background: 'rgba(23,23,25,.72)' },
+          smooth: { enabled: true, type: 'dynamic', roundness: .22 },
+        },
+        interaction: {
+          dragNodes: true,
+          dragView: true,
+          hover: true,
+          hoverConnectedEdges: true,
+          keyboard: { enabled: true, bindToWindow: false },
+          multiselect: false,
+          selectConnectedEdges: false,
+          tooltipDelay: 180,
+          zoomView: true,
+        },
+      });
+
+      function text(value, fallback = '') {
+        return String(value == null ? fallback : value).replace(/\s+/g, ' ').trim();
+      }
+
+      function escapeHtml(value) {
+        return text(value).replace(/[&<>"']/g, character => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        })[character]);
+      }
+
+      function edgeKind(edge) {
+        const kind = text(edge.type, 'RELATED').toUpperCase();
+        return edgeColors[kind] ? kind : 'RELATED';
+      }
+
+      function curveFor(edge, index, groupSize) {
+        if (groupSize === 1) return { enabled: true, type: 'continuous', roundness: 0 };
+        const clockwise = index % 2 === 0;
+        return {
+          enabled: true,
+          type: clockwise ? 'curvedCW' : 'curvedCCW',
+          roundness: .10 + .10 * Math.floor(index / 2),
+        };
+      }
+
+      function projectEdges(snapshotEdges) {
+        const groups = new Map();
+        snapshotEdges.forEach(edge => {
+          const pair = [text(edge.source), text(edge.target)].sort().join('|');
+          if (!groups.has(pair)) groups.set(pair, []);
+          groups.get(pair).push(edge);
+        });
+        return snapshotEdges.map((edge, absoluteIndex) => {
+          const pair = [text(edge.source), text(edge.target)].sort().join('|');
+          const members = groups.get(pair);
+          const index = members.indexOf(edge);
+          const kind = edgeKind(edge);
+          const relation = text(edge.subtype || edge.type, 'RELATED');
+          const sameKind = members.filter(member => edgeKind(member) === kind);
+          const firstOfKind = sameKind[0] === edge;
+          const displayRelation = relationLabels[relation.toUpperCase()] || relation;
+          return {
+            id: text(edge.id, `edge-${absoluteIndex}`),
+            from: text(edge.source),
+            to: text(edge.target),
+            label: firstOfKind
+              ? (sameKind.length > 1 ? `${edgeLabels[kind]} ×${sameKind.length}` : displayRelation)
+              : '',
+            relationKind: kind,
+            color: { color: edgeColors[kind], highlight: '#ffffff', hover: '#ffffff', opacity: .76 },
+            smooth: curveFor(edge, index, members.length),
+            title: `[${escapeHtml(kind)}] ${escapeHtml(relation)}`,
+            hidden: !enabledKinds.has(kind),
+            // Parallel semantic relations should remain visible, but only one
+            // spring per node pair may influence the force-directed layout.
+            physics: index === 0,
+          };
+        });
+      }
+
+      function setSnapshot(snapshot) {
+        layoutGeneration += 1;
+        const generation = layoutGeneration;
+        if (layoutFallback !== null) window.clearTimeout(layoutFallback);
+        redrawFallbacks.forEach(timer => window.clearTimeout(timer));
+        redrawFallbacks = [];
+        const graphNodes = Array.isArray(snapshot.nodes) ? snapshot.nodes.slice(0, 100) : [];
+        rawEdges = Array.isArray(snapshot.edges) ? snapshot.edges.slice(0, 240) : [];
+        const projectedNodes = graphNodes.map(node => {
+          const type = text(node.type, 'EVENT').toUpperCase();
+          const style = nodeStyles[type] || { color: '#7a858f', shape: 'dot' };
+          const content = text(node.content, type);
+          return {
+            id: text(node.id),
+            label: content.length > 16 ? `${content.slice(0, 16)}…` : content,
+            title: `<b>${escapeHtml(type)}</b><br>${escapeHtml(content)}`,
+            shape: style.shape,
+            color: {
+              background: style.color,
+              border: style.color,
+              highlight: { background: style.color, border: '#ffffff' },
+              hover: { background: style.color, border: '#ffffff' },
+            },
+            size: type === 'NARRATIVE' ? 30 : (type === 'EPISODE' ? 27 : 24),
+          };
+        });
+        nodes = new vis.DataSet(projectedNodes);
+        edges = new vis.DataSet(projectEdges(rawEdges));
+        empty.style.display = graphNodes.length ? 'none' : 'grid';
+        status.textContent = `${graphNodes.length} 个节点 · ${rawEdges.length} 条关系`;
+        network.setOptions({ physics: { enabled: graphNodes.length > 1 } });
+        network.setData({ nodes, edges });
+        if (snapshot.selected_id && nodes.get(snapshot.selected_id)) {
+          network.selectNodes([snapshot.selected_id]);
+        }
+        if (graphNodes.length > 1) {
+          network.startSimulation();
+          layoutFallback = window.setTimeout(() => settleLayout(generation), 1200);
+        } else {
+          window.requestAnimationFrame(() => settleLayout(generation));
+        }
+      }
+
+      function settleLayout(generation) {
+        if (generation !== layoutGeneration) return;
+        if (layoutFallback !== null) {
+          window.clearTimeout(layoutFallback);
+          layoutFallback = null;
+        }
+        network.stopSimulation();
+        network.setOptions({ physics: { enabled: false } });
+        network.fit({ animation: false });
+        network.redraw();
+        // WKWebView may enqueue one final canvas clear after physics stops.
+        // Redraw once that native frame has drained so the graph cannot remain blank.
+        redrawFallbacks = [50, 250].map(delay => window.setTimeout(() => {
+          if (generation === layoutGeneration) network.redraw();
+        }, delay));
+      }
+
+      function applyFilters() {
+        edges.update(edges.get().map(edge => ({
+          id: edge.id,
+          hidden: !enabledKinds.has(edge.relationKind),
+        })));
+      }
+
+      document.querySelectorAll('#toolbar button').forEach(button => {
+        const kind = button.dataset.kind;
+        button.classList.add('active');
+        button.addEventListener('click', () => {
+          if (enabledKinds.has(kind)) enabledKinds.delete(kind);
+          else enabledKinds.add(kind);
+          button.classList.toggle('active', enabledKinds.has(kind));
+          applyFilters();
+        });
+      });
+
+      network.on('selectNode', parameters => {
+        const nodeId = parameters.nodes[0];
+        if (nodeId && window.webkit?.messageHandlers?.boxagent) {
+          window.webkit.messageHandlers.boxagent.postMessage({ type: 'select', nodeId });
+        }
+      });
+      network.on('doubleClick', parameters => {
+        const nodeId = parameters.nodes[0];
+        if (nodeId) network.focus(nodeId, { scale: 1.25, animation: { duration: 260 } });
+      });
+      network.on('stabilizationIterationsDone', () => {
+        settleLayout(layoutGeneration);
+      });
+
+      window.boxagentGraph = {
+        setSnapshot,
+        fit() { network.fit({ animation: { duration: 260 } }); },
+        redraw() { network.redraw(); },
+        debug() {
+          return {
+            nodeCount: nodes.length,
+            edgeCount: edges.length,
+            scale: network.getScale(),
+            viewPosition: network.getViewPosition(),
+            positions: network.getPositions(),
+            visibleNodeIds: network.body.nodeIndices.slice(),
+            visibleEdgeIds: network.body.edgeIndices.slice(),
+            translation: { ...network.body.view.translation },
+          };
+        },
+      };
+      window.webkit?.messageHandlers?.boxagent?.postMessage({ type: 'ready' });
+    })();
+  </script>
+</body>
+</html>

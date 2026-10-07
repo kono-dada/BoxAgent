@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "scenario_id": "companion-memory",
+  "title": "连续陪伴与跨 Session 记忆",
+  "execution": "live_safe",
+  "capabilities": [
+    "persona",
+    "multi_turn_context",
+    "automatic_memory",
+    "user_profile",
+    "session_management",
+    "cross_session_recall",
+    "checkpoint_recovery"
+  ],
+  "turns": [
+    {
+      "session": "第一次见面",
+      "role": "user",
+      "text": "我最近在做 BoxAgent，喜欢喝桂花乌龙，也希望你回答简洁一点。"
+    },
+    {
+      "session": "第一次见面",
+      "role": "assistant",
+      "text": "记住啦：BoxAgent、桂花乌龙、简洁回答。"
+    },
+    {
+      "session": "第一次见面",
+      "role": "user",
+      "text": "今天有点累，但还想把上下文和记忆这块收尾。"
+    },
+    {
+      "session": "第一次见面",
+      "role": "assistant",
+      "text": "那就只收一个最小闭环，做完便停，不继续扩需求。"
+    },
+    {
+      "session": "第一次见面",
+      "role": "user",
+      "text": "好，先记住我喜欢先看结论，再看证据。"
+    },
+    {
+      "session": "第一次见面",
+      "role": "assistant",
+      "text": "记住了，以后先给结论，再给证据。"
+    },
+    {
+      "session": "第二天的新会话",
+      "role": "user",
+      "text": "我们重新开个会话。你还记得我的饮品和沟通偏好吗？"
+    },
+    {
+      "session": "第二天的新会话",
+      "role": "assistant",
+      "text": "你喜欢桂花乌龙；回答要简洁，并且先给结论、再给证据。"
+    }
+  ],
+  "assertions": [
+    "user_final_is_persisted_before_memory_job",
+    "memory_admission_is_asynchronous",
+    "profile_contains_tea_and_answer_style",
+    "new_session_recall_contains_桂花乌龙",
+    "new_session_recall_contains_先给结论"
+  ]
+}

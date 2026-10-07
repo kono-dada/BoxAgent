@@ -1,4 +1,4 @@
-"""历史预实验接口：默认限定计算器；当前桌宠使用 boxagent.executor。"""
+"""历史预实验接口：默认限定计算器；当前桌宠使用 Harness + Codex Runtime。"""
 
 import asyncio
 import contextlib
