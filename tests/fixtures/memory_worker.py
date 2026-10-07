@@ -16,15 +16,21 @@ for line in sys.stdin:
         created = []
         for observation in request["observations"]:
             item = {"id": f"memory-{len(memories) + 1}",
-                    "content": observation["content"], "timestamp": None,
+                    "type": "EVENT", "content": observation["content"], "timestamp": None,
                     "metadata": observation.get("metadata", {})}
             memories.append(item)
             created.append(item)
         result = {"admitted": len(request["observations"]), "rejected": 0,
                   "created": created, "memory_count": len(memories)}
+    elif operation == "remember_narrative":
+        item = {"id": f"memory-{len(memories) + 1}", "type": "NARRATIVE",
+                "content": request["checkpoint"]["summary"], "timestamp": None,
+                "metadata": request.get("metadata", {})}
+        memories.append(item)
+        result = {"created": [item], "memory_count": len(memories)}
     elif operation == "query":
         result = {"evidence": "fixture evidence", "memories": memories[:request["top_k"]],
-                  "trace": {"controller": "fixture"}}
+                  "trace": {"controller": "fixture", "mode": request.get("mode", "deep")}}
     elif operation == "inspect":
         nodes = [{"id": item["id"], "type": "EVENT", "content": item["content"],
                   "timestamp": item.get("timestamp"), "source": "fixture"} for item in memories]

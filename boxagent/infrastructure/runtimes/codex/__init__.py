@@ -5,13 +5,11 @@ from boxagent.infrastructure.runtimes.codex.runtime import CodexAgentRuntime
 from boxagent.infrastructure.runtimes.codex.session import CodexRuntimeHost, CodexTaskSession, create_codex_session
 from boxagent.infrastructure.runtimes.codex.skills import CodexSkillAdapter
 from boxagent.infrastructure.runtimes.codex.checkpoint import CodexCheckpointGenerator
-from boxagent.infrastructure.runtimes.codex.memory import CodexMemoryCandidateExtractor
 
 __all__ = [
     "CodexAgentRuntime",
     "CodexAppServer",
     "CodexCheckpointGenerator",
-    "CodexMemoryCandidateExtractor",
     "CodexRuntimeHost",
     "CodexSkillAdapter",
     "CodexTaskSession",

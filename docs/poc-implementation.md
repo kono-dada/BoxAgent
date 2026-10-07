@@ -2,7 +2,7 @@
 
 核对日期：2026-10-05。已实现语音、通用桌面操作、Codex Runtime 上可切换的 OpenAI/DeepSeek 模型 Profile、独立的本地窗口摘要演示，以及用户显式控制的 Jev-Mem 长期记忆；自动多模态入库、Runtime 记忆注入、专注监控和时间线尚未实现。
 
-当前实现以 `uv run --script scripts/pet.py` 启动，Python + AppKit 提供原生窗口。桌宠宿主的依赖声明放在这个 PEP 723 脚本，附带 uv 锁文件；MLX 使用独立 `.venv`，准备方法见 [环境准备](setup.md)。不编译 `.app`，不修改 MLX 实验环境。
+当前实现以 `uv run --script scripts/pet.py` 启动，Python + AppKit 提供原生窗口；记忆图在原生看板内使用本地 `WKWebView + vis-network` 渲染。桌宠宿主的依赖声明放在这个 PEP 723 脚本，附带 uv 锁文件；MLX 使用独立 `.venv`，准备方法见 [环境准备](setup.md)。不编译 `.app`，不修改 MLX 实验环境。
 
 ## 模块之间的契约
 
@@ -19,12 +19,12 @@
 | `boxagent/infrastructure/runtimes/codex/` | Codex native turn、App Server 进程、RPC、MCP 工具发现和 turn 清理 | 产品人格、上下文选择、任务是否完成 |
 | `boxagent/infrastructure/runtimes/qwen/realtime.py` | 千问会话、`run_task()` 委托判定、显式记忆工具、回传结果仲裁、插话 | 目标应用操作流程、角色动画 |
 | `boxagent/infrastructure/audio/pyaudio.py` | 麦克风与播放缓冲，发出实际播放状态 | 任务、窗口、模型提示词 |
-| `boxagent/domain/memory/`、`boxagent/infrastructure/memory/jev.py` | 记忆产品策略与 Jev-Mem 子进程协议分离 | AppKit、语音会话与桌面操作 |
+| `boxagent/domain/memory/`、`boxagent/infrastructure/memory/jev_mem/` | 记忆产品策略与 Jev-Mem 子进程协议分离 | AppKit、语音会话与桌面操作 |
 | `boxagent/domain/conversation/`、`boxagent/infrastructure/persistence/` | Final Message、Session Service 与 JSONL Repository | Provider 协议和 AppKit |
-| `boxagent/interfaces/macos/` | Engine Bridge、状态投影、菜单、对话/桌宠/记忆窗口 | Provider、Jev 与 Computer Use 具体实现 |
+| `boxagent/interfaces/macos/` | Engine Bridge、状态投影、菜单、对话/桌宠/记忆窗口 | Provider、Jev-Mem 与 Computer Use 具体实现 |
 | `boxagent/domain/perception/`、`boxagent/infrastructure/perception/qwen_mlx.py` | 感知生命周期与本地窗口摘要实现分离 | 任务执行、语音协议、角色素材 |
 | `scripts/window_summary_worker.py` | 常驻 MLX 模型，JSONL 请求与响应 | AppKit、任务及提醒策略 |
-| `scripts/jev_memory_worker.py` | 在独立环境中封装 Jev-Mem remember/query/forget/save/load | AppKit、语音会话与桌面操作 |
+| `scripts/jev_mem_worker.py` | Jev-Mem Worker 的命令行入口；生产代码通过包内 module 启动 | AppKit、语音会话与桌面操作 |
 | `boxagent/bootstrap/settings.py`、`core/errors.py` | 不可变配置快照、密钥读取、日志脱敏和原子结果文件 | 角色渲染 |
 | `boxagent/interfaces/macos/hotkey.py` | 注册单个全局快捷键 | 键盘行为收集 |
 | `boxagent/interfaces/macos/pets/contracts.py` | 形象接口：尺寸、原生 view、`present(snapshot, now, pointer)` | 千问、Codex、工具调用 |

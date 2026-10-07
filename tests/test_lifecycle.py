@@ -11,25 +11,26 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_conversation_and_runtime_start_once_and_close_is_idempotent(self):
         conversation = Mock(start=AsyncMock(return_value=None))
         runtime = Mock(start=AsyncMock(), close=AsyncMock())
+        memory = Mock(start=AsyncMock(), close=AsyncMock())
         application = BoxAgentApplication(
-            Mock(), Mock(), None, memory_backend=None,
+            Mock(), Mock(), None, memory=memory,
             conversation_service=conversation,
             runtime_resources=(runtime,))
         await application.start()
         await application.start()
         conversation.start.assert_awaited_once()
         runtime.start.assert_awaited_once()
+        memory.start.assert_awaited_once()
 
         application.perception_service.close = AsyncMock()
         application.execution_service.close = AsyncMock()
         application.interaction_service.close = AsyncMock()
-        application.memory_service.close = AsyncMock()
         await application.close()
         await application.close()
         application.perception_service.close.assert_awaited_once()
         application.execution_service.close.assert_awaited_once()
         application.interaction_service.close.assert_awaited_once()
-        application.memory_service.close.assert_awaited_once()
+        memory.close.assert_awaited_once()
         runtime.close.assert_awaited_once()
 
     async def test_voice_connection_receives_current_session_native_history(self):
@@ -67,7 +68,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         skills = Mock(create=Mock(return_value=record))
         runtime = Mock(sync_skills=AsyncMock())
         application = BoxAgentApplication(
-            Mock(), Mock(), None, memory_backend=None,
+            Mock(), Mock(), None,
             skill_service=skills, runtime_resources=(runtime,))
 
         result = await application.create_skill(

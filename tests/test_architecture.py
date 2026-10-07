@@ -42,6 +42,21 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(settings.root, ROOT)
         self.assertTrue((settings.root / "assets/pet/atlas-contract.json").is_file())
 
+    def test_memory_graph_uses_bundled_web_assets_without_remote_runtime(self):
+        graph_root = ROOT / "assets/memory-graph"
+        html = (graph_root / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('src="vendor/vis-network.min.js"', html)
+        self.assertNotIn("https://", html)
+        self.assertTrue((graph_root / "vendor/vis-network.min.js").is_file())
+        self.assertTrue((graph_root / "vendor/LICENSE-vis-network-MIT").is_file())
+        self.assertTrue((graph_root / "vendor/LICENSE-vis-network-APACHE-2.0").is_file())
+        self.assertIn("network.setData({ nodes, edges })", html)
+        self.assertIn("settleLayout(layoutGeneration)", html)
+        self.assertIn("selectConnectedEdges: false", html)
+        self.assertIn("physics: index === 0", html)
+        self.assertTrue((ROOT / "scripts/check_memory_graph_ui.py").is_file())
+
     def test_explicit_soul_file_overrides_default_persona(self):
         from boxagent.bootstrap.settings import load_settings
 
@@ -49,6 +64,36 @@ class ArchitectureTests(unittest.TestCase):
             soul = Path(directory) / "SOUL.md"
             soul.write_text("custom", encoding="utf-8")
             with patch.dict("os.environ", {"BOXAGENT_SOUL_FILE": str(soul)}):
+                self.assertEqual(load_settings().soul_file, soul.resolve())
+
+    def test_persona_name_is_loaded_from_soul_file(self):
+        from boxagent.agent.harness.persona import load_persona
+
+        with tempfile.TemporaryDirectory() as directory:
+            soul = Path(directory) / "SOUL.md"
+            soul.write_text("名字：小芽\n\n保持自然简洁。", encoding="utf-8")
+
+            self.assertEqual(load_persona(soul).name, "小芽")
+
+    def test_persona_editor_updates_or_inserts_display_name(self):
+        from boxagent.agent.harness.persona import update_persona_name
+
+        self.assertEqual(
+            update_persona_name("# 角色\n\n名字：伙伴\n\n保持简洁。", "小芽"),
+            "# 角色\n\n名字：小芽\n\n保持简洁。\n")
+        self.assertEqual(
+            update_persona_name("保持简洁。", "小芽"),
+            "名字：小芽\n\n保持简洁。\n")
+
+    def test_data_directory_soul_file_overrides_packaged_default(self):
+        from boxagent.bootstrap.settings import load_settings
+
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory)
+            soul = data / "SOUL.md"
+            soul.write_text("名字：小芽", encoding="utf-8")
+            with patch.dict("os.environ", {"BOXAGENT_DATA_DIR": str(data)},
+                            clear=False):
                 self.assertEqual(load_settings().soul_file, soul.resolve())
 
     def test_legacy_source_packages_do_not_return(self):
@@ -66,7 +111,7 @@ class ArchitectureTests(unittest.TestCase):
 
     def test_target_packages_and_files_exist(self):
         expected = {
-            "application/assistant.py",
+            "application/assistant.py", "application/memory.py",
             "agent/harness/request_builder.py", "agent/harness/request.py",
             "agent/harness/context.py", "agent/harness/instructions.py",
             "agent/harness/persona.py", "agent/harness/executor.py",
@@ -90,7 +135,10 @@ class ArchitectureTests(unittest.TestCase):
             "infrastructure/runtimes/codex/computer_use.py",
             "infrastructure/runtimes/codex/skills.py",
             "infrastructure/runtimes/qwen/realtime.py",
-            "infrastructure/memory/jev.py", "infrastructure/audio/pyaudio.py",
+            "infrastructure/memory/jev_mem/__init__.py",
+            "infrastructure/memory/jev_mem/client.py",
+            "infrastructure/memory/jev_mem/worker.py",
+            "infrastructure/audio/pyaudio.py",
             "infrastructure/perception/qwen_mlx.py",
             "infrastructure/environment/local_system.py",
             "infrastructure/persistence/jsonl_session_repository.py",
@@ -104,7 +152,8 @@ class ArchitectureTests(unittest.TestCase):
             "interfaces/macos/windows/conversation.py",
             "interfaces/macos/windows/memory.py",
             "interfaces/macos/windows/skills.py",
-            "bootstrap/engine.py", "bootstrap/desktop.py", "bootstrap/settings.py",
+            "bootstrap/engine.py", "bootstrap/memory.py", "bootstrap/desktop.py",
+            "bootstrap/settings.py",
             "entrypoints/engine.py", "entrypoints/desktop.py",
         }
         missing = sorted(path for path in expected if not (PACKAGE / path).is_file())
@@ -159,9 +208,10 @@ class ArchitectureTests(unittest.TestCase):
     def test_production_implementations_are_constructed_in_bootstrap(self):
         concrete = {
             "BoxAgentApplication", "EngineBridge", "CodexPetsAppearance",
-            "JsonlSessionStore", "JevMemoryWorker", "PetCatalog",
+            "JsonlSessionStore", "JevMemWorker", "PetCatalog",
             "AgentRuntimeRegistry", "CodexRuntimeHost", "MemoryDashboardWindow",
-            "PetStoreWindow", "TaskExecutor", "SkillFileRepository", "SkillService",
+            "PersonaSettingsWindow", "PetStoreWindow", "TaskExecutor",
+            "SkillFileRepository", "SkillService",
             "WindowSummary",
             "LocalSystemEnvironmentProvider",
         }
@@ -175,6 +225,41 @@ class ArchitectureTests(unittest.TestCase):
                         and node.func.id in concrete):
                     offenders.append(
                         f"{path.relative_to(PACKAGE)}:{node.lineno}:{node.func.id}")
+        self.assertEqual(offenders, [])
+
+    def test_memory_internals_are_composed_only_by_memory_bootstrap(self):
+        concrete = {
+            "JsonMemoryJobStore", "JevMemWorker", "MemoryContextProvider",
+            "MemoryIngestionCoordinator", "MemoryService", "JsonProfileStore",
+            "ProfileProjector", "NarrativeProjector",
+        }
+        offenders = []
+        for path in PACKAGE.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                        and node.func.id in concrete
+                        and path != PACKAGE / "bootstrap" / "memory.py"):
+                    offenders.append(
+                        f"{path.relative_to(PACKAGE)}:{node.lineno}:{node.func.id}")
+        self.assertEqual(offenders, [])
+
+    def test_memory_consumers_do_not_reach_into_module_internals(self):
+        consumers = [
+            PACKAGE / "application" / "assistant.py",
+            PACKAGE / "agent" / "harness" / "executor.py",
+            PACKAGE / "domain" / "interaction" / "service.py",
+            *list((PACKAGE / "interfaces").rglob("*.py")),
+        ]
+        forbidden = ("memory.backend", "memory.job_store",
+                     ".memory_context_provider", ".memory_service",
+                     "memory.ingestion")
+        offenders = []
+        for path in consumers:
+            source = path.read_text(encoding="utf-8")
+            for token in forbidden:
+                if token in source:
+                    offenders.append(f"{path.relative_to(PACKAGE)}:{token}")
         self.assertEqual(offenders, [])
 
     def test_entrypoints_are_thin(self):

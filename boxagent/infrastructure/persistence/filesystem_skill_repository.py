@@ -52,6 +52,12 @@ class SkillFileRepository:
             self._set_registry(skill_id, True)
             return self._read_record(target, SkillSource.USER, True)
 
+    def validate(self, skill_id: str, *, name: str, description: str,
+                 instructions: str) -> None:
+        with self.lock:
+            self._user_skill_path(skill_id)
+            self._render(name, description, instructions)
+
     def update(self, skill_id: str, *, name: str, description: str,
                instructions: str) -> SkillRecord:
         with self.lock:

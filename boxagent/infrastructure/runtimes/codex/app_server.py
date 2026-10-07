@@ -68,6 +68,7 @@ class CodexAppServer:
         self.thread_signature = None
         self.completed = None
         self.agent_text = ""
+        self.turn_input_messages = []
         self.tools = []
         self.discovered_tools = []
         self.discovered_skills = []
@@ -93,6 +94,7 @@ class CodexAppServer:
         self.turn_id = None
         self.completed = None
         self.agent_text = ""
+        self.turn_input_messages = []
         self.cleanup_status = "not_started"
 
     def launch_environment(self) -> dict[str, str]:
@@ -136,7 +138,14 @@ class CodexAppServer:
 
     def launch_arguments(self, executable: Path, client: Path) -> list[str]:
         mcp = 'mcp_servers.boxagent_cua={command=' + json.dumps(str(client)) + ',args=["mcp"]}'
-        arguments = [str(executable), "app-server", "--stdio", "-c", mcp, "-c", "notify=[]"]
+        # Computer Use owns a visible cursor overlay.  It is dismissed by the
+        # notifier that Codex invokes as part of its own turn lifecycle.  A
+        # hand-built notification after the RPC completes is not equivalent:
+        # the client accepts it, but cannot associate it with the active CUA
+        # turn and the overlay remains on screen.
+        notify = "notify=" + json.dumps([str(client), "turn-ended"])
+        arguments = [str(executable), "app-server", "--stdio", "-c", mcp,
+                     "-c", notify]
         for override in self.model_config_overrides():
             arguments.extend(("-c", override))
         return arguments
@@ -359,6 +368,20 @@ class CodexAppServer:
         turn_input = query
         if evidence_context:
             turn_input = evidence_context + "\n当前用户请求：\n" + query
+        self.log(
+            "runtime_request_sent", thread_id=self.thread_id,
+            thread_state=state,
+            injected_history=[{
+                "role": message.role, "content": message.content,
+                "sequence": message.sequence, "event_id": message.event_id,
+                "source": message.source,
+            } for message in selected_history],
+            input=turn_input, output_schema=output_schema)
+        # The Computer Use turn-ended notifier ignores an effectively empty
+        # completion payload. Keep the user-visible request separately from the
+        # augmented Runtime input so the native cursor overlay can be dismissed
+        # without leaking recalled evidence into the notification payload.
+        self.turn_input_messages = [query]
         turn = await self.rpc("turn/start", {"threadId": self.thread_id,
             "outputSchema": output_schema,
             "input": [{"type": "text", "text": turn_input, "text_elements": []}]})
@@ -445,8 +468,10 @@ class CodexAppServer:
             self.cleanup_status = "not_needed"
             return
         payload = {"type": "agent-turn-complete", "thread-id": self.thread_id,
-                   "turn-id": self.turn_id, "cwd": str(self.workspace), "input-messages": [],
-                   "last-assistant-message": ""}
+                   "turn-id": self.turn_id, "cwd": str(self.workspace),
+                   "client": "boxagent-pet",
+                   "input-messages": self.turn_input_messages,
+                   "last-assistant-message": self.agent_text}
         process = None
         self.log("cursor_cleanup_started", thread_id=self.thread_id, turn_id=self.turn_id)
         try:
@@ -466,6 +491,7 @@ class CodexAppServer:
                 process.kill()
                 await process.wait()
             self.turn_id = None
+            self.turn_input_messages = []
 
     async def interrupt(self):
         self.stopped = True

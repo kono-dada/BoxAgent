@@ -6,7 +6,7 @@ BoxAgent 的目标是一个长期运行在 MacBook 上的桌宠 Agent：既能�
 
 最初设想中的体验包括：说一句“随便放一首钢琴曲”，桌宠先回应，再在后台完成操作；交代“接下来专心学习一小时”，它安静观察，发现持续偏离学习目标时及时提醒；晚上问“我今天做了什么”，它按有依据的时间段回顾当天活动。用户工作时尽量不受干扰，耗时执行也不阻塞继续交谈。
 
-**当前已完成全双工语音、统一 Qwen 前台交互、Computer Use、持久 Product Session、任务完成通知、显式长期记忆与模块化架构重写。** 文字和语音先进入 Qwen Realtime，普通聊天由前台直答，需要操作电脑时再异步委托 Codex Runtime；后台任务不阻塞继续对话，终态先进入持久 Outbox，再由语音、桌宠或系统通知送达。以下是演进方向，具体边界随实际体验调整。
+**当前已完成全双工语音、统一 Qwen 前台交互、Computer Use、持久 Product Session、任务完成通知、Jev-Mem-first 自动/显式长期记忆与模块化架构重写。** 文字和语音先进入 Qwen Realtime，普通聊天由前台直答，需要操作电脑时再异步委托 Codex Runtime；后台任务不阻塞继续对话，终态先进入持久 Outbox，再由语音、桌宠或系统通知送达。macOS 语音传输已接入 AOQ 优先、WebSocket 降级的边界，在完成 Workspace 配置后由 AOQ 提供原生回声消除与降噪。以下是演进方向，具体边界随实际体验调整。
 
 - [x] **全双工语音：技术验证与统合。** 接入千问实时语音，支持快捷键对话、插话和后台任务期间继续交谈。
 - [x] **本地端模型：技术验证与统合。** 接入 MLX Qwen3.5-0.8B，定期解读前台窗口并在桌宠旁展示摘要，支持开关。
@@ -15,16 +15,16 @@ BoxAgent 的目标是一个长期运行在 MacBook 上的桌宠 Agent：既能�
 - [ ] **持续委托与及时响应。** 从“专注学习一小时”开始，将桌面观察交给决策层；支持委托启动、修改、暂停与结束，在有效时间内判断是否提醒，避免重复或过时打扰。
 - [ ] **多场景监控与动态扩展。** 用第二种不同的委托验证通用性，例如下载完成提醒；复用事件来源、计时、生命周期与输出机制，让各场景的判断和调优独立，探索按需生成监控与热加载。
 - [ ] **活动时间线。** 结合窗口变化、闲置等活动信号（如 ActivityWatch）与屏幕观察，形成有证据的活动区间；先支持短时回顾，再扩展到全天，保留采集空白。
-- [x] **显式长期记忆。** 用户可通过语音明确要求记住、回忆和删除文本形态的偏好、约定或事实；Memory Service 通过独立 Jev-Mem Worker 持久化。自动提炼屏幕/语音内容、冲突更新和 Agent Runtime 自动注入尚未实现。
+- [x] **长期记忆基础。** 用户可明确要求记住、回忆和删除文本形态的偏好、约定或事实；普通 Final User Message 也会异步进入 Jev-Mem admission。屏幕感知仍不自动入库，冲突消歧和多尺度 consolidation 继续迭代。
 - [x] **原生记忆看板。** 从 macOS 右上角 `◉` 菜单或桌宠右键菜单打开“记忆看板…”，可搜索记忆、查看选中节点的一跳关系与详情，并在原生确认后按精确 ID 删除。
-- [ ] **自动长期记忆。** 已确定采用异步提取、Canonical Memory Ledger、三档准入和低延迟分层召回；详见 [Phase 4 长期记忆设计](docs/BoxAgent-Phase4-Memory-设计.md)。
-- [x] **本地 Skill 管理。** BoxAgent 自己管理内置与用户 Skill、启停状态和 Engine IPC CRUD；可从菜单打开原生页面新建、编辑、启停和删除用户 Skill。Codex App Server 只接收受控目录与 allowlist 投影，不再启用用户全局目录中的无关 Skill。
+- [x] **Jev-Mem-first 自动长期记忆主链。** Final User Message 持久化后异步进入 Jev-Mem admission/store，支持 Profile、Narrative、L2 direct 与 L3 deep recall；质量评测和高级 consolidation 仍继续迭代。详见 [Phase 4 长期记忆设计](docs/BoxAgent-Phase4-Memory-设计.md)。
+- [x] **本地 Skill 管理与对话式创建。** BoxAgent 自己管理内置与用户 Skill、启停状态和 Engine IPC CRUD；可从菜单管理，也可让 Reze 搜索现有 Skill、结合最近真实任务轨迹生成草稿，并在用户明确授权后安装。Codex App Server 只接收受控目录与 allowlist 投影，不再启用用户全局目录中的无关 Skill。
 
 整个系统围绕事件驱动设计。用户消息、桌面观察、执行结果、定时器及外部 Feed 都可以成为事件；决策结合事件本身、当前时间、有效委托、相关记忆与可用工具，选择保持安静、更新桌宠表现、发送消息或委托执行。事件处理与具体执行分离，按事件的时效要求处理；每种监控维护自己的判断逻辑和状态，减少场景之间的相互影响。
 
-当前代码按 `entrypoints → bootstrap → application/domain/agent ← infrastructure` 组织，macOS 与 Engine IPC 放在 `interfaces/`。`domain/<能力>/models.py` 保存领域数据，`contracts.py` 定义该能力需要的端口，`service.py` 实现用例；`agent/harness/` 编译上下文与策略，`agent/runtime/` 只定义 Runtime 合同和模型 Profile；Codex、Qwen、Jev 与本地持久化均在 `infrastructure/` 实现。`bootstrap/desktop.py` 和 `bootstrap/engine.py` 是两个进程唯一的生产装配点，旧路径不保留 import 兼容层。详见 [架构重构方案](docs/BoxAgent-架构重构方案.md)。
+当前代码按 `entrypoints → bootstrap → application/domain/agent ← infrastructure` 组织，macOS 与 Engine IPC 放在 `interfaces/`。`domain/<能力>/models.py` 保存领域数据，`contracts.py` 定义该能力需要的端口，`service.py` 实现用例；`agent/harness/` 编译上下文与策略，`agent/runtime/` 只定义 Runtime 合同和模型 Profile；Codex、Qwen、Jev-Mem 与本地持久化均在 `infrastructure/` 实现。`bootstrap/desktop.py` 和 `bootstrap/engine.py` 是两个进程唯一的生产装配点，旧路径不保留 import 兼容层。详见 [架构重构方案](docs/BoxAgent-架构重构方案.md)。
 
-端云分工沿用已验证的方向：本地模型提供桌面观察，云端模型负责语音交互和复杂判断、执行。**目前本地摘要仅用于展示，尚未自动写入记忆或接入执行决策；长期记忆已支持用户显式写入、检索和精确删除，但尚未自动注入 Agent Runtime。** 持续监控、时间线、通用事件决策和时效调度仍需后续探索。
+端云分工沿用已验证的方向：本地模型提供桌面观察，云端模型负责语音交互和复杂判断、执行。**目前本地窗口摘要仅用于展示，尚未自动写入记忆或接入执行决策；长期记忆已经通过 Profile、L2 direct 与 L3 deep recall 注入 Qwen/Codex，但冲突消歧、质量集和延迟分位数仍需完善。** 持续监控、时间线、通用事件决策和时效调度仍需后续探索。
 
 长期运行质量贯穿各阶段：持续验证真人全双工体验、后台操作对工作的干扰、读屏质量与资源占用，以及断网、睡眠唤醒、退出清理等恢复行为。初步技术验证和 POC 统合不等于这些可靠性问题已经全部解决，已验证范围见 [验收记录](docs/poc-verification.md)。
 
@@ -80,13 +80,14 @@ uv run --script scripts/pet.py --log-dir ./logs/boxagent
 - 后台动态发现 Computer Use 的应用列表、读界面、点击、输入、滚动等工具；代码不按应用分派，也没有场景模板或专用任务定义。具体能否完成取决于应用界面、工具能力和模型判断。
 - 使用 `--require-approval` 时，工具请求授权后，气泡显示当前请求，可允许或拒绝。已允许的同一请求在本次进程内复用；默认自动允许不显示此按钮。
 - 说“取消任务”或点“停止任务”，停止后续动作。普通插话只中断播报；关闭麦克风后后台任务继续，结果保留在气泡中。
-- 说“记住我喜欢简洁的回答”会先在本地 Canonical Ledger 完成 durable commit，再由后台建立 Jev 索引；普通对话完成后也会异步提取稳定、低敏感且有原文证据的用户偏好。询问过去偏好时会先检索记忆。删除时先检索精确记忆 ID，匹配不唯一时需要用户确认，不执行模糊批量删除。
-- 点击菜单栏 `◉` →“记忆看板…”可打开本地原生看板；可查看 Canonical 状态、类型、revision、语义槽、来源和索引状态，并对 `pending_review` 执行批准/拒绝、对 `index_failed` 重试索引或精确删除。看板不会启动 HTTP 服务，也不会直接编辑 Jev 文件。
+- Final User Message 一经 Session Store 持久化，就创建 durable Job 并把原文交给 Jev-Mem 判断是否保存、属于哪类记忆及如何建图；显式“记住”会强制保存，但仍先经过 Secret Filter。删除时使用 recall 返回的精确 Jev-Mem ID，不执行模糊批量删除。
+- 点击菜单栏 `◉` →“记忆看板…”可打开本地原生看板；通过 Worker 查看脱敏、限量的 Jev-Mem 节点和关系，并执行精确删除。看板不会启动 HTTP 服务，也不会直接编辑 Jev-Mem 持久化文件。
 - 点击菜单栏 `◉` →“Skill 管理…”可打开本地原生管理页；内置 Skill 只读但可启停，用户 Skill 可新建、编辑、启停和删除。
+- 可以说“把刚才的操作沉淀成 Skill”。Qwen 先搜索当前安装目录，随后调用独立、无工具、只读的 Codex structured turn 分析最近完成任务的脱敏轨迹并生成草稿；只有当前用户消息明确要求创建、安装、更新，或用户随后确认时，宿主才会写入并热同步 Runtime。
 - 后台任务结束后先写入 `<BOXAGENT_DATA_DIR>/notifications/outbox.json`。Qwen 在线时等待安静窗口主动语音播报，开始播放后才记为送达；Realtime 离线时回退到桌宠未读状态和 macOS 系统通知。
-- Qwen 重连使用“Stable Profile + Context Checkpoint + 最近原生消息”恢复；Checkpoint 由独立 Codex structured turn 异步生成。完成 Interaction 还会 durable enqueue 自动记忆提取，候选通过本地策略后写 Canonical Ledger，再由 Jev 建图索引。原始 Session Event 不会因摘要或记忆写入而删除。
+- Qwen 重连使用“Stable Profile + Context Checkpoint + 最近原生消息”恢复；Checkpoint 由独立 Codex structured turn 异步生成，并投影为可检索的 Jev-Mem Narrative。自动记忆不等待 Interaction 结束：原始 Final User Message 落盘后即进入 Jev-Mem。原始 Session Event 不会因摘要或记忆写入而删除。
 
-建议戴耳机体验插话；当前没有客户端回声消除。首次开启麦克风时，macOS 可能要求允许启动它的终端或 Codex 访问麦克风；直接 uv 启动没有独立的 BoxAgent 权限身份。
+未配置 AOQ 时会降级到 WebSocket，这种模式建议戴耳机体验插话；AOQ 模式由原生 SDK 管理回声消除和降噪。首次开启麦克风时，macOS 可能要求允许启动它的终端或 Codex 访问麦克风；直接 uv 启动没有独立的 BoxAgent 权限身份。AOQ 安装与 Workspace 配置见 [本机环境准备](docs/setup.md)。
 
 程序读取已有 `.env.local` 中的 `DASHSCOPE_API_KEY`。尚未配置时运行 `zsh scripts/set-key.zsh`。语音默认沿用已验证的 `qwen-audio-3.0-realtime-plus`，切换方式：
 
@@ -110,7 +111,7 @@ BoxAgent 官方 Skill 位于 `skills/builtin/`，用户创建的 Skill 默认位
 `.runtime/pet/skills/`，也可通过 `BOXAGENT_SKILLS_DIR=/绝对路径` 调整。每个 Skill
 使用标准的 `<skill-id>/SKILL.md` 结构。启用状态由 BoxAgent 保存并同步给 Codex
 App Server；`~/.agents/skills` 中的个人全局 Skill 不会自动进入 BoxAgent 的启用集合。
-可在原生 Skill 管理页中直接编辑 `name`、`description` 和正文。ZIP/Git 导入、依赖检查、版本升级和 Skill 市场尚未实现。
+可在原生 Skill 管理页中直接编辑 `name`、`description` 和正文。对话式创建当前只接受 instruction-only Skill：模型没有文件写入工具，真正落盘由宿主完成；Shell/Python、依赖安装和任意脚本包会被拒绝。ZIP/Git 导入、第三方市场和脚本型 Skill 沙箱尚未实现。
 
 **右键桌宠或点击菜单栏 ◉ →「形象商店…」即可换形象。** 可以搜索、翻页、查看分享者的来源页，点击「下载并使用」后立即切换；「已下载」中的形象支持离线使用，也可以随时「换回小鸭」。切换失败会保留原形象，成功后下次启动自动恢复。下载和切图在后台进行，切换保留桌宠位置、输入草稿和现有语音／任务生命周期。
 
@@ -118,7 +119,7 @@ App Server；`~/.agents/skills` 中的个人全局 Skill 不会自动进入 BoxA
 
 本地兼容包仍可用 `--pet /绝对路径/角色目录` 加载，仅覆盖本次启动；未指定时依次使用上次有效选择、内置小鸭。完全不同的形象实现仍可通过 `Appearance` 接口接入。实现与验收方式见 [形象商店](docs/pet-store.md)。
 
-运行记录保存在 `.runtime/pet/`：`events.jsonl` 是状态和字幕，`tasks/` 是操作、界面观察和结果；`position.json` 保存位置。Session 原始轨迹位于 `conversations/`，Canonical Memory 位于 `memory/ledger/`，提取任务位于 `memory/extraction/jobs.jsonl`，稳定画像位于 `memory/profiles/stable-profile.json`，Jev 派生索引位于 `memory/jev/`。当前只保存有文本证据的长期记忆，不保存原始音频、连续截图或自动活动时间线。真实 Jev 模式会把写入/检索决策所需的文本发送给 TypeSafe；自动候选提取和 Checkpoint 会调用当前配置的任务模型，因此不应宣称为全本地处理。
+运行记录保存在 `.runtime/pet/`：`events.jsonl` 是状态和字幕，`tasks/` 是操作、界面观察和结果；`position.json` 保存位置。Session 原始轨迹位于 `conversations/`，Jev-Mem 唯一长期记忆 Store 位于 `memory/jev-mem/`，异步投递状态位于 `memory/jobs/ingestion.jsonl`，稳定画像投影位于 `memory/projections/profile.json`。当前不保存原始音频、连续截图或自动活动时间线。启用真实 JEV Decision backend 时，Jev-Mem 会把决策所需文本发送给 TypeSafe.ai；Profile 模式会把画像构造所需文本发送给配置的模型服务，因此不应宣称为全本地处理。
 
 指定 `--log-dir` 后，`events.jsonl`、`tasks/`、`runtime/codex/codex.log` 和 `context-worker.log` 改写到指定目录，窗口位置和单实例锁仍留在 `.runtime/pet/`。每个任务目录包含 `task.json`、`status.json`、`events.jsonl`、`agent-result.json`、`result.json` 和步骤证据；`result.json.runtime_process_alive` 表示共享 Runtime 是否仍在服务。截图单独保存，不把 base64 写进事件日志。进程意外终止时可能没有最终记录；应结合心跳时间与进程状态判断，不能仅凭旧的 `running` 字段认为仍在运行。
 

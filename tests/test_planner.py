@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -17,6 +18,13 @@ from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 
 
 class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    def test_task_runs_have_date_and_time_partitioned_human_browsable_names(self):
+        settings = load_settings()
+        path = settings.task_run_dir(
+            "abc123def456", now=datetime(2026, 10, 7, 15, 12, 6))
+
+        self.assertEqual(path.relative_to(settings.data_dir).as_posix(),
+                         "runs/2026-10-07/151206-abc123def456")
     async def test_codex_runtime_uses_native_turn_without_owning_tool_policy(self):
         session = AsyncMock()
         session.run_codex_turn.return_value = (

@@ -68,18 +68,6 @@ class FakeApplication:
     async def memory_snapshot(self, **arguments):
         return {"arguments": arguments, "nodes": [], "edges": []}
 
-    async def pending_memories(self):
-        return [{"memory_id": "mem_pending", "status": "pending_review"}]
-
-    async def approve_memory(self, memory_id):
-        return {"status": "succeeded", "memory_id": memory_id}
-
-    async def reject_memory(self, memory_id):
-        return {"status": "succeeded", "memory_id": memory_id}
-
-    async def retry_memory_index(self, memory_id):
-        return {"status": "succeeded", "memory_id": memory_id}
-
     async def delete_memory_node(self, memory_id):
         return {"status": "succeeded", "memory_id": memory_id}
 
@@ -171,19 +159,6 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
             "receipt": "submitted"})
         self.assertTrue(listed[0]["pending"])
         self.assertEqual(acknowledged["status"], "delivered")
-
-    async def test_memory_review_commands_cross_process_contract(self):
-        pending = await self.client.request("pending_memories")
-        approved = await self.client.request(
-            "approve_memory", {"memory_id": "mem_pending"})
-        rejected = await self.client.request(
-            "reject_memory", {"memory_id": "mem_pending"})
-        retried = await self.client.request(
-            "retry_memory_index", {"memory_id": "mem_failed"})
-        self.assertEqual(pending[0]["status"], "pending_review")
-        self.assertEqual(approved["memory_id"], "mem_pending")
-        self.assertEqual(rejected["status"], "succeeded")
-        self.assertEqual(retried["memory_id"], "mem_failed")
 
     async def test_unknown_command_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError, "未知 Engine 方法"):

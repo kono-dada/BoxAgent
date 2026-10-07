@@ -48,6 +48,8 @@ class PetStoreWindow(NSObject):
         root.addSubview_(self.search_button)
         self.filter = AK.NSPopUpButton.alloc().initWithFrame_pullsDown_(((420, 579), (140, 30)), False)
         self.filter.addItemsWithTitles_(["全部形象", "已下载"])
+        if catalog.installed():
+            self.filter.selectItemAtIndex_(1)
         self.filter.setTarget_(self)
         self.filter.setAction_("search:")
         root.addSubview_(self.filter)

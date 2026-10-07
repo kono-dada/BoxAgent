@@ -3,10 +3,13 @@
 import asyncio
 import json
 import unittest
+from types import SimpleNamespace
 
 from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, TOOLS, QwenRealtimeSession
 from boxagent.application.assistant import BoxAgentApplication
+from boxagent.application.memory import MemoryModule
 from boxagent.core.states import Snapshot, presentation_state
+from boxagent.domain.memory.service import MemoryService
 
 
 class HeldExecutor:
@@ -60,6 +63,31 @@ class FakeMemory:
         self.closed = True
 
 
+class FakeSkillAuthoring:
+    def __init__(self):
+        self.installed = []
+        self.prepared = []
+
+    def find(self, query, *, limit=8):
+        return [{"skill_id": "macos-music", "query": query, "limit": limit}]
+
+    def begin(self, request, **context):
+        self.prepared.append((request, context))
+        return SimpleNamespace(draft_id="skd_0123456789abcdef")
+
+    async def prepare(self, request, **context):
+        return {"status": "preview", "request": request, "context": context,
+                "draft": {"draft_id": "skd_0123456789abcdef",
+                          "name": "测试 Skill"}}
+
+    def fail(self, draft_id, error):
+        raise AssertionError((draft_id, error))
+
+    def install(self, draft_id, *, session_id=""):
+        self.installed.append((draft_id, session_id))
+        return {"status": "installed", "draft_id": draft_id}
+
+
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.events = []
@@ -73,6 +101,10 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             "run_task", {"goal": "帮我打开哔哩哔哩app然后随机点开播放一个视频"})
         await self.runtime.executor.started.wait()
         return accepted
+
+    def use_memory_backend(self, backend):
+        self.runtime.memory = MemoryModule(MemoryService(backend))
+        self.runtime.interaction_service.memory = self.runtime.memory
 
     async def test_status_remains_responsive_while_tool_waits(self):
         accepted = await self.start_job()
@@ -98,12 +130,21 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(accepted["status"], "accepted")
         self.assertEqual(self.runtime.last_result["status"], "cancelled")
 
-    async def test_busy_does_not_spawn_second_executor(self):
+    async def test_running_task_queues_second_executor_and_starts_it_afterward(self):
         await self.start_job()
-        old = self.runtime.executor
+        first_executor = self.runtime.executor
+        first_job = self.runtime.job
         result = await self.runtime.handle_tool("run_task", {"goal": "打开计算器"})
-        self.assertEqual(result["status"], "busy")
-        self.assertIs(self.runtime.executor, old)
+        self.assertEqual(result["status"], "queued")
+        self.assertEqual(result["position"], 1)
+        self.assertIs(self.runtime.executor, first_executor)
+
+        first_executor.release.set()
+        await first_job
+        second_executor = self.runtime.executor
+        self.assertIsNot(second_executor, first_executor)
+        await second_executor.started.wait()
+        self.assertEqual(second_executor.goal, "打开计算器")
         await self.runtime.cancel_task()
 
     def test_speaking_has_priority_without_losing_background_state(self):
@@ -130,11 +171,53 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.job
         self.assertEqual(self.runtime.state.task, "succeeded")
 
-    async def test_busy_text_does_not_overwrite_current_request(self):
+    async def test_queued_text_does_not_overwrite_current_request(self):
         await self.runtime.submit_text("第一个目标")
+        first_executor = self.runtime.executor
+        first_job = self.runtime.job
         result = await self.runtime.submit_text("第二个目标")
-        self.assertEqual(result["status"], "busy")
+        self.assertEqual(result["status"], "queued")
         self.assertEqual(self.runtime.state.user_text, "第一个目标")
+
+        first_executor.release.set()
+        await first_job
+        await self.runtime.executor.started.wait()
+        self.assertEqual(self.runtime.executor.goal, "第二个目标")
+        self.assertEqual(self.runtime.state.user_text, "第二个目标")
+
+    async def test_multiple_tasks_run_in_fifo_order(self):
+        await self.runtime.submit_text("第一个目标")
+        first_executor = self.runtime.executor
+        first_job = self.runtime.job
+        second = await self.runtime.submit_text("第二个目标")
+        third = await self.runtime.submit_text("第三个目标")
+        self.assertEqual((second["position"], third["position"]), (1, 2))
+
+        first_executor.release.set()
+        await first_job
+        second_executor = self.runtime.executor
+        second_job = self.runtime.job
+        await second_executor.started.wait()
+        self.assertEqual(second_executor.goal, "第二个目标")
+
+        second_executor.release.set()
+        await second_job
+        third_executor = self.runtime.executor
+        await third_executor.started.wait()
+        self.assertEqual(third_executor.goal, "第三个目标")
+        await self.runtime.cancel_task()
+
+    async def test_cancel_clears_queued_tasks(self):
+        await self.runtime.submit_text("第一个目标")
+        first_executor = self.runtime.executor
+        await self.runtime.submit_text("不应执行的第二个目标")
+
+        result = await self.runtime.handle_tool("cancel_task", {})
+        self.assertEqual(result["status"], "cancelled")
+        self.assertTrue(first_executor.stopped)
+        self.assertEqual(len(self.runtime.execution_service.pending), 0)
+        await asyncio.sleep(0)
+        self.assertIs(self.runtime.executor, first_executor)
 
     async def test_blank_text_does_not_create_executor(self):
         result = await self.runtime.submit_text("  \n ")
@@ -168,7 +251,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_memory_tools_keep_voice_payload_small_and_use_exact_ids(self):
         memory = FakeMemory()
-        self.runtime.memory_service.backend = memory
+        self.use_memory_backend(memory)
         remembered = await self.runtime.handle_tool("remember_memory", {"content": "  用户喜欢简洁回答  "})
         self.assertEqual(remembered["status"], "succeeded")
         self.assertEqual(memory.calls[0][1][0]["content"], "用户喜欢简洁回答")
@@ -186,7 +269,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_memory_tools_fail_closed_without_service_or_valid_text(self):
         unavailable = await self.runtime.handle_tool("recall_memory", {"query": "偏好"})
         self.assertEqual(unavailable["status"], "failed")
-        self.runtime.memory_service.backend = FakeMemory()
+        self.use_memory_backend(FakeMemory())
         invalid = await self.runtime.handle_tool("remember_memory", {"content": "  "})
         self.assertEqual(invalid["status"], "failed")
         unobserved = await self.runtime.handle_tool("forget_memory", {"memory_ids": ["memory-1"]})
@@ -195,7 +278,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_dashboard_snapshot_and_confirmed_exact_delete_use_memory_service(self):
         memory = FakeMemory()
-        self.runtime.memory_service.backend = memory
+        self.use_memory_backend(memory)
         snapshot = await self.runtime.memory_snapshot(query="简洁", selected_id="memory-1",
                                                       node_limit=20, edge_limit=30)
         self.assertEqual(snapshot["nodes"][0]["id"], "memory-1")
@@ -206,9 +289,42 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_runtime_close_closes_memory_worker(self):
         memory = FakeMemory()
-        self.runtime.memory_service.backend = memory
+        self.use_memory_backend(memory)
         await self.runtime.close()
         self.assertTrue(memory.closed)
+
+    async def test_skill_tools_use_original_turn_and_enforce_confirmation(self):
+        authoring = FakeSkillAuthoring()
+        self.runtime.skill_authoring = authoring
+        interaction = SimpleNamespace(
+            interaction_id="int_one",
+            session=SimpleNamespace(session_id="ses_one"),
+            user_event=SimpleNamespace(content="把刚才流程沉淀成 Skill"))
+
+        found = await self.runtime.handle_tool(
+            "find_skill", {"query": "music", "limit": 3},
+            interaction=interaction)
+        accepted = await self.runtime.handle_tool(
+            "prepare_skill", {"request": "被模型改写的请求"},
+            interaction=interaction)
+        installed = await self.runtime.handle_tool(
+            "install_skill_draft", {"draft_id": "skd_0123456789abcdef"},
+            interaction=interaction)
+
+        self.assertEqual(found["skills"][0]["limit"], 3)
+        self.assertEqual(accepted["status"], "accepted")
+        self.assertEqual(authoring.prepared[0][0], "把刚才流程沉淀成 Skill")
+        if self.runtime.skill_jobs:
+            await asyncio.gather(*self.runtime.skill_jobs)
+        self.assertEqual(installed["status"], "installed")
+        self.assertEqual(authoring.installed,
+                         [("skd_0123456789abcdef", "ses_one")])
+
+        interaction.user_event.content = "这个草稿具体写了什么？"
+        denied = await self.runtime.handle_tool(
+            "install_skill_draft", {"draft_id": "skd_0123456789abcdef"},
+            interaction=interaction)
+        self.assertEqual(denied["status"], "confirmation_required")
 
 
 class FakeAudio:
@@ -235,8 +351,11 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
     def test_voice_exposes_explicit_memory_tools_and_deletion_guardrail(self):
         names = {item["function"]["name"] for item in TOOLS}
         self.assertTrue({"remember_memory", "recall_memory", "forget_memory"} <= names)
+        self.assertTrue({"find_skill", "prepare_skill", "install_skill_draft"} <= names)
         self.assertIn("只有用户明确说要记住", INSTRUCTIONS)
         self.assertIn("匹配不唯一时先确认", INSTRUCTIONS)
+        self.assertIn("必须在同一个 response 中实际调用 run_task", INSTRUCTIONS)
+        self.assertIn("先调用 find_skill 避免重复", INSTRUCTIONS)
 
     async def test_barge_in_clears_audio_without_cancelling_task(self):
         calls = []
@@ -248,6 +367,61 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(voice.audio.cleared)
         self.assertFalse(voice.audio.chunks)
         self.assertFalse(calls)
+
+    async def test_first_user_turn_does_not_interrupt_idle_audio_device(self):
+        voice = QwenRealtimeSession(
+            lambda *_args: None, lambda *_args, **_kw: None)
+        voice.audio, voice.ws = FakeAudio(), FakeSocket()
+
+        await voice.receive({"type": "input_audio_buffer.speech_started"})
+
+        self.assertFalse(voice.audio.cleared)
+        self.assertTrue(voice.input_turn_pending)
+
+    async def test_finish_pending_input_waits_for_user_response(self):
+        voice = QwenRealtimeSession(
+            lambda *_args: None, lambda *_args, **_kw: None)
+        voice.audio, voice.ws = FakeAudio(), FakeSocket()
+        await voice.receive({"type": "input_audio_buffer.speech_started"})
+
+        waiter = asyncio.create_task(voice.finish_pending_input(timeout=.2))
+        await asyncio.sleep(0)
+        self.assertFalse(waiter.done())
+        await voice.receive({"type": "response.created", "response": {"id": "r1"}})
+        await voice.receive({"type": "response.done", "response": {"id": "r1"}})
+
+        self.assertTrue(await waiter)
+
+    async def test_input_transcription_delta_is_streamed_but_only_final_is_recorded(self):
+        emitted, recorded = [], []
+
+        async def conversation_event(kind, payload):
+            recorded.append((kind, payload))
+
+        voice = QwenRealtimeSession(
+            lambda *_args: None,
+            lambda kind, **payload: emitted.append((kind, payload)),
+            conversation_event=conversation_event)
+        voice.audio, voice.ws = FakeAudio(), FakeSocket()
+
+        await voice.receive({"type": "input_audio_buffer.speech_started"})
+        await voice.receive({
+            "type": "conversation.item.input_audio_transcription.delta",
+            "text": "打开音乐", "stash": "播放",
+        })
+
+        self.assertIn(("voice.user_text_delta", {"user_text": "打开音乐播放"}), emitted)
+        self.assertEqual(recorded, [])
+
+        await voice.receive({
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "item-1", "transcript": "打开音乐播放一首歌",
+        })
+
+        self.assertIn(("voice.user_text", {"user_text": "打开音乐播放一首歌"}), emitted)
+        self.assertEqual(recorded, [("user_final", {
+            "transcript": "打开音乐播放一首歌", "item_id": "item-1",
+        })])
 
     async def test_session_policy_history_current_query_and_response_are_ordered(self):
         from boxagent.agent.runtime.models import RuntimeMessage
@@ -285,6 +459,23 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
             "type": "message", "role": "user",
             "content": [{"type": "input_text", "text": "现在打开音乐"}]}})
         self.assertEqual(sent[5]["type"], "response.create")
+
+    async def test_qwen_trace_records_actual_non_audio_wire_requests(self):
+        traces = []
+        voice = QwenRealtimeSession(
+            lambda *_args: None, lambda *_args, **_kw: None,
+            product_session_id="ses-1",
+            trace=lambda kind, **payload: traces.append((kind, payload)))
+        voice.ws = FakeSocket()
+        voice.ready.set()
+
+        await voice.submit_text("检查上下文")
+
+        requests = [payload for kind, payload in traces
+                    if kind == "client.request"]
+        self.assertEqual(requests[0]["product_session_id"], "ses-1")
+        self.assertEqual(requests[0]["request"]["item"]["role"], "user")
+        self.assertEqual(requests[1]["request"]["type"], "response.create")
 
     async def test_checkpoint_is_injected_before_native_history(self):
         from boxagent.agent.runtime.models import RuntimeMessage
@@ -371,11 +562,193 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         done = next(payload for kind, payload in records if kind == "response_done")
         self.assertTrue(done["cancelled"])
 
+    async def test_execution_promise_without_tool_call_is_repaired_by_host(self):
+        calls = []
+        records = []
+
+        async def handle_tool(name, arguments, metadata):
+            calls.append((name, arguments, metadata))
+            return {"status": "accepted", "task_id": "task-1"}
+
+        async def record(kind, payload):
+            records.append((kind, payload))
+
+        voice = QwenRealtimeSession(
+            handle_tool, lambda *_args, **_kw: None,
+            conversation_event=record)
+        await voice.receive({"type": "response.created", "response": {"id": "r1"}})
+        await voice.receive({
+            "type": "response.audio_transcript.done",
+            "response_id": "r1",
+            "transcript": "我开始处理啦，你可以继续聊天。",
+        })
+        await voice.receive({"type": "response.done", "response": {"id": "r1"}})
+        await asyncio.gather(*tuple(voice.deliveries))
+
+        self.assertEqual(calls, [(
+            "run_task", "{}",
+            {"response_id": "r1", "call_id": "implicit-run-task:r1"})])
+        done = next(payload for kind, payload in records if kind == "response_done")
+        self.assertTrue(done["has_tool_calls"])
+        self.assertTrue(done["implicit_delegation"])
+
+    async def test_retry_promise_without_tool_call_is_repaired_by_host(self):
+        calls = []
+
+        async def handle_tool(name, arguments, metadata):
+            calls.append((name, arguments, metadata))
+            return {"status": "accepted", "task_id": "task-retry"}
+
+        voice = QwenRealtimeSession(
+            handle_tool, lambda *_args, **_kw: None)
+        await voice.receive({"type": "response.created",
+                             "response": {"id": "retry-1"}})
+        await voice.receive({
+            "type": "response.audio_transcript.done",
+            "response_id": "retry-1",
+            "transcript": "我再试一次，你先不用管",
+        })
+        await voice.receive({"type": "response.done",
+                             "response": {"id": "retry-1"}})
+        await asyncio.gather(*tuple(voice.deliveries))
+
+        self.assertEqual(calls, [(
+            "run_task", "{}",
+            {"response_id": "retry-1",
+             "call_id": "implicit-run-task:retry-1"})])
+
+    async def test_queued_implicit_task_is_not_reported_as_error(self):
+        emitted = []
+
+        async def handle_tool(*_args):
+            return {"status": "queued", "task_id": "task-queued", "position": 1}
+
+        voice = QwenRealtimeSession(
+            handle_tool,
+            lambda kind, **payload: emitted.append((kind, payload)))
+        await voice.run_implicit_delegation("r-queued", "我继续处理")
+
+        self.assertNotIn("voice.error", [kind for kind, _payload in emitted])
+
+    async def test_negative_or_meta_response_does_not_trigger_implicit_task(self):
+        calls = []
+        voice = QwenRealtimeSession(
+            lambda *args: calls.append(args), lambda *_args, **_kw: None)
+        for response_id, transcript in (
+                ("r1", "我还没开始处理，需要你先确认。"),
+                ("r2", "如果你愿意，我可以开始处理。"),
+                ("r3", "微信恢复正常后，你可以再试一次。"),
+                ("r4", "我是赫萝。Leon，你今天想让我帮你处理点什么？"),
+                ("r5", "我这就把原因告诉你。")):
+            await voice.receive({"type": "response.created",
+                                 "response": {"id": response_id}})
+            await voice.receive({"type": "response.text.done",
+                                 "response_id": response_id,
+                                 "text": transcript})
+            await voice.receive({"type": "response.done",
+                                 "response": {"id": response_id}})
+
+        self.assertEqual(calls, [])
+
+    async def test_concrete_desktop_promises_trigger_implicit_task(self):
+        for transcript in (
+                "好，我这就把音乐应用最小化。",
+                "嗯，还没最小化。我继续处理，完成后告诉你结果。",
+                "好，我现在帮你把音乐停了。"):
+            self.assertTrue(
+                QwenRealtimeSession._implies_background_delegation(transcript),
+                transcript)
+
+    async def test_response_output_recovers_missing_incremental_function_call(self):
+        calls = []
+
+        async def handle_tool(name, arguments, metadata):
+            calls.append((name, arguments, metadata))
+            return {"status": "accepted"}
+
+        voice = QwenRealtimeSession(handle_tool, lambda *_args, **_kw: None)
+        await voice.receive({"type": "response.created", "response": {"id": "r1"}})
+        await voice.receive({"type": "response.done", "response": {
+            "id": "r1",
+            "output": [{
+                "type": "function_call", "call_id": "call-1",
+                "name": "run_task", "arguments": "{}",
+            }],
+        }})
+        await asyncio.gather(*tuple(voice.deliveries))
+
+        self.assertEqual(calls, [(
+            "run_task", "{}", {"response_id": "r1", "call_id": "call-1"})])
+
+    async def test_function_call_starts_before_response_done_and_is_not_repeated(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+        calls = []
+
+        async def handle_tool(name, arguments, metadata):
+            calls.append((name, arguments, metadata))
+            started.set()
+            await release.wait()
+            return {"status": "accepted"}
+
+        voice = QwenRealtimeSession(handle_tool, lambda *_args, **_kw: None)
+        await voice.receive({"type": "response.created", "response": {"id": "r1"}})
+        await voice.receive({
+            "type": "response.function_call_arguments.done",
+            "response_id": "r1", "call_id": "call-1",
+            "name": "run_task", "arguments": "{}",
+        })
+
+        await asyncio.wait_for(started.wait(), timeout=.2)
+        self.assertTrue(voice.response_active)
+        self.assertEqual(len(calls), 1)
+
+        await voice.receive({"type": "response.done", "response": {
+            "id": "r1",
+            "output": [{
+                "type": "function_call", "call_id": "call-1",
+                "name": "run_task", "arguments": "{}",
+            }],
+        }})
+        self.assertEqual(len(calls), 1)
+
+        release.set()
+        await asyncio.gather(*tuple(voice.deliveries))
+
+    async def test_audio_done_closes_response_when_provider_done_is_missing(self):
+        records = []
+
+        async def record(kind, payload):
+            records.append((kind, payload))
+
+        voice = QwenRealtimeSession(
+            lambda *_args: None, lambda *_args, **_kw: None,
+            conversation_event=record)
+        voice.input_turn_pending = True
+        voice.input_turn_settled.clear()
+        await voice.receive({"type": "response.created", "response": {"id": "r1"}})
+        await voice.receive({
+            "type": "response.audio_transcript.done",
+            "response_id": "r1", "transcript": "已经处理。",
+        })
+        await voice.receive({"type": "response.audio.done", "response_id": "r1"})
+
+        await asyncio.wait_for(voice.input_turn_settled.wait(), timeout=1)
+        self.assertFalse(voice.response_active)
+        self.assertEqual(
+            [kind for kind, _payload in records],
+            ["response_created", "assistant_final", "response_done"])
+
+        await voice.receive({"type": "response.done", "response": {"id": "r1"}})
+        self.assertEqual(
+            [kind for kind, _payload in records].count("response_done"), 1)
+
     async def test_result_waits_until_user_and_response_finish(self):
         voice = QwenRealtimeSession(None, lambda *_args, **_kw: None)
         voice.ws = FakeSocket()
         voice.user_speaking = True
-        await voice.results.put(("real-call", {"status": "succeeded"}))
+        await voice.results.put((
+            "real-call", "remember_memory", {"status": "succeeded"}))
         worker = asyncio.create_task(voice.deliver_results())
         await asyncio.sleep(.15)
         self.assertFalse(voice.ws.sent)
@@ -386,6 +759,113 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
                          [{"kind": "tool_result", "call_id": "real-call"}])
         worker.cancel()
         await asyncio.gather(worker, return_exceptions=True)
+
+    async def test_accepted_background_task_does_not_create_duplicate_followup(self):
+        traces = []
+        voice = QwenRealtimeSession(
+            None, lambda *_args, **_kw: None,
+            trace=lambda event, **payload: traces.append((event, payload)))
+        voice.ws = FakeSocket()
+        await voice.results.put((
+            "run-call", "run_task",
+            {"status": "accepted", "task_id": "task-1"}))
+
+        worker = asyncio.create_task(voice.deliver_results())
+        await asyncio.sleep(.05)
+        sent = [json.loads(message) for message in voice.ws.sent]
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0]["type"], "conversation.item.create")
+        self.assertEqual(sent[0]["item"]["type"], "function_call_output")
+        self.assertEqual(list(voice.response_origins), [])
+        self.assertIn("tool.followup_suppressed",
+                      [event for event, _payload in traces])
+
+    async def test_failed_background_task_still_gets_a_spoken_followup(self):
+        voice = QwenRealtimeSession(None, lambda *_args, **_kw: None)
+        voice.ws = FakeSocket()
+        await voice.results.put((
+            "run-call", "run_task",
+            {"status": "failed", "message": "任务未启动"}))
+
+        worker = asyncio.create_task(voice.deliver_results())
+        await asyncio.sleep(.05)
+        sent = [json.loads(message) for message in voice.ws.sent]
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+
+        self.assertEqual([item["type"] for item in sent], [
+            "conversation.item.create", "response.create"])
+
+    async def test_notification_is_an_immediate_synthetic_user_turn(self):
+        voice = QwenRealtimeSession(None, lambda *_args, **_kw: None)
+        voice.ws = FakeSocket()
+        item = {"notification_id": "notice-1", "outcome": "succeeded",
+                "summary": "计算器结果是 42"}
+        await voice.notifications.put(item)
+
+        worker = asyncio.create_task(voice.deliver_notifications())
+        await asyncio.sleep(.05)
+        sent = [json.loads(message) for message in voice.ws.sent]
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+
+        self.assertEqual(sent[0]["type"], "conversation.item.create")
+        self.assertEqual(sent[0]["item"]["role"], "user")
+        self.assertIn("计算器结果是 42", sent[0]["item"]["content"][0]["text"])
+        self.assertEqual(sent[1]["type"], "response.create")
+        self.assertEqual(list(voice.response_origins), [{
+            "kind": "notification", "notification_id": "notice-1"}])
+
+    async def test_notification_transcript_does_not_overwrite_visible_chat(self):
+        emitted = []
+        voice = QwenRealtimeSession(
+            None, lambda kind, **payload: emitted.append((kind, payload)))
+        voice.response_origins.append(
+            {"kind": "notification", "notification_id": "notice-1"})
+
+        await voice.receive({"type": "response.created",
+                             "response": {"id": "notification-r"}})
+        await voice.receive({"type": "response.audio_transcript.delta",
+                             "response_id": "notification-r",
+                             "delta": "计算器已完成"})
+        await voice.receive({"type": "response.audio_transcript.done",
+                             "response_id": "notification-r",
+                             "transcript": "计算器已完成。"})
+
+        self.assertNotIn("voice.assistant_text",
+                         [kind for kind, _payload in emitted])
+        self.assertEqual(
+            voice.response_transcripts["notification-r"], "计算器已完成。")
+
+    async def test_idle_timeout_error_is_not_shown_to_user(self):
+        events = []
+        voice = QwenRealtimeSession(None, lambda kind, **data: events.append(
+            {"type": kind, **data}))
+        voice.ready.set()
+
+        await voice.receive({
+            "type": "error",
+            "error": {"message": (
+                "Your session was closed because no user input was received "
+                "for 180 seconds.")},
+        })
+
+        self.assertEqual(events, [])
+
+        await voice.receive({
+            "type": "error",
+            "error": {
+                "code": "response_idle_timeout",
+                "message": (
+                    "Your session was closed because no response was generated "
+                    "for 180 seconds."),
+            },
+        })
+
+        self.assertEqual(events, [])
 
     async def test_tool_result_response_is_marked_separately_from_user_response(self):
         records = []

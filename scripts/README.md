@@ -6,14 +6,16 @@
 | --- | --- |
 | `pet.py`、`pet.py.lock` | 唯一产品入口与宿主依赖锁，`uv run --script scripts/pet.py` |
 | `window_summary_worker.py` | 当前产品依赖的常驻 MLX 子进程，由观察适配器启动 |
-| `setup-jev-memory.sh` | 将固定提交的 Jev-Mem 克隆到 `.runtime/`，并用 uv 建立独立重依赖环境 |
-| `jev_memory_worker.py` | Jev-Mem JSONL Worker；提供 health/remember/query/inspect/forget/save/shutdown，不直接运行在 AppKit 宿主进程 |
+| `setup-jev-mem.sh` | 为仓库内置 Jev-Mem 建立独立重依赖环境；不下载另一份源码 |
+| `setup-aoq-sdk.sh` | 下载并校验固定版本 AOQ macOS Framework；二进制仅放在 `.runtime/`，不提交仓库 |
+| `jev_mem_worker.py` | Jev-Mem JSONL Worker 命令入口；提供 health/remember/query/inspect/forget/save/shutdown，不直接运行在 AppKit 宿主进程 |
 | `check_front_task_notification.py` | 真实 Qwen 前台 → DeepSeek/Codex 后台任务 → 继续聊天 → playback receipt 端到端冒烟；必须使用独立 `--data-dir` |
 | `check_codex_native_history.py` | 真实 DeepSeek/Codex 冷启动与 Warm Thread 原生历史增量注入回归；必须使用独立 `--data-dir` |
-| `check_memory_e2e.py` | 真实 DeepSeek 候选提取 → Canonical Ledger → Jev → 跨 Session 召回/更正/审核/删除的隔离验收；默认使用临时目录 |
+| `check_memory_e2e.py` | Final User Message → durable Job → 仓库内置 Jev-Mem → Profile/Narrative → 跨 Session L2 召回与删除验收；默认使用临时目录，可选 mock/jev/auto backend；其中 `jev` 指 TypeSafe.ai JEV Decision backend |
 | `set-key.zsh` | 交互写入本地语音密钥，不提交输出 |
 | `download-qwen-mlx.zsh` | 下载模型至忽略目录，需网络、jq 与磁盘空间 |
 | `check_pet_ui.py` | `pet.py --check-ui`，仅测试窗口、合成文字、记忆图和替身；结果在 `.runtime/pet/ui-check/` |
+| `check_memory_graph_ui.py` | `pet.py --check-memory-graph-ui`，锁屏下用离屏 WKWebView 验证本地图加载、Canvas 像素、布局、筛选和原生消息桥；不使用 CU 或屏幕录制权限 |
 | `check_pet_store.py` | `pet.py --check-pets-ui`，访问真实商店并下载 V1/V2 素材，显示原生窗口；语音与任务使用替身，不录音、不操作其他应用，缓存与截图隔离在 `.runtime/pet-store-check/` |
 | `check_window_summary.py` | `pet.py --check-context`，读取真实前台窗口，运行本地模型 |
 | `smoke_pet.py` | `pet.py --smoke`，真实自然语言执行／语音检查；会操作应用和使用云端模型，`--dry-run` 仅将执行器替换为目标记录器，语音仍可调用云端 |

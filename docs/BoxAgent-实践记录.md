@@ -1,27 +1,221 @@
 # BoxAgent 实践记录
 
-当前结论：BoxAgent 已形成 macOS 原生桌宠、实时语音、通用桌面操作、本地窗口摘要和显式长期记忆的可运行 POC；产品主线进一步收敛为“电脑座舱里的具身个人 Agent”：它常驻、随叫随到、有角色形象和连续互动，能感知宿主电脑状态并在授权边界内行动。它不被限定为娱乐或办公 Agent，而是像车端 NOMI 一样作为用户与整个环境交互的统一人格化入口。近期以 macOS 验证“常驻存在 + 低摩擦召唤 + 环境感知 + 克制主动 + 受控行动 + 关系延续”闭环；Windows 和真实机箱屏适配后置。
+当前结论：BoxAgent 已形成 macOS 原生桌宠、实时语音、通用桌面操作、本地窗口摘要和 Jev-Mem-first 自动/显式长期记忆的可运行 POC；产品主线进一步收敛为“电脑座舱里的具身个人 Agent”：它常驻、随叫随到、有角色形象和连续互动，能感知宿主电脑状态并在授权边界内行动。它不被限定为娱乐或办公 Agent，而是像车端 NOMI 一样作为用户与整个环境交互的统一人格化入口。近期以 macOS 验证“常驻存在 + 低摩擦召唤 + 环境感知 + 克制主动 + 受控行动 + 关系延续”闭环；Windows 和真实机箱屏适配后置。
 
 | 关注项 | 当前状态 | 证据 |
 |---|---|---|
 | 电脑座舱具身个人 Agent 定位 | planned | 已以 NOMI 作为产品类比，娱乐和办公是能力域而非产品边界；首先在 macOS 验证互动闭环 |
 | 原生桌面 POC | implemented | 已迁移到 `interfaces/`、`application/`、`domain/`、`agent/`、`infrastructure/`、`bootstrap/` 与 `entrypoints/`；旧根级实现已删除 |
-| Kratos/DDD 目录重写 | implemented，verified | 无兼容 façade；依赖方向、唯一生产装配点、子进程边界和薄入口已有 AST 门禁；164 项测试、独立 Engine IPC 和 AppKit 模块检查通过 |
+| Kratos/DDD 目录重写 | implemented，verified | 无兼容 façade；依赖方向、唯一生产装配点、子进程边界和薄入口已有 AST 门禁；最新全量 197 项测试通过 |
 | UI / Engine 进程分离 | implemented，verified | AppKit 宿主通过 Unix Socket 调用独立 Engine；真实子进程冒烟中 Engine PID 已切换而 UI PID 保持不变；异常退出和后端源码变化会触发重启 |
 | Codex Runtime 长驻与 Thread 恢复 | implemented，verified | Engine 内应用级 `CodexRuntimeHost` 持有 App Server；Thread 按 Product Session 绑定，真实跨进程恢复保持同一 Thread ID；跨 Runtime 历史已通过 `thread/inject_items` 原生注入 |
-| 本地数据底座 | implemented，部分 verified | Conversation 使用自有 JSONL Session Event Log；文字/语音统一 Qwen 入口、Codex 后台终态与 Notification Outbox 已端到端验证；Session 切换 UI 和 Summary Checkpoint 待实现 |
+| 本地数据底座 | implemented，部分 verified | Conversation 使用自有 JSONL Session Event Log；文字/语音统一 Qwen 入口、Summary Checkpoint、Codex 后台终态与 Notification Outbox 已端到端验证；Session 切换 UI 仍待实现 |
 | 本地开发环境 | verified | `.venv-pet/` 宿主环境、`.venv/` MLX 环境、`.runtime/jev-mem-venv` 记忆环境；最新全量自动化测试见本文末尾 |
 | DeepSeek Flash 文本与工具调用 | verified | API 返回 `deepseek-flash`，普通对话和标准 `tool_calls` 请求成功 |
 | DeepSeek Flash 视觉输入 | verified | 单张合成 PNG 中的红色方块、`BOX 73` 和蓝色圆形均被正确识别；尚未完成真实桌面任务集验证 |
 | 无 Codex 模型的 Computer Use 工具桥接 | verified | Codex App Server 未启动模型 turn 时成功发现 9 个 Computer Use 工具；仍依赖本机闭源执行组件 |
 | DeepSeek 桌面 Agent | implemented，verified（计算器链路） | DeepSeek 已作为 Codex App Server 的原生 Responses Provider；除三轮连续计算与跨 Engine Thread 恢复外，已从真实桌宠 AppKit 发送按钮经独立 Engine 完成 `314+159=473`，并由独立 Computer Use 读取结果；尚不等于多应用任务集评测 |
-| Jev-Mem 文本长期记忆 | implemented，verified | Canonical Ledger 是真相，Jev 是派生索引；自动/显式写入、语义更正、审核、提取与索引重试、跨 Session Qwen/Codex 注入和安全删除已通过真实 DeepSeek + Jev E2E |
-| 原生记忆看板 | implemented，verified | 菜单栏/桌宠右键入口、Canonical 状态/类型/revision/来源、关系图、批准/拒绝、索引重试和确认删除均已接入；AppKit 模块测试通过 |
+| Jev-Mem-first 长期记忆 Phase 4 | implemented，verified | Jev-Mem 是唯一长期 Store；Final User Message durable ingestion、Profile/Narrative、L2 direct/L3 deep、精确删除和旧 Canonical active 记录一次性升级导入已接入；Mock 与真实 JEV Decision backend E2E 均通过 |
+| 原生记忆看板 | implemented，verified | AppKit 宿主内嵌本地 `WKWebView + vis-network`，展示 Jev-Mem 脱敏节点、来源和关系；支持筛选、拖动、缩放、平移、聚焦、原生详情联动与确认删除 |
 | Skill 管理 | implemented，verified | 内置/用户 Skill Catalog、文件 CRUD、持久启停、Engine IPC、Codex allowlist 投影与原生管理页已完成；深色模式 AppKit 页面已渲染验收 |
 | Qwen 前台与完成通知 | implemented，verified | 文字/语音统一进入 Qwen，普通聊天不启动 Codex；后台 DeepSeek/Codex 任务期间可继续聊天，终态进入持久 Outbox 并在真实音频 `playback_started` 后确认送达 |
+| Qwen AOQ 回声消除 | implemented，locally verified，live blocked | AOQ 1.3.0 macOS Framework、Token 映射、Data Track、原生音频设备和 WebSocket 降级已接入；SDK 加载/销毁冒烟与 207 项回归通过；真实外放 AEC 验收缺百炼 Workspace ID |
 | 动态 Environment Context | implemented，tested | 强类型本机 Provider 每轮只采集当前本地时间、周几和时区；Codex/Qwen 在当前 User Item 前注入动态 Evidence |
 | 责任驱动的主动性 | planned | 当前只有一次性后台任务和周期性窗口摘要；没有持久责任、变化检测、通知预算、跨会话恢复或分级授权 |
 | 开源发布准备 | blocked | 安装仍依赖本机 Codex Computer Use 组件，克隆仓库后不能只靠公开依赖完整运行 |
+
+## 2026-10-07：Qwen Realtime 迁移到 AOQ 优先传输
+
+### 目标与边界
+
+原 WebSocket 链路由 BoxAgent 自行采集麦克风并播放模型音频，外放时模型的声音会重新进入麦克风，导致 Agent 把自己的回复当成用户插话并打断自己。本轮将 macOS 主链改为 AOQ 优先：AOQ SDK 管理原生麦克风、扬声器、AEC 和降噪；Qwen 的 JSON 事件改走 Data Track。Product Session、Context Checkpoint、Jev-Mem、Function Calling、Skill 和 Notification Outbox 协议不变。
+
+### 实现
+
+- 新增 `AoqTokenClient`，按官方 `/{WorkspaceId}.{region}.maas.aliyuncs.com/api/v1/webrtc/realtime`
+  路径用 API Key 换取短期 `sid / aoqTokenForClient / relay / fingerprint`；不完整响应会在进入原生 SDK 前失败。
+- 通过 PyObjC 动态加载 `AoqClientSdk.framework` 和 `PluginOpus.framework`；固定
+  Opus 48 kHz mono、Audio + Data 双向 Track，启动 SDK 内置采集和播放。
+- 保留现有 `QwenRealtimeSession` 的事件处理；AOQ 只替换传输和音频边界。用户真实说话仍由
+  `input_audio_buffer.speech_started` 触发 barge-in，此时原生 `interruptAudioPlayer` 立即清除下行播放，不取消后台任务。
+- `BOXAGENT_QWEN_TRANSPORT=auto` 在 Workspace ID 或 Framework 缺失时保留 WebSocket 降级，并把选择与原因记到
+  `runtime/qwen/events.jsonl`。可用 `websocket` 显式固定旧链路。
+- `scripts/setup-aoq-sdk.sh` 固定 AOQ 1.3.0 的官方 URL 与 SHA256，二进制只落到忽略的
+  `.runtime/aoq-sdk/1.3.0/`，不进入 Git。
+
+### 验证证据
+
+SDK 安装脚本在隔离目录完整下载、校验和解压，得到：
+
+```text
+AoqClientSdk.framework.zip  sha256=44c757f0c88c6aeeae725f60aa0ef8ce5bce1621a1f514a93e2f2df3b3b1ba55
+PluginOpus.framework.zip    sha256=fd1b7f92ae40dd8bb6b1df1adb808b9f52af1ff08458f0189df5ab1fef9f1dbb
+AoqClientSdk architectures: x86_64 arm64
+PluginOpus architectures:   x86_64 arm64
+```
+
+PyObjC 使用真实 Framework 创建 Engine，对无效本地 Relay 发起异步连接后完成销毁：
+
+```text
+create_and_connect_returned=True
+sdk_version=1.3.0.58585095
+callback_types=['_aoq.connection']
+destroyed=True
+```
+
+确定性测试覆盖 Token 响应映射、缺字段拒绝、SDK/Workspace 降级、Data Track、原生 barge-in、音频 delta 不回灌旧播放器、媒体/Data Track 乱序时的通知送达回执与 Factory 选路：
+
+```bash
+.venv-pet/bin/python -m pytest -q
+```
+
+```text
+207 passed in 5.39s
+```
+
+当前 `.env.local` 已有 DashScope Key，但没有 `BOXAGENT_DASHSCOPE_WORKSPACE_ID`，因此真实外放下的“Agent 不再听到自己、用户插话仍可打断、字幕/工具/任务通知不回归”仍为 `blocked`，不得从本地 Framework 冒烟推导为真实 AEC 已验收。开发阶段 Engine 仍会使用 API Key 换取 Token；正式发布必须改为业务 AppServer 下发短期 Token。
+当前运行中 Engine 已按预期写入：
+
+```json
+{"event":"transport.fallback","requested":"auto","selected":"websocket","reason":"未配置 BOXAGENT_DASHSCOPE_WORKSPACE_ID"}
+```
+
+降级链路随后暴露了 DashScope 空闲关闭文案变体：旧过滤只识别
+`no user input was received for 180 seconds`，新响应为
+`response_idle_timeout / no response was generated for 180 seconds`，导致 WebSocket 1007 关闭帧被当作产品错误显示。现在 Provider error event 和随后的 `ConnectionClosed` 异常共用同一组语义判定；文字会话下次输入时重连，麦克风会话回到 off 状态，不再把正常空闲生命周期暴露给用户。
+
+本轮没有 commit、push、分享或修改远程权限。
+
+## 2026-10-07：完成 Jev-Mem-first Phase 4 迁移与命名收敛
+
+### 目标与前态
+
+把长期记忆从“Codex 每轮候选提取 → Canonical Ledger → Jev-Mem 派生索引”收敛为“Final User Message → durable Job → Jev-Mem admission/store”，并将 Jev-Mem 全部生产能力纳入 BoxAgent 仓库和版本边界。Profile 与 Narrative 作为可重建投影，不再新增独立通用 Fact Store。同时明确命名边界：`Jev-Mem` 是长期记忆系统，`JEV Decision Model` 是 TypeSafe.ai 提供的外部决策后端。
+
+### 实现前基线
+
+```bash
+.venv-pet/bin/python -m pytest -q
+```
+
+```text
+181 passed in 7.11s
+```
+
+### Jev-Mem 能力审计
+
+当前上游源码位于开发期 `.runtime/jev-mem-src`，约 6.5 MB、162 个文件。确认需要迁移并保持回归覆盖的运行能力包括：
+
+- admission 及 episodic/semantic/procedural/preference 类型判断；
+- semantic/temporal/causal/entity 图关系；
+- vector + keyword + RRF anchors、graph routing、budget、multi-hop、evidence sufficiency 与 stopping；
+- Episode/Narrative/Session、consolidation、temporal parser、answer formatter；
+- Jev、Laya、Laya-MLX backend；
+- cache、audit、fallback、FAISS/Numpy vector backend 与 persistence。
+
+Jev-Mem 当前原生节点为 `EVENT / EPISODE / NARRATIVE / ENTITY / SESSION`，不存在独立 `FACT` Node。因此 BoxAgent 保存完整 Observation，Profile 由 DeepSeek Flash 生成受限 JSON Patch，Narrative 从完备 Context Checkpoint 生成。
+
+### 完成状态
+
+生产主链已经收敛为：
+
+```text
+Final User Message commit
+→ durable Memory Ingestion Job
+→ Secret Filter
+→ Jev-Mem admission/type/store
+→ Profile projection
+
+Context Checkpoint → Jev-Mem Narrative
+L2 → raw query + direct retrieval
+L3 → Agent query + deep retrieval
+```
+
+完成的代码收敛包括：
+
+- Jev-Mem 源码现位于 `boxagent/infrastructure/memory/jev_mem/`，Worker 不再依赖 `.runtime/jev-mem-src`；
+- 删除 Canonical Ledger、Codex Candidate Extractor、旧 `memory_extraction.py` 及审批/拒绝/索引重试 API；
+- `MemoryModule` 成为 Conversation、Harness、Qwen、Codex、Engine IPC 与 UI 的唯一长期记忆边界；
+- Profile 与 Narrative 作为 Jev-Mem 上的可重建投影，Narrative 可被 direct/deep retrieval 召回；
+- 旧 `memory/extraction/jobs.jsonl` 可一次性迁入新 Job Store；旧 `memory/ledger/snapshot.json` 的 active 记录由后台 importer 导入 Jev-Mem，已有 backend link 不重复写入，deleted/superseded/pending 记录不会复活；
+- 记忆看板改为 Jev-Mem 原生脱敏节点，不再伪装 Canonical revision/status。
+
+### 验证证据
+
+确定性回归：
+
+```bash
+.venv/bin/python -m pytest -q
+```
+
+```text
+172 passed in 8.74s
+```
+
+Mock 与真实 JEV Decision backend 使用同一 Jev-Mem E2E 脚本：
+
+```bash
+.venv/bin/python scripts/check_memory_e2e.py --backend mock
+.venv/bin/python scripts/check_memory_e2e.py --backend jev
+```
+
+两种后端均返回：
+
+```text
+user_commit_to_jev=passed
+legacy_canonical_upgrade=passed
+cross_session_l2_recall=passed
+narrative_recall=passed
+secret_rejection=passed
+delete_no_resurrection=passed
+```
+
+真实 JEV Decision backend 运行的最终 `health.status=ready`、`backend.backend=jev`，Job 状态为
+`completed=1`。这证明真实 admission、跨 Session L2、Narrative、Secret 拒绝和删除不复活
+贯穿同一生产 API；单次 E2E 仍不能替代 LoCoMo/LongMemEval 全量质量回归或长期漂移评测。
+
+静态验证：
+
+```bash
+.venv/bin/python -m compileall -q boxagent scripts tests
+git diff --check
+```
+
+两条命令均以退出码 0 完成。本轮没有 commit、push、分享或修改远端权限。
+
+### Jev-Mem 命名收敛和入口复验
+
+产品内的长期记忆系统统一命名为 `Jev-Mem`；仅在表示 TypeSafe.ai 的外部决策服务时使用 `JEV Decision Model`。Python 包名使用合法标识符 `jev_mem`，生产环境变量使用 `BOXAGENT_JEV_MEM_*`；旧 `BOXAGENT_JEV_MEMORY_*` 只作为升级过渡别名，避免已有安装突然失效。命令入口同步更名为 `scripts/jev_mem_worker.py` 和 `scripts/setup-jev-mem.sh`。
+
+首次直接用记忆 Worker 虚拟环境启动完整 E2E 失败：宿主应用导入 Qwen Runtime 时缺少 `websockets`。这说明 `.runtime/jev-mem-venv` 只是子进程依赖边界，不能代替宿主 `.venv-pet`。改用宿主环境后执行：
+
+```bash
+.venv-pet/bin/python scripts/check_memory_e2e.py --backend mock
+.runtime/jev-mem-venv/bin/python scripts/jev_mem_worker.py --help
+.venv-pet/bin/python -m pytest -q
+.venv-pet/bin/python -m compileall -q boxagent scripts tests
+git diff --check
+```
+
+结果：Jev-Mem E2E 的 `legacy_canonical_upgrade`、`user_commit_to_jev`、`cross_session_l2_recall`、`narrative_recall`、`secret_rejection` 和 `delete_no_resurrection` 全部为 `passed`；Worker 新入口能正常显示 CLI 协议；最终文件状态下的全量测试为 `180 passed in 5.07s`，静态编译与 diff 检查均通过。本次复验使用 mock JEV Decision backend，证明改名后的本地子进程、持久化和上层调用链未断裂；本次未重复消耗真实 TypeSafe.ai 服务。
+
+仓库内置 Jev-Mem 的离线 demo 也通过：写入 4 条 Observation，完成 vector/keyword/graph 检索、
+预算分配、多跳停止判断，`latency_seconds=0.0295`，最终
+`stopping_decision=evidence_sufficient`。`python -m boxagent.infrastructure.memory.jev_mem.api --help`
+能够列出 build/query/test、Jev-Mem config、mock 和 read/write 开关。该证据确认 vendored API 可运行，
+但没有在本轮下载并跑完整 LoCoMo/LongMemEval 数据集。
+
+### 尚未完成的质量增强
+
+- 自动 supersede/conflict/merge/promote 与敏感内容 review；
+- Episode/Project 级多尺度 Narrative consolidation；
+- Profile delta 的活跃连接增量注入；
+- LoCoMo/LongMemEval 全量回归、中文陪伴质量集与延迟分位数；
+- 导出、清空、来源解释等完整记忆管理产品能力。
+
+这些是 Jev-Mem-first 主链之上的质量和产品增强，不再引入第二套长期记忆 Store。
+
+> 注：下文 2026-10-06 的 Canonical Ledger、Codex Candidate Extractor、审批与索引重试记录是当时真实执行过的历史证据，现已被本节架构取代；保留它们用于解释设计为何收敛，不代表当前生产路径。
 
 ## 资源
 
@@ -839,8 +1033,8 @@ uv run --script scripts/pet.py
 | 文件 | 责任 |
 |---|---|
 | `boxagent/memory.py` | `MemoryService` 异步契约，子进程启停、串行请求、超时、协议校验和有限环境变量传递 |
-| `scripts/jev_memory_worker.py` | 把上游 `JevMemSystem` 封装为 JSONL `health/remember/query/save/shutdown` 协议 |
-| `scripts/setup-jev-memory.sh` | 固定上游提交，创建独立 uv 环境并可幂等重复安装 |
+| `scripts/jev_mem_worker.py` | 把仓库内置 `JevMemSystem` 封装为 JSONL `health/remember/query/save/shutdown` 协议 |
+| `scripts/setup-jev-mem.sh` | 为仓库内置 Jev-Mem 创建独立 uv 环境，并可幂等重复安装 |
 | `tests/test_memory.py` | 用轻量假 Worker 验证协议往返、顺序、输入拒绝、错误收敛和强制 Jev 时的密钥门禁 |
 
 Worker 只向上游传递运行所需的环境变量；`TYPESAFE_API_KEY` 可从进程环境或 `.env.local` 读取，不传递 DeepSeek 和 DashScope 密钥。`auto` 在缺少 TypeSafe Key 时明确使用 mock backend，显式 `jev` 模式缺少密钥则在启动前失败。
@@ -861,7 +1055,7 @@ Worker 只向上游传递运行所需的环境变量；`TYPESAFE_API_KEY` 可从
 
 验证 Worker 在非 mock 模式下能否使用 TypeSafe Jev 完成写入决策和检索路由。`TYPESAFE_API_KEY` 已以脱敏配置项存在 Git 忽略的 `.env.local`，文件权限为 `600`；密钥未写入命令、日志、测试数据或本记录。
 
-冒烟测试强制使用 `JevMemoryWorker(backend="jev")`，以独立缓存写入两条虚构用户偏好，再询问“测试用户希望助理怎样回答？”。证据保存在 Git 忽略的 `.runtime/jev-real-smoke-20261005/`。
+冒烟测试强制使用 `JevMemWorker(backend="jev")`，以独立缓存写入两条虚构用户偏好，再询问“测试用户希望助理怎样回答？”。证据保存在 Git 忽略的 `.runtime/jev-real-smoke-20261005/`。
 
 ### 真实调用证据
 
@@ -877,7 +1071,7 @@ Worker 只向上游传递运行所需的环境变量；`TYPESAFE_API_KEY` 可从
 
 Worker stderr 只有 embedding 模型加载、一条上游 API 更名警告，以及未配置 `OPENAI_API_KEY` 的 System-Two 警告；未发现 TypeSafe 认证信息或请求正文泄漏。本次 BoxAgent 只使用 Jev System-One 做决策，检索返回 evidence/context，未调用上游 OpenAI System-Two 生成最终答案。
 
-联调后执行 `uv run --script scripts/pet.py --check`，51/51 项测试通过；`python3 -m compileall -q boxagent tests scripts/jev_memory_worker.py` 和 `git diff --check` 通过。对 tracked diff 扫描 TypeSafe Key、DeepSeek Key 和 Bearer Token 模式，命中数均为 0。
+联调后执行 `uv run --script scripts/pet.py --check`，51/51 项测试通过；当时的 Worker 入口现已收敛为 `scripts/jev_mem_worker.py`，同等 `compileall` 和 `git diff --check` 通过。对 tracked diff 扫描 TypeSafe Key、DeepSeek Key 和 Bearer Token 模式，命中数均为 0。
 
 ### 结论与下一步
 
@@ -903,11 +1097,11 @@ flowchart LR
 
 | 改动 | 行为 |
 |---|---|
-| `boxagent/__main__.py` | 在唯一装配点创建懒启动 `JevMemoryWorker` 并交给 Runtime |
+| `boxagent/__main__.py` | 在唯一装配点创建懒启动 `JevMemWorker` 并交给 Runtime |
 | `boxagent/runtime.py` | 实现文本长度校验、结果最小化、错误收敛和关闭清理；不向语音泄漏 Worker trace 或内部 metadata |
 | `boxagent/voice.py` | 新增 `remember_memory`、`recall_memory`、`forget_memory` 工具与明确调用约束 |
 | `boxagent/memory.py` | `MemoryService` 增加按精确 ID 删除的 `forget()` 契约 |
-| `scripts/jev_memory_worker.py` | 删除 graph node、vector 和 keyword postings，立即持久化并记录脱敏 `memory_forgotten` 审计事件 |
+| `scripts/jev_mem_worker.py` | 删除 graph node、vector 和 keyword postings，立即持久化并记录脱敏 `memory_forgotten` 审计事件 |
 
 删除不接受模糊查询。Runtime 会记录本进程中 `recall_memory` 实际返回过的 ID；`forget_memory` 只能删除这些 ID。语音指令还要求匹配不唯一时先向用户确认。这能阻止幻觉 ID 直接触发删除，但尚不是独立的交互式确认机制。
 
@@ -918,7 +1112,7 @@ flowchart LR
 1. 本地替身测试覆盖 Runtime 三个工具、最小化回传、未检索 ID 拒绝、Worker 图/向量/关键词索引删除和进程退出清理。`uv run --script scripts/pet.py --check` 结果为 56/56 通过。
 2. 真实端到端冒烟从 `Runtime.handle_tool()` 进入，强制使用 Jev 后端：写入 1 条合成偏好成功，检索返回精确 ID，删除后 `memory_count=0`；重启 Worker 后仍为 0，证明图、向量与索引删除已持久化。
 3. 该真实链路产生 3 次 `jev_decision`（`memory_type`、`routing`、`stopping`），全部 `source=jev`，无 fallback；写入→检索→删除耗时 51.165 s，其中包含首次冷启。重启验证又发生一次本地模型冷启，不计入该数字。
-4. `python3 -m compileall -q boxagent tests scripts/jev_memory_worker.py` 和 `git diff --check` 通过。脱敏验证证据保存在 Git 忽略的 `.runtime/jev-runtime-smoke-20261005/`。
+4. `python3 -m compileall -q boxagent tests scripts/jev_mem_worker.py` 和 `git diff --check` 通过。脱敏验证证据保存在 Git 忽略的 `.runtime/jev-runtime-smoke-20261005/`。
 
 证据边界：端到端测试经过了与真实语音工具相同的 `Runtime.handle_tool()` 入口，但未在本轮额外调用千问 Realtime 来验证模型是否会在自然对话中正确选择三个工具。记忆也尚未自动注入 DeepSeek/Codex Planner，普通闲聊与屏幕摘要不会自动入库。
 
@@ -958,7 +1152,7 @@ uv run --script scripts/pet.py --check-ui
 1. 本地测试为 60/60 通过，新增覆盖脱敏字段、搜索与数量限制、空图、选中节点一跳完整性、Runtime 快照和精确删除。
 2. `--check-ui` 使用合成的 3 节点/2 边记忆图，真实打开 AppKit 看板并通过 31 项界面检查；渲染结果保存在 `.runtime/pet/ui-check/memory-dashboard.png`。该测试不启动真实 Jev，不读写用户记忆。
 3. 当前产品缓存只读冒烟返回 0 节点、0 边，验证空状态。随后对隔离的历史合成 Jev 缓存执行同一 `inspect`，返回 2 节点、2 边；字段集合与上述脱敏合同一致。
-4. `python3 -m compileall -q boxagent tests scripts/jev_memory_worker.py` 通过。窗口截图还经过人工明暗对比检查，并修复了深色模式下操作按钮文字对比度不足的问题。
+4. `python3 -m compileall -q boxagent tests scripts/jev_mem_worker.py` 通过。窗口截图还经过人工明暗对比检查，并修复了深色模式下操作按钮文字对比度不足的问题。
 
 证据边界：看板的读取、搜索、详情和图渲染已通过真实 AppKit 冒烟；为避免破坏数据，自动 UI 测试没有点击最终删除确认。删除后的图/向量/关键词索引一致性由 Worker 单元测试和此前真实端到端删除冒烟覆盖。当前产品缓存为空，因此尚未在用户自己的非空记忆数据上做交互验收。
 
@@ -1348,7 +1542,7 @@ BoxAgent V0 不同时启用两套长期记忆。专用 Codex Home 默认关闭 C
 ### 执行与证据
 
 ```bash
-python3 -m compileall -q boxagent tests scripts/jev_memory_worker.py
+python3 -m compileall -q boxagent tests scripts/jev_mem_worker.py
 uv run --script scripts/pet.py --check
 ```
 
@@ -1394,7 +1588,7 @@ rollouts_before_resume=1
 ### 执行与证据
 
 ```bash
-python3 -m compileall -q boxagent tests scripts/jev_memory_worker.py
+python3 -m compileall -q boxagent tests scripts/jev_mem_worker.py
 uv run --script scripts/pet.py --check
 git diff --check
 ```
@@ -1424,7 +1618,7 @@ Summary Checkpoint、会话选择 UI、持久化 Notification Outbox 和 playbac
 | 2 | “把刚才的计算结果乘以 2” | succeeded | 表达式 `385×2`，结果 `770` |
 | 3 | Engine 重启后“把刚才的结果减去 70” | succeeded | 表达式 `770-70`，结果 `700` |
 
-三轮均写入完整 `interaction.started → User message.final → Assistant message.final → interaction.completed(succeeded)`。Session Event sequence 从 1 连续增长到 12。第一轮建立 Thread，第二轮记录 `runtime_epoch_reused`，关闭 Engine 并启动新 PID 后，第三轮记录 `runtime_thread_resumed`。三轮 Thread ID 一致，`runtime-bindings.json` 的 `context_cursor` 最终为 12，且专用 Codex Home 中只有一份 rollout。
+三轮均写入完整 `interaction.started → User message.final → Assistant message.final → interaction.finalized(succeeded)`。Session Event sequence 从 1 连续增长到 12。第一轮建立 Thread，第二轮记录 `runtime_epoch_reused`，关闭 Engine 并启动新 PID 后，第三轮记录 `runtime_thread_resumed`。三轮 Thread ID 一致，`runtime-bindings.json` 的 `context_cursor` 最终为 12，且专用 Codex Home 中只有一份 rollout。
 
 这证明当前文字桌面主链能真实操作 macOS 应用、继续同 Thread 上下文，并在 Engine 跨进程重启后恢复。这仍是单应用、单 Session、三轮冒烟，不等于广泛任务集的稳定性证明。
 
@@ -1439,7 +1633,7 @@ response.audio_transcript.done
 response.done
 ```
 
-但通过 `ApplicationLifecycle → VoiceService → ConversationService` 运行时，`response.created` 到达时 `user_final` 尚未创建 Interaction。当前 `VoiceService` 因此无法保存 `response_id → Interaction` 映射；后续虽然 UI 已显示 Assistant 文本，Event Log 只有 User Final，没有 Assistant Final 和 `interaction.completed`。下次 Engine/Conversation 恢复只能将该 Interaction 追加为 `interrupted`。
+但通过 `ApplicationLifecycle → VoiceService → ConversationService` 运行时，`response.created` 到达时 `user_final` 尚未创建 Interaction。当前 `VoiceService` 因此无法保存 `response_id → Interaction` 映射；后续虽然 UI 已显示 Assistant 文本，Event Log 只有 User Final，没有 Assistant Final 和 `interaction.finalized`。下次 Engine/Conversation 恢复只能将该 Interaction 追加为 `interrupted`。
 
 这是真实集成缺陷，说明新增确定性测试使用了错误的 Provider 事件顺序。Phase 3C 应从 `implemented` 回退为 `partial`；在进入自动 Memory 前，必须先实现“先到 response 的暂存绑定”并使用真实事件序列增加回归测试。否则自动 Memory Extractor 将看不到完整 Interaction。
 
@@ -1451,7 +1645,7 @@ response.done
 
 ### 目标与前态
 
-修复真实 Qwen Realtime 中 `response.created` 早于用户最终转写时，`VoiceService` 无法建立 `response_id → Interaction` 绑定的问题。修复前 UI 可以显示回答，但 Product Session 只保存 User Final，缺少 Assistant Final 与 `interaction.completed`，因此该 Interaction 会在恢复时被误标为 `interrupted`。
+修复真实 Qwen Realtime 中 `response.created` 早于用户最终转写时，`VoiceService` 无法建立 `response_id → Interaction` 绑定的问题。修复前 UI 可以显示回答，但 Product Session 只保存 User Final，缺少 Assistant Final 与 `interaction.finalized`，因此该 Interaction 会在恢复时被误标为 `interrupted`。
 
 ### 实现
 
@@ -1483,7 +1677,7 @@ Product Session 最终事件为：
 interaction.started(running)
 message.final(user): 你好，请用一句简短的话介绍你自己。
 message.final(assistant): 我是住在 Mac 桌面的 BoxAgent，能帮您操作电脑和应用。
-interaction.completed(succeeded)
+interaction.finalized(succeeded)
 ```
 
 隔离证据目录：`.runtime/qwen-lifecycle-fix-n79hmbyv/`。密钥仅由本地配置读取，未写入日志或文档。
@@ -1550,7 +1744,7 @@ Phase 3C 的“最终转写、最终回答、Interaction 终态、barge-in/迟�
 - 完成气泡显示最终结果和实际用时；
 - 输入框在受理后清空；
 - 完成后气泡保持可见；
-- Product Session 写入完整的 `interaction.started → User Final → Assistant Final → interaction.completed(succeeded)`。
+- Product Session 写入完整的 `interaction.started → User Final → Assistant Final → interaction.finalized(succeeded)`。
 
 证据：
 
@@ -2025,7 +2219,7 @@ Ledger、Codex 结构化 Extractor 与 Jev Worker；Bootstrap 统一生命周期
   带 provider/model、覆盖 cursor 和 SHA-256 source hash。
 - `<BOXAGENT_DATA_DIR>/memory/ledger/` 保存追加事件与原子 `snapshot.json`；
   `memory/extraction/jobs.jsonl` 保存 pending/running/completed/skipped/failed 状态变化。
-- `interaction.completed` 只等待本地 durable enqueue，模型提取和 Jev 建图在后台执行。
+- `interaction.finalized` 只等待本地 durable enqueue，模型提取和 Jev 建图在后台执行。
 - Extractor 输入中的凭据先确定性脱敏；候选还会经过 subject、类型、稳定性、敏感度、置信度、
   evidence event/quote 和精确重复检查。
 - Qwen 只注入 normal 且 active 的稳定画像；Codex Memory Evidence 作为当前 Turn 的 fenced
@@ -2116,7 +2310,7 @@ OK
 
 ```text
 BOXAGENT_TASK_PROVIDER=deepseek BOXAGENT_TASK_MODEL=deepseek-flash \
-BOXAGENT_JEV_MEMORY_BACKEND=jev \
+BOXAGENT_JEV_MEM_BACKEND=jev \
 .venv-pet/bin/python scripts/check_memory_e2e.py
 ```
 
@@ -2165,3 +2359,280 @@ Phase 4A–4C 已实现并通过确定性与真实链路验证。Phase 4D 当前
 `kono-dada/BoxAgent` 没有写权限（HTTP 403）；HTTPS 与 SSH 均解析为同一账号，且该账号下不存在
 可直接推送的 `BoxAgent` fork。本轮没有擅自创建 fork、修改远端或权限，提交已安全保留在本地
 `zl_dev` 分支，推送需仓库授权或用户指定可写远端。
+
+## 2026-10-07：真实连续会话、跨 Session 记忆与后台通知验收
+
+### 验收范围与边界
+
+复用唯一一份桌宠进程，以 `deepseek-flash` 作为 Codex App Server 的模型 Provider；文本通过
+桌宠正在使用的 Unix Socket API 进入同一 Engine，桌宠窗口同步消费真实事件。由于开发态
+Python/AppKit Accessory 进程没有 Bundle ID，Computer Use 无法绑定其输入框，因此本轮没有声称
+覆盖“物理鼠标点击桌宠输入框”；但后台任务确实通过 BoxAgent Computer Use 操作了系统计算器，
+并另外用 macOS 可访问性树核对最终界面，不是脚本伪造结果。
+
+### 真实链路结果
+
+1. 普通对话输入“我喜欢乌龙茶，而且希望回答简洁”，约 4.2 秒开始返回并最终回复“我记住了”。
+   Final User/Assistant Message 与 `interaction.finalized(succeeded)` 顺序正确。
+2. 自动记忆 Job 在用户消息提交后立即进入 pending/running，约 3 秒完成 Jev admission。
+3. 新建 Product Session 后询问饮品和回答风格，约 4.2 秒返回“你喜欢喝乌龙茶，希望我回答简洁”，
+   证明跨 Session L2 召回已进入 Qwen Context。
+4. 提交“计算 21+21”后约 5.3 秒完成前台委托；后台执行期间第二条聊天约 3.7 秒回复，没有被
+   Codex 阻塞。任务约 34 秒完成，通知按 `pending → voice playback → delivered` 送达。
+5. 计算器可访问性树显示上个表达式 `21+21`、最终值 `42`；第二轮 `7×6` 同样得到 `42`。
+6. 会话投影保留最近 30 个 Interaction，并按事件 sequence 展示。本次真实历史顺序为：任务请求、
+   前台接单、并行聊天请求、聊天回复、Codex 最终结果、任务终态。
+
+### 验收发现与修正
+
+- 同一个 Final User Message 可能同时走自动 ingestion 和 Qwen `remember_memory`，此前会产生两个
+  Jev 节点。Jev Worker 现在以 `source_event_id/source_event_ids` 做 provenance 幂等；显式路径
+  命中已有节点时提升其 explicit/source 元数据并复用原节点。真实复验中同一 event 只剩 1 个节点。
+- Qwen 用一句自然语言播报后台完成通知时，通知 transcript 此前还会覆盖 `assistant_text`，导致面板
+  同时展示 Codex 结果和一条近义改写。Realtime 现在按 response origin 隔离 notification transcript：
+  音频仍播放、回执仍持久化，但不再写入可见聊天状态，也不会冒充 Product Session 消息。
+- `.env.local` 仅存在 DeepSeek Key 并不会选择 DeepSeek；未配置 `BOXAGENT_TASK_PROVIDER` 时默认仍为
+  `codex/gpt-5.6-luna`。本次通过显式启动参数验证 DS 路径，正式 Onboarding 需要把 Provider 选择
+  明确展示给用户。
+- Engine 实时事件流发布 `conversation.updated` 而不直接广播 `interaction.finalized`；外部集成若只等
+  原始终态事件会超时，应像当前产品一样从 Session Event Store 读取终态。该点未在本轮改协议。
+
+### 回归结果
+
+```text
+uv run --with pytest python -m pytest -q
+174 passed in 6.31s
+
+真实显式记忆复验
+matching_memory_count=1
+source=voice_explicit
+
+真实任务通知复验
+events_after_notification_pending=[notification.pending, voice.playback, notification.delivered]
+assistant_text_events_after_pending=[]
+```
+
+本轮没有 commit 或 push。真实测试向本地 `.runtime/pet/` 写入了会话、任务、通知和 Jev 测试记忆；
+这些目录被 Git 忽略，不会进入仓库。
+
+## 2026-10-07：修复 Qwen 假接单并复盘音乐任务收口延迟
+
+### Qwen 路由缺陷
+
+真实文字请求“打开 macOS 音乐 App，继续播放当前歌曲，并确认播放进度确实发生变化”曾只得到
+“我开始处理啦，你可以继续聊天”，随后 Interaction 被错误地以 `succeeded` 封口；没有
+`run_task`、`task.accepted` 或 Codex 任务。根因是前台只用“本轮是否包含 Function Call”决定直答
+终态，没有约束执行承诺必须对应真实委托。
+
+已实现两层兼容：
+
+- Qwen 指令明确要求执行承诺与 `run_task` 必须出现在同一个 response。
+- 若 Provider 仍输出肯定的执行承诺但遗漏 Function Call，Realtime Adapter 将该承诺视为 Qwen
+  已完成路由决策，直接把当前 Product Interaction 的原始 User Final 委托给后台；不会生成或改写
+  `goal`。同时从 `response.done.output` 恢复可能缺失增量事件的 Function Call。
+
+确定性回归：
+
+```text
+uv run --with pytest python -m pytest -q tests/test_runtime.py tests/test_conversation.py
+58 passed in 1.06s
+```
+
+### 真实音乐任务轨迹
+
+修复后复用桌宠 Engine 提交同一请求，约 4 秒获得前台接单，后台任务
+`9044224b1c7b` 成功创建。动作与收口时间不是一回事：
+
+| 时间 | 真实行为 |
+|---|---|
+| 5.4 秒 | 首次读取 Music，发现《春河》暂停在 5:42/5:49 |
+| 10.8 秒 | 点击播放；核心动作已经完成 |
+| 27.2 秒 | 再次观察，歌曲自然切到《小帆船》，按钮为“暂停”，表示正在播放 |
+| 46.9–84.7 秒 | 多次读取到相同的可访问性滑块值 `0:00`；该值没有随真实播放刷新 |
+| 96.3 秒 | 模型误判播放卡住，点击按钮，反而暂停 |
+| 105.8 秒 | 识别误操作并再次点击恢复播放 |
+| 132.3 秒 | 一次 ScreenCaptureKit `-3811` 瞬时失败，随后重试成功 |
+| 181.5 秒 | 第十次观察；仍在播放且进度继续变化 |
+| 196.0 秒 | Runtime 最终收口并结束任务 |
+
+独立只读 AppleScript 复核时，Music 为 `playing`，当前曲目《回家的路》，进度从约 40 秒继续推进到
+104 秒。由此可确认主要延迟不是启动应用或点击播放，而是：Music 可访问性树的
+`isPlaying=false` 与“暂停”按钮语义冲突、播放滑块值长时间陈旧、DeepSeek 在累计的大型 UI
+Observation 上多次推理，以及一次截图服务失败。当前行为属于“动作约 11 秒完成，验证循环约
+185 秒后才收口”。
+
+本轮还观察到：`run_task` 的 `accepted` 工具回传可能被 Qwen 表述成类似完成结果的文字，而后台
+仍在运行。这是独立的前台状态语义缺陷，尚未在本条记录中标为已修复。
+
+### 将最短路径沉淀为完整的 Music 内置 Skill
+
+从轨迹看，步骤 3 已同时具备“播放按钮为‘暂停’”和“曲目从《春河》切换到《小帆船》”两个强证据，所以最短可靠路径应在约 27 秒、3 次工具调用时结束，而不是执行到 196 秒。以下非显然规则现统一归入 `skills/builtin/macos-music/SKILL.md`：
+
+- `播放` / `Play` 是按下后将执行的动作，表示当前暂停；`暂停` / `Pause` 表示当前正在播放；
+- `Music.miniPlayer.contentView[isPlaying=false]` 和 slider 都可能滞后，不能覆盖按钮语义、可见图标和曲目切换；
+- 曲目切换本身就是“播放进度确实推进”的证据，不必等新曲 slider 刷新；
+- 简单播放任务最多两次后验证，观察错误最多重试一次；成功后禁止再点播放/暂停来“测试”界面字段。
+
+随后将窄范围的 `macos-music-playback` 收敛为 `skills/builtin/macos-music/SKILL.md`。除播放、暂停和有限验证外，新增上一首、下一首、歌曲/歌手/专辑/歌单搜索与播放、播放队列、随机/循环、进度、Music 内音量、歌词和队列面板等操作。上一首特别处理 Music 的双重语义：第一次点击可能只是回到当前歌曲开头，只有在标题未变且进度归零后才允许再点一次。搜索明确区分全局 Search 和仅过滤当前页面的 `filterField`；所有状态变更继续遵守“一次动作、一次验证”和最多两次后观察的边界。
+
+最终验证：`skill-creator/scripts/quick_validate.py` 返回 `Skill is valid!`；BoxAgent `SkillFileRepository` 扫描到 `macos-music`，`source=builtin`、`enabled=true`，旧 `macos-music-playback` 不再存在；全量回归为 `180 passed in 4.92s`，`git diff --check` 通过。这证明 Skill 已进入产品的自动发现和 allowlist 边界；尚未用真实 Music 对每一种会改变播放状态的操作逐项执行回归。
+
+本轮没有 commit 或 push。
+
+## 2026-10-07：接入对话式 Skill Authoring 与宿主确认安装
+
+### 目标与安全边界
+
+参考 OpenMira 的 `find_skill → skill_write → 服务端校验/部署 → Runtime 重新发现` 链路，
+本轮让 Qwen 可以从对话中搜索当前 Skill、请求生成草稿，并在用户明确授权后安装。第一阶段只接受
+instruction-only Skill，不开放脚本、依赖安装或模型直接文件写入。
+
+Skill 内容由独立 Codex structured turn 生成。该 Thread 固定使用 `sandbox=read-only`、
+`dynamicTools=[]`，不能调用 Computer Use、Shell 或文件工具；返回值必须符合 Skill Draft JSON
+Schema。真正的写入由宿主 `SkillService` 完成，继续沿用路径越界保护、内置 Skill 防覆盖、长度校验、
+临时文件和原子替换。
+
+### 实现链路
+
+- Qwen 新增 `find_skill`、`prepare_skill`、`install_skill_draft` 三个工具。纯 Skill 管理不再错误转交
+  `run_task`。
+- `prepare_skill` 使用当前 Interaction 的原始 User Final，不接受模型改写后的请求作为真相；输入还
+  包含最近完成任务的有界脱敏轨迹和当前 Skill 元数据。
+- 草稿持久化到 `<BOXAGENT_DATA_DIR>/skills/.drafts/`，带 Session、Interaction、Task provenance；
+  跨 Session 安装被拒绝，24 小时后过期，已安装草稿不可重复使用。
+- 创建、安装、更新或优化等明确用户原话可以授权落盘；否则工具返回
+  `confirmation_required`。内置 Skill 只能由应用版本升级，不能被对话覆盖。
+- 安装成功后调用现有 Runtime Skill 同步；Codex App Server `forceReload` 后按新 Skill signature
+  使用新的 Runtime 配置。
+- 任务轨迹读取只保留 action、tool result、最终结果等相关事件，过滤 heartbeat，限制总字符数并
+  复用 Secret/Image redaction。
+
+### 验证
+
+```text
+uv run --with pytest python -m pytest -q
+186 passed in 5.14s
+
+真实 DeepSeek/Codex Skill Authoring 冒烟
+preview_status=preview
+action=create
+skill_id=foreground-app-readonly-check
+install_status=installed
+manifest_exists=true
+
+git diff --check
+passed
+```
+
+真实冒烟使用临时 Skill、Draft 与 Codex Home 目录，结束后自动清理，没有改动正式用户 Skill。
+该测试验证了真实模型结构化生成和宿主安装边界，没有操作桌面。第三方市场、ZIP/Git 导入以及可执行
+脚本 Skill 仍未实现；后者必须等待独立 SkillRunner/Capability Broker 隔离。
+
+## 2026-10-07：将 Skill 草稿生成改为可恢复的后台工作流
+
+### 真实故障与结论
+
+Session `ses_3401ae6b951d4804` 中，“沉淀刚刚的知乎找文章操作”并不是普通聊天慢，也不是
+Jev-Mem 召回慢。原链路把独立 Codex Structured Turn 放在 Qwen 的同步工具调用内：
+
+```text
+Qwen 判断并调用 prepare_skill
+→ 前台同步等待 Codex 读取任务轨迹并生成完整 Skill
+→ 工具结果返回 Qwen
+→ Qwen 才生成用户可见回复
+```
+
+从持久化 Event Log 复盘得到：第一条泛化请求约 22.9 秒出现首个回复、25.4 秒完成；明确指定
+知乎轨迹后约 69.1 秒才出现首个回复、71.5 秒完成。草稿其实已经成功保存为
+`skills/.drafts/skd_8a09d2cec4094e18.json`，但待确认草稿 ID 只存在于 Qwen 工具结果上下文中。
+草稿生成后 Engine 热重载，新的 Realtime 连接无法从 Product Session Final Messages 恢复该工具结果，
+因此后续“安装”传入了无效 ID，“继续”又错误回到重新判断轨迹的模型链路。
+
+### 实现
+
+- `prepare_skill` 现在只创建持久化 `preparing` 草稿并启动后台 Job，立即返回 `accepted + draft_id`；
+  Qwen 不再等待 Codex 完整生成后才回复。
+- 后台生成完成后把同一草稿原子更新为 `pending`，并通过现有持久通知 Outbox 主动提示
+  “草稿已生成，回复安装即可应用”；`not_needed` 和 `failed` 同样形成明确终态。
+- 草稿仓储支持按 `session_id + status + created_at` 查询。安装参数为空或 Qwen 在重连后给出无效
+  ID 时，宿主以当前 Session 最新 `pending` 草稿为准，不再让模型管理 opaque ID。
+- 当当前 Session 存在 `pending/preparing` 草稿时，“安装、确认、继续、可以”等短确认由宿主确定性
+  短路：直接安装，或立即说明仍在生成；不再额外调用 Qwen。
+- 最近任务来源改为读取持久化 `interaction.finalized.task_id`，再读取对应 Task Trace；Engine 重启后
+  不再依赖会被清空的 `ExecutionService.last_result`。
+- Engine 启动时将上一次进程遗留的 `preparing` 草稿标记为 `failed`，避免永久卡在生成中；已经
+  `pending` 的草稿保持可安装。
+- Qwen Realtime 新增脱敏 Trace，后续可直接审计 Function Call 参数、工具结果和 Provider 事件，
+  不再只能依靠外围 UI Event 反推。
+
+### 验证
+
+```text
+.venv/bin/python -m pytest -q
+190 passed in 7.06s
+
+git diff --check
+passed
+```
+
+对仍在磁盘上的真实知乎草稿执行 Engine IPC `submit_text(goal="继续")`：
+
+```text
+elapsed_seconds=0.078
+status=accepted
+message=Skill 'zhihu-article-discovery' 已安装并启用。
+draft_status=installed
+registry.skills.zhihu-article-discovery.enabled=true
+```
+
+该实测经过当前桌宠 Engine 与 Product Session，而不是直接调用 `SkillService.install()`。它证明
+“Engine 重载后仅说继续即可恢复并安装”已经跑通；本轮没有重新付费调用真实 Qwen/Codex 生成第二份
+草稿，因此“生成阶段前台立即回复 + 完成后真实语音通知”的 Provider 级时延仍需下一次自然使用时观察
+新写入的 `runtime/qwen/events.jsonl`。本轮没有 commit 或 push。
+
+## 2026-10-07：记忆关系图迁移到本地 Web 图引擎
+
+### 决策与边界
+
+保留 AppKit 的看板窗口、搜索、详情和删除交互，只把中间的关系图从手写
+`NSBezierPath` 迁移到本地 `WKWebView + vis-network 9.1.9`。不启动 HTTP 服务，不访问
+CDN，不改变 Engine 的 `memory_snapshot` 数据边界。第三方 JavaScript 和 MIT/
+Apache-2.0 License 随仓库保存在 `assets/memory-graph/vendor/`。
+
+### 实现
+
+- 新图支持 ForceAtlas2 力导向布局、类型筛选、拖动节点、缩放/平移、Hover 全文、
+  双击聚焦和视口适配。
+- WebKit Message Handler 把点击的精确节点 ID 回传原生层，右侧详情和删除仍由
+  BoxAgent Application/Memory API 处理。
+- 同一节点对的平行边保留方向和颜色，但只允许一条边参与物理布局，避免
+  多条关系把节点拉在一起。标签按关系类型聚合为“时间 ×2”等文本，完整 subtype
+  保留在 Hover 和详情面板。
+
+### 失败实验与修复
+
+首次 WKWebView snapshot 显示工具栏和“3 个节点 · 10 条关系”，但 Canvas 为空。
+JavaScript 诊断证明 DataSet、节点坐标、视口平移和 Canvas 尺寸均正常；问题是
+vis-network 稳定化完成后关闭 physics 时，WKWebView 可能在最后一帧重绘后又排入
+一次 Canvas clear。修复为原子替换 DataSet，稳定化完成后明确执行
+`stopSimulation → fit → redraw`，并在 50/250 ms 后进行两次同世代重绘兜底。
+
+### 验证
+
+从正在运行的 Engine 通过 Unix Socket 读取真实 Jev-Mem snapshot，得到 3 个 `EVENT`
+节点和 10 条 `SEMANTIC / CAUSAL / TEMPORAL` 关系。在独立 WKWebView 中执行同一
+`setSnapshot` 代码，Canvas 成功绘制节点、方向箭头、聚合关系标签和中文节点摘要。
+验收图保存在 `.runtime/pet/ui-check/memory-graph-web.png`。
+
+```text
+uv run --script scripts/pet.py --check
+197 tests in 6.885s
+OK
+
+git diff --check
+passed
+```
+
+`uv run --script scripts/pet.py --check-ui` 同时暴露了一个与记忆图无关的现有桌宠面板回归：
+“长结果完整保留并支持滚动”断言失败；脚本把错误写入 JSON 但进程仍返回 0。
+该失败不影响独立 WKWebView 记忆图验收，但桌宠 UI 回归脚本本身仍需单独修复。

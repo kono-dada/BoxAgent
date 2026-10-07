@@ -1,5 +1,5 @@
 """Memory backend adapters."""
 
-from boxagent.infrastructure.memory.jev import JevMemoryWorker
+from boxagent.infrastructure.memory.jev_mem import JevMemWorker
 
-__all__ = ["JevMemoryWorker"]
+__all__ = ["JevMemWorker"]

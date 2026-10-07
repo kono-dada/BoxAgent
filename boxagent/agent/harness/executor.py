@@ -1,13 +1,16 @@
 """Harness execution lifecycle around one Agent Runtime request."""
 
 import asyncio
+from dataclasses import asdict, is_dataclass
+import hashlib
+import inspect
 import json
 import time
 import traceback
 from pathlib import Path
 from typing import Callable
 
-from boxagent.core.errors import redact, timestamp, write_json
+from boxagent.core.errors import append_jsonl, redact, timestamp, write_json
 from boxagent.agent.harness.request import HarnessInput
 from boxagent.agent.harness.policies.result import validate_task_result
 
@@ -20,7 +23,8 @@ class TaskExecutor:
                  tool_gateway_factory: Callable, request_factory: Callable,
                  auto_approve: bool = True, session_id=None, interaction_id=None,
                  prior_messages=(), runtime_binding=None, on_thread_bound=None,
-                 environment_provider=None, memory_provider=None):
+                 environment_provider=None, memory=None,
+                 run_index_path=None, latest_run_path=None):
         self.task_id = task_id
         self.provider = provider
         self.model = model
@@ -36,7 +40,9 @@ class TaskExecutor:
         self.runtime_binding = runtime_binding
         self.on_thread_bound = on_thread_bound
         self.environment_provider = environment_provider
-        self.memory_provider = memory_provider
+        self.memory = memory
+        self.run_index_path = Path(run_index_path) if run_index_path else None
+        self.latest_run_path = Path(latest_run_path) if latest_run_path else None
         self.session = None
         self.gateway = None
         self.runtime = None
@@ -134,17 +140,90 @@ class TaskExecutor:
                 raise asyncio.CancelledError
             self.runtime = self.runtime_factory(self.session)
             memories = ()
-            if self.memory_provider is not None and self.session_id:
+            memory_retrieval = {
+                "query": goal, "session_id": self.session_id or "",
+                "consumer": "codex", "mode": "direct", "top_k": 5,
+                "elapsed_ms": 0, "profile": [], "evidence": [],
+                "narrative": [], "trace": {"degraded": True,
+                                             "reason": "not_requested"},
+            }
+            if self.memory is not None and self.session_id:
+                self.log("memory_recall_started", query=goal, mode="direct", top_k=5)
+                recall_started = time.perf_counter()
                 try:
-                    memories = tuple(await self.memory_provider.recall(
-                        goal, session_id=self.session_id, top_k=5))
+                    detailed = getattr(self.memory, "evidence_with_trace", None)
+                    if detailed is not None and inspect.iscoroutinefunction(detailed):
+                        bundle = await detailed(
+                            goal, session_id=self.session_id, top_k=5)
+                        memories = tuple(bundle.get("items") or ())
+                        memory_retrieval = dict(bundle.get("retrieval") or {})
+                    else:
+                        memories = tuple(await self.memory.evidence(
+                            goal, session_id=self.session_id, top_k=5))
+                        memory_retrieval = {
+                            **memory_retrieval, "trace": {"degraded": False},
+                            "evidence": list(memories),
+                        }
                 except Exception as exc:
+                    memory_retrieval = {
+                        **memory_retrieval,
+                        "trace": {"degraded": True,
+                                  "reason": type(exc).__name__},
+                    }
                     self.log("memory_recall_degraded", error=type(exc).__name__)
+                finally:
+                    memory_retrieval["elapsed_ms"] = round(
+                        (time.perf_counter() - recall_started) * 1000, 3)
+            memory_retrieval["injected_items"] = list(memories)
+            write_json(self.output / "memory-retrieval.json", memory_retrieval)
+            self.log(
+                "memory_recall_finished",
+                elapsed_ms=memory_retrieval["elapsed_ms"], mode="direct",
+                top_k=5, profile_count=len(memory_retrieval.get("profile", [])),
+                evidence_count=len(memory_retrieval.get("evidence", [])),
+                narrative_count=len(memory_retrieval.get("narrative", [])),
+                injected_count=len(memories),
+                injected_characters=len(json.dumps(
+                    list(memories), ensure_ascii=False)),
+                degraded=bool((memory_retrieval.get("trace") or {}).get(
+                    "degraded")))
+            environment = self.capture_environment()
             request = self.request_factory(HarnessInput(
                 goal=goal, turns=self.prior_messages, memories=memories,
-                environment=self.capture_environment(),
+                environment=environment,
                 context_cursor=(self.runtime_binding.context_cursor
                                 if self.runtime_binding else 0)))
+            history = [self._record(item) for item in request.history]
+            history_delta = [self._record(item) for item in request.history_delta]
+            write_json(self.output / "context.json", {
+                "session_id": self.session_id,
+                "interaction_id": self.interaction_id,
+                "context_cursor": (self.runtime_binding.context_cursor
+                                   if self.runtime_binding else 0),
+                "current_user_query": goal,
+                "environment": self._record(environment),
+                "history": history,
+                "history_delta": history_delta,
+                "memory_evidence": list(memories),
+                "assembled_evidence_context": request.evidence_context,
+            })
+            request_snapshot = {
+                "provider": self.provider,
+                "model": self.model,
+                "session_id": self.session_id,
+                "interaction_id": self.interaction_id,
+                "runtime_thread_id": getattr(self.session, "thread_id", None),
+                "query": request.query,
+                "developer_instructions": request.developer_instructions,
+                "developer_instructions_sha256": hashlib.sha256(
+                    request.developer_instructions.encode("utf-8")).hexdigest(),
+                "history": history,
+                "history_delta": history_delta,
+                "evidence_context": request.evidence_context,
+                "output_schema": request.output_schema,
+                "tools": tools,
+            }
+            write_json(self.output / "request.json", request_snapshot)
             self.log("runtime_request_compiled",
                      persona=getattr(request, "persona_source", None),
                      input_characters=len(request.query),
@@ -156,6 +235,11 @@ class TaskExecutor:
             text = await asyncio.wait_for(self.runtime.execute(
                 request, tools, self.call_tool, self.validate_result,
                 lambda message: self.report("model", message)), 300)
+            request_snapshot["runtime_thread_id"] = getattr(
+                self.session, "thread_id", None)
+            request_snapshot["runtime_turn_id"] = getattr(
+                self.session, "turn_id", None)
+            write_json(self.output / "request.json", request_snapshot)
             self.report("validating", "正在核对执行结果")
             write_json(self.output / "agent-result.json", {"text": text})
             return self.validate_result(text)
@@ -168,9 +252,17 @@ class TaskExecutor:
         self.approve = approve
         self.log("task_started", goal=goal, provider=self.provider, model=self.model,
                  auto_approve=self.auto_approve)
-        write_json(self.output / "task.json", {"task_id": self.task_id, "goal": goal,
-                                                "provider": self.provider, "model": self.model,
-                                                "started_at": self.started_at})
+        manifest = {"task_id": self.task_id, "goal": goal,
+                    "goal_preview": goal.strip().replace("\n", " ")[:80],
+                    "provider": self.provider, "model": self.model,
+                    "session_id": self.session_id,
+                    "interaction_id": self.interaction_id,
+                    "started_at": self.started_at,
+                    "started_at_iso": timestamp(),
+                    "run_directory": str(self.output)}
+        write_json(self.output / "manifest.json", manifest)
+        write_json(self.output / "task.json", manifest)
+        self._index_run("started", manifest)
         final = {"outcome": "failed"}
         heartbeat = asyncio.create_task(self.heartbeat())
         try:
@@ -203,7 +295,39 @@ class TaskExecutor:
             write_json(self.output / "result.json", final)
             self.log("task_ended", **{key: value for key, value in final.items()
                                      if key != "task_id"})
+            self._index_run("ended", {**manifest, **final})
             self.write_status(False)
+
+    @staticmethod
+    def _record(value):
+        if value is None:
+            return None
+        if is_dataclass(value):
+            return asdict(value)
+        if isinstance(value, dict):
+            return dict(value)
+        return {key: getattr(value, key) for key in (
+            "role", "content", "sequence", "event_id", "source")
+                if hasattr(value, key)}
+
+    def _index_run(self, event, payload):
+        value = {"event": event, "occurred_at": time.time(), **payload}
+        if self.run_index_path is not None:
+            append_jsonl(self.run_index_path, value)
+        if self.latest_run_path is not None:
+            write_json(self.latest_run_path, value)
+            # Finder-friendly pointer; latest.json remains the machine-readable
+            # source for tools and diagnostics.
+            latest_link = self.latest_run_path.parent / "latest-run"
+            temporary_link = self.latest_run_path.parent / (
+                f".latest-run-{self.task_id}")
+            try:
+                temporary_link.unlink(missing_ok=True)
+                temporary_link.symlink_to(
+                    self.output.resolve(), target_is_directory=True)
+                temporary_link.replace(latest_link)
+            except OSError:
+                temporary_link.unlink(missing_ok=True)
 
     async def cancel(self):
         self.log("cancel_requested", phase=self.phase, step=self.actions)

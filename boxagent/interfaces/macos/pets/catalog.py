@@ -48,10 +48,14 @@ def normalize(raw):
         value = raw.get(key)
         return value[:maximum] if isinstance(value, str) else fallback
     handle = text("ownerHandle", maximum=120)
+    source_url = text("sourceUrl", f"{SOURCE}/#/pets/{identity}")
+    source = urllib.parse.urlsplit(source_url)
+    if source.scheme != "https" or source.hostname not in {"codex-pets.net", "github.com"}:
+        source_url = f"{SOURCE}/#/pets/{identity}"
     return dict(id=identity, displayName=text("displayName", identity, 160),
                 description=text("description"), spriteVersionNumber=version,
                 ownerName=text("ownerName", handle or "未注明", 160), ownerHandle=handle,
-                sourceUrl=f"{SOURCE}/#/pets/{identity}", license=text("license") or None,
+                sourceUrl=source_url, license=text("license") or None,
                 spritesheetUrl=asset_url(raw.get("spritesheetUrl"), identity, "spritesheet.webp"),
                 posterUrl=asset_url(raw["posterUrl"], identity, "poster.webp") if raw.get("posterUrl") else None)
 

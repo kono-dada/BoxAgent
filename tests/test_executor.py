@@ -129,6 +129,19 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         text = json.dumps({"outcome": "blocked", "summary": "需要登录", "evidence_steps": [1]})
         self.assertEqual(self.executor.validate_result(text)["summary"], "需要登录")
 
+    def test_final_json_after_provider_prose_is_accepted(self):
+        self.executor.observations[1] = {"step": 1, "success": True}
+        text = ("计算器已显示结果。\n\n" + json.dumps({
+            "outcome": "completed", "summary": "结果为 42", "evidence_steps": [1]}))
+        result = self.executor.validate_result(text)
+        self.assertEqual(result["outcome"], "completed")
+        self.assertEqual(result["summary"], "结果为 42")
+
+    def test_provider_prose_without_terminal_json_is_rejected(self):
+        with self.assertRaises(TaskFailure) as failure:
+            self.executor.validate_result("计算器已经完成，但没有结构化结果。")
+        self.assertEqual(failure.exception.code, "invalid_result")
+
     def test_completion_without_actual_evidence_is_rejected(self):
         text = json.dumps({"outcome": "completed", "summary": "播放了", "evidence_steps": [10]})
         with self.assertRaises(TaskFailure) as failure:
@@ -202,9 +215,9 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
                 captured["request"] = request
                 return "ignored"
 
-        memory = Mock(recall=AsyncMock(return_value=[{
+        memory = Mock(evidence=AsyncMock(return_value=[{
             "memory_id": "mem_1", "kind": "preference",
-            "content": "用户喜欢爵士乐", "source": "canonical+jev"}]))
+            "content": "用户喜欢爵士乐", "source": "jev_mem"}]))
 
         def session_factory(**kwargs):
             kwargs.pop("product_session_id", None)
@@ -219,17 +232,62 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             session_factory=session_factory,
             tool_gateway_factory=ComputerUseToolGateway,
             request_factory=RuntimeRequestBuilder().prepare,
-            session_id="ses_1", memory_provider=memory,
+            session_id="ses_1", memory=memory,
         )
         executor.validate_result = lambda _text: {
             "outcome": "blocked", "summary": "测试结束"}
 
         await executor._execute("播放点音乐")
 
-        memory.recall.assert_awaited_once_with(
+        memory.evidence.assert_awaited_once_with(
             "播放点音乐", session_id="ses_1", top_k=5)
         self.assertIn("用户喜欢爵士乐",
                       captured["request"].evidence_context)
+
+    async def test_executor_persists_auditable_context_request_and_memory_trace(self):
+        captured = {}
+
+        class Runtime:
+            async def execute(self, request, *_args):
+                captured["request"] = request
+                return "ignored"
+
+        memory = Mock()
+        memory.evidence_with_trace = AsyncMock(return_value={
+            "items": [{"id": "mem-1", "kind": "preference",
+                       "content": "用户喜欢乌龙茶"}],
+            "retrieval": {"query": "推荐饮料", "mode": "direct", "top_k": 5,
+                          "elapsed_ms": 12.5, "profile": [],
+                          "evidence": [{"id": "mem-1"}], "narrative": [],
+                          "trace": {"degraded": False}},
+        })
+
+        def session_factory(**kwargs):
+            kwargs.pop("product_session_id", None)
+            kwargs.pop("runtime_thread_id", None)
+            kwargs.pop("on_thread_bound", None)
+            return FakeSession(**kwargs)
+
+        output = Path(self.directory.name) / "audit"
+        executor = TaskExecutor(
+            "audit", provider="deepseek", model="deepseek-flash", output=output,
+            runtime_factory=lambda _session: Runtime(),
+            session_factory=session_factory,
+            tool_gateway_factory=ComputerUseToolGateway,
+            request_factory=RuntimeRequestBuilder().prepare,
+            session_id="ses-audit", interaction_id="int-audit", memory=memory)
+        executor.validate_result = lambda _text: {
+            "outcome": "blocked", "summary": "测试结束"}
+
+        await executor._execute("推荐饮料")
+
+        context = json.loads((output / "context.json").read_text())
+        request = json.loads((output / "request.json").read_text())
+        retrieval = json.loads((output / "memory-retrieval.json").read_text())
+        self.assertEqual(context["memory_evidence"][0]["id"], "mem-1")
+        self.assertIn("用户喜欢乌龙茶", request["evidence_context"])
+        self.assertEqual(retrieval["injected_items"][0]["content"], "用户喜欢乌龙茶")
+        self.assertGreaterEqual(retrieval["elapsed_ms"], 0)
 
     async def test_environment_capture_failure_degrades_to_empty_evidence(self):
         provider = Mock()
@@ -281,6 +339,14 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("model_catalog_json=", command)
         self.assertNotIn("secret-for-test", command)
         self.assertEqual(session.launch_environment()["DEEPSEEK_API_KEY"], "secret-for-test")
+
+    def test_app_server_uses_native_computer_use_turn_notifier(self):
+        session = self.make_session()
+
+        arguments = session.launch_arguments(Path("/codex"), Path("/computer-use"))
+
+        self.assertIn('notify=["/computer-use", "turn-ended"]', arguments)
+        self.assertNotIn("notify=[]", arguments)
 
     async def test_matching_runtime_request_reuses_one_codex_thread(self):
         session = self.make_session()
@@ -509,6 +575,8 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         session = self.make_session()
         session.thread_id = "test-thread"
         session.turn_id = "own-turn"
+        session.turn_input_messages = ["打开知乎看看 AI 文章"]
+        session.agent_text = "已经完成浏览。"
         session.client = Path("/client")
         process = Mock(returncode=0, communicate=AsyncMock(return_value=(b"", b"")))
         with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
@@ -518,8 +586,14 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[:2], ("/client", "turn-ended"))
         self.assertEqual(json.loads(args[2])["thread-id"], "test-thread")
         self.assertEqual(json.loads(args[2])["turn-id"], "own-turn")
+        self.assertEqual(json.loads(args[2])["client"], "boxagent-pet")
+        self.assertEqual(json.loads(args[2])["input-messages"],
+                         ["打开知乎看看 AI 文章"])
+        self.assertEqual(json.loads(args[2])["last-assistant-message"],
+                         "已经完成浏览。")
         process.communicate.assert_awaited_once()
         self.assertEqual(session.cleanup_status, "notified")
+        self.assertEqual(session.turn_input_messages, [])
 
     async def test_cleanup_timeout_is_logged_without_hiding_task_result(self):
         session = self.make_session()

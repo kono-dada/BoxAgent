@@ -2,13 +2,13 @@
 
 from boxagent.domain.memory.contracts import MemoryBackend, MemoryUnavailable
 from boxagent.domain.memory.models import (
-    CanonicalMemory,
-    MemoryCandidate,
-    MemoryExtractionJob,
+    MemoryIngestionJob,
+    MemoryObservation,
+    ProfilePatch,
 )
 from boxagent.domain.memory.service import MemoryService
 
 __all__ = [
-    "CanonicalMemory", "MemoryBackend", "MemoryCandidate", "MemoryExtractionJob",
+    "MemoryBackend", "MemoryIngestionJob", "MemoryObservation", "ProfilePatch",
     "MemoryService", "MemoryUnavailable",
 ]

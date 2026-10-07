@@ -18,7 +18,7 @@ class ContextCheckpointCoordinator:
 
     def __init__(self, store, generator, *, runtime="qwen_realtime",
                  trigger_characters=18000, source_character_limit=32000,
-                 log=None):
+                 log=None, checkpoint_sinks=()):
         if trigger_characters <= 0 or source_character_limit <= 0:
             raise ValueError("Checkpoint 字符预算必须大于 0")
         if source_character_limit < trigger_characters:
@@ -29,6 +29,7 @@ class ContextCheckpointCoordinator:
         self.trigger_characters = trigger_characters
         self.source_character_limit = source_character_limit
         self.log = log or (lambda *_args, **_kwargs: None)
+        self.checkpoint_sinks = tuple(checkpoint_sinks)
         self.tasks = set()
         self.locks = {}
         self.closed = False
@@ -36,7 +37,7 @@ class ContextCheckpointCoordinator:
     async def start(self):
         self.closed = False
 
-    async def interaction_completed(self, *, session_id, interaction_id,
+    async def interaction_finalized(self, *, session_id, interaction_id,
                                     source_hash):
         """Queue work and return immediately; generation never blocks a reply."""
         del source_hash
@@ -71,7 +72,7 @@ class ContextCheckpointCoordinator:
                 return
             batch = self._bounded_prefix(messages)
             content = await self.generator.generate(previous=previous, messages=batch)
-            self._validate_content(content)
+            self._validate_content(content, batch)
             now = time.time()
             checkpoint_id = new_checkpoint_id()
             source_hash = hashlib.sha256(json.dumps({
@@ -130,6 +131,8 @@ class ContextCheckpointCoordinator:
                 covered_through_sequence=checkpoint.covered_through_sequence,
                 message_count=len(batch), provider=checkpoint.provider,
                 model=checkpoint.model)
+            for sink in self.checkpoint_sinks:
+                await sink.checkpoint_created(checkpoint, segment)
 
     def _bounded_prefix(self, messages):
         batch, used = [], 0
@@ -142,18 +145,34 @@ class ContextCheckpointCoordinator:
         return tuple(batch)
 
     @staticmethod
-    def _validate_content(content):
+    def _validate_content(content, messages=()):
         if not isinstance(content, dict):
             raise ValueError("Checkpoint Generator 必须返回 JSON object")
-        required = {"summary", "user_facts", "decisions", "open_loops"}
+        required = {"summary", "user_facts", "decisions", "outcomes",
+                    "open_loops", "entities", "commitments", "time_range",
+                    "salient_events"}
         if not required <= set(content):
             raise ValueError("Checkpoint 缺少必要字段")
         if not isinstance(content["summary"], str) or not content["summary"].strip():
             raise ValueError("Checkpoint summary 不能为空")
-        for field in ("user_facts", "decisions", "open_loops"):
+        for field in ("user_facts", "decisions", "outcomes", "open_loops",
+                      "entities", "commitments"):
             if not isinstance(content[field], list) \
                     or not all(isinstance(item, str) for item in content[field]):
                 raise ValueError(f"Checkpoint {field} 必须是字符串数组")
+        if not isinstance(content["time_range"], dict) \
+                or set(content["time_range"]) != {"start", "end"}:
+            raise ValueError("Checkpoint time_range 格式无效")
+        if not isinstance(content["salient_events"], list) or any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("event_id"), str)
+                or not isinstance(item.get("description"), str)
+                for item in content["salient_events"]):
+            raise ValueError("Checkpoint salient_events 格式无效")
+        allowed_ids = {item.event_id for item in messages}
+        if allowed_ids and any(item["event_id"] not in allowed_ids
+                               for item in content["salient_events"]):
+            raise ValueError("Checkpoint salient_events 引用了范围外的 Event")
 
     async def drain(self):
         while self.tasks:

@@ -5,5 +5,13 @@ from boxagent.infrastructure.runtimes.qwen.realtime import (
     TOOLS,
     QwenRealtimeSession,
 )
+from .aoq import AoqRealtimeSession, AoqTokenClient, aoq_preflight
 
-__all__ = ["INSTRUCTIONS", "QwenRealtimeSession", "TOOLS"]
+__all__ = [
+    "AoqRealtimeSession",
+    "AoqTokenClient",
+    "INSTRUCTIONS",
+    "QwenRealtimeSession",
+    "TOOLS",
+    "aoq_preflight",
+]

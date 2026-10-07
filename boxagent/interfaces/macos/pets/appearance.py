@@ -5,8 +5,6 @@ import json
 import math
 from pathlib import Path
 
-import AppKit as AK
-from Foundation import NSData
 from PIL import Image
 
 from boxagent.core.states import presentation_state
@@ -58,6 +56,9 @@ class CodexPetsAppearance:
         return manifest, contract, frames, empty_rows, empty_gaze
 
     def __init__(self, directory, prepared=None, *, contract_path=None):
+        import AppKit as AK
+        from Foundation import NSData
+
         self.directory = directory
         self.contract_path = contract_path
         self.manifest, self.contract, frames, self.empty_rows, self.empty_gaze = (
