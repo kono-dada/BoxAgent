@@ -9,9 +9,9 @@ BoxAgent 是一个常驻在 Mac 桌面的 AI 伙伴。它可以自然对话、�
 
 ## 产品演示
 
-[![BoxAgent 产品演示：全双工语音、长期记忆与桌面操作](docs/media/boxagent-product-showcase.jpg)](docs/media/boxagent-product-showcase.mp4)
+https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 
-点击封面观看 5 分钟真人录屏（含声音），了解全双工语音、跨 Session 长期记忆、后台音乐操作、任务结果通知，以及角色、记忆和 Skill 管理。
+这段 5 分钟真人录屏包含声音，展示全双工语音、跨 Session 长期记忆、后台音乐操作、任务结果通知，以及角色、记忆和 Skill 管理。
 
 ## 它能做什么
 
