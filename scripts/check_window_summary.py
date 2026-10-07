@@ -3,7 +3,7 @@
 import asyncio
 import json
 
-from boxagent.context import WindowSummary
+from boxagent.infrastructure.perception.qwen_mlx import WindowSummary
 
 
 async def main():

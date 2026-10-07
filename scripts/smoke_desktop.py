@@ -11,15 +11,17 @@ from pathlib import Path
 import AppKit as AK
 from PyObjCTools import AppHelper
 
-from boxagent.appearance.codex_pets import CodexPetsAppearance
-from boxagent.config import DATA, DEFAULT_PET
-from boxagent.desktop import Backend, Desktop
-from boxagent.executor import CodexExecutor
-from boxagent.runtime import Runtime
-from boxagent.voice import QwenVoice
+from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
+from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
+from boxagent.application.assistant import BoxAgentApplication
+from boxagent.bootstrap.engine import create_task_executor
+from boxagent.bootstrap.settings import load_settings
+from boxagent.interfaces.macos.app import Desktop
+from boxagent.interfaces.macos.inprocess_bridge import BackendBridge
 
 
 def main():
+    app_settings = load_settings()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--smoke-desktop", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--audio", type=Path, required=True, help="测试语音，16 kHz 单声道 PCM16 WAV")
@@ -29,20 +31,27 @@ def main():
         if (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) != (16000, 1, 2):
             parser.error("--audio 必须为 16 kHz 单声道 PCM16 WAV")
         pcm = wav.readframes(wav.getnframes())
-    output = DATA / "desktop-smoke"
+    output = app_settings.data_dir / "desktop-smoke"
     output.mkdir(parents=True, exist_ok=True)
     app = AK.NSApplication.sharedApplication()
     app.setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
     voice = None
 
-    def make_voice(handle, emit):
+    def make_voice(handle, emit, **callbacks):
         nonlocal voice
-        voice = QwenVoice(handle, emit, microphone=False, playback=False)
+        voice = QwenRealtimeSession(handle, emit, model=app_settings.voice_model,
+                          key=app_settings.qwen_api_key,
+                          microphone=False, playback=False, **callbacks)
         return voice
 
-    backend = Backend(lambda publish: Runtime(publish,
-        lambda task_id: CodexExecutor(task_id, auto_approve=False), make_voice))
-    desktop = Desktop.alloc().init().configure(backend, CodexPetsAppearance(DEFAULT_PET))
+    backend = BackendBridge(lambda publish: BoxAgentApplication(publish,
+        lambda task_id: create_task_executor(
+            task_id, provider="codex", auto_approve=False,
+            app_settings=app_settings), make_voice), log_dir=output)
+    desktop = Desktop.alloc().init().configure(
+        backend, CodexPetsAppearance(app_settings.default_pet,
+            contract_path=app_settings.root / "assets/pet/atlas-contract.json"),
+        data_dir=output)
     app.setDelegate_(desktop)
     result = {}
 
@@ -94,7 +103,8 @@ def main():
                     current = await on_main(front_app)
                     if not foreground or foreground[-1]["app"] != current:
                         foreground.append({"elapsed": round(time.monotonic() - started, 3), "app": current,
-                                           "task": backend.runtime.state.task, "progress": backend.runtime.state.task_text})
+                                           "task": backend.application.state.task,
+                                           "progress": backend.application.state.task_text})
                     await asyncio.sleep(.2)
             watcher = asyncio.create_task(watch_front())
             await on_main(desktop.toggleBubble_, None)
@@ -114,28 +124,29 @@ def main():
                     await asyncio.sleep(.1)
             feed = asyncio.create_task(send())
             async with asyncio.timeout(60):
-                while not backend.runtime.state.approval:
-                    if backend.runtime.state.task == "failed":
-                        raise RuntimeError(backend.runtime.state.task_text)
+                while not backend.application.state.approval:
+                    if backend.application.state.task == "failed":
+                        raise RuntimeError(backend.application.state.task_text)
                     await asyncio.sleep(.1)
             await asyncio.sleep(.2)
             await on_main(capture, "approval")
             await on_main(desktop.allow_, None)
-            await asyncio.wait_for(asyncio.shield(backend.runtime.job), 240)
-            if backend.runtime.last_result.get("status") != "succeeded":
-                raise RuntimeError("实际任务未完成：" + backend.runtime.state.task_text)
+            await asyncio.wait_for(asyncio.shield(backend.application.job), 240)
+            if backend.application.last_result.get("status") != "succeeded":
+                raise RuntimeError("实际任务未完成：" + backend.application.state.task_text)
             await asyncio.sleep(7)
             await on_main(capture, "completed")
-            result["task"] = backend.runtime.last_result
+            result["task"] = backend.application.last_result
             result["front_before"] = before
             result["front_after"] = await on_main(front_app)
             result["front_unchanged"] = result["front_before"] == result["front_after"]
             result["foreground_samples_unique"] = foreground
             await on_main(desktop.toggleMic_, None)
             async with asyncio.timeout(10):
-                while backend.runtime.state.voice != "off":
+                while backend.application.state.voice != "off":
                     await asyncio.sleep(.1)
-            result["voice_closed_cleanly"] = backend.runtime.state.voice == "off" and not backend.runtime.state.error
+            result["voice_closed_cleanly"] = (backend.application.state.voice == "off"
+                                                and not backend.application.state.error)
             result["pid"] = os.getpid()
         except Exception as exc:
             result["error"] = str(exc)

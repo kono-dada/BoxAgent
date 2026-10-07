@@ -1,0 +1,14 @@
+Jev-Mem: System-One Controlled Agentic Memory
+
+This project is derived from MAGMA, the Multi-Graph based Agentic Memory
+Architecture: https://github.com/FredJiang0324/MAGMA
+
+The upstream MIT license and its original copyright notice are preserved in
+LICENSE. Jev-Mem adds a TypeSafe Jev control layer, bounded retrieval,
+evaluation support, and supporting documentation. These modifications are
+distributed under the same MIT license. This repository is not an official
+release of MAGMA or TypeSafe and does not imply their endorsement.
+
+Jev and the TypeSafe SDK are external services/software with their own terms
+and licenses. LoCoMo and LongMemEval datasets are not redistributed here;
+obtain them from their original distributors and follow their terms.

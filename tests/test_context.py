@@ -7,8 +7,8 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from PIL import Image
-from boxagent.context import WindowSummary
-from boxagent.runtime import Runtime
+from boxagent.infrastructure.perception.qwen_mlx import WindowSummary
+from boxagent.application.assistant import BoxAgentApplication
 
 
 class ContextTests(unittest.IsolatedAsyncioTestCase):
@@ -27,18 +27,19 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
             observer.command = capture
             first = {"id": 1, "app": "测试窗口"}
             second = {"id": 2, "app": "另一个窗口"} if switched else first
-            with patch("boxagent.context.focused_window", side_effect=[first, second]):
+            with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                       side_effect=[first, second]):
                 await observer.observe()
             self.assertEqual(events[-1][0], "context.stale" if switched else "context.updated")
             self.assertFalse(paths[0].exists())
 
     async def test_pause_cancels_observer_without_touching_executor(self):
-        runtime = Runtime(Mock(), Mock(), None)
+        runtime = BoxAgentApplication(Mock(), Mock(), None)
         observer = WindowSummary(runtime.emit)
         observer.task = asyncio.create_task(asyncio.sleep(60))
         runtime.observer = observer
         await runtime.toggle_context()
         self.assertIsNone(observer.task)
         self.assertEqual(runtime.state.task, "idle")
-        runtime.executor_factory.assert_not_called()
+        runtime.execution_service.executor_factory.assert_not_called()
         self.assertEqual(runtime.state.context_status, "屏幕总结已关闭")

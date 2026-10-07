@@ -1,104 +1,207 @@
-# BoxAgent 桌宠 POC
+# BoxAgent
 
-## Roadmap：从能力统合到长期陪伴
+> A full-duplex, memory-native desktop companion for macOS.
 
-BoxAgent 的目标是一个长期运行在 MacBook 上的桌宠 Agent：既能随时对话、接受委托并操作电脑，也能根据用户的要求持续关注桌面活动，在合适的时机提醒，并逐步积累可回顾的活动记录和长期记忆。
+BoxAgent 是一个常驻在 Mac 桌面的 AI 伙伴。它可以自然对话、记住长期偏好，并在后台操作电脑；耗时任务不会阻塞当前聊天，完成后会主动回来告诉你结果。
 
-最初设想中的体验包括：说一句“随便放一首钢琴曲”，桌宠先回应，再在后台完成操作；交代“接下来专心学习一小时”，它安静观察，发现持续偏离学习目标时及时提醒；晚上问“我今天做了什么”，它按有依据的时间段回顾当天活动。用户工作时尽量不受干扰，耗时执行也不阻塞继续交谈。
+> [!IMPORTANT]
+> BoxAgent 目前是面向 macOS / Apple Silicon 的开发版本，不是开箱即用的正式发行包。运行前需要准备模型凭据、Codex Computer Use 组件和相应的 macOS 系统权限。
 
-**当前已完成全双工语音、本地端模型和 Computer Use 的初步技术验证与桌宠统合。** 接下来要把这些能力连接成能持续履行委托的系统。以下是演进方向，后续阶段尚未实现，具体边界随实际体验调整。
+## 产品演示
 
-- [x] **全双工语音：技术验证与统合。** 接入千问实时语音，支持快捷键对话、插话和后台任务期间继续交谈。
-- [x] **本地端模型：技术验证与统合。** 接入 MLX Qwen3.5-0.8B，定期解读前台窗口并在桌宠旁展示摘要，支持开关。
-- [x] **Computer Use：技术验证与统合。** 接入 Codex 通用桌面操作，接受语音或文字的自然语言委托，反馈执行状态与结果，支持取消。
-- [x] **桌宠 POC。** 三项能力在同一桌宠中运行，语音与耗时执行独立，形象层可替换。
-- [ ] **持续委托与及时响应。** 从“专注学习一小时”开始，将桌面观察交给决策层；支持委托启动、修改、暂停与结束，在有效时间内判断是否提醒，避免重复或过时打扰。
-- [ ] **多场景监控与动态扩展。** 用第二种不同的委托验证通用性，例如下载完成提醒；复用事件来源、计时、生命周期与输出机制，让各场景的判断和调优独立，探索按需生成监控与热加载。
-- [ ] **活动时间线。** 结合窗口变化、闲置等活动信号（如 ActivityWatch）与屏幕观察，形成有证据的活动区间；先支持短时回顾，再扩展到全天，保留采集空白。
-- [ ] **长期记忆与上下文协同。** 从用户明确要求保存的偏好开始，区分临时委托和长期设置；逐步探索记忆提炼、检索与更新，为后续决策提供相关上下文。
+[![BoxAgent 产品演示：全双工语音、长期记忆与桌面操作](docs/media/boxagent-product-showcase.jpg)](docs/media/boxagent-product-showcase.mp4)
 
-整个系统围绕事件驱动设计。用户消息、桌面观察、执行结果、定时器及外部 Feed 都可以成为事件；决策结合事件本身、当前时间、有效委托、相关记忆与可用工具，选择保持安静、更新桌宠表现、发送消息或委托执行。事件处理与具体执行分离，按事件的时效要求处理；每种监控维护自己的判断逻辑和状态，减少场景之间的相互影响。
+点击封面观看 5 分钟真人录屏（含声音），了解全双工语音、跨 Session 长期记忆、后台音乐操作、任务结果通知，以及角色、记忆和 Skill 管理。
 
-端云分工沿用已验证的方向：本地模型提供桌面观察，云端模型负责语音交互和复杂判断、执行。**目前本地摘要仅用于展示，尚未接入语音或执行决策；持续监控、时间线和长期记忆也尚未落地。** 当前有状态事件与独立任务生命周期，通用事件决策、时效调度和动态监控框架仍需后续探索。
+## 它能做什么
 
-长期运行质量贯穿各阶段：持续验证真人全双工体验、后台操作对工作的干扰、读屏质量与资源占用，以及断网、睡眠唤醒、退出清理等恢复行为。初步技术验证和 POC 统合不等于这些可靠性问题已经全部解决，已验证范围见 [验收记录](docs/poc-verification.md)。
+| 能力 | 体验 |
+| --- | --- |
+| 全双工语音 | 随时说话、自然插话；AOQ 优先提供回声消除与降噪，WebSocket 可降级使用 |
+| 后台 Computer Use | 对话不中断的情况下操作 macOS 应用，任务完成后主动通知 |
+| 统一会话上下文 | 文字、语音、Qwen 与任务 Runtime 共享同一个持久 Product Session |
+| 长期记忆 | Jev-Mem 自动判断值得保存的信息，支持画像、叙事记忆和主动召回 |
+| Skill 系统 | 管理内置与用户 Skill，也可以从真实任务轨迹生成并安装 Skill 草稿 |
+| 原生桌宠界面 | 提供角色、形象商店、任务状态、记忆图谱和 Skill 管理入口 |
 
-## 当前 POC 与使用方式
+例如，你可以对它说：
 
-桌面小鸭、千问实时语音、字幕与状态表现，以及自然语言委托后台 Codex Agent 操作应用、反馈结果和取消任务。
+- “帮我播放一首音乐，完成后告诉我。”
+- “去知乎找几篇关于 Agent Memory 的高赞文章，我先继续和你聊。”
+- “我更喜欢简洁一点的回答。”
+- “把刚才这套操作沉淀成一个 Skill。”
 
-本地屏幕总结已接入：默认每 15 秒读取前台应用最上层的普通窗口，截图最长边缩到 960 像素，交给本机 MLX Qwen3.5-0.8B。收起对话时，摘要在小鸭旁逐字浮现，速度随文本长度调整，约 2 秒内显示全文（受界面刷新调度影响），显示完至少保留 8 秒，长文本延长停留，悬停时不自动消失。气泡自动换行并按全文增高，超出半屏高度时可滚动查看，不再限制 3 行；展开对话时也可查看完整摘要、应用名和截图时间。气泡不抢焦点、不播报，也不会派发操作任务。模型不再被要求最多输出 40 字，生成预算提高到 512 token（仍保留防止异常长生成的上限）。
+## 工作方式
 
-右键小鸭或菜单栏选择 **开启／关闭屏幕总结**。关闭会停止推理并释放模型进程；再次开启重新加载。启动参数可调整周期与分辨率：
+BoxAgent 将“陪伴式交互”和“耗时执行”分开，但由同一个 Session 保持连续体验：
 
-```sh
-uv run --script scripts/pet.py --log-dir ./logs/boxagent --context-interval 15 --context-size 960
+```mermaid
+flowchart LR
+    U[用户：文字 / 语音] --> Q[Qwen Realtime<br/>前台交互]
+    Q -->|普通对话| U
+    Q -->|桌面任务| H[Harness]
+    H --> R[Codex Task Runtime<br/>Computer Use]
+    R --> O[持久 Outbox]
+    O --> U
+
+    S[(Product Session)] <--> Q
+    S <--> H
+    M[(Jev-Mem)] <--> H
+    K[(Skills)] --> H
 ```
 
-`--context-interval 0` 表示启动时关闭，之后仍可从菜单开启；`--context-size 720` 可进一步降低图片分辨率。推理超过周期时不积压请求，切换前台窗口会丢弃旧窗口结果。截图只保存在推理期间的临时目录，完成、取消或失败后删除；摘要和模型诊断写入本机日志，不上传云端。需要启动终端的屏幕录制权限。已有 `.venv` 与 `models/qwen3.5-0.8b-mlx` 被直接复用，准备方法见 [本地 MLX 读屏](docs/qwen-mlx-probe.md)。
+- 所有文字和语音首先进入 Qwen Realtime，普通聊天直接回答。
+- 需要操作电脑时，完整用户目标会异步委托给任务 Runtime。
+- Harness 负责编译当前时间、Session 历史、相关记忆、Skill 与安全策略。
+- 后台结果先写入持久 Outbox，再通过语音、桌宠未读状态或系统通知送达。
+- Final User Message 落盘后异步进入 Jev-Mem，不阻塞当轮回复。
 
-单次真实窗口检查：`uv run --script scripts/pet.py --check-context`。这是展示上下文感知的演示，0.8B 模型可能误读文字或概括不准，尚未作为任务执行或长期记忆的依据。
+更完整的数据流和模块边界见 [架构重构方案](docs/BoxAgent-架构重构方案.md)、[Conversation Context 设计](docs/BoxAgent-Phase3-Conversation-Context-设计.md) 与 [Memory 设计](docs/BoxAgent-Phase4-Memory-设计.md)。
 
-首次在新环境运行前，先按 [环境准备](docs/setup.md) 安装本机依赖、准备模型和官方执行器。仓库不包含模型、凭据或 Codex 二进制，也不保证克隆后无准备即可运行。
+## 快速开始
 
-在项目根目录直接启动，不需要编译或生成应用包：
+### 1. 准备环境
+
+- macOS / Apple Silicon
+- Python 3.12、[uv](https://docs.astral.sh/uv/) 与 PortAudio
+- 北京地域 DashScope API Key
+- Codex App Server、`codex-code-mode-host` 与 Computer Use 组件
+- 可选：AOQ SDK、DeepSeek 任务模型、本地 MLX 视觉模型
+
+完整安装步骤、运行时路径和权限说明见 [本机环境准备](docs/setup.md)。
+
+### 2. 配置凭据
+
+```sh
+zsh scripts/set-key.zsh
+```
+
+如需外放全双工语音，安装 AOQ SDK，并在 `.env.local` 中配置百炼 Workspace：
+
+```sh
+./scripts/setup-aoq-sdk.sh
+
+BOXAGENT_QWEN_TRANSPORT=auto
+BOXAGENT_DASHSCOPE_WORKSPACE_ID=<your-workspace-id>
+BOXAGENT_DASHSCOPE_REGION=cn-beijing
+```
+
+### 3. 启动
 
 ```sh
 uv run --script scripts/pet.py
 ```
 
-需要指定诊断目录时：
+也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
 
-```sh
-uv run --script scripts/pet.py --log-dir ./logs/boxagent
+### 4. 开始使用
+
+- `Control + Option + Space`：开启或关闭麦克风
+- 点击桌宠：展开或收起对话
+- 拖动桌宠：移动位置
+- 右键桌宠或点击菜单栏 `◉`：打开角色、记忆、Skill、形象和屏幕总结等入口
+- “取消任务”或“停止任务”：停止当前后台任务的后续操作
+
+## 配置
+
+| 模块 | 默认行为 | 主要配置 |
+| --- | --- | --- |
+| Qwen Realtime | AOQ 就绪时优先使用，否则回退 WebSocket | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
+| 桌面任务 | Codex Runtime，默认任务模型 `gpt-5.6-luna` | `BOXAGENT_CODEX_BIN`、`BOXAGENT_TASK_MODEL` |
+| DeepSeek 任务模型 | 可选，通过同一 Codex Runtime 工具链执行 | `DEEPSEEK_API_KEY`、`./scripts/run-deepseek.sh` |
+| Jev-Mem | 启动时后台预热，用户消息落盘后异步准入 | `TYPESAFE_API_KEY`、`BOXAGENT_JEV_MEM_BACKEND` |
+| 本地屏幕总结 | 默认每 15 秒检查前台窗口 | `--context-interval`、`--context-size` |
+| 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |
+| 用户 Skill | 默认保存在本地运行目录并热同步 Runtime | `BOXAGENT_SKILLS_DIR` |
+
+更多环境变量和依赖边界见 [docs/setup.md](docs/setup.md)。
+
+## 安全与隐私
+
+BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一部分，而不是模型提示词里的附加说明。
+
+- Session、任务轨迹、记忆、下载形象和本地配置默认保存在 `.runtime/`，该目录不会提交到 Git。
+- 日志可能包含任务目标、应用界面文字和工具参数，不应直接上传或公开分享。
+- 当前版本默认自动允许 Computer Use 工具请求；使用 `--require-approval` 可恢复逐次确认。
+- 不可逆操作仍依赖任务策略和最终状态核验；当前版本不是完整操作系统沙箱。
+- 启用真实 Jev-Mem backend 时，相关文本会发送给 TypeSafe.ai；Qwen、任务模型与 Profile 模型也会接收各自完成请求所需的上下文。
+- 屏幕总结截图仅在本地推理期间临时存在，当前不会自动进入长期记忆。
+
+请只在你信任的机器和测试账号中运行开发版。详细的数据落盘与审计说明见 [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md)。
+
+## 项目状态
+
+### 已实现
+
+- Qwen 统一文字 / 语音前台与 AOQ 全双工链路
+- 异步 Computer Use、取消、终态核验与持久通知 Outbox
+- 持久 Product Session、Runtime 恢复 Checkpoint 与跨 Runtime 上下文
+- Jev-Mem 自动写入、Profile、Narrative、L2 direct recall 与 L3 deep recall
+- 原生记忆图谱、Skill 管理、对话式 Skill 创建与安装
+- 形象商店、本地形象缓存和可替换桌宠外观
+- 本地 MLX 前台窗口总结
+
+### 仍在推进
+
+- 新用户 Onboarding、依赖检测与正式应用分发
+- 桌面任务队列、并发调度和更稳定的第三方应用适配
+- 记忆冲突消歧、画像质量评测与多尺度 consolidation
+- 脚本型 Skill 沙箱、ZIP / Git 导入与 Skill 市场
+- 持续委托、活动时间线和长期运行可靠性
+
+当前能力的验证边界见 [POC 验收记录](docs/poc-verification.md)。
+
+## 项目结构
+
+```text
+boxagent/
+├── entrypoints/       # 进程入口
+├── bootstrap/         # Desktop / Engine 生产装配
+├── application/       # 用例编排
+├── domain/            # Session、Task、Memory、Skill 等领域模型与服务
+├── agent/
+│   ├── harness/       # 上下文、策略与 Runtime 编排
+│   └── runtime/       # Runtime 合同与模型 Profile
+├── infrastructure/   # Qwen、Codex、Jev-Mem、持久化等适配器
+└── interfaces/        # macOS 原生 UI 与 Engine IPC
 ```
 
-默认日志目录为 `.runtime/pet/`。`.runtime/` 和 `logs/` 均由 Git 忽略；选择其他目录时也应将其加入忽略规则。日志保留任务目标、工具参数与界面文字，可能包含私人信息，不应直接上传或提交。
+依赖方向为 `entrypoints → bootstrap → application/domain/agent ← infrastructure`。领域层不直接依赖 Qwen、Codex、Jev-Mem 或 AppKit 的具体实现。
 
-默认自动允许 Computer Use 的操作授权请求，不再逐次弹出确认。需要恢复手动确认时，启动命令加上 `--require-approval`。这个设置不代替 macOS 的系统权限；系统授权仍需用户授予。
-
-任务退出时，宿主会按本轮会话标识发送 `turn-ended` 通知，最多等待 8 秒，再退出执行器。`result.json` 的 `cursor_cleanup` 和事件日志记录通知状态；`notified` 仅表示客户端成功返回，不代表已经验证光标消失。该流程不重启共享服务，不清理其他会话。
-
-也可以双击 `启动桌宠.command`，或使用 Codex 项目的 Run 按钮。uv 根据脚本依赖及 `scripts/pet.py.lock` 管理独立缓存环境，保留原来用于 MLX 的 `.venv`。首次运行需要下载依赖；PyAudio 依赖本机已有的 PortAudio。
-
-- **Control + Option + 空格**：开启／关闭麦克风。初始麦克风关闭。
-- **点击小鸭**：展开／收起对话；**拖动小鸭**：移动位置。
-- **输入任务后按回车或点击箭头**：直接交给后台执行器，无需开启麦克风。运行期间可编辑下一条草稿；等待完成或停止当前任务后再提交。
-- **右键小鸭或菜单栏 ◉**：打开控制菜单，或退出。终端 `Ctrl+C` 也可退出。
-- 试说：“用计算器帮我算一下，503 加 219。”先听到回应，后台开始执行；等待时可以继续聊天。
-- 也可以直接说：“帮我打开哔哩哔哩 App，然后随机点开播放一个视频。”前台把完整目标交给同一个通用 Agent，由它观察和选择操作。
-- 后台动态发现 Computer Use 的应用列表、读界面、点击、输入、滚动等工具；代码不按应用分派，也没有场景模板或专用任务定义。具体能否完成取决于应用界面、工具能力和模型判断。
-- 使用 `--require-approval` 时，工具请求授权后，气泡显示当前请求，可允许或拒绝。已允许的同一请求在本次进程内复用；默认自动允许不显示此按钮。
-- 说“取消任务”或点“停止任务”，停止后续动作。普通插话只中断播报；关闭麦克风后后台任务继续，结果保留在气泡中。
-
-建议戴耳机体验插话；当前没有客户端回声消除。首次开启麦克风时，macOS 可能要求允许启动它的终端或 Codex 访问麦克风；直接 uv 启动没有独立的 BoxAgent 权限身份。
-
-程序读取已有 `.env.local` 中的 `DASHSCOPE_API_KEY`。尚未配置时运行 `zsh scripts/set-key.zsh`。语音默认沿用已验证的 `qwen-audio-3.0-realtime-plus`，切换方式：
+## 开发与测试
 
 ```sh
-BOXAGENT_VOICE_MODEL=qwen3.5-omni-flash-realtime uv run --script scripts/pet.py
-```
-
-后台沿用工作区已有 `.runtime/codex-0.153.0/` 的官方 Codex 和配套 `codex-code-mode-host`，模型默认 `gpt-5.6-luna`，使用已有 Codex 登录；也需要已安装的 Codex Computer Use 执行器。可用 `BOXAGENT_TASK_MODEL` 单独调整后台模型。具体已验证路径见 [Python Computer Use 记录](docs/python-codex-computer-use.md)。
-
-**右键桌宠或点击菜单栏 ◉ →「形象商店…」即可换形象。** 可以搜索、翻页、查看分享者的来源页，点击「下载并使用」后立即切换；「已下载」中的形象支持离线使用，也可以随时「换回小鸭」。切换失败会保留原形象，成功后下次启动自动恢复。下载和切图在后台进行，切换保留桌宠位置、输入草稿和现有语音／任务生命周期。
-
-形象来自 codex-pets.net，支持 V1/V2 图集。下载资源和选择保存在 `.runtime/pets/`，不随 `--log-dir` 改变；不会提交到 Git。分享者、来源与站点提供的许可信息随资源保存，未提供许可时不推断授权。内置 Debug Duck 的来源和 MIT 许可保存在 [assets/pet](assets/pet/README.md)。
-
-本地兼容包仍可用 `--pet /绝对路径/角色目录` 加载，仅覆盖本次启动；未指定时依次使用上次有效选择、内置小鸭。完全不同的形象实现仍可通过 `Appearance` 接口接入。实现与验收方式见 [形象商店](docs/pet-store.md)。
-
-运行记录保存在 `.runtime/pet/`：`events.jsonl` 是状态和字幕，`tasks/` 是操作、界面观察和结果；`position.json` 保存位置。此阶段没有长期记忆或时间线；除本地定时摘要外，操作应用时也会按需读取该应用的界面和截图。
-
-指定 `--log-dir` 后，`events.jsonl`、`tasks/` 和 `context-worker.log` 改写到指定目录，窗口位置和单实例锁仍留在 `.runtime/pet/`。每个任务目录包含 `task.json`（目标、模型、开始时间）、`status.json`（最近心跳与执行阶段）、`events.jsonl`（RPC 耗时、动作、失败、异常堆栈及退出事件）、`agent-result.json`（模型原始结果）、`result.json`（成功、失败或取消的最终记录）及 `codex.log`。截图单独保存，不把 base64 写进事件日志。进程意外终止时可能没有最终记录；应结合心跳时间与进程状态判断，不能仅凭旧的 `running` 字段认为仍在运行。
-
-个人电脑截图、界面文本及历史实验记录只保存在已被 Git 忽略的 `.runtime/private/`、`.runtime/pet/` 和 `results/`。`docs/assets/` 与旧 `artifacts/` 目录也加入忽略规则，避免再次误提交；角色素材仍保留在 `assets/pet/`。
-
-并发与取消检查：
-
-```sh
+# 本地替身检查，不调用模型或操作其他应用
 uv run --script scripts/pet.py --check
+
+# 原生 UI 检查
+uv run --script scripts/pet.py --check-ui
+
+# 测试套件
+uv run --with pytest python -m pytest -q
 ```
 
-实际系统验收记录见 [POC 验收](docs/poc-verification.md)。原有独立语音 Demo 仍可通过 `uv run --script scripts/voice-demo.py` 运行；它使用本地延迟计算函数。相关预实验：[千问语音](docs/qwen-full-duplex-summary.md)、[本地 MLX 读屏](docs/qwen-mlx-probe.md)。
+真实语音、Computer Use 和屏幕总结测试可能产生模型用量、读取屏幕或改变应用状态。运行前请先阅读 [脚本用途与副作用](scripts/README.md)。
 
-文档入口：[当前实现](docs/poc-implementation.md)、[按日期记录的验收](docs/poc-verification.md)、[历史规划](docs/poc-plan.md)、[脚本用途与副作用](scripts/README.md)、[首次提交检查](docs/first-commit-review.md)。历史预实验中的默认值与架构不代表当前产品。
+## 文档
+
+| 主题 | 文档 |
+| --- | --- |
+| 安装与配置 | [本机环境准备](docs/setup.md) |
+| 当前架构 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
+| 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
+| 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
+| 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |
+| 形象商店 | [Pet Store](docs/pet-store.md) |
+| Computer Use | [Python Computer Use](docs/python-codex-computer-use.md) |
+| 语音链路 | [Qwen 全双工实验](docs/qwen-full-duplex-summary.md) |
+| 本地视觉 | [Qwen MLX 实验](docs/qwen-mlx-probe.md) |
+| 验收结果 | [POC Verification](docs/poc-verification.md) |
+
+## Acknowledgements
+
+BoxAgent 的当前实现建立在 Qwen Realtime / AOQ、OpenAI Codex Computer Use、Jev-Mem、DeepSeek、MLX，以及 [codex-pets.net](https://codex-pets.net) 提供的开放生态之上。
+
+---
+
+如果你正在尝试运行或参与开发，请从 [本机环境准备](docs/setup.md) 开始；如果你想先理解设计，推荐依次阅读 [架构](docs/BoxAgent-架构重构方案.md)、[上下文](docs/BoxAgent-Phase3-Conversation-Context-设计.md) 和 [记忆](docs/BoxAgent-Phase4-Memory-设计.md)。
