@@ -12,7 +12,7 @@
 | `check_front_task_notification.py` | 真实 Qwen 前台 → DeepSeek/Codex 后台任务 → 继续聊天 → playback receipt 端到端冒烟；必须使用独立 `--data-dir` |
 | `check_codex_native_history.py` | 真实 DeepSeek/Codex 冷启动与 Warm Thread 原生历史增量注入回归；必须使用独立 `--data-dir` |
 | `check_memory_e2e.py` | Final User Message → durable Job → 仓库内置 Jev-Mem → Profile/Narrative → 跨 Session L2 召回与删除验收；默认使用临时目录，可选 mock/jev/auto backend；其中 `jev` 指 TypeSafe.ai JEV Decision backend |
-| `set-key.zsh` | 交互写入本地语音密钥，不提交输出 |
+| `set-key.zsh` | 交互写入 DashScope、Workspace、DeepSeek 与 TypeSafe.ai 凭据，不提交输出 |
 | `download-qwen-mlx.zsh` | 下载模型至忽略目录，需网络、jq 与磁盘空间 |
 | `check_pet_ui.py` | `pet.py --check-ui`，仅测试窗口、合成文字、记忆图和替身；结果在 `.runtime/pet/ui-check/` |
 | `check_memory_graph_ui.py` | `pet.py --check-memory-graph-ui`，锁屏下用离屏 WKWebView 验证本地图加载、Canvas 像素、布局、筛选和原生消息桥；不使用 CU 或屏幕录制权限 |

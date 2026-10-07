@@ -6,10 +6,18 @@
 
 准备 uv、Python 3.12 和 PortAudio。使用 Homebrew 的机器可以安装 `uv`、`portaudio`；PyAudio 首次构建还可能需要 Xcode Command Line Tools。桌宠的 Python 依赖由 `scripts/pet.py` 与 `scripts/pet.py.lock` 管理，不要把它们装入视觉 `.venv`。
 
-在项目根目录运行：
+当前支持的完整产品配置要求先在项目根目录完成凭据和三个运行组件的准备：
 
 ```sh
 zsh scripts/set-key.zsh
+./scripts/setup-aoq-sdk.sh
+./scripts/setup-jev-mem.sh
+./scripts/download-qwen-mlx.zsh
+```
+
+同时准备 Codex App Server、同版本 `codex-code-mode-host` 与 Computer Use 组件。全部完成后启动：
+
+```sh
 uv run --script scripts/pet.py --log-dir ./logs/boxagent
 ```
 
@@ -18,15 +26,15 @@ uv run --script scripts/pet.py --log-dir ./logs/boxagent
 审批会被中断；JSONL Product Session、Jev-Mem 长期记忆和本地配置仍可在新 Engine 中恢复。修改原生 UI 或 IPC
 客户端时必须重启整个应用。通过 `BOXAGENT_ENGINE_WATCH=0` 可禁用后端源码监听。
 
-密钥用于北京地域 DashScope，脚本写入忽略的 `.env.local`。也可通过环境变量 `DASHSCOPE_API_KEY` 提供。没有语音密钥时仍能打开桌宠、提交文字任务；开启麦克风才会读取密钥。
+配置脚本依次读取北京地域 DashScope API Key、百炼 Workspace ID、DeepSeek API Key 与 TypeSafe.ai API Key，并写入被 Git 忽略、仅本机可读的 `.env.local`。这些凭据是当前完整产品配置的一部分，不应提交到仓库。
 
-外放全双工语音默认优先使用 AOQ，由原生 SDK 同时管理麦克风、扬声器、回声消除和降噪。开发环境先执行：
+外放全双工语音使用 AOQ，由原生 SDK 同时管理麦克风、扬声器、回声消除和降噪。安装：
 
 ```sh
 ./scripts/setup-aoq-sdk.sh
 ```
 
-再在 `.env.local` 配置百炼 Workspace ID：
+`scripts/set-key.zsh` 会同时写入以下配置：
 
 ```sh
 BOXAGENT_QWEN_TRANSPORT=auto
@@ -34,11 +42,11 @@ BOXAGENT_DASHSCOPE_WORKSPACE_ID=<your-workspace-id>
 BOXAGENT_DASHSCOPE_REGION=cn-beijing
 ```
 
-`auto` 会在 Workspace ID 和两个 Framework 都就绪时选择 AOQ；否则回退到原 WebSocket，原因写入
-`<BOXAGENT_DATA_DIR>/logs/runtime/qwen/events.jsonl`。可用 `websocket` 强制保留旧链路。AOQ Token 开发期由 Engine 用 API Key 换取；正式发布应改为业务 AppServer 下发短期 Token，不应将 API Key 放入客户端安装包。
+`auto` 会在 Workspace ID 和两个 Framework 都就绪时选择 AOQ。WebSocket fallback 只用于开发诊断，不属于当前正式支持配置；降级原因写入 `<BOXAGENT_DATA_DIR>/logs/runtime/qwen/events.jsonl`。AOQ Token 开发期由 Engine 用 API Key 换取；正式发布应改为业务 AppServer 下发短期 Token，不应将 API Key 放入客户端安装包。
 
-如果使用 `BOXAGENT_TASK_PROVIDER=deepseek`，还需在同一文件或进程环境中配置 `DEEPSEEK_API_KEY`。Bootstrap 启动时读取配置，并只把该密钥以 `DEEPSEEK_API_KEY` 环境变量注入 Codex App Server 子进程；命令行和模型目录只包含环境变量名，不包含真实密钥。Codex 通过仓库内的 DeepSeek 模型目录和 `wire_api="responses"` 调用 `deepseek-flash`，不再维护第二套模型工具循环。
-配置完成后，可从项目根目录一键启动 DeepSeek 规划路径：
+桌面任务默认要求 `BOXAGENT_TASK_PROVIDER=deepseek` 与 `DEEPSEEK_API_KEY`。Bootstrap 只把密钥以环境变量注入 Codex App Server 子进程；命令行和模型目录不包含真实密钥。Codex 通过仓库内的 DeepSeek 模型目录和 `wire_api="responses"` 调用 `deepseek-flash`，继续复用统一工具循环。
+
+配置完成后，也可以从项目根目录显式启动 DeepSeek 规划路径：
 
 ```sh
 ./scripts/run-deepseek.sh
@@ -50,9 +58,9 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 
 ## 本地窗口摘要
 
-按 [MLX 预实验](qwen-mlx-probe.md) 的命令准备 `.venv` 和 `models/qwen3.5-0.8b-mlx/`。下载脚本使用 `curl`、`jq`、`shasum`；模型来自远端 master，下载时校验远端提供的哈希，但没有固定模型仓库 revision，不能保证未来下载与历史模型逐字节相同。
+运行 `./scripts/download-qwen-mlx.zsh` 准备 `models/qwen3.5-0.8b-mlx/`，并按 [MLX 预实验](qwen-mlx-probe.md) 准备视觉 `.venv`。下载脚本使用 `curl`、`jq`、`shasum`；模型来自远端 master，下载时校验远端提供的哈希，但没有固定模型仓库 revision，不能保证未来下载与历史模型逐字节相同。
 
-当前宿主默认开启观察；环境缺失时会暂停观察并显示错误，不阻止文字任务。暂时不准备视觉环境可使用：
+当前完整产品配置要求本地视觉环境。宿主默认开启观察；模型缺失时实现会暂停观察并显示错误，以下关闭方式仅用于开发诊断：
 
 ```sh
 uv run --script scripts/pet.py --log-dir ./logs/boxagent --context-interval 0
@@ -85,7 +93,7 @@ MLX 依赖目前记录了核心版本，但没有独立的完整依赖锁文件�
 
 Jev-Mem 源码已经随 BoxAgent 固定在 `boxagent/infrastructure/memory/jev_mem/`，不再从 `.runtime/` 克隆或导入源码。独立解释器默认位于 `.runtime/jev-mem-venv/bin/python`，只负责隔离重型依赖；新安装的持久化目录为 `.runtime/pet/memory/jev-mem`。可分别用 `BOXAGENT_JEV_MEM_PYTHON` 和 `BOXAGENT_JEV_MEM_CACHE` 覆盖；已有 `.runtime/pet/memory/jev` 时会继续读取旧 Store，避免升级后看不到已有记忆。
 
-`BOXAGENT_JEV_MEM_BACKEND=auto` 会在有 `TYPESAFE_API_KEY` 时调用 TypeSafe.ai 的 JEV Decision Model，否则使用 Jev-Mem 自带的 mock System-One；mock 只用于开发和协议验证，不代表生产记忆质量。强制设为 `jev` 但缺少密钥时，适配器会在启动前失败。
+当前完整产品配置要求 `TYPESAFE_API_KEY` 与 `BOXAGENT_JEV_MEM_BACKEND=jev`，由 TypeSafe.ai 的 JEV Decision Model 完成记忆决策。`auto` 和 mock System-One 仅用于开发与协议验证，不代表生产记忆质量。
 
 Qwen 冷恢复默认在完成消息累计到 18000 字符时异步生成 Context Checkpoint，单次摘要输入
 上限为 32000 字符。可分别用 `BOXAGENT_QWEN_CHECKPOINT_TRIGGER_CHARS` 和
