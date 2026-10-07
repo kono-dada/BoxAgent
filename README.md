@@ -64,9 +64,10 @@ flowchart LR
 
 - macOS / Apple Silicon
 - Python 3.12、[uv](https://docs.astral.sh/uv/) 与 PortAudio
-- 北京地域 DashScope API Key
+- 北京地域 DashScope API Key 与百炼 Workspace ID
+- DeepSeek API Key 与 TypeSafe.ai API Key
+- AOQ macOS SDK、Jev-Mem Worker 与本地 MLX 视觉模型
 - Codex App Server、`codex-code-mode-host` 与 Computer Use 组件
-- 可选：AOQ SDK、DeepSeek 任务模型、本地 MLX 视觉模型
 
 完整安装步骤、运行时路径和权限说明见 [本机环境准备](docs/setup.md)。
 
@@ -76,17 +77,19 @@ flowchart LR
 zsh scripts/set-key.zsh
 ```
 
-如需外放全双工语音，安装 AOQ SDK，并在 `.env.local` 中配置百炼 Workspace：
+该脚本会依次读取 DashScope API Key、百炼 Workspace ID、DeepSeek API Key 与 TypeSafe.ai API Key，并生成仅本机可读的 `.env.local`。
+
+### 3. 安装运行组件
 
 ```sh
 ./scripts/setup-aoq-sdk.sh
-
-BOXAGENT_QWEN_TRANSPORT=auto
-BOXAGENT_DASHSCOPE_WORKSPACE_ID=<your-workspace-id>
-BOXAGENT_DASHSCOPE_REGION=cn-beijing
+./scripts/setup-jev-mem.sh
+./scripts/download-qwen-mlx.zsh
 ```
 
-### 3. 启动
+还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。
+
+### 4. 启动
 
 ```sh
 uv run --script scripts/pet.py
@@ -94,7 +97,7 @@ uv run --script scripts/pet.py
 
 也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
 
-### 4. 开始使用
+### 5. 开始使用
 
 - `Control + Option + Space`：开启或关闭麦克风
 - 点击桌宠：展开或收起对话
@@ -106,11 +109,10 @@ uv run --script scripts/pet.py
 
 | 模块 | 默认行为 | 主要配置 |
 | --- | --- | --- |
-| Qwen Realtime | AOQ 就绪时优先使用，否则回退 WebSocket | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
-| 桌面任务 | Codex Runtime，默认任务模型 `gpt-5.6-luna` | `BOXAGENT_CODEX_BIN`、`BOXAGENT_TASK_MODEL` |
-| DeepSeek 任务模型 | 可选，通过同一 Codex Runtime 工具链执行 | `DEEPSEEK_API_KEY`、`./scripts/run-deepseek.sh` |
-| Jev-Mem | 启动时后台预热，用户消息落盘后异步准入 | `TYPESAFE_API_KEY`、`BOXAGENT_JEV_MEM_BACKEND` |
-| 本地屏幕总结 | 默认每 15 秒检查前台窗口 | `--context-interval`、`--context-size` |
+| Qwen Realtime | AOQ 提供全双工语音、回声消除与降噪；WebSocket 仅作诊断降级 | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
+| 桌面任务 | DeepSeek 负责规划，Codex Runtime 提供工具循环与 Computer Use | `DEEPSEEK_API_KEY`、`BOXAGENT_CODEX_BIN` |
+| Jev-Mem | 使用 JEV Decision Model 完成记忆准入与检索决策 | `TYPESAFE_API_KEY`、`BOXAGENT_JEV_MEM_BACKEND=jev` |
+| 本地屏幕总结 | MLX 模型默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval` |
 | 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |
 | 用户 Skill | 默认保存在本地运行目录并热同步 Runtime | `BOXAGENT_SKILLS_DIR` |
 
