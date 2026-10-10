@@ -1,5 +1,6 @@
 """原生宿主验收：真实渲染、状态切换、透明像素和换装释放。"""
 import base64
+import asyncio
 import io
 import json
 import os
@@ -17,10 +18,8 @@ from boxagent.bootstrap.settings import load_settings
 from boxagent.agent.harness.persona import load_persona
 from boxagent.core.states import Snapshot
 from boxagent.interfaces.macos.inprocess_bridge import BackendBridge
-from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
 from boxagent.interfaces.macos.pets.catalog import PetCatalog
 from boxagent.interfaces.macos.pets.vrm import VrmAppearance
-from scripts.check_pet_store import PreviewExecutor, PreviewHotkey
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = Path(os.environ.get("BOXAGENT_VRM_PET_DIR", str(ROOT / "assets/vrm/models/zome")))
@@ -28,12 +27,35 @@ CONTROLS_ONLY = os.environ.get("BOXAGENT_VRM_CONTROLS_ONLY") == "1"
 OUTPUT = ROOT / (".runtime/vrm-control-check" if CONTROLS_ONLY else ".runtime/vrm-check") / SOURCE.name
 
 
+class PreviewExecutor:
+    async def run(self, goal, progress, approve):
+        await asyncio.Event().wait()
+
+    async def cancel(self):
+        pass
+
+
+class PreviewHotkey:
+    registered = True
+
+    def __init__(self, _callback):
+        pass
+
+    def close(self):
+        pass
+
+
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
     settings = load_settings()
     local = OUTPUT / "pets" / SOURCE.name
     shutil.copytree(SOURCE, local, dirs_exist_ok=True)
-    catalog = PetCatalog(local.parent, default_pet=settings.default_pet)
+    alternate = OUTPUT / "pets/local-vrm-preview"
+    shutil.copytree(SOURCE, alternate, dirs_exist_ok=True)
+    variant = json.loads((alternate / "pet.json").read_text())
+    variant.update(displayName="VRM 换装验收", physicsSettings={"impactMultiplier": 0.3})
+    (alternate / "pet.json").write_text(json.dumps(variant))
+    catalog = PetCatalog(local.parent, default_pet=local, bundled_root=OUTPUT / "bundled")
     app = AK.NSApplication.sharedApplication()
     app.setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
     host.Hotkey = PreviewHotkey
@@ -41,7 +63,7 @@ def main():
         publish, lambda _id: PreviewExecutor(), None), log_dir=OUTPUT)
 
     def factory(directory):
-        return VrmAppearance(directory) if directory == local else CodexPetsAppearance(settings.default_pet)
+        return VrmAppearance(directory)
 
     appearance = factory(local)
     soul = OUTPUT / "SOUL.md"
@@ -72,9 +94,18 @@ def main():
         finished = True
         if error:
             result["error"] = str(error)
-        desktop.applicationShouldTerminate_(app)
-        desktop.pet.orderOut_(None)
-        desktop.bubble.orderOut_(None)
+        try:
+            desktop.applicationShouldTerminate_(app)
+        except Exception as cleanup_error:
+            # 初始化未完成时也必须输出本次失败报告，避免误读上一次成功结果。
+            result["error"] = result.get("error") or str(cleanup_error)
+            result["cleanup_error"] = str(cleanup_error)
+            appearance.close()
+            backend.close()
+        for name in ("pet", "bubble"):
+            window = getattr(desktop, name, None)
+            if window is not None:
+                window.orderOut_(None)
         result.pop("window_frame", None)
         (OUTPUT / "report.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
         print(json.dumps(result, ensure_ascii=False), flush=True)
@@ -110,8 +141,9 @@ def main():
                 raise AssertionError("换回本地形象超时")
             AppHelper.callLater(0.1, switched)
             return
-        check(isinstance(candidate, VrmAppearance) and candidate.ready, "菜单入口可从小鸭换回本地形象")
-        check(catalog.current_directory() == local, "只在渲染成功后保存本地形象选择")
+        check(isinstance(candidate, VrmAppearance) and candidate.ready, "菜单入口可在两个 VRM 形象之间切换")
+        check(catalog.current_directory() == alternate, "只在渲染成功后保存 VRM 选择")
+        check(appearance.closed and appearance.server.http.fileno() == -1, "切换 VRM 释放旧渲染器与资源服务")
         check(desktop.input.stringValue() == "未发送的换装检查草稿", "换装保留输入草稿")
         expected_frame = result.pop("window_frame")
         actual_frame = desktop.pet.frame()
@@ -142,10 +174,15 @@ def main():
         check(ImageChops.difference(idle, speaking).getbbox() is not None, "说话状态改变实际画面")
         desktop.input.setStringValue_("未发送的换装检查草稿")
         result["window_frame"] = desktop.pet.frame()
-        desktop.replaceAppearance(factory(settings.default_pet), catalog)
-        check(appearance.closed and appearance.server.http.fileno() == -1, "切回小鸭释放渲染器与资源服务")
+        check(all(desktop.menu.itemAtIndex_(i).title() != "形象商店…"
+                  for i in range(desktop.menu.numberOfItems())), "菜单没有旧形象商店入口")
+        invalid = AK.NSMenuItem.alloc().init()
+        invalid.setRepresentedObject_(str(OUTPUT / "missing-vrm"))
+        desktop.useLocalVrm_(invalid)
+        check(desktop.appearance is appearance and not appearance.closed,
+              "新 VRM 加载失败保留当前形象")
         item = AK.NSMenuItem.alloc().init()
-        item.setRepresentedObject_(str(local))
+        item.setRepresentedObject_(str(alternate))
         desktop.useLocalVrm_(item)
         AppHelper.callLater(0.1, switched)
 

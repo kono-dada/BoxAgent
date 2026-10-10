@@ -1,21 +1,14 @@
 """The production composition root for the native macOS host."""
 
-from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
 from boxagent.interfaces.macos.pets.vrm import VrmAppearance
 from boxagent.interfaces.macos.pets.catalog import PetCatalog
-from boxagent.interfaces.macos.windows.pet_store import PetStoreWindow
 from boxagent.interfaces.macos.app import Desktop
 from boxagent.interfaces.macos.engine_bridge import EngineBridge
 from boxagent.interfaces.macos.windows.memory import MemoryDashboardWindow
 from boxagent.interfaces.macos.windows.skills import SkillManagerWindow
 from boxagent.interfaces.macos.windows.persona import PersonaSettingsWindow
 from boxagent.bootstrap.settings import load_settings
-import json
 from boxagent.agent.harness.persona import load_persona
-
-
-def create_pet_store(owner, catalog):
-    return PetStoreWindow.alloc().init().configure(owner, catalog)
 
 
 def create_memory_dashboard(owner):
@@ -36,24 +29,12 @@ def create_desktop_host(*, pet_directory=None, task_provider=None, task_model=No
                         app_settings=None):
     """Create every production implementation used by the macOS host."""
     app_settings = app_settings or load_settings()
-    contract_path = app_settings.root / "assets/pet/atlas-contract.json"
-    def appearance_preparer(directory):
-        manifest = json.loads((directory / "pet.json").read_text())
-        if manifest.get("type") == "vrm":
-            return VrmAppearance.prepare(directory)
-        return CodexPetsAppearance.prepare(directory, contract_path=contract_path)
-
-    def appearance_factory(directory, prepared=None):
-        prepared = prepared or appearance_preparer(directory)
-        if isinstance(prepared, dict) and prepared.get("type") == "vrm":
-            return VrmAppearance(directory, prepared=prepared)
-        return CodexPetsAppearance(directory, prepared=prepared, contract_path=contract_path)
     catalog = PetCatalog(app_settings.root / ".runtime/pets",
                          default_pet=app_settings.default_pet,
                          bundled_root=app_settings.root / "assets/vrm/models")
     directory = pet_directory or catalog.current_directory()
     try:
-        appearance = appearance_factory(directory)
+        appearance = VrmAppearance(directory)
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise RuntimeError(f"形象无法启动，请检查模型与动作资源：{directory}；{error}") from error
     backend = EngineBridge(
@@ -75,9 +56,7 @@ def create_desktop_host(*, pet_directory=None, task_provider=None, task_model=No
                      else app_settings.soul_file)
     delegate = Desktop.alloc().init().configure(
         backend, appearance, catalog, data_dir=app_settings.data_dir,
-        appearance_factory=appearance_factory,
-        appearance_preparer=appearance_preparer,
-        pet_store_factory=create_pet_store,
+        appearance_factory=VrmAppearance,
         memory_dashboard_factory=create_memory_dashboard,
         skill_manager_factory=create_skill_manager,
         persona_settings_factory=create_persona_settings,

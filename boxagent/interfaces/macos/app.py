@@ -1,4 +1,4 @@
-"""原生桌面宿主：位置、菜单和字幕。角色通过 Appearance 注入。"""
+"""原生桌面宿主：位置、菜单和字幕，通过注入的 VRM 渲染器展示角色。"""
 
 import json
 import logging
@@ -28,8 +28,7 @@ from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
 class Desktop(NSObject):
     @objc.python_method
     def configure(self, backend, appearance, catalog=None, *, data_dir=None,
-                  appearance_factory=None, appearance_preparer=None,
-                  pet_store_factory=None, memory_dashboard_factory=None,
+                  appearance_factory=None, memory_dashboard_factory=None,
                   skill_manager_factory=None, persona_settings_factory=None,
                   persona=None,
                   persona_loader=None, soul_file=None,
@@ -38,8 +37,6 @@ class Desktop(NSObject):
         self.data_dir = data_dir or backend.log_dir
         self.pet_catalog = catalog
         self.appearance_factory = appearance_factory
-        self.appearance_preparer = appearance_preparer
-        self.pet_store_factory = pet_store_factory
         self.memory_dashboard_factory = memory_dashboard_factory
         self.skill_manager_factory = skill_manager_factory
         self.persona_settings_factory = persona_settings_factory
@@ -47,7 +44,6 @@ class Desktop(NSObject):
         self.soul_file = soul_file
         self.editable_soul_file = editable_soul_file or soul_file
         self.agent_name = getattr(persona, "name", None) or "伙伴"
-        self.pet_store = None
         self.memory_dashboard = None
         self.skill_manager = None
         self.persona_settings = None
@@ -93,7 +89,7 @@ class Desktop(NSObject):
         self.makeContextBubble()
         self.makeMenu()
         if self.pet_catalog is not None:
-            self.syncAppearanceName(self.pet_catalog)
+            self.syncAppearanceName()
         self.pet.orderFrontRegardless()
         self.pet.setIgnoresMouseEvents_(getattr(self.appearance, "ready", True) is False)
         self.hotkey = Hotkey(lambda: self.toggleMic_(None))
@@ -186,15 +182,6 @@ class Desktop(NSObject):
     @objc.python_method
     def makeMenu(self):
         self.menu, self.context_menu_item, self.status_item = install_menus(self)
-
-    def showPetStore_(self, _sender):
-        if self.pet_catalog is None or self.pet_store_factory is None:
-            self.state.error = "形象商店未配置"
-            self.updateLabels()
-            return
-        if self.pet_store is None:
-            self.pet_store = self.pet_store_factory(self, self.pet_catalog)
-        self.pet_store.show()
 
     def showMemoryDashboard_(self, _sender):
         if self.memory_dashboard_factory is None:
@@ -290,7 +277,7 @@ class Desktop(NSObject):
             self.positionBubble()
         if hasattr(previous, "close"):
             previous.close()
-        self.syncAppearanceName(catalog)
+        self.syncAppearanceName()
 
     def useLocalVrm_(self, sender):
         """预加载完成才替换当前视图，失败保留原形象。"""
@@ -336,12 +323,10 @@ class Desktop(NSObject):
         finish()
 
     @objc.python_method
-    def syncAppearanceName(self, catalog):
-        """Use the selected appearance name, with a neutral packaged fallback."""
+    def syncAppearanceName(self):
+        """将当前 VRM 显示名同步到角色设定。"""
         try:
-            directory = self.appearance.directory.resolve()
-            name = ("伙伴" if directory == catalog.default_pet
-                    else str(self.appearance.manifest.get("displayName") or "伙伴")[:24])
+            name = str(self.appearance.manifest.get("displayName") or "伙伴")[:24]
             source = (self.editable_soul_file if self.editable_soul_file.is_file()
                       else self.soul_file)
             content = source.read_text(encoding="utf-8")
@@ -697,8 +682,6 @@ class Desktop(NSObject):
             for appearance in (self.appearance, getattr(self, "pending_appearance", None)):
                 if hasattr(appearance, "close"):
                     appearance.close()
-            if self.pet_store is not None:
-                self.pet_store.shutdown()
             self.savePosition()
             self.backend.close()
             (self.data_dir / "app.pid").unlink(missing_ok=True)

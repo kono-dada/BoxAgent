@@ -40,7 +40,8 @@ class ArchitectureTests(unittest.TestCase):
 
         settings = load_settings()
         self.assertEqual(settings.root, ROOT)
-        self.assertTrue((settings.root / "assets/pet/atlas-contract.json").is_file())
+        self.assertEqual(settings.default_pet, settings.root / "assets/vrm/models/zome")
+        self.assertTrue((settings.default_pet / "pet.json").is_file())
 
     def test_memory_graph_uses_bundled_web_assets_without_remote_runtime(self):
         graph_root = ROOT / "assets/memory-graph"
@@ -207,10 +208,10 @@ class ArchitectureTests(unittest.TestCase):
 
     def test_production_implementations_are_constructed_in_bootstrap(self):
         concrete = {
-            "BoxAgentApplication", "EngineBridge", "CodexPetsAppearance",
+            "BoxAgentApplication", "EngineBridge", "VrmAppearance",
             "JsonlSessionStore", "JevMemWorker", "PetCatalog",
             "AgentRuntimeRegistry", "CodexRuntimeHost", "MemoryDashboardWindow",
-            "PersonaSettingsWindow", "PetStoreWindow", "TaskExecutor",
+            "PersonaSettingsWindow", "TaskExecutor",
             "SkillFileRepository", "SkillService",
             "WindowSummary",
             "LocalSystemEnvironmentProvider",

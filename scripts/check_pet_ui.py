@@ -12,7 +12,7 @@ from Foundation import NSRunLoop, NSDate, NSIndexSet
 from PyObjCTools import AppHelper
 
 import boxagent.interfaces.macos.app as host
-from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
+from boxagent.interfaces.macos.pets.vrm import VrmAppearance
 from boxagent.infrastructure.persistence import SkillFileRepository
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.memory import MemoryModule
@@ -99,8 +99,7 @@ def main():
         skill_service=skill_service),
         log_dir=output)
     desktop = host.Desktop.alloc().init().configure(
-        backend, CodexPetsAppearance(app_settings.default_pet,
-            contract_path=app_settings.root / "assets/pet/atlas-contract.json"),
+        backend, VrmAppearance(app_settings.default_pet),
         data_dir=output,
         memory_dashboard_factory=lambda owner:
             MemoryDashboardWindow.alloc().init().configure(owner),

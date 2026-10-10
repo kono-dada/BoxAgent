@@ -16,7 +16,7 @@ class VrmTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
-        self.directory = self.root / "local-penguin"
+        self.directory = self.root / "local-avatar"
         self.directory.mkdir()
         self.manifest = {"type": "vrm", "version": 1, "model": "model.vrm", "actions": {"idle": "idle.vrma"}}
         for name in ("model.vrm", "idle.vrma"):
@@ -35,16 +35,14 @@ class VrmTests(unittest.TestCase):
         with self.assertRaises((ValueError, OSError)):
             read_manifest(catalog.current_directory())
 
-    def test_first_start_prefers_local_3d_and_respects_explicit_2d_choice(self):
-        catalog = PetCatalog(self.root)
+    def test_first_start_uses_default_vrm_without_saving_selection(self):
+        catalog = PetCatalog(self.root, default_pet=self.directory)
         self.assertEqual(catalog.current_directory(), self.directory)
         self.assertFalse((self.root / "selected.json").exists())
-        catalog.commit(catalog.default_pet)
-        self.assertEqual(catalog.current_directory(), catalog.default_pet)
 
     def test_external_asset_rejected_without_changing_selection(self):
         catalog = PetCatalog(self.root)
-        catalog.commit(catalog.default_pet)
+        catalog.commit(self.directory)
         before = (self.root / "selected.json").read_bytes()
         (self.root / "secret.vrm").write_bytes(b"private")
         self.manifest["model"] = "../secret.vrm"
@@ -101,7 +99,7 @@ class VrmTests(unittest.TestCase):
         (zome / "pet.json").write_text(json.dumps(self.manifest))
         for name in ("model.vrm", "idle.vrma"):
             (zome / name).write_bytes(b"fixture")
-        catalog = PetCatalog(self.root / "cache", bundled_root=bundled)
+        catalog = PetCatalog(self.root / "cache", default_pet=zome, bundled_root=bundled)
         self.assertEqual(catalog.current_directory(), zome)
         catalog.commit(zome)
         saved = json.loads((catalog.root / "selected.json").read_text())
