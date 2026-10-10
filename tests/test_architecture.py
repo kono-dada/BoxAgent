@@ -143,6 +143,8 @@ class ArchitectureTests(unittest.TestCase):
             "infrastructure/environment/local_system.py",
             "infrastructure/persistence/jsonl_session_repository.py",
             "infrastructure/persistence/jsonl_context_ledger.py",
+            "infrastructure/context/qwen_ledger.py",
+            "infrastructure/context/qwen_trace_history.py",
             "domain/context/models.py", "domain/context/contracts.py",
             "domain/context/estimate.py",
             "infrastructure/persistence/json_notification_repository.py",
@@ -215,7 +217,7 @@ class ArchitectureTests(unittest.TestCase):
             "AgentRuntimeRegistry", "CodexRuntimeHost", "MemoryDashboardWindow",
             "PersonaSettingsWindow", "PetStoreWindow", "TaskExecutor",
             "SkillFileRepository", "SkillService",
-            "JsonlContextLedgerStore",
+            "JsonlContextLedgerStore", "QwenContextRecorder",
             "WindowSummary",
             "LocalSystemEnvironmentProvider",
         }

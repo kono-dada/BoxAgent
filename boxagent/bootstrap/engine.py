@@ -20,6 +20,9 @@ from boxagent.domain.skill import SkillService
 from boxagent.core.errors import append_jsonl
 from boxagent.infrastructure.environment import LocalSystemEnvironmentProvider
 from boxagent.infrastructure.perception import WindowSummary
+from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
+from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
+from boxagent.infrastructure.context.qwen_trace_history import QwenTraceHistory
 from boxagent.infrastructure.persistence import (
     JsonNotificationRepository,
     JsonSkillDraftRepository,
@@ -47,7 +50,8 @@ def create_agent_runtime_registry(app_settings):
 
 
 def create_voice_factory(app_settings, *, persona=None,
-                         environment_provider=None, context_projector=None):
+                         environment_provider=None, context_projector=None,
+                         context_recorder=None):
     # Keep realtime audio dependencies out of task-runtime imports and tests.
     from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
     from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession, aoq_preflight
@@ -59,6 +63,8 @@ def create_voice_factory(app_settings, *, persona=None,
     def qwen_trace(event, **data):
         append_jsonl(trace_path, {
             "event": event, "occurred_at": time.time(), **data})
+        if context_recorder is not None:
+            context_recorder.observe(event, **data)
 
     transport = app_settings.qwen_transport
     if transport not in {"auto", "aoq", "websocket"}:
@@ -157,6 +163,12 @@ def create_application(publish, *, task_provider=None, task_model=None,
             history_character_budget=app_settings.codex_history_character_budget))
     environment_provider = LocalSystemEnvironmentProvider()
     conversation_store = JsonlSessionStore(app_settings.data_dir / "conversations")
+    context_ledger = JsonlContextLedgerStore(app_settings.data_dir / "conversations")
+    context_log_path = app_settings.log_dir / "context/ledger.jsonl"
+    context_recorder = QwenContextRecorder(
+        context_ledger, model=app_settings.voice_model, background=True,
+        log=lambda event, **data: append_jsonl(context_log_path, {
+            "event": event, "occurred_at": time.time(), **data}))
     notification_outbox = NotificationOutbox(JsonNotificationRepository(
         app_settings.data_dir / "notifications/outbox.json"))
     skill_service = SkillService(SkillFileRepository(
@@ -233,13 +245,21 @@ def create_application(publish, *, task_provider=None, task_model=None,
         voice_factory or create_voice_factory(
             app_settings, persona=persona,
             environment_provider=environment_provider,
-            context_projector=request_builder.context_assembler),
+            context_projector=request_builder.context_assembler,
+            context_recorder=context_recorder),
         memory=memory,
         conversation_service=conversation_service,
         notification_outbox=notification_outbox,
         skill_service=skill_service,
         skill_authoring=skill_authoring,
         task_trace_reader=task_trace_reader,
+        context_ledger=context_ledger,
+        context_observer=context_recorder,
+        context_history=QwenTraceHistory(
+            app_settings.log_dir / "runtime/qwen/events.jsonl",
+            lambda store, clock: QwenContextRecorder(
+                store, model=app_settings.voice_model, clock=clock),
+            memory_log_path=memory_log_path),
         runtime_resources=(runtime_host, checkpoint_coordinator),
         voice_history_builder=partial(
             request_builder.context_assembler.restore_context,

@@ -2,6 +2,9 @@
 
 import asyncio
 import contextlib
+import time
+
+from boxagent.domain.context.contracts import NullContextObserver
 
 
 def _is_idle_realtime_disconnect(message):
@@ -24,8 +27,10 @@ def _is_reconnectable_voice_disconnect(message):
 class InteractionService:
     def __init__(self, events, voice_factory, handle_tool, *, conversation=None,
                  history_builder=None, notification_event=None,
-                 memory=None, reconnect_delays=(.5, 1.5, 3.0)):
+                 memory=None, reconnect_delays=(.5, 1.5, 3.0),
+                 context_observer=None):
         self.events = events
+        self.context_observer = context_observer or NullContextObserver()
         self.voice_factory = voice_factory
         self.handle_tool = handle_tool
         self.conversation = conversation
@@ -84,6 +89,8 @@ class InteractionService:
                 self._close_interaction(self.interaction)
             self.interaction = await self.conversation.begin_interaction(
                 text, source="text", runtime="qwen_realtime")
+            self.context_observer.turn_started(
+                self.interaction.session.session_id, channel="text")
             # Publish the durable user turn before optional memory retrieval.
             # Recall may take hundreds of milliseconds, but it should not make
             # the text input appear unresponsive.
@@ -274,14 +281,24 @@ class InteractionService:
         inject = getattr(self.voice, "inject_memory_context", None)
         if inject is None:
             return
+        session_id = context.session.session_id
+        started = time.perf_counter()
+        packet, status = "", "empty"
         try:
             packet = await self.memory.context_packet(
-                query, session_id=context.session.session_id, top_k=5)
+                query, session_id=session_id, top_k=5)
             if packet:
                 await inject(packet)
-        except Exception:
+                status = "injected"
+        except Exception as exc:
             # A recall timeout must never block or fail the foreground turn.
-            return
+            status = "failed:" + type(exc).__name__
+        finally:
+            self.context_observer.turn_prepared(
+                session_id,
+                memory={"status": status,
+                        "ms": round((time.perf_counter() - started) * 1000, 1),
+                        "chars": len(packet or "")})
 
     def _bind_pending_response(self, context):
         while self.pending_user_responses:

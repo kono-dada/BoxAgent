@@ -10,6 +10,7 @@ from boxagent.application.skill_authoring import (
     is_pending_skill_confirmation,
 )
 from boxagent.domain.skill import SkillDraftStatus
+from boxagent.domain.context import project_context
 from boxagent.domain.conversation.service import ConversationService
 from boxagent.domain.memory.contracts import MemoryUnavailable
 from boxagent.domain.perception.service import PerceptionService
@@ -25,7 +26,8 @@ class BoxAgentApplication:
                  conversation_service=None, runtime_resources=(),
                  voice_history_builder=None, skill_service=None,
                  skill_authoring=None, task_trace_reader=None,
-                 notification_outbox=None):
+                 notification_outbox=None, context_ledger=None,
+                 context_observer=None, context_history=None):
         self.events = StateEvents(publish)
         self.conversation_service = conversation_service or ConversationService()
         self.notification_outbox = notification_outbox or NotificationOutbox()
@@ -36,13 +38,16 @@ class BoxAgentApplication:
         self.skill_service = skill_service
         self.skill_authoring = skill_authoring
         self.task_trace_reader = task_trace_reader
+        self.context_ledger = context_ledger
+        self.context_history = context_history
         self.perception_service = PerceptionService(self.events)
         self.interaction_service = InteractionService(
             self.events, voice_factory, self.handle_tool,
             conversation=self.conversation_service,
             history_builder=voice_history_builder,
             notification_event=self._voice_notification_event,
-            memory=self.memory)
+            memory=self.memory,
+            context_observer=context_observer)
         self.runtime_resources = tuple(runtime_resources)
         self.skill_jobs = set()
         self._started = False
@@ -264,6 +269,53 @@ class BoxAgentApplication:
 
     async def recall_memory(self, query, *, top_k=5):
         return await self.memory.recall(query, top_k=top_k)
+
+    async def _context_events(self, session_id):
+        """Prefer the live ledger; fall back to trace reconstruction for old Sessions."""
+        events = await asyncio.to_thread(self.context_ledger.read, session_id)
+        if events or self.context_history is None:
+            return events, "ledger"
+        return (await asyncio.to_thread(self.context_history.read, session_id),
+                "trace_replay")
+
+    async def context_snapshot(self, session_id=""):
+        """Project the Session Context Ledger for the admin Context viewer."""
+        if not session_id:
+            active = await self.conversation_service.active_session()
+            session_id = active.session_id if active else ""
+        if not session_id:
+            return {"status": "empty", "session_id": "",
+                    "message": "当前没有活动 Session"}
+        if self.context_ledger is None:
+            return {"status": "unavailable", "session_id": session_id,
+                    "message": "Context Ledger 未启用"}
+        try:
+            events, source = await self._context_events(session_id)
+        except ValueError as exc:
+            return {"status": "corrupt", "session_id": session_id,
+                    "message": str(exc)}
+        title = ""
+        for item in await self.conversation_service.list_sessions(include_archived=True):
+            if item.session_id == session_id:
+                title = item.title
+        if not events:
+            return {"status": "empty", "session_id": session_id,
+                    "session_title": title,
+                    "message": f"「{title or session_id}」还没有发给 Qwen 的上下文；"
+                               "开启语音或发一句文字后点刷新"}
+        return {"status": "ready", "session_title": title, "source": source,
+                **project_context(session_id, events)}
+
+    async def context_entry(self, session_id, seq):
+        """Return the full model-visible text of one ledger entry."""
+        if self.context_ledger is None or not session_id:
+            return {"status": "unavailable", "content": ""}
+        events, _source = await self._context_events(session_id)
+        for event in events:
+            if event.seq == int(seq):
+                return {"status": "ready", "seq": event.seq,
+                        "content": str(event.data.get("content") or "")}
+        return {"status": "missing", "content": ""}
 
     async def memory_snapshot(self, **arguments):
         return await self.memory.snapshot(**arguments)
