@@ -34,7 +34,7 @@
 | INFRA-04 | 索引与附件 | 面板每次现读现算；任务截图 39 MB 直接散放 | 会话统计缓存；截图按内容哈希存储、轨迹只存引用；旧会话压缩归档 | 02 | ⏳ | — |
 | **REQ-02** | **JEV 意图识别与回合前准备** | Qwen 自行决定是否调 `run_task`，会漏调或编结果；回合前注入（记忆、环境）常赶不上当前轮 | 见 §3 | REQ-04 的控制权实验；文字链路可先做 | ⏳ | — |
 | REQ-03 | 删除过期注入项 | 环境包与记忆包只增不减，14 回合时占上下文 42.6% | 环境包、记忆包在上下文中各恒为 1 份；同场景占比 < 15% | 02 | ⏳ | — |
-| REQ-04 | 宿主控制回复时机 | 语音回合由服务端自动回复，宿主无法保证注入先于生成 | 实验确定方案 A（VAD + `create_response:false`）或 B（Manual），两种传输各测一次；宿主在准备完成后发 `response.create`；语音晚到率 → 0 | — | ⏳（实验需真实调用 Qwen） | — |
+| REQ-04 | 宿主控制回复时机 | 语音回合由服务端自动回复，宿主无法保证注入先于生成 | 只在 AOQ 上实验（WebSocket 没有降噪和回声消除，不作为产品路径）：方案 A（VAD + `create_response:false`）或 B（Manual）；宿主在准备完成后发 `response.create`；语音晚到率 → 0 | — | 🚧 实验脚本已备好，待实测 | `scripts/experiments/qwen_turn_control.py` |
 | REQ-05 | 屏幕感知接入对话 | 屏幕摘要只显示在气泡里，不进入对话上下文 | 设计待定（复用回合前链路的预算与注入规则） | 02、REQ-03 | ⏳ | — |
 | UI-P0 | Electron 骨架 | AppKit 界面难以迭代 | Electron 进程连接 Engine socket，显示状态 | 02 | ⏳ | — |
 | UI-P1 | 管理面板 | 上下文、日志、记忆没有统一查看入口 | 面板读取统一事件流与 `errors.jsonl` | UI-P0、02、03 | ⏳ | — |
@@ -65,6 +65,8 @@
 5. **前置条件**：宿主必须控制“何时回答”，即 REQ-04。语音轮是否赶得上，取决于 `turn_detection` 模式（§3.1 实测）。
 6. **验收**：标注集上对比“只用 Qwen”与“JEV + Qwen”的漏判率和误触发率；回合前准备 p50 ≤ 预算；文字回合首次回复延迟不高于现在。
 7. **记录**：REQ-01 的 `turn/prepare` 追加 `jev={p_action, route, ms, status}`。
+8. **判断问题需要新定义**：JEV 现有问题只服务记忆（准入、类型、关系）。初版定义在 `scripts/experiments/jev_intent_eval.py::intent_questions()`，用标注集离线评估后再进生产。
+9. **约束解除**：从 REQ-04 起允许修改 `boxagent/infrastructure/runtimes/qwen/`（2026-10-10 确认）。
 
 ### 3.1 已有 trace 的实测（`logs/runtime/qwen/events.jsonl`，74 个语音轮，传输均为 AOQ）
 
