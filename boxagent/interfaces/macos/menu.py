@@ -1,5 +1,7 @@
 """Build the application and status-bar menus for the native host."""
 
+import json
+
 import AppKit as AK
 
 
@@ -40,6 +42,23 @@ def install_menus(owner):
         menu.addItem_(item)
         if selector == "toggleContext:":
             context_item = item
+    local_menu = AK.NSMenu.alloc().initWithTitle_("本地 VRM 形象")
+    for manifest_file in (owner.pet_catalog.vrm_manifests() if owner.pet_catalog else []):
+        try:
+            manifest = json.loads(manifest_file.read_text())
+            if manifest.get("type") != "vrm":
+                continue
+            item = AK.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                str(manifest.get("displayName") or manifest_file.parent.name), "useLocalVrm:", "")
+            item.setRepresentedObject_(str(manifest_file.parent))
+            item.setTarget_(owner)
+            local_menu.addItem_(item)
+        except (OSError, ValueError, TypeError):
+            continue
+    if local_menu.numberOfItems():
+        item = AK.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("本地 VRM 形象", None, "")
+        item.setSubmenu_(local_menu)
+        menu.insertItem_atIndex_(item, 4)
     status_item = AK.NSStatusBar.systemStatusBar().statusItemWithLength_(
         AK.NSVariableStatusItemLength)
     status_item.button().setTitle_("◉")

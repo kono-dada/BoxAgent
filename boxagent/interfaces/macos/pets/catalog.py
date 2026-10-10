@@ -77,11 +77,12 @@ def decode_image(data, version=None):
 
 
 class PetCatalog:
-    def __init__(self, cache_dir=None, request=None, *, default_pet=None):
+    def __init__(self, cache_dir=None, request=None, *, default_pet=None, bundled_root=None):
         project_root = Path(__file__).resolve().parents[4]
         self.default_pet = Path(default_pet or project_root / "assets/pet/debug-duck-v2").resolve()
         self.root = Path(cache_dir or project_root / ".runtime/pets").resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self.bundled_root = Path(bundled_root).resolve() if bundled_root else None
         self.request = request or PetTransport()
         self.lock = threading.RLock()
 
@@ -151,18 +152,56 @@ class PetCatalog:
             saved = self.read_json(self.root / "selected.json")
             if saved.get("builtin"):
                 return self.default_pet
+            if saved.get("type") == "vrm":
+                # 保留明确的 3D 选择，让启动层报告资源错误，不悄悄切回 2D。
+                if saved.get("bundled") and self.bundled_root:
+                    return self.bundled_root / valid_id(saved["id"])
+                return self.path(saved["id"], "pet.json").parent
             pet = self.cached(saved["id"])
             if pet:
                 return pet["directory"]
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             pass
+        return self.preferred_default()
+
+    def preferred_default(self):
+        """首次启动优先使用已安装的本地 3D；用户明确保存的 2D 选择仍保留。"""
+        from .vrm import read_manifest
+        # 仓库默认模型即使缺少 LFS 内容也交由启动层明确报错。
+        if self.bundled_root and (self.bundled_root / "zome/pet.json").is_file():
+            return self.bundled_root / "zome"
+        for directory in sorted(self.root.iterdir()):
+            if not directory.is_dir() or directory.is_symlink() or not ID_PATTERN.fullmatch(directory.name):
+                continue
+            try:
+                read_manifest(directory)
+                return directory
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                continue
         return self.default_pet
+
+    def vrm_manifests(self):
+        roots = [self.bundled_root, self.root] if self.bundled_root else [self.root]
+        return [path for root in roots for path in sorted(root.glob("*/pet.json"))]
 
     def commit(self, directory):
         directory = Path(directory).resolve()
         if directory == self.default_pet:
             self.write_json(self.root / "selected.json", {"builtin": True})
         else:
+            if self.bundled_root and directory.parent == self.bundled_root:
+                from .vrm import read_manifest
+                read_manifest(directory)
+                self.write_json(self.root / "selected.json", {
+                    "type": "vrm", "bundled": True, "id": valid_id(directory.name)})
+                return
+            if directory.parent == self.root:
+                manifest = self.read_json(directory / "pet.json")
+                if manifest.get("type") == "vrm":
+                    from .vrm import read_manifest
+                    read_manifest(directory)
+                    self.write_json(self.root / "selected.json", {"type": "vrm", "id": directory.name})
+                    return
             if directory.parent != self.root or not self.cached(directory.name):
                 raise ValueError("形象缓存无效，保留原选择")
             self.write_json(self.root / "selected.json", {"id": directory.name})

@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import time
+from pathlib import Path
 
 import AppKit as AK
 import objc
@@ -57,6 +58,7 @@ class Desktop(NSObject):
         self.submission = None
         self.pending_user_text = ""
         self.input_feedback = ""
+        self.appearance_error = None
         self.content_signature = None
         self.conversation_events = []
         self.history_request = None
@@ -93,6 +95,7 @@ class Desktop(NSObject):
         if self.pet_catalog is not None:
             self.syncAppearanceName(self.pet_catalog)
         self.pet.orderFrontRegardless()
+        self.pet.setIgnoresMouseEvents_(getattr(self.appearance, "ready", True) is False)
         self.hotkey = Hotkey(lambda: self.toggleMic_(None))
         if not self.hotkey.registered:
             self.state.error = "快捷键已被占用，请使用菜单或麦克风按钮"
@@ -262,9 +265,12 @@ class Desktop(NSObject):
     @objc.python_method
     def replaceAppearance(self, appearance, catalog):
         """先验证视图并落盘；任一步失败都保留正在显示的形象和运行状态。"""
+        pending = getattr(self, "pending_appearance", None)
+        if pending is not None and pending is not appearance:
+            pending.view.removeFromSuperview()
+            pending.close()
+            self.pending_appearance = None
         previous = self.appearance
-        if appearance.size != previous.size:
-            raise ValueError("新形象的显示尺寸不兼容")
         appearance.present(self.state, time.monotonic())
         self.drag.addSubview_(appearance.view)
         try:
@@ -274,7 +280,60 @@ class Desktop(NSObject):
             raise
         previous.view.removeFromSuperview()
         self.appearance = appearance
+        if appearance.size != previous.size:
+            # 保持角色底部中心不动，为长发和附属物留出透明取景区域。
+            frame = self.pet.frame()
+            width, height = appearance.size
+            x = frame.origin.x + (frame.size.width - width) / 2
+            self.pet.setFrame_display_(((x, frame.origin.y), (width, height)), True)
+            self.drag.setFrameSize_((width, height))
+            self.positionBubble()
+        if hasattr(previous, "close"):
+            previous.close()
         self.syncAppearanceName(catalog)
+
+    def useLocalVrm_(self, sender):
+        """预加载完成才替换当前视图，失败保留原形象。"""
+        from PyObjCTools import AppHelper
+        if getattr(self, "pending_appearance", None) is not None:
+            return
+        try:
+            appearance = self.appearance_factory(Path(str(sender.representedObject())))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            self.input_feedback = f"无法加载形象：{error}"
+            self.showBubble()
+            return
+        self.pending_appearance = appearance
+        # 预加载时保留原形象，收到首帧成功通知后再显示。
+        appearance.view.setHidden_(True)
+        self.drag.addSubview_(appearance.view)
+
+        def finish():
+            if getattr(self, "pending_appearance", None) is not appearance:
+                return
+            if self.closing:
+                appearance.close()
+                return
+            appearance.present(self.state, time.monotonic())
+            if appearance.error:
+                appearance.view.removeFromSuperview()
+                appearance.close()
+                self.pending_appearance = None
+                self.input_feedback = f"无法加载形象：{appearance.error}"
+                self.showBubble()
+            elif appearance.ready:
+                try:
+                    self.replaceAppearance(appearance, self.pet_catalog)
+                    appearance.view.setHidden_(False)
+                except (OSError, ValueError) as error:
+                    appearance.view.removeFromSuperview()
+                    appearance.close()
+                    self.input_feedback = f"换装失败：{error}"
+                    self.showBubble()
+                self.pending_appearance = None
+            else:
+                AppHelper.callLater(0.1, finish)
+        finish()
 
     @objc.python_method
     def syncAppearanceName(self, catalog):
@@ -522,6 +581,20 @@ class Desktop(NSObject):
         point, frame = AK.NSEvent.mouseLocation(), self.pet.frame()
         pointer = (point.x - frame.origin.x - frame.size.width / 2, point.y - frame.origin.y - frame.size.height / 2)
         self.appearance.present(self.state, time.monotonic(), pointer)
+        self.syncAppearanceState()
+
+    @objc.python_method
+    def syncAppearanceState(self):
+        """加载时透明且允许穿透；失败通过现有对话窗口明确提示。"""
+        ready = getattr(self.appearance, "ready", True)
+        self.pet.setIgnoresMouseEvents_(not ready)
+        error = getattr(self.appearance, "error", None)
+        if error and error != self.appearance_error:
+            self.appearance_error = error
+            self.input_feedback = f"3D 形象加载失败：{error}。请从菜单重新选择形象。"
+            self.showBubble()
+        elif ready:
+            self.appearance_error = None
 
     @objc.python_method
     def updateLabels(self):
@@ -621,6 +694,9 @@ class Desktop(NSObject):
             self.closing = True
             self.hotkey.close()
             self.timer.invalidate()
+            for appearance in (self.appearance, getattr(self, "pending_appearance", None)):
+                if hasattr(appearance, "close"):
+                    appearance.close()
             if self.pet_store is not None:
                 self.pet_store.shutdown()
             self.savePosition()

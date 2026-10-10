@@ -6,6 +6,8 @@ __pycache__/
 *.pyc
 .venv/
 models/
+!assets/vrm/models/
+!assets/vrm/models/**
 results/
 .runtime/
 .venv-pet/
@@ -14,6 +16,9 @@ build/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+node_modules/
+.pnpm-store/
+assets/vrm/viewer.js
 
 # 本机截图、界面文本与运行记录可能含私人信息。
 docs/assets/

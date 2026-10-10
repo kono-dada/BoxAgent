@@ -1,0 +1,17 @@
+{
+  "name": "boxagent-vrm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src.js --bundle --format=iife --target=safari16 --outfile=../../assets/vrm/viewer.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "3.4.4",
+    "@pixiv/three-vrm-animation": "3.4.4",
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}
