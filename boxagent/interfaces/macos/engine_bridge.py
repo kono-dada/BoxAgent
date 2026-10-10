@@ -64,6 +64,13 @@ class EngineApplicationProxy:
     async def forget_memory(self, memory_ids):
         return await self.bridge.request("forget_memory", {"memory_ids": memory_ids})
 
+    async def context_snapshot(self, session_id=""):
+        return await self.bridge.request("context_snapshot", {"session_id": session_id})
+
+    async def context_entry(self, session_id, seq):
+        return await self.bridge.request(
+            "context_entry", {"session_id": session_id, "seq": seq})
+
     async def memory_snapshot(self, **arguments):
         return await self.bridge.request("memory_snapshot", arguments)
 

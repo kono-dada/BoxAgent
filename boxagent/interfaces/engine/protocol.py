@@ -4,6 +4,8 @@ import json
 
 
 PROTOCOL_VERSION = 1
+# Stream line limit; the asyncio default (64 KiB) is too small for snapshots.
+STREAM_LIMIT = 16 * 1024 * 1024
 
 
 def encode(message):

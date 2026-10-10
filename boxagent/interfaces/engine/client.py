@@ -3,7 +3,7 @@
 import asyncio
 import itertools
 
-from boxagent.interfaces.engine.protocol import PROTOCOL_VERSION, decode, encode
+from boxagent.interfaces.engine.protocol import PROTOCOL_VERSION, STREAM_LIMIT, decode, encode
 
 
 class EngineDisconnected(ConnectionError):
@@ -26,7 +26,8 @@ class EngineClient:
         last_error = None
         while not self.closed and asyncio.get_running_loop().time() < deadline:
             try:
-                self.reader, self.writer = await asyncio.open_unix_connection(self.socket_path)
+                self.reader, self.writer = await asyncio.open_unix_connection(
+                    self.socket_path, limit=STREAM_LIMIT)
                 self.reader_task = asyncio.create_task(self._read(), name="boxagent-engine-reader")
                 self.connected.set()
                 return

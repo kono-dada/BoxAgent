@@ -68,6 +68,15 @@ class FakeApplication:
     async def memory_snapshot(self, **arguments):
         return {"arguments": arguments, "nodes": [], "edges": []}
 
+    async def context_snapshot(self, session_id=""):
+        # Large enough to exceed asyncio's default 64 KiB stream line limit.
+        return {"status": "ready", "session_id": session_id,
+                "entries": [{"seq": index, "preview": "上" * 160}
+                            for index in range(400)]}
+
+    async def context_entry(self, session_id, seq):
+        return {"status": "ready", "seq": seq, "content": session_id}
+
     async def delete_memory_node(self, memory_id):
         return {"status": "succeeded", "memory_id": memory_id}
 
@@ -136,6 +145,15 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(created["title"], "游戏")
         self.assertEqual(sessions[0]["session_id"], "ses_1")
         self.assertEqual(events[0]["sequence"], 4)
+
+    async def test_context_commands_cross_process_contract(self):
+        snapshot = await self.client.request(
+            "context_snapshot", {"session_id": "ses_1"})
+        entry = await self.client.request(
+            "context_entry", {"session_id": "ses_1", "seq": "7"})
+        self.assertEqual(snapshot["session_id"], "ses_1")
+        self.assertEqual(len(snapshot["entries"]), 400)
+        self.assertEqual(entry, {"status": "ready", "seq": 7, "content": "ses_1"})
 
     async def test_skill_commands_cross_process_contract(self):
         created = await self.client.request("create_skill", {
