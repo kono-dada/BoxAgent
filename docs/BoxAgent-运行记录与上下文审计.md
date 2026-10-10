@@ -60,6 +60,8 @@ Qwen 的实际非音频 WebSocket 请求记录在 `logs/runtime/qwen/events.json
 
 音频分片不会写入日志。
 
+按 Session 拆分后的“模型可见上下文”另记在 `conversations/sessions/<ses_id>/context.v1.jsonl`（Context Ledger），Engine 通过 `context_snapshot` / `context_entry` 提供构成、回合时延和原文。格式与指标定义见 [REQ-01 前台上下文可观测](<需求/REQ-01-上下文可观测.md>)。
+
 ## 记忆图可视化
 
 记忆看板仍是原生 AppKit 窗口，中间的关系图改由本地 `WKWebView + vis-network 9.1.9`
