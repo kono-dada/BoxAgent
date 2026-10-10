@@ -26,13 +26,21 @@ BoxAgent 将“可复现的任务运行记录”和“进程诊断日志”分�
 │   ├── context.jsonl
 │   └── runtime-bindings.json
 └── logs/
-    ├── engine.log
+    ├── errors.jsonl            # 所有进程的 warning 及以上；排障先看这里
+    ├── desktop.jsonl           # 桌宠宿主进程诊断（info 及以上）
+    ├── engine.jsonl            # Engine 进程诊断（info 及以上）
+    ├── crash/<进程>.log         # faulthandler：原生崩溃与硬故障
+    ├── legacy/                 # 早期写在数据根目录的旧日志，启动时迁入
+    ├── engine.log              # Engine 子进程原始 stdout/stderr
+    ├── events.jsonl            # 宿主收到的 UI 事件流
     ├── runtime/qwen/events.jsonl
     ├── runtime/codex/
     ├── memory/events.jsonl
     ├── memory/worker.log
     └── context/checkpoints.jsonl
 ```
+
+诊断日志的格式、轮转和排障方法见 [INFRA-03 统一日志](<需求/INFRA-03-统一日志.md>)。
 
 菜单中的“打开当前会话最近运行…”只会定位当前 Product Session
 的最新任务；“打开当前会话运行记录…”会打开 `by-session/<session_id>/`

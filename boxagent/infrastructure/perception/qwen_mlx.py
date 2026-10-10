@@ -2,10 +2,13 @@
 
 import asyncio
 import json
+import logging
 import os
 import tempfile
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 def focused_window():
     """选择前台应用最上层的普通窗口；不截整屏，也不改变焦点。"""
@@ -87,6 +90,7 @@ class WindowSummary:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            logger.error("desktop observation stopped", exc_info=True)
             with self.log_path.open("a") as errors:
                 errors.write(f"\n观察失败：{exc!r}\n")
             self.emit("context.error", context_enabled=False, context_text="", context_status=

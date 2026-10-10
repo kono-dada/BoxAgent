@@ -2,9 +2,12 @@
 
 import asyncio
 import contextlib
+import logging
 import time
 
 from boxagent.domain.context.contracts import NullContextObserver
+
+logger = logging.getLogger(__name__)
 
 
 def _is_idle_realtime_disconnect(message):
@@ -151,7 +154,8 @@ class InteractionService:
             except Exception:
                 # Product Session remains authoritative and restores this turn
                 # after reconnect even if the live provider connection closes.
-                pass
+                logger.warning("host exchange not injected into live voice",
+                               exc_info=True)
         return {"status": "accepted", "message": message,
                 "session_id": context.session.session_id,
                 "interaction_id": context.interaction_id}
@@ -180,6 +184,7 @@ class InteractionService:
             try:
                 stable_memory_context = await self.memory.stable_profile()
             except Exception:
+                logger.warning("stable memory profile unavailable", exc_info=True)
                 stable_memory_context = ""
         self.voice = self.voice_factory(
             self._handle_tool, self.events.emit,
@@ -293,6 +298,7 @@ class InteractionService:
         except Exception as exc:
             # A recall timeout must never block or fail the foreground turn.
             status = "failed:" + type(exc).__name__
+            logger.warning("memory injection failed: %s", status, exc_info=True)
         finally:
             self.context_observer.turn_prepared(
                 session_id,

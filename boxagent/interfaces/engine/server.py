@@ -2,10 +2,13 @@
 
 import asyncio
 import fcntl
+import logging
 import os
 from pathlib import Path
 
 from boxagent.interfaces.engine.protocol import PROTOCOL_VERSION, STREAM_LIMIT, decode, encode
+
+logger = logging.getLogger(__name__)
 
 
 class EngineServer:
@@ -110,6 +113,8 @@ class EngineServer:
             response = {"type": "response", "id": request_id, "ok": True,
                         "result": result}
         except Exception as exc:
+            logger.error("engine request %s failed", request.get("method"),
+                         exc_info=True)
             response = {"type": "response", "id": request_id, "ok": False,
                         "error": str(exc) or type(exc).__name__}
         await self._send(writer, response)

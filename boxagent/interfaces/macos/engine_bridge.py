@@ -3,6 +3,7 @@
 import asyncio
 import concurrent.futures
 import json
+import logging
 import os
 import queue
 import threading
@@ -10,8 +11,11 @@ import time
 import traceback
 
 from boxagent.core.errors import redact
+from boxagent.core.logs import asyncio_exception_handler
 from boxagent.core.states import Snapshot
 from boxagent.interfaces.engine import EngineClient, EngineDisconnected, EngineSupervisor
+
+logger = logging.getLogger(__name__)
 
 
 class EngineApplicationProxy:
@@ -144,11 +148,14 @@ class EngineBridge:
 
     def run(self):
         asyncio.set_event_loop(self.loop)
-        self.loop.set_exception_handler(lambda _loop, context: self.publish({
-            "type": "backend.error", "occurred_at": time.time(),
-            "error": "后台出现异常，请稍后重试",
-            "detail": repr(context.get("exception") or context.get("message")),
-        }))
+        def report(loop, context):
+            asyncio_exception_handler(loop, context)
+            self.publish({
+                "type": "backend.error", "occurred_at": time.time(),
+                "error": "后台出现异常，请稍后重试",
+                "detail": repr(context.get("exception") or context.get("message")),
+            })
+        self.loop.set_exception_handler(report)
         self.loop.run_forever()
         pending = asyncio.all_tasks(self.loop)
         for task in pending:
@@ -182,7 +189,9 @@ class EngineBridge:
             await self.client.connect(timeout=.5)
             health = await self.client.request("health", timeout=2)
             return health.get("status") == "ready"
-        except Exception:
+        except Exception as exc:
+            # A stale socket from a crashed Engine is expected; start a new one.
+            logger.info("existing engine not adopted: %s", type(exc).__name__)
             await self.client.disconnect()
             return False
 
@@ -208,6 +217,7 @@ class EngineBridge:
             except (concurrent.futures.CancelledError, EngineDisconnected):
                 pass
             except Exception as exc:
+                logger.error("engine request failed", exc_info=True)
                 self.publish({"type": "backend.error", "occurred_at": time.time(),
                               "error": "请求未能处理，请稍后重试", "detail": repr(exc),
                               "traceback": traceback.format_exc()})
@@ -259,13 +269,15 @@ class EngineBridge:
         async with self.restart_lock:
             if self.closing:
                 return
+            logger.warning("restarting engine: %s", reason)
             self.publish({"type": "backend.restarting", "occurred_at": time.time(),
                           "reason": reason})
             if self.client.connected.is_set():
                 try:
                     await self.client.request("shutdown", timeout=3)
                 except Exception:
-                    pass
+                    logger.warning("engine did not acknowledge shutdown before restart",
+                                   exc_info=True)
             await self.client.disconnect()
             try:
                 if self.supervisor.process:
@@ -280,6 +292,7 @@ class EngineBridge:
                 self.engine_pid = health.get("pid")
                 await self._recover_notifications()
             except Exception as exc:
+                logger.error("engine restart failed", exc_info=True)
                 self.publish({"type": "backend.error", "occurred_at": time.time(),
                               "error": "后台重启失败，请重新启动 BoxAgent", "detail": repr(exc)})
                 return
@@ -309,7 +322,7 @@ class EngineBridge:
             try:
                 await self.client.request("shutdown", timeout=8)
             except Exception:
-                pass
+                logger.warning("engine did not acknowledge shutdown", exc_info=True)
         await self.client.close()
         await self.supervisor.stop()
 
@@ -317,7 +330,7 @@ class EngineBridge:
         try:
             asyncio.run_coroutine_threadsafe(self._close(), self.loop).result(timeout=12)
         except Exception:
-            pass
+            logger.warning("engine bridge close incomplete", exc_info=True)
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join(timeout=2)
         self.publish({"type": "app.stopped", "occurred_at": time.time(), "pid": os.getpid()})

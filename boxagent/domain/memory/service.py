@@ -5,6 +5,7 @@ evidence; job files are delivery state, not a second memory database.
 """
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 from boxagent.domain.memory.contracts import MemoryBackend, MemoryUnavailable
@@ -16,6 +17,8 @@ from boxagent.domain.memory.policy import (
     require_memory_ids,
     require_text,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryService:
@@ -42,7 +45,7 @@ class MemoryService:
         except asyncio.CancelledError:
             raise
         except Exception:
-            pass
+            logger.warning("memory backend prewarm failed", exc_info=True)
 
     def _require_backend(self) -> MemoryBackend:
         if self.backend is None:
@@ -132,6 +135,8 @@ class MemoryService:
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - L2 memory must degrade, not block chat
+            logger.warning("memory context degraded: %s", type(exc).__name__,
+                           exc_info=not isinstance(exc, TimeoutError))
             return {"profile": [], "evidence": [], "narrative": [],
                     "trace": {"degraded": True,
                               "reason": type(exc).__name__}}
@@ -197,6 +202,7 @@ class MemoryService:
         try:
             backend = await self.backend.health()
         except Exception as exc:  # noqa: BLE001 - health is diagnostic
+            logger.warning("memory backend health check failed", exc_info=True)
             return {"status": "degraded", "backend": type(exc).__name__,
                     "memory_count": 0}
         return {"status": "ready", "backend": backend,

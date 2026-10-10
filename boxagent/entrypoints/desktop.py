@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 
 from boxagent.bootstrap.settings import load_settings
+from boxagent.core.logs import configure_logging, migrate_legacy_logs
 
 
 def main():
@@ -31,7 +32,6 @@ def main():
     if not 320 <= args.context_size <= 1920:
         parser.error("--context-size 必须在 320 至 1920 之间")
     app_settings = app_settings.with_log_dir(args.log_dir)
-    app_settings.log_dir.mkdir(parents=True, exist_ok=True)
     print(f"诊断日志：{app_settings.log_dir}", flush=True)
     app_settings.data_dir.mkdir(parents=True, exist_ok=True)
     instance_lock = (app_settings.data_dir / "instance.lock").open("w")
@@ -40,6 +40,8 @@ def main():
     except BlockingIOError:
         print("BoxAgent 已在运行，可从菜单栏或 ⌃⌥空格唤起。", flush=True)
         return
+    configure_logging(app_settings.log_dir, process="desktop")
+    migrate_legacy_logs(app_settings.data_dir, app_settings.log_dir)
     import AppKit as AK
     from PyObjCTools import AppHelper
     from boxagent.bootstrap.desktop import create_desktop_host

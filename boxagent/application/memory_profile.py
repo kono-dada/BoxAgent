@@ -2,11 +2,14 @@
 
 import asyncio
 import json
+import logging
 import os
 import re
 import time
 import urllib.request
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 ALLOWED_PREFIXES = (
@@ -120,7 +123,8 @@ class DeepSeekProfileConstructor:
                 return await asyncio.to_thread(
                     self._request, observation, current_fields)
             except Exception:
-                pass
+                logger.warning("profile proposal failed; using local fallback",
+                               exc_info=True)
         return self._fallback(observation)
 
     def _request(self, observation, current_fields):

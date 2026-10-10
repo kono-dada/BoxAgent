@@ -5,6 +5,7 @@ import time
 from dataclasses import replace
 
 from boxagent.core.ids import new_event_id, new_interaction_id
+from boxagent.core.logs import bind_log_context
 from boxagent.domain.conversation.contracts import NullContextCheckpointSink
 from boxagent.domain.conversation.models import InteractionContext, ProductEvent, RuntimeBinding
 
@@ -57,6 +58,8 @@ class ConversationService:
         self._require_store()
         session = await self.store.active_session() or await self.store.create_session()
         interaction_id = new_interaction_id()
+        bind_log_context(session_id=session.session_id,
+                         interaction_id=interaction_id, task_id=task_id or "")
         occurred_at = time.time()
         await self.store.append_event(ProductEvent(
             sequence=0, event_id=new_event_id(), type="interaction.started",

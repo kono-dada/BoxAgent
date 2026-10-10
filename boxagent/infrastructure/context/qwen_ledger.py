@@ -10,12 +10,15 @@ affect a conversation.
 
 import hashlib
 import json
+import logging
 import queue
 import threading
 import time
 
 from boxagent.agent.harness.instructions import PERSONA_BOUNDARY
 from boxagent.domain.context.estimate import estimate_tokens
+
+logger = logging.getLogger(__name__)
 
 
 PERSONA_MARKER = PERSONA_BOUNDARY.split("{name}", 1)[0]
@@ -132,7 +135,8 @@ class QwenContextRecorder:
             self.log("context_ledger.record_failed", source_event=event,
                      session_id=session_id, error=repr(exc))
         except Exception:  # noqa: BLE001 - diagnostics must not raise either
-            pass
+            logger.warning("context ledger %s failed for %s", event, session_id,
+                           exc_info=exc)
 
     def _start_turn(self, session_id, state, channel):
         state.restoring = False

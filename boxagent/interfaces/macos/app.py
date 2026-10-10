@@ -23,6 +23,8 @@ from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, F
                                    SendButton, button, label, symbol_button)
 from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
 
+logger = logging.getLogger(__name__)
+
 
 class Desktop(NSObject):
     @objc.python_method
@@ -421,7 +423,7 @@ class Desktop(NSObject):
                 if self.history_request_session == self.state.session_id:
                     self.conversation_events = events
             except Exception:
-                pass
+                logger.warning("conversation history refresh failed", exc_info=True)
             self.history_request = None
             if self.history_refresh_pending:
                 self.history_refresh_pending = False
@@ -440,6 +442,7 @@ class Desktop(NSObject):
                 if not self.input.stringValue():
                     self.input.setStringValue_(self.submitted_draft)
                 self.input_feedback = "未能提交，请重试"
+                logger.warning("text submission failed", exc_info=True)
             self.pending_user_text = ""
             self.submission = None
             changed = True
@@ -560,6 +563,7 @@ class Desktop(NSObject):
                 notification)
             return True
         except Exception:
+            logger.warning("system notification not delivered", exc_info=True)
             return False
 
     @objc.python_method

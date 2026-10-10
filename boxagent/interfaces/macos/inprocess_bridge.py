@@ -3,6 +3,7 @@
 import asyncio
 import concurrent.futures
 import json
+import logging
 import os
 import queue
 import threading
@@ -10,6 +11,8 @@ import time
 import traceback
 
 from boxagent.core.errors import redact
+
+logger = logging.getLogger(__name__)
 
 
 class BackendBridge:
@@ -63,7 +66,7 @@ class BackendBridge:
             asyncio.run_coroutine_threadsafe(
                 self.application.close(), self.loop).result(timeout=8)
         except Exception:
-            pass
+            logger.warning("in-process application close incomplete", exc_info=True)
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join(timeout=2)
         self.publish({"type": "app.stopped", "occurred_at": time.time(), "pid": os.getpid()})

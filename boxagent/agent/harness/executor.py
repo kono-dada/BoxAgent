@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from boxagent.core.errors import append_jsonl, redact, timestamp, write_json
+from boxagent.core.logs import bind_log_context
 from boxagent.agent.harness.request import HarnessInput
 from boxagent.agent.harness.policies.result import validate_task_result
 
@@ -248,6 +249,8 @@ class TaskExecutor:
 
     async def run(self, goal, progress, approve):
         self.started_at = time.time()
+        bind_log_context(task_id=self.task_id, session_id=self.session_id or "",
+                         interaction_id=self.interaction_id or "")
         self.progress = progress
         self.approve = approve
         self.log("task_started", goal=goal, provider=self.provider, model=self.model,
