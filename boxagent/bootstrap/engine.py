@@ -145,7 +145,7 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
 def create_application(publish, *, task_provider=None, task_model=None,
                        auto_approve=True, memory_backend=None,
                        voice_factory=None, app_settings=None, registry=None,
-                       context_interval=15, context_size=960):
+                       context_interval=0, context_size=960):
     """Build the complete backend without importing AppKit or another UI module."""
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)

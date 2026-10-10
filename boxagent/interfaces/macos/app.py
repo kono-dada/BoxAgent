@@ -99,7 +99,6 @@ class Desktop(NSObject):
         self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1 / 30, self, "tick:", None, True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "app.pid").write_text(str(os.getpid()))
-        self.showBubble()
 
     @objc.python_method
     def preparePanel(self, panel):

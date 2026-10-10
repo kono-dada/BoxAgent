@@ -32,7 +32,7 @@ def create_persona_settings(owner, source_file, target_file):
 
 
 def create_desktop_host(*, pet_directory=None, task_provider=None, task_model=None,
-                        auto_approve=True, context_interval=15, context_size=960,
+                        auto_approve=True, context_interval=0, context_size=960,
                         app_settings=None):
     """Create every production implementation used by the macOS host."""
     app_settings = app_settings or load_settings()

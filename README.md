@@ -97,6 +97,8 @@ uv run --script scripts/pet.py
 
 也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
 
+启动时只显示桌宠，聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从菜单开启，开启后默认每 15 秒检查前台窗口。
+
 ### 5. 开始使用
 
 - `Control + Option + Space`：开启或关闭麦克风
@@ -112,7 +114,7 @@ uv run --script scripts/pet.py
 | Qwen Realtime | AOQ 提供全双工语音、回声消除与降噪；WebSocket 仅作诊断降级 | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
 | 桌面任务 | DeepSeek 负责规划，Codex Runtime 提供工具循环与 Computer Use | `DEEPSEEK_API_KEY`、`BOXAGENT_CODEX_BIN` |
 | Jev-Mem | 使用 JEV Decision Model 完成记忆准入与检索决策 | `TYPESAFE_API_KEY`、`BOXAGENT_JEV_MEM_BACKEND=jev` |
-| 本地屏幕总结 | MLX 模型默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval` |
+| 本地屏幕总结 | 启动时关闭，可从菜单开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
 | 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |
 | 用户 Skill | 默认保存在本地运行目录并热同步 Runtime | `BOXAGENT_SKILLS_DIR` |
 

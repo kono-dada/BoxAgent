@@ -149,6 +149,12 @@ def main():
     def idle():
         app.setAppearance_(AK.NSAppearance.appearanceNamed_(AK.NSAppearanceNameAqua))
         desktop.updateLabels()
+        check(desktop.pet.isVisible(), "启动时显示桌宠")
+        check(not desktop.bubble.isVisible() and not desktop.bubble_open,
+              "启动时不打开聊天面板")
+        check(not desktop.context_bubble.isVisible(), "启动时不显示屏幕总结")
+        desktop.toggleBubble_(None)
+        check(desktop.bubble.isVisible(), "手动打开聊天面板")
         check(desktop.bubble.frame().size.height <= 180, "空闲面板不超过 180pt")
         check(desktop.cancel_button.isHidden(), "空闲时隐藏停止按钮")
         check(not desktop.send_button.isEnabled(), "空白输入不能提交")

@@ -7,7 +7,7 @@ import sys
 
 class EngineSupervisor:
     def __init__(self, *, root, socket_path, log_path, task_provider, task_model=None,
-                 auto_approve=True, context_interval=15, context_size=960):
+                 auto_approve=True, context_interval=0, context_size=960):
         self.root = root
         self.socket_path = socket_path
         self.log_path = log_path

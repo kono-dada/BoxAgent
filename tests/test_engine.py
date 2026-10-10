@@ -121,6 +121,7 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.temporary.cleanup()
 
     async def test_commands_cross_process_contract_and_events_return_state(self):
+        self.assertFalse(self.application.state.context_enabled)
         result = await self.client.request("submit_text", {"goal": "打开音乐"})
         self.assertEqual(result, {"status": "accepted", "goal": "打开音乐"})
         await self.client.request("toggle_context")
@@ -183,11 +184,12 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
         supervisor = EngineSupervisor(
             root=Path(self.temporary.name), socket_path=self.socket_path,
             log_path=Path(self.temporary.name) / "engine.log",
-            task_provider="deepseek", context_interval=0, context_size=960)
+            task_provider="deepseek", context_size=960)
 
         await supervisor.start()
 
         command = spawn.await_args.args
         self.assertEqual(command[1:3], ("-m", "boxagent.entrypoints.engine"))
         self.assertIn("--task-provider", command)
+        self.assertEqual(command[command.index("--context-interval") + 1], "0")
         supervisor.log_stream.close()

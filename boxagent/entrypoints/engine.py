@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--task-provider", choices=("codex", "deepseek"), default="codex")
     parser.add_argument("--task-model")
     parser.add_argument("--require-approval", action="store_true")
-    parser.add_argument("--context-interval", type=float, default=15)
+    parser.add_argument("--context-interval", type=float, default=0)
     parser.add_argument("--context-size", type=int, default=960)
     asyncio.run(run(parser.parse_args()))
 

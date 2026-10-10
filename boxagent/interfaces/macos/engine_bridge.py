@@ -107,7 +107,7 @@ class EngineBridge:
     )
 
     def __init__(self, *, root, data_dir, log_dir, task_provider, task_model=None,
-                 auto_approve=True, context_interval=15, context_size=960, watch=True,
+                 auto_approve=True, context_interval=0, context_size=960, watch=True,
                  soul_file=None):
         self.root, self.data_dir, self.log_dir = root, data_dir, log_dir
         self.events = queue.SimpleQueue()
