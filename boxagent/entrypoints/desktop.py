@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 
 from boxagent.bootstrap.settings import load_settings
-from boxagent.core.logs import configure_logging, migrate_legacy_logs
+from boxagent.bootstrap.logs import configure_logging, migrate_legacy_logs
 
 
 def main():

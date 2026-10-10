@@ -13,20 +13,19 @@ import time
 import unittest
 from pathlib import Path
 
-from boxagent.core import logs
-from boxagent.core.logs import (
+from boxagent.bootstrap import logs
+from boxagent.bootstrap.logs import (
     READY_EVENT,
     RateLimitedHandler,
-    bind_log_context,
     configure_logging,
     flush_logging,
-    log_context,
     migrate_legacy_logs,
     prune_old_logs,
     recent_problems,
     rotate_if_large,
     shutdown_logging,
 )
+from boxagent.core.logs import bind_log_context, log_context
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "boxagent"
@@ -254,7 +253,7 @@ class UncaughtExceptionTests(LoggingTestCase):
     def test_process_crash_reaches_errors_file(self):
         script = (
             "import sys; sys.path.insert(0, %r)\n"
-            "from boxagent.core.logs import configure_logging\n"
+            "from boxagent.bootstrap.logs import configure_logging\n"
             "configure_logging(%r, process='probe')\n"
             "raise SystemError('fatal startup')\n") % (str(ROOT), str(self.log_dir))
         result = subprocess.run([sys.executable, "-c", script], capture_output=True,
@@ -309,14 +308,31 @@ class FileMaintenanceTests(unittest.TestCase):
         self.assertEqual(migrate_legacy_logs(data, log_dir), [])
 
 
+class DesktopShutdownTests(unittest.TestCase):
+    # AppKit 不在测试环境中，按源码检查退出顺序：先关 Engine，最后写完日志。
+    def test_terminate_flushes_logs_after_backend_close(self):
+        tree = ast.parse((PACKAGE / "interfaces/macos/app.py").read_text(encoding="utf-8"))
+        method = next(node for node in ast.walk(tree)
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == "applicationShouldTerminate_")
+        calls = [ast.unparse(node.func) for node in ast.walk(method)
+                 if isinstance(node, ast.Call)]
+        self.assertIn("self.on_terminated", calls)
+        self.assertLess(calls.index("self.backend.close"), calls.index("self.on_terminated"))
+
+    def test_bootstrap_wires_log_shutdown_into_desktop(self):
+        source = (PACKAGE / "bootstrap/desktop.py").read_text(encoding="utf-8")
+        self.assertIn("on_terminated=shutdown_logging", source)
+
+
 class NoSilentSwallowTests(unittest.TestCase):
     """A broad ``except`` must log, re-raise or report; never vanish."""
 
     # Vendored research code and shutdown paths where logging is unavailable.
     EXEMPT_PREFIXES = ("infrastructure/memory/jev_mem/",)
     EXEMPT = {
-        # The logging module itself must not log about its own failures.
-        "core/logs.py",
+        # The logging modules themselves must not log about their own failures.
+        "core/logs.py", "bootstrap/logs.py",
         # Native SDK teardown: each call may legitimately be absent.
         "infrastructure/runtimes/qwen/aoq.py",
     }

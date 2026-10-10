@@ -158,7 +158,7 @@ class ArchitectureTests(unittest.TestCase):
             "interfaces/macos/windows/memory.py",
             "interfaces/macos/windows/skills.py",
             "bootstrap/engine.py", "bootstrap/memory.py", "bootstrap/desktop.py",
-            "bootstrap/settings.py",
+            "bootstrap/settings.py", "bootstrap/logs.py", "core/logs.py",
             "entrypoints/engine.py", "entrypoints/desktop.py",
         }
         missing = sorted(path for path in expected if not (PACKAGE / path).is_file())
@@ -273,9 +273,10 @@ class ArchitectureTests(unittest.TestCase):
             path = PACKAGE / "entrypoints" / name
             self.assertLessEqual(len(path.read_text(encoding="utf-8").splitlines()), 80)
             found = imports(path)
+            # 入口只依赖 Bootstrap（架构文档 5.1）；标准库与 AppKit 不受限。
             self.assertFalse(any(
-                imported.startswith(("boxagent.domain", "boxagent.agent",
-                                     "boxagent.infrastructure"))
+                imported.startswith("boxagent.")
+                and not imported.startswith("boxagent.bootstrap")
                 for imported in found), found)
 
     def test_deepseek_is_a_model_profile_not_a_second_runtime(self):

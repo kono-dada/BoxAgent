@@ -275,3 +275,23 @@ def create_application(publish, *, task_provider=None, task_model=None,
         log_path=app_settings.log_dir / "context-worker.log",
     )
     return application
+
+
+def create_engine_server(socket_path, *, app_settings, task_provider, task_model,
+                         auto_approve, context_interval, context_size):
+    """Assemble the socket server that owns one Engine application."""
+    from boxagent.interfaces.engine.server import EngineServer
+
+    return EngineServer(
+        socket_path,
+        lambda publish: create_application(
+            publish,
+            task_provider=task_provider,
+            task_model=task_model,
+            auto_approve=auto_approve,
+            app_settings=app_settings,
+            context_interval=context_interval,
+            context_size=context_size,
+        ),
+        start_context=context_interval > 0,
+    )

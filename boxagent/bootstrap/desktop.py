@@ -10,6 +10,7 @@ from boxagent.interfaces.macos.engine_bridge import EngineBridge
 from boxagent.interfaces.macos.windows.memory import MemoryDashboardWindow
 from boxagent.interfaces.macos.windows.skills import SkillManagerWindow
 from boxagent.interfaces.macos.windows.persona import PersonaSettingsWindow
+from boxagent.bootstrap.logs import shutdown_logging
 from boxagent.bootstrap.settings import load_settings
 from boxagent.agent.harness.persona import load_persona
 
@@ -76,5 +77,6 @@ def create_desktop_host(*, pet_directory=None, task_provider=None, task_model=No
         persona_settings_factory=create_persona_settings,
         persona=persona, persona_loader=load_persona,
         soul_file=app_settings.soul_file,
-        editable_soul_file=editable_soul)
+        editable_soul_file=editable_soul,
+        on_terminated=shutdown_logging)
     return backend, delegate

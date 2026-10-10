@@ -188,7 +188,7 @@ sequenceDiagram
 
 ```text
 boxagent/
-├── core/               # 全局 ID、状态、事件发布和通用错误
+├── core/               # 全局 ID、状态、事件发布、通用错误和日志原语（关联 ID、记录格式）
 ├── domain/             # 领域模型、领域端口和领域服务
 ├── application/        # 跨领域用例编排与应用级 Facade
 ├── agent/
@@ -198,7 +198,7 @@ boxagent/
 ├── interfaces/
 │   ├── engine/         # Unix Socket API、Client、Server、Supervisor
 │   └── macos/          # AppKit 页面、菜单、桌宠和系统通知
-├── bootstrap/          # Desktop、Engine、Memory 的生产装配点
+├── bootstrap/          # Desktop、Engine、Memory 的生产装配点，以及进程级日志配置
 └── entrypoints/        # 可执行进程入口
 ```
 
@@ -341,7 +341,8 @@ sequenceDiagram
 | `notifications/outbox.json` | 未送达和已送达通知 | 持久投递状态 |
 | `runs/<date>/<time-task_id>/` | 单次任务请求、上下文、步骤与结果 | 可审计运行记录 |
 | `skills/` | 用户 Skill | 用户配置 |
-| `logs/` | Runtime、Memory、Context 与 Engine 日志 | 诊断数据 |
+| `logs/errors.jsonl`、`logs/<进程>.jsonl`、`logs/crash/` | 统一诊断日志（INFRA-03） | 诊断数据，可轮转、可删除 |
+| `logs/` 其余文件 | Runtime wire trace、Memory、Context 与子进程原始输出 | 诊断数据 |
 
 1. JSONL 追加时执行 `flush + fsync`。
 2. JSON 文件使用临时文件与 `os.replace` 原子替换。
@@ -396,7 +397,16 @@ sequenceDiagram
 6. `result.json`：Host 认可的最终结果。
 7. `memory-retrieval.json`：检索输入、耗时、结果和降级状态。
 
-### 11.2 架构门禁
+### 11.2 诊断日志
+
+1. 每个进程在入口调用一次 `bootstrap.logs.configure_logging`；其余模块只使用 `logging.getLogger(__name__)`。
+2. `core.logs` 只包含无副作用的部分：关联 ID（`contextvars`）、JSON 记录格式、asyncio 错误上报。打开文件、轮转、进程钩子都在 `bootstrap.logs`。
+3. `errors.jsonl` 汇总所有进程的 warning 及以上，是排障入口；每次启动写一条 `logging.ready`。
+4. 记录自动带 `session_id`、`interaction_id`、`task_id`，在 `begin_interaction` 与 `TaskExecutor.run` 处绑定。
+5. 宽泛的 `except` 必须记录、上抛或交给调用方；`tests/test_logging.py` 扫描全部源码。
+6. 详见 [INFRA-03 统一日志](<需求/INFRA-03-统一日志.md>)。
+
+### 11.3 架构门禁
 
 1. `tests/test_architecture.py` 检查：
    1. Domain 不反向依赖 Infrastructure、Interfaces、Bootstrap 或 Entrypoints。
@@ -404,6 +414,7 @@ sequenceDiagram
    3. Interfaces 不直接构造 Infrastructure。
    4. 生产实现只在 Bootstrap 创建。
    5. 子进程创建只允许出现在 Infrastructure 或 Engine Interface。
+   6. Entrypoints 只依赖 Bootstrap，且不超过 80 行。
 2. 核心测试覆盖：
    1. Session 与 Context；
    2. Qwen / Codex Runtime；

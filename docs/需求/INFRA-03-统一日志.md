@@ -1,7 +1,7 @@
 # INFRA-03 统一诊断日志
 
 > 分支：`feature/logging`（基于 `feature/context-ledger`）
-> 状态：已实现，全部测试通过（274 passed，基线 254 + 新增 20）
+> 状态：已实现，全部测试通过（276 passed，基线 254 + 新增 22）
 > 范围：只改“诊断日志”。会话事件、任务运行记录、Qwen wire trace、Context Ledger 的格式与位置都不变。
 
 ---
@@ -9,7 +9,7 @@
 ## 0. 结论先行
 
 1. **做了什么**
-   1. 新增 `boxagent/core/logs.py`，基于标准库 `logging`，不引入第三方依赖。每个进程入口调用一次 `configure_logging(log_dir, process=…)`，之后各模块照常 `logging.getLogger(__name__)`。
+   1. 新增 `boxagent/core/logs.py`（日志原语）和 `boxagent/bootstrap/logs.py`（进程级配置），基于标准库 `logging`，不引入第三方依赖。每个进程入口调用一次 `configure_logging(log_dir, process=…)`，之后各模块照常 `logging.getLogger(__name__)`。
    2. 输出三类文件：
       1. `logs/<进程>.jsonl`：本进程 info 及以上；
       2. `logs/errors.jsonl`：所有进程的 warning 及以上，排障入口；
@@ -91,9 +91,17 @@ flowchart LR
   F --> C[("crash/&lt;进程&gt;.log")]
 ```
 
-1. **只在入口配置**：`entrypoints/desktop.py` 和 `entrypoints/engine.py` 各调用一次。`core/logs.py` 只依赖 `core/errors.py` 的 `redact`，满足 `core` 层独立的架构约束。
-2. **跨线程前先固化**：`_EnqueueHandler.prepare` 在调用线程里格式化消息、展开异常栈、读取 `contextvars`。后台线程不再访问可能已变化的对象。
-3. **第三方库**：标准库根 logger 设为 warning，因此 `asyncio`、`websockets` 等库的警告也会被记录，它们的 info 不会刷屏。BoxAgent 自己的 logger 为 info。
+1. **按层拆分**：
+
+   | 模块 | 内容 | 谁可以用 |
+   |---|---|---|
+   | `core/logs.py` | 关联 ID（`bind_log_context`、`log_context`）、`JsonFormatter`、入队前固化记录、asyncio 错误上报 | 所有层 |
+   | `bootstrap/logs.py` | `configure_logging`、文件与轮转、限流、环形缓冲、进程钩子、旧日志迁移、`shutdown_logging` | 只有入口与 Bootstrap |
+
+   入口按架构文档只依赖 Bootstrap；架构测试已收紧为“入口不得导入 `boxagent.bootstrap` 以外的包”。顺带把 Engine 入口里原本直接构造的 `EngineServer` 移到 `bootstrap.engine.create_engine_server`。
+2. **退出时写完**：桌宠退出流程 `applicationShouldTerminate_` 在关闭 Engine 之后调用由 Bootstrap 注入的 `shutdown_logging`；Engine 在 `server.run()` 结束后调用。
+3. **跨线程前先固化**：`_EnqueueHandler.prepare` 在调用线程里格式化消息、展开异常栈、读取 `contextvars`。后台线程不再访问可能已变化的对象。
+4. **第三方库**：标准库根 logger 设为 warning，因此 `asyncio`、`websockets` 等库的警告也会被记录，它们的 info 不会刷屏。BoxAgent 自己的 logger 为 info。
 
 ### 3.2 记录格式
 
@@ -165,7 +173,7 @@ flowchart LR
 | `interfaces/macos/app.py` 历史刷新、系统通知、文字提交 | `pass` 或 `return False` | 同左，并记 warning |
 | `interfaces/macos/inprocess_bridge.py` 关闭 | `pass` | 记 warning |
 
-**豁免**：`infrastructure/memory/jev_mem/`（vendored 研究代码）、`infrastructure/runtimes/qwen/aoq.py`（原生 SDK 拆除，各方法可能不存在）、`core/logs.py` 自身。
+**豁免**：`infrastructure/memory/jev_mem/`（vendored 研究代码）、`infrastructure/runtimes/qwen/aoq.py`（原生 SDK 拆除，各方法可能不存在）、`core/logs.py` 与 `bootstrap/logs.py` 自身。
 
 **守护**：`tests/test_logging.py::NoSilentSwallowTests` 扫描全部源码。宽泛的 `except` 必须满足以下之一，否则测试失败：
 
@@ -198,8 +206,8 @@ flowchart LR
 | 套件 | 用例数 | 覆盖点 |
 |---|---:|---|
 | 原有全量 | 254 | 全部通过，行为未变 |
-| `tests/test_logging.py` | 20 | 分级落盘与就绪标记；异常栈与类型；脱敏；第三方库只收 warning；环形缓冲；关联 ID 绑定与恢复；并发 asyncio 任务互不串号；未知字段拒绝；`begin_interaction` 绑定；限流与丢弃汇总；目录不可写回退；坏记录不影响调用方；重复配置不重复写；线程异常；asyncio 异常；子进程崩溃落盘；轮转保留份数；按时间清理；旧日志迁移且只迁一次；静默吞异常守护 |
-| **合计** | **274** | `UV_CACHE_DIR=/tmp/uvcache uv run --with pytest python -m pytest -q` |
+| `tests/test_logging.py` | 22 | 分级落盘与就绪标记；异常栈与类型；脱敏；第三方库只收 warning；环形缓冲；关联 ID 绑定与恢复；并发 asyncio 任务互不串号；未知字段拒绝；`begin_interaction` 绑定；限流与丢弃汇总；目录不可写回退；坏记录不影响调用方；重复配置不重复写；线程异常；asyncio 异常；子进程崩溃落盘；轮转保留份数；按时间清理；旧日志迁移且只迁一次；桌宠退出先关 Engine 再写完日志；静默吞异常守护 |
+| **合计** | **276** | `UV_CACHE_DIR=/tmp/uvcache uv run --with pytest python -m pytest -q` |
 
 开销：两万次 `logger.info`，入队 p50 4.7 µs，p99 11.8 µs；后台写完两万条用时 0.59 s。
 

@@ -34,7 +34,7 @@ class Desktop(NSObject):
                   skill_manager_factory=None, persona_settings_factory=None,
                   persona=None,
                   persona_loader=None, soul_file=None,
-                  editable_soul_file=None):
+                  editable_soul_file=None, on_terminated=None):
         self.backend, self.appearance = backend, appearance
         self.data_dir = data_dir or backend.log_dir
         self.pet_catalog = catalog
@@ -47,6 +47,7 @@ class Desktop(NSObject):
         self.persona_loader = persona_loader
         self.soul_file = soul_file
         self.editable_soul_file = editable_soul_file or soul_file
+        self.on_terminated = on_terminated
         self.agent_name = getattr(persona, "name", None) or "伙伴"
         self.pet_store = None
         self.memory_dashboard = None
@@ -631,4 +632,7 @@ class Desktop(NSObject):
             self.savePosition()
             self.backend.close()
             (self.data_dir / "app.pid").unlink(missing_ok=True)
+            if self.on_terminated is not None:
+                # 最后一步：把排队中的诊断日志写完，再交给 AppKit 退出进程。
+                self.on_terminated()
         return AK.NSTerminateNow
