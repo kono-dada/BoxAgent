@@ -11,7 +11,7 @@ BoxAgent 是一个常驻在 Mac 桌面的 AI 伙伴。它可以自然对话、�
 
 https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 
-这段 5 分钟真人录屏包含声音，展示全双工语音、跨 Session 长期记忆、后台音乐操作、任务结果通知，以及角色、记忆和 Skill 管理。
+这段历史版本的 5 分钟真人录屏包含声音，展示全双工语音、跨 Session 长期记忆、后台音乐操作、任务结果通知，以及角色、记忆和 Skill 管理。当前形象已升级为 3D VRM。
 
 ## 它能做什么
 
@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 | 统一会话上下文 | 文字、语音、Qwen 与任务 Runtime 共享同一个持久 Product Session |
 | 长期记忆 | Jev-Mem 自动判断值得保存的信息，支持画像、叙事记忆和主动召回 |
 | Skill 系统 | 管理内置与用户 Skill，也可以从真实任务轨迹生成并安装 Skill 草稿 |
-| 原生桌宠界面 | 提供角色、形象商店、任务状态、记忆图谱和 Skill 管理入口 |
+| 原生桌宠界面 | 提供 3D 角色、任务状态、记忆图谱和 Skill 管理入口 |
 
 例如，你可以对它说：
 
@@ -63,6 +63,7 @@ flowchart LR
 ### 1. 准备环境
 
 - macOS / Apple Silicon
+- Git LFS、Node.js 与 pnpm（用于下载 3D 资源和构建播放器）
 - Python 3.12、[uv](https://docs.astral.sh/uv/) 与 PortAudio
 - 北京地域 DashScope API Key 与百炼 Workspace ID
 - DeepSeek API Key 与 TypeSafe.ai API Key
@@ -85,6 +86,7 @@ zsh scripts/set-key.zsh
 ./scripts/setup-aoq-sdk.sh
 ./scripts/setup-jev-mem.sh
 ./scripts/download-qwen-mlx.zsh
+bash scripts/setup_vrm.sh
 ```
 
 还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。
@@ -97,7 +99,7 @@ uv run --script scripts/pet.py
 
 也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
 
-启动时只显示桌宠，聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从菜单开启，开启后默认每 15 秒检查前台窗口。
+启动时只显示 3D 桌宠，默认形象为 Zome。聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从菜单开启，开启后默认每 15 秒检查前台窗口。
 
 ### 5. 开始使用
 
@@ -124,7 +126,7 @@ uv run --script scripts/pet.py
 
 BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一部分，而不是模型提示词里的附加说明。
 
-- Session、任务轨迹、记忆、下载形象和本地配置默认保存在 `.runtime/`，该目录不会提交到 Git。
+- Session、任务轨迹、记忆、个人导入的 VRM 和本地配置默认保存在 `.runtime/`，该目录不会提交到 Git。
 - 日志可能包含任务目标、应用界面文字和工具参数，不应直接上传或公开分享。
 - 当前版本默认自动允许 Computer Use 工具请求；使用 `--require-approval` 可恢复逐次确认。
 - 不可逆操作仍依赖任务策略和最终状态核验；当前版本不是完整操作系统沙箱。
@@ -142,7 +144,7 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 持久 Product Session、Runtime 恢复 Checkpoint 与跨 Runtime 上下文
 - Jev-Mem 自动写入、Profile、Narrative、L2 direct recall 与 L3 deep recall
 - 原生记忆图谱、Skill 管理、对话式 Skill 创建与安装
-- 形象商店、本地形象缓存和可替换桌宠外观
+- 仅支持 3D VRM 形象、本地导入与运行中换装；共享模型和动作通过 Git LFS 管理
 - 本地 MLX 前台窗口总结
 
 ### 仍在推进
@@ -196,7 +198,7 @@ uv run --with pytest python -m pytest -q
 | 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
 | 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
 | 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |
-| 形象商店 | [Pet Store](docs/pet-store.md) |
+| 3D 形象与共享资产 | [VRM 桌宠](docs/vrm.md) |
 | Computer Use | [Python Computer Use](docs/python-codex-computer-use.md) |
 | 语音链路 | [Qwen 全双工实验](docs/qwen-full-duplex-summary.md) |
 | 本地视觉 | [Qwen MLX 实验](docs/qwen-mlx-probe.md) |
@@ -204,7 +206,7 @@ uv run --with pytest python -m pytest -q
 
 ## Acknowledgements
 
-BoxAgent 的当前实现建立在 Qwen Realtime / AOQ、OpenAI Codex Computer Use、Jev-Mem、DeepSeek、MLX，以及 [codex-pets.net](https://codex-pets.net) 提供的开放生态之上。
+BoxAgent 的当前实现建立在 Qwen Realtime / AOQ、OpenAI Codex Computer Use、Jev-Mem、DeepSeek、MLX，以及 Three.js / three-vrm之上。
 
 ---
 

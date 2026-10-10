@@ -1,23 +1,14 @@
-"""可独立测试的商店目录；下载与当前选择分离，窗口成功装配后才提交选择。"""
+"""本地 VRM 目录；渲染成功后保存选择，不访问远端形象服务。"""
 
-from concurrent.futures import ThreadPoolExecutor
-import hashlib
-from http.client import HTTPException
-import io
 import json
-import logging
+import hashlib
 import os
 from pathlib import Path
 import re
-import threading
-import urllib.parse
 import uuid
 
-from PIL import Image
+from .vrm import read_manifest, resource_files
 
-from boxagent.interfaces.macos.pets.network import PetTransport, SOURCE
-
-MAX_IMAGE = 12 * 1024 * 1024
 ID_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
@@ -27,230 +18,113 @@ def valid_id(value):
     return value
 
 
-def asset_url(value, identity, filename):
-    url = urllib.parse.urljoin(SOURCE, value or f"/assets/pets/{identity}/{filename}")
-    target = urllib.parse.urlsplit(url)
-    pattern = rf"/assets/pets/(?:v/[0-9]+/)?{re.escape(identity)}/{re.escape(filename)}"
-    if (target.scheme != "https" or target.netloc != "codex-pets.net"
-            or target.query or target.fragment or not re.fullmatch(pattern, target.path)):
-        raise ValueError("商店资源地址不在允许范围")
-    return url
-
-
-def normalize(raw):
-    identity = valid_id(raw["id"])
-    report = raw.get("validationReport") or {}
-    version = raw.get("spriteVersionNumber", report.get("spriteVersionNumber",
-                       2 if report.get("atlasSize") == "1536x2288" else 1))
-    if type(version) is not int or version not in (1, 2):
-        raise ValueError("暂不支持此图集版本")
-    def text(key, fallback="", maximum=2000):
-        value = raw.get(key)
-        return value[:maximum] if isinstance(value, str) else fallback
-    handle = text("ownerHandle", maximum=120)
-    source_url = text("sourceUrl", f"{SOURCE}/#/pets/{identity}")
-    source = urllib.parse.urlsplit(source_url)
-    if source.scheme != "https" or source.hostname not in {"codex-pets.net", "github.com"}:
-        source_url = f"{SOURCE}/#/pets/{identity}"
-    return dict(id=identity, displayName=text("displayName", identity, 160),
-                description=text("description"), spriteVersionNumber=version,
-                ownerName=text("ownerName", handle or "未注明", 160), ownerHandle=handle,
-                sourceUrl=source_url, license=text("license") or None,
-                spritesheetUrl=asset_url(raw.get("spritesheetUrl"), identity, "spritesheet.webp"),
-                posterUrl=asset_url(raw["posterUrl"], identity, "poster.webp") if raw.get("posterUrl") else None)
-
-
-def decode_image(data, version=None):
-    if len(data) > MAX_IMAGE:
-        raise ValueError("图集过大")
-    with Image.open(io.BytesIO(data)) as image:
-        if image.format != "WEBP" or getattr(image, "n_frames", 1) != 1:
-            raise ValueError("图集必须是静态 WebP")
-        if version is not None:
-            expected = (1536, 2288 if version == 2 else 1872)
-            if image.size != expected:
-                raise ValueError("图集尺寸与版本不匹配")
-        elif image.width > 768 or image.height > 832:
-            raise ValueError("封面尺寸过大")
-        image.load()
-        return image.convert("RGBA")
-
-
 class PetCatalog:
-    def __init__(self, cache_dir=None, request=None, *, default_pet=None):
+    def __init__(self, cache_dir=None, *, default_pet=None, bundled_root=None):
         project_root = Path(__file__).resolve().parents[4]
-        self.default_pet = Path(default_pet or project_root / "assets/pet/debug-duck-v2").resolve()
+        self.default_pet = Path(default_pet or project_root / "assets/vrm/models/zome").resolve()
+        self.bundled_root = Path(bundled_root or self.default_pet.parent).resolve()
         self.root = Path(cache_dir or project_root / ".runtime/pets").resolve()
         self.root.mkdir(parents=True, exist_ok=True)
-        self.request = request or PetTransport()
-        self.lock = threading.RLock()
-
-    def path(self, identity, filename):
-        valid_id(identity)
-        target = self.root / identity / filename
-        if target.resolve() != target or (self.root / identity).is_symlink():
-            raise ValueError("缓存路径不能包含符号链接")
-        return target
-
-    def atomic(self, target, data):
-        target = Path(target)
-        if target.resolve() != target:
-            raise ValueError("缓存路径不能包含符号链接")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
-        try:
-            with temporary.open("xb") as stream:
-                stream.write(data)
-            os.replace(temporary, target)
-        finally:
-            temporary.unlink(missing_ok=True)
-
-    def write_json(self, path, value):
-        self.atomic(path, json.dumps(value, ensure_ascii=False, indent=2).encode())
+        self._digests = {}
 
     def read_json(self, path):
+        path = Path(path)
         if path.resolve() != path or path.stat().st_size > 2 * 1024 * 1024:
-            raise ValueError("缓存元数据无效")
+            raise ValueError("形象元数据无效")
         return json.loads(path.read_text())
 
-    def read_image(self, path):
-        if path.stat().st_size > MAX_IMAGE:
-            raise ValueError("缓存图片过大")
-        return path.read_bytes()
-
-    def cached(self, identity):
+    def write_json(self, path, value):
+        path = Path(path)
+        if path.resolve() != path:
+            raise ValueError("选择路径不能包含符号链接")
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
         try:
-            entry = self.read_json(self.path(identity, "entry.json"))
-            pet = normalize(entry)
-            if pet["id"] != identity:
-                return None
-            data = self.read_image(self.path(identity, "spritesheet.webp"))
-            if hashlib.sha256(data).hexdigest() != entry["sha256"]:
-                return None
-            decode_image(data, pet["spriteVersionNumber"])
-            manifest = self.read_json(self.path(identity, "pet.json"))
-            if (manifest.get("spritesheetPath") != "spritesheet.webp"
-                    or manifest.get("spriteVersionNumber") != pet["spriteVersionNumber"]):
-                return None
-            return dict(pet, directory=self.root / identity, cached=True)
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            return None
-
-    def installed(self, search=""):
-        result = []
-        for path in sorted(self.root.iterdir()):
-            if path.is_dir() and not path.is_symlink() and ID_PATTERN.fullmatch(path.name):
-                pet = self.cached(path.name)
-                if pet and search.casefold() in " ".join(str(pet[key]) for key in
-                                                       ("id", "displayName", "description", "ownerName")).casefold():
-                    result.append(pet)
-        return result
+            with temporary.open("x", encoding="utf-8") as stream:
+                json.dump(value, stream, ensure_ascii=False, indent=2)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def current_directory(self):
         try:
             saved = self.read_json(self.root / "selected.json")
-            if saved.get("builtin"):
-                return self.default_pet
-            pet = self.cached(saved["id"])
-            if pet:
-                return pet["directory"]
+            if saved.get("type") == "vrm":
+                root = self.bundled_root if saved.get("bundled") else self.root
+                directory = root / valid_id(saved["id"])
+                if directory.resolve() != directory:
+                    raise ValueError("形象路径不能包含符号链接")
+                # 丢失的 VRM 由启动层报错；旧图集选择则迁移到默认 VRM。
+                if not (directory / "pet.json").exists():
+                    return directory
+                if self.read_json(directory / "pet.json").get("type") == "vrm":
+                    return self.canonical_directory(directory)
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             pass
         return self.default_pet
 
-    def commit(self, directory):
-        directory = Path(directory).resolve()
-        if directory == self.default_pet:
-            self.write_json(self.root / "selected.json", {"builtin": True})
-        else:
-            if directory.parent != self.root or not self.cached(directory.name):
-                raise ValueError("形象缓存无效，保留原选择")
-            self.write_json(self.root / "selected.json", {"id": directory.name})
+    def fingerprint(self, directory):
+        """比较实际素材与渲染配置，不因同名误合并不同角色或动作变体。"""
+        manifest = read_manifest(directory)
+        files = resource_files(directory, manifest)
 
-    def prepare(self, identity):
-        valid_id(identity)
-        with self.lock:
-            if pet := self.cached(identity):
-                return pet["directory"]
-            raw = json.loads(self.request(f"{SOURCE}/api/pets/{identity}/share-data", 2 * 1024 * 1024))
-            pet = normalize(raw["pet"])
-            if pet["id"] != identity:
-                raise ValueError("商店返回了另一个形象")
-            data = self.request(pet["spritesheetUrl"], MAX_IMAGE)
-            decode_image(data, pet["spriteVersionNumber"])
-            pet["sha256"] = hashlib.sha256(data).hexdigest()
-            self.atomic(self.path(identity, "spritesheet.webp"), data)
-            self.write_json(self.path(identity, "pet.json"), dict(
-                id=identity, displayName=pet["displayName"], description=pet["description"],
-                spriteVersionNumber=pet["spriteVersionNumber"], spritesheetPath="spritesheet.webp"))
-            self.write_json(self.path(identity, "entry.json"), pet)
-            return self.root / identity
+        def digest(path):
+            stat = path.stat()
+            key = (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+            cached = self._digests.get(path)
+            if cached is None or cached[0] != key:
+                with path.open("rb") as stream:
+                    cached = (key, hashlib.file_digest(stream, "sha256").hexdigest())
+                self._digests[path] = cached
+            return cached[1]
 
-    def poster(self, pet):
-        identity = pet["id"]
-        try:
-            path = self.path(identity, "poster.webp")
-            meta = self.path(identity, "poster.json")
-            if path.exists() and meta.exists():
-                data = self.read_image(path)
-                saved = self.read_json(meta)
-                if saved.get("url") == pet["posterUrl"] and saved.get("sha256") == hashlib.sha256(data).hexdigest():
-                    return decode_image(data)
-            if pet["posterUrl"]:
-                data = self.request(pet["posterUrl"], 512 * 1024)
-                picture = decode_image(data)
-                self.atomic(path, data)
-                self.write_json(meta, dict(url=pet["posterUrl"], sha256=hashlib.sha256(data).hexdigest()))
-                return picture
-        except (OSError, ValueError, KeyError, TypeError, HTTPException):
-            pass
-        if pet.get("cached"):
-            try:
-                return decode_image(self.read_image(self.path(identity, "spritesheet.webp")),
-                                    pet["spriteVersionNumber"]).crop((0, 0, 192, 208))
-            except (OSError, ValueError):
-                pass
-        return None
+        settings = {key: value for key, value in manifest.items()
+                    if key not in {"displayName", "description", "model", "actions",
+                                   "motionPack", "motionProfile"}}
+        identity = {
+            "model": digest(files[manifest["model"]]),
+            "actions": {key: digest(files[value]) for key, value in manifest.get("actions", {}).items()},
+            "settings": settings,
+        }
+        return json.dumps(identity, sort_keys=True, ensure_ascii=False)
 
-    def list(self, search="", page=1, installed=False):
-        search, page = search.strip()[:120], max(1, int(page))
-        error = None
-        pets = []
-        if not installed:
-            try:
-                query = urllib.parse.urlencode(dict(page=page, pageSize=12, q=search, sort="popular"))
-                raw = json.loads(self.request(f"{SOURCE}/api/pets?{query}", 2 * 1024 * 1024))
-                for item in raw["pets"][:12]:
-                    try:
-                        pet = normalize(item)
-                        pet["cached"] = self.cached(pet["id"]) is not None
-                        pets.append(pet)
-                    except (ValueError, KeyError, TypeError, AttributeError):
-                        continue
-                total = max(len(pets), int(raw["total"]))
-            except (OSError, ValueError, KeyError, TypeError, AttributeError, HTTPException):
-                logging.getLogger(__name__).exception("商店目录请求失败，回退到已下载形象")
-                error = "暂时连不上形象商店。你可以使用已下载的形象，或稍后重新搜索。"
-        if installed or error:
-            available = self.installed(search)
-            total = len(available)
-            page = min(page, max(1, (total + 11) // 12))
-            pets = available[(page - 1) * 12:page * 12]
-        # 已下载列表完全离线，不因缺封面访问网络。
-        def preview(pet):
-            if installed or error:
+    def vrm_manifests(self):
+        """仓库版本优先；相同素材和配置只展示一次，不加载损坏的形象。"""
+        result = []
+        seen = set()
+        for root in dict.fromkeys((self.bundled_root, self.root)):
+            for path in sorted(root.glob("*/pet.json")):
                 try:
-                    return decode_image(self.read_image(self.path(pet["id"], "spritesheet.webp")),
-                                        pet["spriteVersionNumber"]).crop((0, 0, 192, 208))
-                except (OSError, ValueError):
-                    return None
-            return self.poster(pet)
-        def thumbnail(pet):
-            picture = preview(pet)
-            if picture is not None:
-                picture.thumbnail((200, 156))
-            return picture
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            pictures = list(pool.map(thumbnail, pets))
-        return dict(pets=[dict(pet, picture=picture) for pet, picture in zip(pets, pictures)],
-                    total=total, page=page, error=error)
+                    valid_id(path.parent.name)
+                    if self.read_json(path).get("type") != "vrm":
+                        continue
+                    identity = self.fingerprint(path.parent)
+                    if identity not in seen:
+                        seen.add(identity)
+                        result.append(path)
+                except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                    continue
+        return result
+
+    def canonical_directory(self, directory):
+        try:
+            identity = self.fingerprint(directory)
+            for path in self.vrm_manifests():
+                if self.fingerprint(path.parent) == identity:
+                    return path.parent
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+        # 保留缺失资源的明确选择，由加载层给出可操作的错误。
+        return directory
+
+    def commit(self, directory):
+        directory = Path(directory)
+        if directory.resolve() != directory or directory.parent not in (self.bundled_root, self.root):
+            raise ValueError("形象不在允许的 VRM 目录内，保留原选择")
+        identity = valid_id(directory.name)
+        read_manifest(directory)
+        directory = self.canonical_directory(directory)
+        identity = directory.name
+        saved = {"type": "vrm", "id": identity}
+        if directory.parent == self.bundled_root:
+            saved["bundled"] = True
+        self.write_json(self.root / "selected.json", saved)

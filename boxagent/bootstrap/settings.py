@@ -131,7 +131,7 @@ def load_settings(*, log_dir=None) -> Settings:
         builtin_skills_dir=ROOT / "skills/builtin",
         user_skills_dir=Path(os.environ.get(
             "BOXAGENT_SKILLS_DIR", data / "skills")).expanduser().resolve(),
-        default_pet=ROOT / "assets/pet/debug-duck-v2",
+        default_pet=ROOT / "assets/vrm/models/zome",
         voice_model=os.environ.get(
             "BOXAGENT_VOICE_MODEL", "qwen3.8-omni-flash-realtime"),
         qwen_history_character_budget=read_positive_int(
