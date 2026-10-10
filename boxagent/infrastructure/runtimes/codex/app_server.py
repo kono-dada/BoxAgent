@@ -10,7 +10,10 @@ import traceback
 from pathlib import Path
 
 from boxagent.agent.runtime.models import ModelProfile
-from boxagent.infrastructure.runtimes.codex.computer_use import resolve_computer_use_client
+from boxagent.infrastructure.runtimes.codex.computer_use import (
+    resolve_computer_use_client,
+    resolve_computer_use_home,
+)
 from boxagent.infrastructure.runtimes.codex.skills import CodexSkillAdapter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -52,6 +55,7 @@ class CodexAppServer:
         self.auto_approve = auto_approve
         self.workspace = Path(workspace)
         self.codex_home = Path(codex_home) if codex_home else None
+        self.computer_use_home = resolve_computer_use_home()
         self.runtime_resolver = runtime_resolver or (
             lambda: resolve_codex_runtime(self.workspace))
         self.model_profile = model_profile
@@ -69,6 +73,7 @@ class CodexAppServer:
         self.completed = None
         self.agent_text = ""
         self.turn_input_messages = []
+        self.turn_metadata = None
         self.tools = []
         self.discovered_tools = []
         self.discovered_skills = []
@@ -95,6 +100,7 @@ class CodexAppServer:
         self.completed = None
         self.agent_text = ""
         self.turn_input_messages = []
+        self.turn_metadata = None
         self.cleanup_status = "not_started"
 
     def launch_environment(self) -> dict[str, str]:
@@ -138,12 +144,10 @@ class CodexAppServer:
 
     def launch_arguments(self, executable: Path, client: Path) -> list[str]:
         mcp = 'mcp_servers.boxagent_cua={command=' + json.dumps(str(client)) + ',args=["mcp"]}'
-        # Computer Use owns a visible cursor overlay.  It is dismissed by the
-        # notifier that Codex invokes as part of its own turn lifecycle.  A
-        # hand-built notification after the RPC completes is not equivalent:
-        # the client accepts it, but cannot associate it with the active CUA
-        # turn and the overlay remains on screen.
-        notify = "notify=" + json.dumps([str(client), "turn-ended"])
+        # 保留原生结束通知；显式清理用于取消和异常路径。
+        # 两条路径都依赖工具调用携带同一轮次的元数据，返回成功不等于浮层已消失。
+        notify = "notify=" + json.dumps([
+            "/usr/bin/env", f"CODEX_HOME={self.computer_use_home}", str(client), "turn-ended"])
         arguments = [str(executable), "app-server", "--stdio", "-c", mcp,
                      "-c", notify]
         for override in self.model_config_overrides():
@@ -271,9 +275,10 @@ class CodexAppServer:
                 await asyncio.sleep(.2)
 
     async def call_tool(self, operation, arguments):
-        metadata = {"codex.session_id": self.thread_id}
-        if self.turn_id:
-            metadata["codex.turn_id"] = self.turn_id
+        # RPC 顶层的 threadId 只负责路由；原生光标通过 MCP 元数据关联轮次。
+        metadata = {"threadId": self.thread_id}
+        if self.turn_metadata is not None:
+            metadata["x-codex-turn-metadata"] = dict(self.turn_metadata)
         return await self.rpc("mcpServer/tool/call", {
             "threadId": self.thread_id, "server": "boxagent_cua", "tool": operation,
             "_meta": metadata, "arguments": arguments})
@@ -382,10 +387,18 @@ class CodexAppServer:
         # augmented Runtime input so the native cursor overlay can be dismissed
         # without leaking recalled evidence into the notification payload.
         self.turn_input_messages = [query]
+        turn_started_at_unix_ms = int(time.time() * 1000)
         turn = await self.rpc("turn/start", {"threadId": self.thread_id,
             "outputSchema": output_schema,
             "input": [{"type": "text", "text": turn_input, "text_elements": []}]})
         self.turn_id = turn["turn"]["id"]
+        self.turn_metadata = {
+            "session_id": self.thread_id,
+            "thread_id": self.thread_id,
+            "turn_id": self.turn_id,
+            "model": model,
+            "turn_started_at_unix_ms": turn_started_at_unix_ms,
+        }
         self.log("turn_started", thread_id=self.thread_id, turn_id=self.turn_id)
         result = await asyncio.wait_for(asyncio.shield(self.completed), 300)
         if self.stopped or result.get("status") == "interrupted":
@@ -433,7 +446,7 @@ class CodexAppServer:
             await self.refresh_skills()
             return self.discovered_tools
         executable = self.runtime_resolver()
-        self.client = resolve_computer_use_client()
+        self.client = resolve_computer_use_client(self.computer_use_home)
         arguments = self.launch_arguments(executable, self.client)
         env = self.launch_environment()
         self.output.mkdir(parents=True, exist_ok=True)
@@ -472,26 +485,30 @@ class CodexAppServer:
                    "client": "boxagent-pet",
                    "input-messages": self.turn_input_messages,
                    "last-assistant-message": self.agent_text}
-        process = None
         self.log("cursor_cleanup_started", thread_id=self.thread_id, turn_id=self.turn_id)
         try:
-            process = await asyncio.create_subprocess_exec(
-                str(self.client), "turn-ended", json.dumps(payload),
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            stdout, stderr = await asyncio.wait_for(process.communicate(), 8)
-            self.cleanup_status = "notified" if process.returncode == 0 else "failed"
+            # 原生服务会校验通知的调用来源。通过同一个 Codex 进程发送，
+            # 避免桌宠直接启动客户端时内部请求失败却仍返回退出码 0。
+            # 仅执行固定的原生结束命令；原生 IPC 需要与 MCP 客户端相同的系统访问。
+            result = await self.rpc("command/exec", {
+                "command": [str(self.client), "turn-ended", json.dumps(payload)],
+                "cwd": str(self.workspace),
+                # 通知程序用此目录查找原生服务；隔离的会话目录会导致静默跳过。
+                "env": {"CODEX_HOME": str(self.computer_use_home)},
+                "sandboxPolicy": {"type": "dangerFullAccess"},
+                "timeoutMs": 8000,
+            }, timeout=10)
+            self.cleanup_status = "notified" if result.get("exitCode") == 0 else "failed"
             self.log("cursor_cleanup_finished", status=self.cleanup_status,
-                     returncode=process.returncode, stdout=stdout.decode(errors="replace"),
-                     stderr=stderr.decode(errors="replace"))
+                     transport="app_server", returncode=result.get("exitCode"),
+                     stdout=result.get("stdout", ""), stderr=result.get("stderr", ""))
         except Exception as exc:
             self.cleanup_status = "failed"
             self.log("cursor_cleanup_failed", error=repr(exc))
         finally:
-            if process and process.returncode is None:
-                process.kill()
-                await process.wait()
             self.turn_id = None
             self.turn_input_messages = []
+            self.turn_metadata = None
 
     async def interrupt(self):
         self.stopped = True

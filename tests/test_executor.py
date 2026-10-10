@@ -342,10 +342,13 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_app_server_uses_native_computer_use_turn_notifier(self):
         session = self.make_session()
+        session.computer_use_home = Path("/native-installation-home")
 
         arguments = session.launch_arguments(Path("/codex"), Path("/computer-use"))
 
-        self.assertIn('notify=["/computer-use", "turn-ended"]', arguments)
+        notify = next(value for value in arguments if value.startswith("notify="))
+        self.assertEqual(json.loads(notify.removeprefix("notify=")), [
+            "/usr/bin/env", "CODEX_HOME=/native-installation-home", "/computer-use", "turn-ended"])
         self.assertNotIn("notify=[]", arguments)
 
     async def test_matching_runtime_request_reuses_one_codex_thread(self):
@@ -573,17 +576,22 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cleanup_notifies_only_own_turn_and_waits(self):
         session = self.make_session()
+        session.codex_home = Path("/private-session-home")
+        session.computer_use_home = Path("/native-installation-home")
         session.thread_id = "test-thread"
         session.turn_id = "own-turn"
         session.turn_input_messages = ["打开知乎看看 AI 文章"]
         session.agent_text = "已经完成浏览。"
         session.client = Path("/client")
-        process = Mock(returncode=0, communicate=AsyncMock(return_value=(b"", b"")))
+        session.rpc = AsyncMock(return_value={"exitCode": 0, "stdout": "", "stderr": ""})
         with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
-                   AsyncMock(return_value=process)) as spawn:
+                   AsyncMock()) as spawn:
             await session.end_turn()
-        args = spawn.call_args.args
-        self.assertEqual(args[:2], ("/client", "turn-ended"))
+        spawn.assert_not_awaited()
+        self.assertEqual(session.rpc.await_args.args[0], "command/exec")
+        params = session.rpc.await_args.args[1]
+        args = params["command"]
+        self.assertEqual(args[:2], ["/client", "turn-ended"])
         self.assertEqual(json.loads(args[2])["thread-id"], "test-thread")
         self.assertEqual(json.loads(args[2])["turn-id"], "own-turn")
         self.assertEqual(json.loads(args[2])["client"], "boxagent-pet")
@@ -591,30 +599,99 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
                          ["打开知乎看看 AI 文章"])
         self.assertEqual(json.loads(args[2])["last-assistant-message"],
                          "已经完成浏览。")
-        process.communicate.assert_awaited_once()
+        self.assertEqual(params["timeoutMs"], 8000)
+        self.assertEqual(params["env"], {"CODEX_HOME": "/native-installation-home"})
+        self.assertEqual(session.rpc.await_args.kwargs["timeout"], 10)
         self.assertEqual(session.cleanup_status, "notified")
         self.assertEqual(session.turn_input_messages, [])
+
+    async def test_computer_use_metadata_tracks_completed_and_interrupted_turns(self):
+        session = self.make_session()
+        session.thread_id = "shared-thread"
+        session.client = Path("/client")
+        session.process = Mock(returncode=None)
+        session.ensure_thread = AsyncMock(return_value=("shared-thread", "reused"))
+        calls = []
+        notifications = []
+        turn_number = 0
+
+        async def rpc(method, params, timeout=120):
+            nonlocal turn_number
+            if method == "turn/start":
+                turn_number += 1
+                return {"turn": {"id": f"turn-{turn_number}"}}
+            calls.append((method, params))
+            if method == "turn/interrupt":
+                session.completed.set_result({"status": "interrupted"})
+            if method == "command/exec":
+                notifications.append(json.loads(params["command"][2]))
+                return {"exitCode": 0}
+            return {"content": []}
+
+        session.rpc = rpc
+        with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
+                   AsyncMock()) as spawn:
+            for number in (1, 2):
+                task = asyncio.create_task(session.run_codex_turn(
+                    model="test-model", instructions="stable", query="读取计算器",
+                    output_schema={}))
+                await asyncio.sleep(0)
+                await session.call_tool("get_app_state", {"app": "com.apple.calculator"})
+                await session.call_tool("get_app_state", {"app": "com.apple.calculator"})
+                metadata = calls[-1][1]["_meta"]
+                self.assertEqual(metadata["threadId"], "shared-thread")
+                context = metadata["x-codex-turn-metadata"]
+                self.assertEqual(context["session_id"], "shared-thread")
+                self.assertEqual(context["thread_id"], "shared-thread")
+                self.assertEqual(context["turn_id"], f"turn-{number}")
+                self.assertEqual(context["model"], "test-model")
+                self.assertGreater(context["turn_started_at_unix_ms"], 0)
+                self.assertEqual(metadata, calls[-2][1]["_meta"])
+                if number == 1:
+                    session.completed.set_result({"status": "completed"})
+                    await task
+                else:
+                    await session.interrupt()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await task
+                await session.release_task()
+                self.assertEqual(notifications[-1]["thread-id"], context["thread_id"])
+                self.assertEqual(notifications[-1]["turn-id"], context["turn_id"])
+                self.assertIsNone(session.turn_metadata)
+                self.assertIsNone(session.turn_id)
+            spawn.assert_not_awaited()
+
+        self.assertNotEqual(notifications[0]["turn-id"], notifications[1]["turn-id"])
+        await session.call_tool("get_app_state", {"app": "com.apple.calculator"})
+        self.assertNotIn("x-codex-turn-metadata", calls[-1][1]["_meta"])
 
     async def test_cleanup_timeout_is_logged_without_hiding_task_result(self):
         session = self.make_session()
         session.thread_id = "test-thread"
         session.turn_id = "own-turn"
         session.client = Path("/client")
-        process = Mock(returncode=None, communicate=AsyncMock(side_effect=TimeoutError),
-                       wait=AsyncMock())
-        with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
-                   AsyncMock(return_value=process)):
-            await session.end_turn()
-        process.kill.assert_called_once()
-        process.wait.assert_awaited_once()
+        session.rpc = AsyncMock(side_effect=TimeoutError)
+        await session.end_turn()
         self.assertEqual(session.cleanup_status, "failed")
+        self.assertIsNone(session.turn_id)
 
-    async def test_cleanup_without_turn_does_not_send_global_notification(self):
+    async def test_cleanup_reports_disconnected_runtime_without_direct_fallback(self):
         session = self.make_session()
+        session.thread_id = "test-thread"
+        session.turn_id = "own-turn"
+        session.client = Path("/client")
         with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
                    AsyncMock()) as spawn:
             await session.end_turn()
         spawn.assert_not_awaited()
+        self.assertEqual(session.cleanup_status, "failed")
+        self.assertIsNone(session.turn_id)
+
+    async def test_cleanup_without_turn_does_not_send_global_notification(self):
+        session = self.make_session()
+        session.rpc = AsyncMock()
+        await session.end_turn()
+        session.rpc.assert_not_awaited()
 
     async def test_computer_use_approval_is_automatic_by_default(self):
         session = self.make_session()
