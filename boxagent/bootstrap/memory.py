@@ -26,7 +26,9 @@ def create_memory_module(*, app_settings, conversation_store, runtime_host,
         cache_dir=app_settings.jev_mem_cache,
         backend=app_settings.jev_mem_backend,
         workspace=app_settings.root,
-        typesafe_api_key=app_settings.typesafe_api_key,
+        decision_api_key=app_settings.decision_api_key,
+        decision_base_url=app_settings.decision_base_url,
+        decision_model=app_settings.decision_model,
         log_path=app_settings.log_dir / "memory/worker.log",
     )
     profile_store = JsonProfileStore(

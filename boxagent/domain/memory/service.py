@@ -85,6 +85,9 @@ class MemoryService:
             raise ValueError("密码、Token、API Key 或验证码不能写入长期记忆")
         result = await self._require_backend().remember([{
             "content": content,
+            # Jev-Mem orders nodes by time; an untimed node cannot be compared
+            # with timezone-aware ones and aborts the whole write.
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "metadata": {
                 "source": source,
                 "role": "user",

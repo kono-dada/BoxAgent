@@ -37,6 +37,10 @@ class Settings:
     jev_mem_cache: Path
     jev_mem_backend: str
     typesafe_api_key: str
+    decision_provider: str
+    decision_api_key: str
+    decision_base_url: str
+    decision_model: str
     perception_model: Path
     soul_file: Path
     engine_watch: bool
@@ -118,10 +122,45 @@ def resolve_jev_mem_cache(data_dir):
     return legacy if legacy.exists() and not current.exists() else current
 
 
+DECISION_PROVIDERS = ("auto", "aliyun", "typesafe")
+
+
+def resolve_decision_model(*, provider, dashscope_key, workspace_id, region,
+                           typesafe_key):
+    """Choose the System One decision service shared by memory and intent.
+
+    Aliyun Model Studio hosts the same System One protocol under the
+    workspace endpoint, reachable from mainland China; TypeSafe.ai's public API
+    rejects some regions (HTTP 451). ``auto`` prefers Aliyun when its workspace
+    is configured, because the realtime voice already depends on it.
+    """
+    provider = (provider or "auto").strip().lower()
+    if provider not in DECISION_PROVIDERS:
+        raise ValueError("BOXAGENT_DECISION_PROVIDER 只支持 auto、aliyun 或 typesafe")
+    if provider == "auto":
+        provider = "aliyun" if dashscope_key and workspace_id else "typesafe"
+    if provider == "aliyun":
+        base_url = (f"https://{workspace_id}.{region}.maas.aliyuncs.com/compatible-mode"
+                    if workspace_id else "")
+        return (provider, dashscope_key, base_url,
+                read_optional_setting("BOXAGENT_DECISION_MODEL") or "decision-model-preview")
+    return (provider, typesafe_key,
+            read_optional_setting("TYPESAFE_BASE_URL") or "https://api.typesafe.ai",
+            read_optional_setting("TYPESAFE_DEFAULT_MODEL") or "jev-latest")
+
+
 def load_settings(*, log_dir=None) -> Settings:
     data = Path(os.environ.get(
         "BOXAGENT_DATA_DIR", ROOT / ".runtime/pet")).expanduser().resolve()
     configured_log = Path(log_dir).expanduser().resolve() if log_dir else data / "logs"
+    qwen_api_key = read_optional_secret("DASHSCOPE_API_KEY")
+    qwen_workspace_id = read_optional_setting("BOXAGENT_DASHSCOPE_WORKSPACE_ID").strip()
+    qwen_region = (read_optional_setting("BOXAGENT_DASHSCOPE_REGION") or "cn-beijing").strip()
+    typesafe_api_key = read_optional_secret("TYPESAFE_API_KEY")
+    decision = resolve_decision_model(
+        provider=read_optional_setting("BOXAGENT_DECISION_PROVIDER"),
+        dashscope_key=qwen_api_key, workspace_id=qwen_workspace_id,
+        region=qwen_region, typesafe_key=typesafe_api_key)
     return Settings(
         root=ROOT,
         data_dir=data,
@@ -142,13 +181,11 @@ def load_settings(*, log_dir=None) -> Settings:
             "BOXAGENT_QWEN_CHECKPOINT_TRIGGER_CHARS", 18000),
         checkpoint_source_character_limit=read_positive_int(
             "BOXAGENT_CHECKPOINT_SOURCE_CHARS", 32000),
-        qwen_api_key=read_optional_secret("DASHSCOPE_API_KEY"),
+        qwen_api_key=qwen_api_key,
         qwen_transport=(read_optional_setting("BOXAGENT_QWEN_TRANSPORT")
                         or "auto").strip().lower(),
-        qwen_workspace_id=read_optional_setting(
-            "BOXAGENT_DASHSCOPE_WORKSPACE_ID").strip(),
-        qwen_region=(read_optional_setting("BOXAGENT_DASHSCOPE_REGION")
-                     or "cn-beijing").strip(),
+        qwen_workspace_id=qwen_workspace_id,
+        qwen_region=qwen_region,
         aoq_sdk_dir=Path(read_optional_setting("BOXAGENT_AOQ_SDK_DIR")
                          or ROOT / ".runtime/aoq-sdk/1.3.0/frameworks").expanduser().resolve(),
         aoq_work_dir=Path(read_optional_setting("BOXAGENT_AOQ_WORK_DIR")
@@ -164,7 +201,11 @@ def load_settings(*, log_dir=None) -> Settings:
         jev_mem_cache=resolve_jev_mem_cache(data),
         jev_mem_backend=read_renamed_setting(
             "BOXAGENT_JEV_MEM_BACKEND", "BOXAGENT_JEV_MEMORY_BACKEND", "auto"),
-        typesafe_api_key=read_optional_secret("TYPESAFE_API_KEY"),
+        typesafe_api_key=typesafe_api_key,
+        decision_provider=decision[0],
+        decision_api_key=decision[1],
+        decision_base_url=decision[2],
+        decision_model=decision[3],
         perception_model=Path(os.environ.get(
             "BOXAGENT_PERCEPTION_MODEL", ROOT / "models/qwen3.5-0.8b-mlx")),
         soul_file=resolve_soul_file(data),

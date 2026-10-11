@@ -29,15 +29,16 @@ def intent_questions():
     """“本轮是否要求操作电脑”的命题定义；只描述状态字段，不暴露问题 ID。
 
     v1（长指令 + 上一轮回复）在本地 Laya 上 AUC 0.45，接近随机；v2 改为单字段、
-    两选项的 Choice，AUC 0.83。P(action) 取 ``operate`` 选项的概率。
+    两选项的 Choice（Laya AUC 0.83）；v3 改中文描述，阿里云 decision-model-preview
+    上 AUC 0.99（校正标注后）。P(action) 取 ``operate`` 选项的概率。
     """
     return {
         "action": Choice(
-            instructions="What does `user_message` want from a desktop assistant?",
+            instructions="用户希望桌面助手做什么？",
             criteria={
-                "operate": ("Operate an app, website or the computer "
-                            "(open, play, stop, click, search, calculate)."),
-                "chat": "Chat, answer a question, or remember/recall something.",
+                "operate": ("现在去操作电脑：打开/关闭应用或网页，播放、暂停、收藏、点赞、发消息、"
+                            "搜索、计算、点击、输入、查看屏幕内容"),
+                "chat": "聊天、提问、让助手记住或回忆某事、评论或抱怨，没有要求现在操作电脑",
             }),
     }
 
@@ -47,9 +48,19 @@ def load_client(backend):
     from boxagent.infrastructure.memory.jev_mem.core.jev_mem_config import JevMemConfig
 
     # 不重试、不缓存：测的是单次调用的真实延迟。审计写到临时目录，不污染记忆库。
+    options = {}
+    api_key = None
+    if backend == "aliyun":
+        # 阿里云百炼托管同一 System One 协议；密钥用 DashScope Key。
+        workspace = os.environ["BOXAGENT_DASHSCOPE_WORKSPACE_ID"]
+        region = os.getenv("BOXAGENT_DASHSCOPE_REGION", "cn-beijing")
+        options = {"jev_base_url": f"https://{workspace}.{region}.maas.aliyuncs.com/compatible-mode",
+                   "jev_model": "decision-model-preview"}
+        api_key = os.environ["DASHSCOPE_API_KEY"]
+        backend = "jev"
     config = JevMemConfig(decision_backend=backend, timeout_seconds=3.0, max_retries=0,
-                          cache_size=0, fallback_to_magma=False)
-    return JevClient(config, audit=None)
+                          cache_size=0, fallback_to_magma=False, **options)
+    return JevClient(config, api_key=api_key, audit=None)
 
 
 def main():
@@ -57,7 +68,7 @@ def main():
     parser.add_argument("--labels", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--thresholds", default="0.5,0.8,0.9,0.95")
-    parser.add_argument("--backend", default="jev", choices=("jev", "laya-mlx"))
+    parser.add_argument("--backend", default="aliyun", choices=("aliyun", "jev", "laya-mlx"))
     args = parser.parse_args()
     if args.backend == "jev" and not os.getenv("TYPESAFE_API_KEY"):
         sys.exit("TYPESAFE_API_KEY 未设置")
@@ -68,7 +79,7 @@ def main():
     results = []
     with args.out.open("w", encoding="utf-8") as out:
         for row in rows:
-            state = {"user_message": row["text"]}
+            state = {"用户这句话": row["text"]}
             started = time.perf_counter()
             try:
                 result = client.evaluate("intent", state, questions)

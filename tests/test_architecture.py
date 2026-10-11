@@ -42,6 +42,27 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(settings.root, ROOT)
         self.assertTrue((settings.root / "assets/pet/atlas-contract.json").is_file())
 
+    def test_decision_model_prefers_aliyun_when_workspace_is_configured(self):
+        from boxagent.bootstrap.settings import resolve_decision_model
+
+        with patch.dict("os.environ", {"BOXAGENT_DECISION_MODEL": "",
+                                       "TYPESAFE_BASE_URL": "", "TYPESAFE_DEFAULT_MODEL": ""}):
+            provider, key, url, model = resolve_decision_model(
+                provider="auto", dashscope_key="sk-ali", workspace_id="ws1",
+                region="cn-beijing", typesafe_key="ts")
+            self.assertEqual((provider, key, model), ("aliyun", "sk-ali", "decision-model-preview"))
+            self.assertEqual(url, "https://ws1.cn-beijing.maas.aliyuncs.com/compatible-mode")
+            provider, key, url, _ = resolve_decision_model(
+                provider="auto", dashscope_key="sk-ali", workspace_id="",
+                region="cn-beijing", typesafe_key="ts")
+            self.assertEqual((provider, key, url), ("typesafe", "ts", "https://api.typesafe.ai"))
+            self.assertEqual(resolve_decision_model(
+                provider="typesafe", dashscope_key="sk-ali", workspace_id="ws1",
+                region="cn-beijing", typesafe_key="ts")[0], "typesafe")
+            with self.assertRaises(ValueError):
+                resolve_decision_model(provider="other", dashscope_key="", workspace_id="",
+                                       region="", typesafe_key="")
+
     def test_memory_graph_uses_bundled_web_assets_without_remote_runtime(self):
         graph_root = ROOT / "assets/memory-graph"
         html = (graph_root / "index.html").read_text(encoding="utf-8")

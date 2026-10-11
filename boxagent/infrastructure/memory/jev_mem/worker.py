@@ -95,9 +95,9 @@ class Worker:
             from boxagent.infrastructure.memory.jev_mem.api import JevMemConfig, JevMemSystem
             from boxagent.infrastructure.memory.jev_mem.core.query_engine import QueryEngine
             use_jev = backend == "jev" or (backend == "auto" and bool(os.getenv("TYPESAFE_API_KEY")))
-            config = JevMemConfig(write_enabled=True, read_enabled=True,
-                                  admission_enabled=True, jev_mock=not use_jev,
-                                  audit_path=str(cache_dir / "decisions.jsonl"))
+            config = JevMemConfig.load(write_enabled=True, read_enabled=True,
+                                       admission_enabled=True, jev_mock=not use_jev,
+                                       audit_path=str(cache_dir / "decisions.jsonl"))
             self.system = JevMemSystem(cache_dir=str(cache_dir), jev_config=config)
             if (cache_dir / "graph.json").is_file():
                 self.system.load_memory()
