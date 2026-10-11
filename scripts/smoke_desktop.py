@@ -11,7 +11,7 @@ from pathlib import Path
 import AppKit as AK
 from PyObjCTools import AppHelper
 
-from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
+from boxagent.interfaces.macos.pets.vrm import VrmAppearance
 from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.bootstrap.engine import create_task_executor
@@ -49,8 +49,7 @@ def main():
             task_id, provider="codex", auto_approve=False,
             app_settings=app_settings), make_voice), log_dir=output)
     desktop = Desktop.alloc().init().configure(
-        backend, CodexPetsAppearance(app_settings.default_pet,
-            contract_path=app_settings.root / "assets/pet/atlas-contract.json"),
+        backend, VrmAppearance(app_settings.default_pet),
         data_dir=output)
     app.setDelegate_(desktop)
     result = {}

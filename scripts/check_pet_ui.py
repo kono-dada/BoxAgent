@@ -12,7 +12,7 @@ from Foundation import NSRunLoop, NSDate, NSIndexSet
 from PyObjCTools import AppHelper
 
 import boxagent.interfaces.macos.app as host
-from boxagent.interfaces.macos.pets.appearance import CodexPetsAppearance
+from boxagent.interfaces.macos.pets.vrm import VrmAppearance
 from boxagent.infrastructure.persistence import SkillFileRepository
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.memory import MemoryModule
@@ -99,8 +99,7 @@ def main():
         skill_service=skill_service),
         log_dir=output)
     desktop = host.Desktop.alloc().init().configure(
-        backend, CodexPetsAppearance(app_settings.default_pet,
-            contract_path=app_settings.root / "assets/pet/atlas-contract.json"),
+        backend, VrmAppearance(app_settings.default_pet),
         data_dir=output,
         memory_dashboard_factory=lambda owner:
             MemoryDashboardWindow.alloc().init().configure(owner),
@@ -149,6 +148,12 @@ def main():
     def idle():
         app.setAppearance_(AK.NSAppearance.appearanceNamed_(AK.NSAppearanceNameAqua))
         desktop.updateLabels()
+        check(desktop.pet.isVisible(), "启动时显示桌宠")
+        check(not desktop.bubble.isVisible() and not desktop.bubble_open,
+              "启动时不打开聊天面板")
+        check(not desktop.context_bubble.isVisible(), "启动时不显示屏幕总结")
+        desktop.toggleBubble_(None)
+        check(desktop.bubble.isVisible(), "手动打开聊天面板")
         check(desktop.bubble.frame().size.height <= 180, "空闲面板不超过 180pt")
         check(desktop.cancel_button.isHidden(), "空闲时隐藏停止按钮")
         check(not desktop.send_button.isEnabled(), "空白输入不能提交")

@@ -1,0 +1,808 @@
+{
+  "type": "vrm",
+  "version": 1,
+  "displayName": "Zome",
+  "model": "model.vrm",
+  "hiddenMeshes": [],
+  "motionSet": {
+    "idle": [
+      "PET_IDLE/PET_IDLE",
+      "UPDATE_2/PET_IDLE_UPDATE2_01",
+      "UPDATE_2/PET_IDLE_UPDATE2_02",
+      "UPDATE_2/PET_IDLE_UPDATE2_03",
+      "UPDATE_2/PET_IDLE_UPDATE2_04",
+      "PET_IDLE/PET_IDLE_2",
+      "PET_IDLE/PET_IDLE_14",
+      "PET_IDLE/PET_IDLE_4",
+      "PET_IDLE/PET_IDLE_3",
+      "PET_IDLE/PET_IDLE_5",
+      "PET_IDLE/PET_IDLE_15"
+    ],
+    "dragging": "PET_MISC/PET_DRAGGING",
+    "speaking": "UPDATE_2/PET_TALKING",
+    "sleeping": "PET_SLEEPING/PET_SLEEPING",
+    "success": "PET_MISC/PET_HAPPY"
+  },
+  "motionSettings": {
+    "FACE_LAYER/FACE_DRAG": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_HAIR_STROKE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_IDLE_1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_INTIME": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_RESET": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/PET_HAPPY": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/BIG_SCREEN_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_10": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_11": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_12": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_13": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_2": {
+      "timeScale": 0.6,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_5": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_6": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_7": {
+      "timeScale": 1.25,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_8": {
+      "timeScale": 1.25,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_9": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/PET_HIDE 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_HIDING/PET_HIDE_SHOW_LOOP_LEFT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/PET_HIDE_SHOW_LOOP_RIGHT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/PET_HIDE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_HIDING/TEST_HIDE_LEFT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/TEST_HIDE_RIGHT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/CUSTOM_DANCE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_DRAG": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE05": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE06": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE07": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE08": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE09": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_SITTING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_16": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_17": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_19": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_20": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_21": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_22": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_10": {
+      "timeScale": 0.85,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_11": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_12": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_13": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_14": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_15": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_5": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_6": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_7": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_8": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_9": {
+      "timeScale": 0.75,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_NON_1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE": {
+      "timeScale": 0.3,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_INTRO/PET_INTRO_END": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_INTRO/PET_INTRO_LOOP": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_INTRO/PET_INTRO_START": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_INTRO/PET_INTRO": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_LOCOMOTION/PET_WALK_LEFT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/PET_WALK_RIGHT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_01_light": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_02_light": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_03_light": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/FACE_SMILE 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/FACE_SMILE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/HoverFace": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/HoverReaction": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_DRAGGING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_HAPPY": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_LAUGHING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_SHY_POINT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_MISC/PLACE_HOLDER_ANIMATION": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_2": {
+      "timeScale": 2,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_3": {
+      "timeScale": 3,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_5": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_6": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_7": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_05": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_06": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_07": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_SMOOTHIE_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/sit 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/suwari1_copy": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/suwari1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/suwari3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/WINDOW_LAY_10": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/WINDOW_LAY_8": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/WINDOW_LAY_9": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/PET_SITTING_DEMO_2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/PET_SITTING_DEMO": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_SITTING/sippose39": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/sipposeC06": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SLEEPING/PET_SLEEPING": {
+      "timeScale": 0.6,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "U_MOTIONS/AnkhaZone": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "U_MOTIONS/Float 2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "U_MOTIONS/Float v3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_TALKING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    }
+  },
+  "behaviorSettings": {
+    "idleSwitchTime": 10,
+    "idleTransitionTime": 1
+  },
+  "actions": {
+    "FACE_LAYER/FACE_DRAG": "motions/FACE_LAYER/FACE_DRAG.vrma",
+    "FACE_LAYER/FACE_HAIR_STROKE": "motions/FACE_LAYER/FACE_HAIR_STROKE.vrma",
+    "FACE_LAYER/FACE_IDLE_1": "motions/FACE_LAYER/FACE_IDLE_1.vrma",
+    "FACE_LAYER/FACE_INTIME": "motions/FACE_LAYER/FACE_INTIME.vrma",
+    "FACE_LAYER/FACE_RESET": "motions/FACE_LAYER/FACE_RESET.vrma",
+    "FACE_LAYER/PET_HAPPY": "motions/FACE_LAYER/PET_HAPPY.vrma",
+    "PET_BIG_SCREEN/BIG_SCREEN_01": "motions/PET_BIG_SCREEN/BIG_SCREEN_01.vrma",
+    "PET_BIG_SCREEN/SCREEN_SAVER_01": "motions/PET_BIG_SCREEN/SCREEN_SAVER_01.vrma",
+    "PET_BIG_SCREEN/SCREEN_SAVER_02": "motions/PET_BIG_SCREEN/SCREEN_SAVER_02.vrma",
+    "PET_BIG_SCREEN/SCREEN_SAVER_03": "motions/PET_BIG_SCREEN/SCREEN_SAVER_03.vrma",
+    "PET_BIG_SCREEN/SCREEN_SAVER_04": "motions/PET_BIG_SCREEN/SCREEN_SAVER_04.vrma",
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_01": "motions/PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_01.vrma",
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_02": "motions/PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_02.vrma",
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_03": "motions/PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_03.vrma",
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_04": "motions/PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_04.vrma",
+    "PET_DANCING/PET_DANCING_10": "motions/PET_DANCING/PET_DANCING_10.vrma",
+    "PET_DANCING/PET_DANCING_11": "motions/PET_DANCING/PET_DANCING_11.vrma",
+    "PET_DANCING/PET_DANCING_12": "motions/PET_DANCING/PET_DANCING_12.vrma",
+    "PET_DANCING/PET_DANCING_13": "motions/PET_DANCING/PET_DANCING_13.vrma",
+    "PET_DANCING/PET_DANCING_2": "motions/PET_DANCING/PET_DANCING_2.vrma",
+    "PET_DANCING/PET_DANCING_3": "motions/PET_DANCING/PET_DANCING_3.vrma",
+    "PET_DANCING/PET_DANCING_4": "motions/PET_DANCING/PET_DANCING_4.vrma",
+    "PET_DANCING/PET_DANCING_5": "motions/PET_DANCING/PET_DANCING_5.vrma",
+    "PET_DANCING/PET_DANCING_6": "motions/PET_DANCING/PET_DANCING_6.vrma",
+    "PET_DANCING/PET_DANCING_7": "motions/PET_DANCING/PET_DANCING_7.vrma",
+    "PET_DANCING/PET_DANCING_8": "motions/PET_DANCING/PET_DANCING_8.vrma",
+    "PET_DANCING/PET_DANCING_9": "motions/PET_DANCING/PET_DANCING_9.vrma",
+    "PET_DANCING/PET_DANCING": "motions/PET_DANCING/PET_DANCING.vrma",
+    "PET_HIDING/PET_HIDE 1": "motions/PET_HIDING/PET_HIDE 1.vrma",
+    "PET_HIDING/PET_HIDE_SHOW_LOOP_LEFT": "motions/PET_HIDING/PET_HIDE_SHOW_LOOP_LEFT.vrma",
+    "PET_HIDING/PET_HIDE_SHOW_LOOP_RIGHT": "motions/PET_HIDING/PET_HIDE_SHOW_LOOP_RIGHT.vrma",
+    "PET_HIDING/PET_HIDE": "motions/PET_HIDING/PET_HIDE.vrma",
+    "PET_HIDING/TEST_HIDE_LEFT": "motions/PET_HIDING/TEST_HIDE_LEFT.vrma",
+    "PET_HIDING/TEST_HIDE_RIGHT": "motions/PET_HIDING/TEST_HIDE_RIGHT.vrma",
+    "PET_IDLE/CUSTOM_DANCE": "motions/PET_IDLE/CUSTOM_DANCE.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_DRAG": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_DRAG.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE01": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE01.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE02": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE02.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE03": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE03.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE04": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE04.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE05": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE05.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE06": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE06.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE07": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE07.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE08": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE08.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE09": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_IDLE09.vrma",
+    "PET_IDLE/ME_02/HUSBANDO/HUS_SITTING": "motions/PET_IDLE/ME_02/HUSBANDO/HUS_SITTING.vrma",
+    "PET_IDLE/ME_02/PET_IDLE_16": "motions/PET_IDLE/ME_02/PET_IDLE_16.vrma",
+    "PET_IDLE/ME_02/PET_IDLE_17": "motions/PET_IDLE/ME_02/PET_IDLE_17.vrma",
+    "PET_IDLE/ME_02/PET_IDLE_19": "motions/PET_IDLE/ME_02/PET_IDLE_19.vrma",
+    "PET_IDLE/ME_02/PET_IDLE_20": "motions/PET_IDLE/ME_02/PET_IDLE_20.vrma",
+    "PET_IDLE/ME_02/PET_IDLE_21": "motions/PET_IDLE/ME_02/PET_IDLE_21.vrma",
+    "PET_IDLE/ME_02/PET_IDLE_22": "motions/PET_IDLE/ME_02/PET_IDLE_22.vrma",
+    "PET_IDLE/PET_IDLE 1": "motions/PET_IDLE/PET_IDLE 1.vrma",
+    "PET_IDLE/PET_IDLE_10": "motions/PET_IDLE/PET_IDLE_10.vrma",
+    "PET_IDLE/PET_IDLE_11": "motions/PET_IDLE/PET_IDLE_11.vrma",
+    "PET_IDLE/PET_IDLE_12": "motions/PET_IDLE/PET_IDLE_12.vrma",
+    "PET_IDLE/PET_IDLE_13": "motions/PET_IDLE/PET_IDLE_13.vrma",
+    "PET_IDLE/PET_IDLE_14": "motions/PET_IDLE/PET_IDLE_14.vrma",
+    "PET_IDLE/PET_IDLE_15": "motions/PET_IDLE/PET_IDLE_15.vrma",
+    "PET_IDLE/PET_IDLE_2": "motions/PET_IDLE/PET_IDLE_2.vrma",
+    "PET_IDLE/PET_IDLE_3": "motions/PET_IDLE/PET_IDLE_3.vrma",
+    "PET_IDLE/PET_IDLE_4": "motions/PET_IDLE/PET_IDLE_4.vrma",
+    "PET_IDLE/PET_IDLE_5": "motions/PET_IDLE/PET_IDLE_5.vrma",
+    "PET_IDLE/PET_IDLE_6": "motions/PET_IDLE/PET_IDLE_6.vrma",
+    "PET_IDLE/PET_IDLE_7": "motions/PET_IDLE/PET_IDLE_7.vrma",
+    "PET_IDLE/PET_IDLE_8": "motions/PET_IDLE/PET_IDLE_8.vrma",
+    "PET_IDLE/PET_IDLE_9": "motions/PET_IDLE/PET_IDLE_9.vrma",
+    "PET_IDLE/PET_IDLE_NON_1": "motions/PET_IDLE/PET_IDLE_NON_1.vrma",
+    "PET_IDLE/PET_IDLE": "motions/PET_IDLE/PET_IDLE.vrma",
+    "PET_INTRO/PET_INTRO_END": "motions/PET_INTRO/PET_INTRO_END.vrma",
+    "PET_INTRO/PET_INTRO_LOOP": "motions/PET_INTRO/PET_INTRO_LOOP.vrma",
+    "PET_INTRO/PET_INTRO_START": "motions/PET_INTRO/PET_INTRO_START.vrma",
+    "PET_INTRO/PET_INTRO": "motions/PET_INTRO/PET_INTRO.vrma",
+    "PET_LOCOMOTION/PET_WALK_LEFT": "motions/PET_LOCOMOTION/PET_WALK_LEFT.vrma",
+    "PET_LOCOMOTION/PET_WALK_RIGHT": "motions/PET_LOCOMOTION/PET_WALK_RIGHT.vrma",
+    "PET_LOCOMOTION/walk_cycle_sexy_01_light": "motions/PET_LOCOMOTION/walk_cycle_sexy_01_light.vrma",
+    "PET_LOCOMOTION/walk_cycle_sexy_02_light": "motions/PET_LOCOMOTION/walk_cycle_sexy_02_light.vrma",
+    "PET_LOCOMOTION/walk_cycle_sexy_02": "motions/PET_LOCOMOTION/walk_cycle_sexy_02.vrma",
+    "PET_LOCOMOTION/walk_cycle_sexy_03_light": "motions/PET_LOCOMOTION/walk_cycle_sexy_03_light.vrma",
+    "PET_LOCOMOTION/walk_cycle_sexy_03": "motions/PET_LOCOMOTION/walk_cycle_sexy_03.vrma",
+    "PET_MISC/FACE_SMILE 1": "motions/PET_MISC/FACE_SMILE 1.vrma",
+    "PET_MISC/FACE_SMILE": "motions/PET_MISC/FACE_SMILE.vrma",
+    "PET_MISC/HoverFace": "motions/PET_MISC/HoverFace.vrma",
+    "PET_MISC/HoverReaction": "motions/PET_MISC/HoverReaction.vrma",
+    "PET_MISC/PET_DRAGGING": "motions/PET_MISC/PET_DRAGGING.vrma",
+    "PET_MISC/PET_HAPPY": "motions/PET_MISC/PET_HAPPY.vrma",
+    "PET_MISC/PET_LAUGHING": "motions/PET_MISC/PET_LAUGHING.vrma",
+    "PET_MISC/PET_SHY_POINT": "motions/PET_MISC/PET_SHY_POINT.vrma",
+    "PET_MISC/PLACE_HOLDER_ANIMATION": "motions/PET_MISC/PLACE_HOLDER_ANIMATION.vrma",
+    "PET_POSE/PET_POSE_1": "motions/PET_POSE/PET_POSE_1.vrma",
+    "PET_POSE/PET_POSE_2": "motions/PET_POSE/PET_POSE_2.vrma",
+    "PET_POSE/PET_POSE_3": "motions/PET_POSE/PET_POSE_3.vrma",
+    "PET_POSE/PET_POSE_4": "motions/PET_POSE/PET_POSE_4.vrma",
+    "PET_SITTING/BETA_PET_WINDOW_LAY_2": "motions/PET_SITTING/BETA_PET_WINDOW_LAY_2.vrma",
+    "PET_SITTING/BETA_PET_WINDOW_LAY_3": "motions/PET_SITTING/BETA_PET_WINDOW_LAY_3.vrma",
+    "PET_SITTING/BETA_PET_WINDOW_LAY_4": "motions/PET_SITTING/BETA_PET_WINDOW_LAY_4.vrma",
+    "PET_SITTING/BETA_PET_WINDOW_LAY_5": "motions/PET_SITTING/BETA_PET_WINDOW_LAY_5.vrma",
+    "PET_SITTING/BETA_PET_WINDOW_LAY_6": "motions/PET_SITTING/BETA_PET_WINDOW_LAY_6.vrma",
+    "PET_SITTING/BETA_PET_WINDOW_LAY_7": "motions/PET_SITTING/BETA_PET_WINDOW_LAY_7.vrma",
+    "PET_SITTING/BETA_PET_WINDOW_LAY": "motions/PET_SITTING/BETA_PET_WINDOW_LAY.vrma",
+    "PET_SITTING/ME_02/PET_SIT_01": "motions/PET_SITTING/ME_02/PET_SIT_01.vrma",
+    "PET_SITTING/ME_02/PET_SIT_02": "motions/PET_SITTING/ME_02/PET_SIT_02.vrma",
+    "PET_SITTING/ME_02/PET_SIT_03": "motions/PET_SITTING/ME_02/PET_SIT_03.vrma",
+    "PET_SITTING/ME_02/PET_SIT_04": "motions/PET_SITTING/ME_02/PET_SIT_04.vrma",
+    "PET_SITTING/ME_02/PET_SIT_05": "motions/PET_SITTING/ME_02/PET_SIT_05.vrma",
+    "PET_SITTING/ME_02/PET_SIT_06": "motions/PET_SITTING/ME_02/PET_SIT_06.vrma",
+    "PET_SITTING/ME_02/PET_SIT_07": "motions/PET_SITTING/ME_02/PET_SIT_07.vrma",
+    "PET_SITTING/ME_02/PET_SIT_SMOOTHIE_01": "motions/PET_SITTING/ME_02/PET_SIT_SMOOTHIE_01.vrma",
+    "PET_SITTING/ME_02/sit 1": "motions/PET_SITTING/ME_02/sit 1.vrma",
+    "PET_SITTING/ME_02/suwari1_copy": "motions/PET_SITTING/ME_02/suwari1_copy.vrma",
+    "PET_SITTING/ME_02/suwari1": "motions/PET_SITTING/ME_02/suwari1.vrma",
+    "PET_SITTING/ME_02/suwari3": "motions/PET_SITTING/ME_02/suwari3.vrma",
+    "PET_SITTING/ME_02/WINDOW_LAY_10": "motions/PET_SITTING/ME_02/WINDOW_LAY_10.vrma",
+    "PET_SITTING/ME_02/WINDOW_LAY_8": "motions/PET_SITTING/ME_02/WINDOW_LAY_8.vrma",
+    "PET_SITTING/ME_02/WINDOW_LAY_9": "motions/PET_SITTING/ME_02/WINDOW_LAY_9.vrma",
+    "PET_SITTING/PET_SITTING_DEMO_2": "motions/PET_SITTING/PET_SITTING_DEMO_2.vrma",
+    "PET_SITTING/PET_SITTING_DEMO": "motions/PET_SITTING/PET_SITTING_DEMO.vrma",
+    "PET_SITTING/sippose39": "motions/PET_SITTING/sippose39.vrma",
+    "PET_SITTING/sipposeC06": "motions/PET_SITTING/sipposeC06.vrma",
+    "PET_SLEEPING/PET_SLEEPING": "motions/PET_SLEEPING/PET_SLEEPING.vrma",
+    "U_MOTIONS/AnkhaZone": "motions/U_MOTIONS/AnkhaZone.vrma",
+    "U_MOTIONS/Float 2": "motions/U_MOTIONS/Float 2.vrma",
+    "U_MOTIONS/Float v3": "motions/U_MOTIONS/Float v3.vrma",
+    "UPDATE_2/PET_IDLE_UPDATE2_01": "motions/UPDATE_2/PET_IDLE_UPDATE2_01.vrma",
+    "UPDATE_2/PET_IDLE_UPDATE2_02": "motions/UPDATE_2/PET_IDLE_UPDATE2_02.vrma",
+    "UPDATE_2/PET_IDLE_UPDATE2_03": "motions/UPDATE_2/PET_IDLE_UPDATE2_03.vrma",
+    "UPDATE_2/PET_IDLE_UPDATE2_04": "motions/UPDATE_2/PET_IDLE_UPDATE2_04.vrma",
+    "UPDATE_2/PET_TALKING": "motions/UPDATE_2/PET_TALKING.vrma"
+  },
+  "motionProfile": {
+    "source": "Assets/MATE ENGINE - Animations/AvatarAnimatorController.controller",
+    "sha256": "ac569360c227a0ef8b67c4c48779533b3e160fd436f3725a46d9ccebacaec250",
+    "available": 128
+  },
+  "motionPack": "mate-engine"
+}

@@ -4,15 +4,16 @@
 
 ## 桌宠宿主与语音
 
-准备 uv、Python 3.12 和 PortAudio。使用 Homebrew 的机器可以安装 `uv`、`portaudio`；PyAudio 首次构建还可能需要 Xcode Command Line Tools。桌宠的 Python 依赖由 `scripts/pet.py` 与 `scripts/pet.py.lock` 管理，不要把它们装入视觉 `.venv`。
+准备 uv、Python 3.12、PortAudio、Git LFS、Node.js 与 pnpm。使用 Homebrew 的机器可以安装 `uv`、`portaudio`；PyAudio 首次构建还可能需要 Xcode Command Line Tools。桌宠的 Python 依赖由 `scripts/pet.py` 与 `scripts/pet.py.lock` 管理，不要把它们装入视觉 `.venv`。
 
-当前支持的完整产品配置要求先在项目根目录完成凭据和三个运行组件的准备：
+当前支持的完整产品配置要求先在项目根目录完成凭据、运行组件和 3D 资产的准备：
 
 ```sh
 zsh scripts/set-key.zsh
 ./scripts/setup-aoq-sdk.sh
 ./scripts/setup-jev-mem.sh
 ./scripts/download-qwen-mlx.zsh
+bash scripts/setup_vrm.sh
 ```
 
 同时准备 Codex App Server、同版本 `codex-code-mode-host` 与 Computer Use 组件。全部完成后启动：

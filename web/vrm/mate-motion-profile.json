@@ -1,0 +1,2823 @@
+{
+  "version": 1,
+  "source": {
+    "motionFolder": "mate_engine_motions",
+    "controller": "Assets/MATE ENGINE - Animations/AvatarAnimatorController.controller",
+    "controllerSha256": "ac569360c227a0ef8b67c4c48779533b3e160fd436f3725a46d9ccebacaec250",
+    "prefab": "Assets/MATE ENGINE - Scripts/CustomVRM.prefab"
+  },
+  "behaviorSettings": {
+    "idleSwitchTime": 10,
+    "idleTransitionTime": 1
+  },
+  "idleCount": 11,
+  "idleChildren": [
+    {
+      "id": "PET_IDLE/PET_IDLE",
+      "file": "PET_IDLE/PET_IDLE.vrma",
+      "index": 0,
+      "timeScale": 0.3,
+      "cycleOffset": 0
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_01",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_01.vrma",
+      "index": 1,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_02",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_02.vrma",
+      "index": 2,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_03",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_03.vrma",
+      "index": 3,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_04",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_04.vrma",
+      "index": 4,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_2",
+      "file": "PET_IDLE/PET_IDLE_2.vrma",
+      "index": 5,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_14",
+      "file": "PET_IDLE/PET_IDLE_14.vrma",
+      "index": 6,
+      "timeScale": 0.4,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_4",
+      "file": "PET_IDLE/PET_IDLE_4.vrma",
+      "index": 7,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_3",
+      "file": "PET_IDLE/PET_IDLE_3.vrma",
+      "index": 8,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_5",
+      "file": "PET_IDLE/PET_IDLE_5.vrma",
+      "index": 9,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_15",
+      "file": "PET_IDLE/PET_IDLE_15.vrma",
+      "index": 10,
+      "timeScale": 0.4,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_13",
+      "file": "PET_IDLE/PET_IDLE_13.vrma",
+      "index": 11,
+      "timeScale": 0.4,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_9",
+      "file": "PET_IDLE/PET_IDLE_9.vrma",
+      "index": 12,
+      "timeScale": 0.75,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_12",
+      "file": "PET_IDLE/PET_IDLE_12.vrma",
+      "index": 13,
+      "timeScale": 0.4,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_6",
+      "file": "PET_IDLE/PET_IDLE_6.vrma",
+      "index": 14,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_10",
+      "file": "PET_IDLE/PET_IDLE_10.vrma",
+      "index": 15,
+      "timeScale": 0.85,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_11",
+      "file": "PET_IDLE/PET_IDLE_11.vrma",
+      "index": 16,
+      "timeScale": 0.4,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_7",
+      "file": "PET_IDLE/PET_IDLE_7.vrma",
+      "index": 17,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_8",
+      "file": "PET_IDLE/PET_IDLE_8.vrma",
+      "index": 18,
+      "timeScale": 1,
+      "cycleOffset": 0
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE",
+      "file": "PET_IDLE/PET_IDLE.vrma",
+      "index": 19,
+      "timeScale": 0.3,
+      "cycleOffset": 0
+    }
+  ],
+  "motionSet": {
+    "idle": [
+      "PET_IDLE/PET_IDLE",
+      "UPDATE_2/PET_IDLE_UPDATE2_01",
+      "UPDATE_2/PET_IDLE_UPDATE2_02",
+      "UPDATE_2/PET_IDLE_UPDATE2_03",
+      "UPDATE_2/PET_IDLE_UPDATE2_04",
+      "PET_IDLE/PET_IDLE_2",
+      "PET_IDLE/PET_IDLE_14",
+      "PET_IDLE/PET_IDLE_4",
+      "PET_IDLE/PET_IDLE_3",
+      "PET_IDLE/PET_IDLE_5",
+      "PET_IDLE/PET_IDLE_15"
+    ],
+    "dragging": "PET_MISC/PET_DRAGGING",
+    "speaking": "UPDATE_2/PET_TALKING",
+    "sleeping": "PET_SLEEPING/PET_SLEEPING",
+    "success": "PET_MISC/PET_HAPPY"
+  },
+  "motionSettings": {
+    "FACE_LAYER/FACE_DRAG": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_HAIR_STROKE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_IDLE_1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_INTIME": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/FACE_RESET": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "FACE_LAYER/PET_HAPPY": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/BIG_SCREEN_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_BIG_SCREEN/SCREEN_SAVER_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_10": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_11": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_12": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_13": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_2": {
+      "timeScale": 0.6,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_5": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_6": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_7": {
+      "timeScale": 1.25,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_8": {
+      "timeScale": 1.25,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING_9": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_DANCING/PET_DANCING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/PET_HIDE 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_HIDING/PET_HIDE_SHOW_LOOP_LEFT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/PET_HIDE_SHOW_LOOP_RIGHT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/PET_HIDE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_HIDING/TEST_HIDE_LEFT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_HIDING/TEST_HIDE_RIGHT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/CUSTOM_DANCE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_DRAG": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE05": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE06": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE07": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE08": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE09": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/HUSBANDO/HUS_SITTING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_16": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_17": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_19": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_20": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_21": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/ME_02/PET_IDLE_22": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_10": {
+      "timeScale": 0.85,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_11": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_12": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_13": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_14": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_15": {
+      "timeScale": 0.4,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_5": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_6": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_7": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_8": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_9": {
+      "timeScale": 0.75,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE_NON_1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_IDLE/PET_IDLE": {
+      "timeScale": 0.3,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_INTRO/PET_INTRO_END": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_INTRO/PET_INTRO_LOOP": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_INTRO/PET_INTRO_START": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_INTRO/PET_INTRO": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_LOCOMOTION/PET_WALK_LEFT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/PET_WALK_RIGHT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_01_light": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_02_light": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_03_light": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_LOCOMOTION/walk_cycle_sexy_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/FACE_SMILE 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/FACE_SMILE": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/HoverFace": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/HoverReaction": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_DRAGGING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_HAPPY": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_LAUGHING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_MISC/PET_SHY_POINT": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_MISC/PLACE_HOLDER_ANIMATION": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_POSE/PET_POSE_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_2": {
+      "timeScale": 2,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_3": {
+      "timeScale": 3,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_4": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_5": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_6": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY_7": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/BETA_PET_WINDOW_LAY": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_05": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_06": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_07": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/PET_SIT_SMOOTHIE_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/sit 1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/suwari1_copy": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/suwari1": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/suwari3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/WINDOW_LAY_10": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/WINDOW_LAY_8": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/ME_02/WINDOW_LAY_9": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/PET_SITTING_DEMO_2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/PET_SITTING_DEMO": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": false
+    },
+    "PET_SITTING/sippose39": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SITTING/sipposeC06": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "PET_SLEEPING/PET_SLEEPING": {
+      "timeScale": 0.6,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "U_MOTIONS/AnkhaZone": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "U_MOTIONS/Float 2": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "U_MOTIONS/Float v3": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_01": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_02": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_03": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_IDLE_UPDATE2_04": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    },
+    "UPDATE_2/PET_TALKING": {
+      "timeScale": 1,
+      "cycleOffset": 0,
+      "loop": true
+    }
+  },
+  "entries": [
+    {
+      "id": "FACE_LAYER/FACE_DRAG",
+      "file": "FACE_LAYER/FACE_DRAG.vrma",
+      "category": "FACE_LAYER",
+      "bytes": 191668,
+      "sha256": "b9f3b5c867c53e007a6d4ec5a986a3e167b209605b155f4218ac242df029c58a",
+      "duration": 10.033334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "FACE_LAYER/FACE_HAIR_STROKE",
+      "file": "FACE_LAYER/FACE_HAIR_STROKE.vrma",
+      "category": "FACE_LAYER",
+      "bytes": 191668,
+      "sha256": "21a032c317e629cf7149287e0038030fa96e6f18b7547173468d739c704ce0f0",
+      "duration": 10.033334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "FACE_LAYER/FACE_IDLE_1",
+      "file": "FACE_LAYER/FACE_IDLE_1.vrma",
+      "category": "FACE_LAYER",
+      "bytes": 191668,
+      "sha256": "2642e1c456ea10f8cfe5797ca3e8cb866eb96b830f0358abada90ffa7ce0ee2f",
+      "duration": 10.033334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "Faceloop",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "FACE_LAYER/FACE_INTIME",
+      "file": "FACE_LAYER/FACE_INTIME.vrma",
+      "category": "FACE_LAYER",
+      "bytes": 191668,
+      "sha256": "b9f3b5c867c53e007a6d4ec5a986a3e167b209605b155f4218ac242df029c58a",
+      "duration": 10.033334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "FACE_LAYER/FACE_RESET",
+      "file": "FACE_LAYER/FACE_RESET.vrma",
+      "category": "FACE_LAYER",
+      "bytes": 49848,
+      "sha256": "c8e3b11891e39e1d70d83831665416b9194313284d7d0d4342a7540848488ac5",
+      "duration": 1.983333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "FACE_LAYER/PET_HAPPY",
+      "file": "FACE_LAYER/PET_HAPPY.vrma",
+      "category": "FACE_LAYER",
+      "bytes": 32196,
+      "sha256": "afcfa98b5ddd8999fc7cb9338ac6160474504cc493e97453eefc29462545758b",
+      "duration": 1,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_BIG_SCREEN/BIG_SCREEN_01",
+      "file": "PET_BIG_SCREEN/BIG_SCREEN_01.vrma",
+      "category": "PET_BIG_SCREEN",
+      "bytes": 250476,
+      "sha256": "497b4773e2ff0ee32610b03307336ac5d3461b9a916b6327d6411d9d42974373",
+      "duration": 13.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "BigScreenBlend",
+          "threshold": 0,
+          "timeScale": 0.5,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "blendTree",
+          "parameter": "BigScreenBlend",
+          "threshold": 6,
+          "timeScale": 0.5,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "state",
+          "state": "Alarm",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_BIG_SCREEN/SCREEN_SAVER_01",
+      "file": "PET_BIG_SCREEN/SCREEN_SAVER_01.vrma",
+      "category": "PET_BIG_SCREEN",
+      "bytes": 250476,
+      "sha256": "8eb55d7ee77bdad884e22089b5e2d3a24c10181dea3e0fb7cff4dfe9c500fcf8",
+      "duration": 13.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "BigScreenBlend",
+          "threshold": 1,
+          "timeScale": 0.5,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "state",
+          "state": "Animation 1",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_BIG_SCREEN/SCREEN_SAVER_02",
+      "file": "PET_BIG_SCREEN/SCREEN_SAVER_02.vrma",
+      "category": "PET_BIG_SCREEN",
+      "bytes": 81100,
+      "sha256": "8014a4fe06fd74c7345a5c04bfb61092eb240d503078b214ec2b58d29264fc84",
+      "duration": 3.733334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "Animation 2",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_BIG_SCREEN/SCREEN_SAVER_03",
+      "file": "PET_BIG_SCREEN/SCREEN_SAVER_03.vrma",
+      "category": "PET_BIG_SCREEN",
+      "bytes": 250476,
+      "sha256": "497b4773e2ff0ee32610b03307336ac5d3461b9a916b6327d6411d9d42974373",
+      "duration": 13.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "Animation 3",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_BIG_SCREEN/SCREEN_SAVER_04",
+      "file": "PET_BIG_SCREEN/SCREEN_SAVER_04.vrma",
+      "category": "PET_BIG_SCREEN",
+      "bytes": 310456,
+      "sha256": "64626e0c8e842e1cb6d5da861d4c4c31dc49207f43885e749bab1a908d6a29fd",
+      "duration": 16.733353,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "Screen Saver",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_01",
+      "file": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_01.vrma",
+      "category": "PET_DANCING",
+      "bytes": 296340,
+      "sha256": "e1c532bcf2da41ba0b0e31579283bbea43200d29eff685a187d53bd355db83e7",
+      "duration": 15.966667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_02",
+      "file": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_02.vrma",
+      "category": "PET_DANCING",
+      "bytes": 476888,
+      "sha256": "cfc2902832a76348f3d51d24285b915baeb73f0fea0294e09cbb57c845122046",
+      "duration": 26.166668,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_03",
+      "file": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_03.vrma",
+      "category": "PET_DANCING",
+      "bytes": 232836,
+      "sha256": "f595048656ef5cb0769a26d54e162dd66ce1a80a18bb6ad6c42d173334af568a",
+      "duration": 12.35,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_04",
+      "file": "PET_DANCING/ME_02/HUSBANDO/HUS_DANCE_04.vrma",
+      "category": "PET_DANCING",
+      "bytes": 126384,
+      "sha256": "71503754506c4b9261b84897374a41f9fa98d8ec746d5808539c96e788d5209c",
+      "duration": 6.333333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_10",
+      "file": "PET_DANCING/PET_DANCING_10.vrma",
+      "category": "PET_DANCING",
+      "bytes": 399268,
+      "sha256": "2d2c2e5e8920d7838999061fb0ac1e4f73a86382b91e2555641db5f9b2021f83",
+      "duration": 21.783335,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 9,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_11",
+      "file": "PET_DANCING/PET_DANCING_11.vrma",
+      "category": "PET_DANCING",
+      "bytes": 497468,
+      "sha256": "d7c9658cd91bf22a667e90f20369b6c5d6b6a1ed84bf7292ed535b675e39ece2",
+      "duration": 27.350002,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 10,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_12",
+      "file": "PET_DANCING/PET_DANCING_12.vrma",
+      "category": "PET_DANCING",
+      "bytes": 126384,
+      "sha256": "71503754506c4b9261b84897374a41f9fa98d8ec746d5808539c96e788d5209c",
+      "duration": 6.333333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 11,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_13",
+      "file": "PET_DANCING/PET_DANCING_13.vrma",
+      "category": "PET_DANCING",
+      "bytes": 361612,
+      "sha256": "166bd22bfb89eaeb356b1083bac3fe4f01e4e41e09b9c1b9d542640175feeba4",
+      "duration": 19.633335,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 12,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_2",
+      "file": "PET_DANCING/PET_DANCING_2.vrma",
+      "category": "PET_DANCING",
+      "bytes": 38080,
+      "sha256": "2e1e84d02e0e16239e408aec5badc79fa9f517a7c68f39e391fbd59446b2e5cd",
+      "duration": 1.333333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 1,
+          "timeScale": 0.6,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_3",
+      "file": "PET_DANCING/PET_DANCING_3.vrma",
+      "category": "PET_DANCING",
+      "bytes": 82864,
+      "sha256": "dba4748eda130f58d650b6019b3f63757b509130c553e2b389fd7bb80f83df1e",
+      "duration": 3.849976,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 2,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_4",
+      "file": "PET_DANCING/PET_DANCING_4.vrma",
+      "category": "PET_DANCING",
+      "bytes": 55164,
+      "sha256": "a11354479a1756acbe2223bcaca17bbb8777fc220d1b004dcfc02f277850bbb9",
+      "duration": 2.266668,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 3,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_5",
+      "file": "PET_DANCING/PET_DANCING_5.vrma",
+      "category": "PET_DANCING",
+      "bytes": 45140,
+      "sha256": "12dae68f07a8512c5c0667672dd42f08cbf2d45e5a7837f195220430ef9f13e9",
+      "duration": 1.700012,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 4,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_6",
+      "file": "PET_DANCING/PET_DANCING_6.vrma",
+      "category": "PET_DANCING",
+      "bytes": 57516,
+      "sha256": "5d439c563e5cd6e46eba636f0d098c444af5cc2226fa70995284a0dc43b36ba3",
+      "duration": 2.416668,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 5,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_7",
+      "file": "PET_DANCING/PET_DANCING_7.vrma",
+      "category": "PET_DANCING",
+      "bytes": 103444,
+      "sha256": "1b630837ef1ee6f88026c539df3ea5c009c852e8ec8aceac2dc7dfa31679642d",
+      "duration": 5.016663,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 6,
+          "timeScale": 1.25,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_8",
+      "file": "PET_DANCING/PET_DANCING_8.vrma",
+      "category": "PET_DANCING",
+      "bytes": 56340,
+      "sha256": "311c14447e029cdb2282cb240f979ebdd83ef210e845dc8c3364e22dda51338d",
+      "duration": 2.349998,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 7,
+          "timeScale": 1.25,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING_9",
+      "file": "PET_DANCING/PET_DANCING_9.vrma",
+      "category": "PET_DANCING",
+      "bytes": 94036,
+      "sha256": "fc1739410841b5e2f98484001de66b29335a9eb59cd5f25b7eb04f91bbe01401",
+      "duration": 4.483334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 8,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_DANCING/PET_DANCING",
+      "file": "PET_DANCING/PET_DANCING.vrma",
+      "category": "PET_DANCING",
+      "bytes": 265764,
+      "sha256": "383da250ed71682d6cb3724e9b8f5508eb892734c17d38bc6aa55c5d793ca2d3",
+      "duration": 14.216667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 0,
+          "timeScale": 1,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "blendTree",
+          "parameter": "DanceIndex",
+          "threshold": 13,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_HIDING/PET_HIDE 1",
+      "file": "PET_HIDING/PET_HIDE 1.vrma",
+      "category": "PET_HIDING",
+      "bytes": 261648,
+      "sha256": "6f996164d36c1242bc2b897758e3bbe1ad30914918d83040d99b13239d8ad565",
+      "duration": 13.983368,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": false,
+      "references": []
+    },
+    {
+      "id": "PET_HIDING/PET_HIDE_SHOW_LOOP_LEFT",
+      "file": "PET_HIDING/PET_HIDE_SHOW_LOOP_LEFT.vrma",
+      "category": "PET_HIDING",
+      "bytes": 155792,
+      "sha256": "26c2c43c0ad5e97aea535280432594280d86445bce1074f87588dad7e95cb621",
+      "duration": 8,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_HIDING/PET_HIDE_SHOW_LOOP_RIGHT",
+      "file": "PET_HIDING/PET_HIDE_SHOW_LOOP_RIGHT.vrma",
+      "category": "PET_HIDING",
+      "bytes": 155792,
+      "sha256": "26c2c43c0ad5e97aea535280432594280d86445bce1074f87588dad7e95cb621",
+      "duration": 8,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_HIDING/PET_HIDE",
+      "file": "PET_HIDING/PET_HIDE.vrma",
+      "category": "PET_HIDING",
+      "bytes": 261648,
+      "sha256": "6f996164d36c1242bc2b897758e3bbe1ad30914918d83040d99b13239d8ad565",
+      "duration": 13.983368,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": false,
+      "references": []
+    },
+    {
+      "id": "PET_HIDING/TEST_HIDE_LEFT",
+      "file": "PET_HIDING/TEST_HIDE_LEFT.vrma",
+      "category": "PET_HIDING",
+      "bytes": 32196,
+      "sha256": "ae4a364656444d3f1ac3207f3a151483746d149f57c8c8df37a23375742e2d64",
+      "duration": 1,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_HIDING/TEST_HIDE_RIGHT",
+      "file": "PET_HIDING/TEST_HIDE_RIGHT.vrma",
+      "category": "PET_HIDING",
+      "bytes": 32196,
+      "sha256": "ae4a364656444d3f1ac3207f3a151483746d149f57c8c8df37a23375742e2d64",
+      "duration": 1,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/CUSTOM_DANCE",
+      "file": "PET_IDLE/CUSTOM_DANCE.vrma",
+      "category": "PET_IDLE",
+      "bytes": 58104,
+      "sha256": "19253dc80a1fbefe0239900fa9d90e8516a594b1a7cd250b7865706433c63912",
+      "duration": 2.450012,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_DRAG",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_DRAG.vrma",
+      "category": "PET_IDLE",
+      "bytes": 94036,
+      "sha256": "f3747c19640940aeb8309b4a7d0cb6e79bb612d421aff009014e0f29258d44f6",
+      "duration": 4.5,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE01",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE01.vrma",
+      "category": "PET_IDLE",
+      "bytes": 171084,
+      "sha256": "a87db809c239894a5e60183064b9ea49fbdccd7ee89648efb37267304eb9bd7b",
+      "duration": 8.866667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE02",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE02.vrma",
+      "category": "PET_IDLE",
+      "bytes": 202844,
+      "sha256": "2f1a34fbeafa99d13ce55c5a61ca43b8d711543c896cc2d8b2155a3c00949f5e",
+      "duration": 10.666667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE03",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE03.vrma",
+      "category": "PET_IDLE",
+      "bytes": 89920,
+      "sha256": "e75d317cd0b77ff9fa81a321c909b28e318070170c9519d9c924522ab7ecac3f",
+      "duration": 4.266667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE04",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE04.vrma",
+      "category": "PET_IDLE",
+      "bytes": 189904,
+      "sha256": "878484ea7017220c179a4cd3ef1bed12fec07f79857c12921fc76a99e386f7ae",
+      "duration": 9.916667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE05",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE05.vrma",
+      "category": "PET_IDLE",
+      "bytes": 93448,
+      "sha256": "b1ff3de91e1ac185084ad190dda46d0d6c782969ce030e06cebdcbc4fcde695c",
+      "duration": 4.466667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE06",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE06.vrma",
+      "category": "PET_IDLE",
+      "bytes": 126384,
+      "sha256": "a330a483ca5fdbf0078d26afc74f415e597d8cd9be5aea79f4d635ace38cf972",
+      "duration": 6.316667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE07",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE07.vrma",
+      "category": "PET_IDLE",
+      "bytes": 71060,
+      "sha256": "019bdd07e562fdac77d7cd84a10f7ee5c3601d67f1b61e5ceb389dbe8e9308c0",
+      "duration": 3.183333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE08",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE08.vrma",
+      "category": "PET_IDLE",
+      "bytes": 201080,
+      "sha256": "90621e7ec29644399e8b7acebf5aa715075b108eddb8d3dc46275a959394eedf",
+      "duration": 10.55,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE09",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_IDLE09.vrma",
+      "category": "PET_IDLE",
+      "bytes": 78160,
+      "sha256": "e9096d33c2943ab370f8ed046eb9eee05deb938ddc71c72fbd93020a045aa626",
+      "duration": 3.583333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/HUSBANDO/HUS_SITTING",
+      "file": "PET_IDLE/ME_02/HUSBANDO/HUS_SITTING.vrma",
+      "category": "PET_IDLE",
+      "bytes": 206372,
+      "sha256": "7ffa2c0a4ebdc2c694df8040eb8522523b37763bd6e65d82e20ed42d7ed1a56b",
+      "duration": 10.866667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/PET_IDLE_16",
+      "file": "PET_IDLE/ME_02/PET_IDLE_16.vrma",
+      "category": "PET_IDLE",
+      "bytes": 252828,
+      "sha256": "9a4ed6224ca790d20fbdfccfc65e5ae832149fb8010e94d34aefcf27e0afd9ce",
+      "duration": 13.475,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/PET_IDLE_17",
+      "file": "PET_IDLE/ME_02/PET_IDLE_17.vrma",
+      "category": "PET_IDLE",
+      "bytes": 274584,
+      "sha256": "76aeb2c2cd7a4c2e9b7e79fe76173797e66b269461e882cd92f5cb0647debc33",
+      "duration": 14.700001,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/PET_IDLE_19",
+      "file": "PET_IDLE/ME_02/PET_IDLE_19.vrma",
+      "category": "PET_IDLE",
+      "bytes": 272232,
+      "sha256": "3b0fe5262c98a7ca4ac23eda0aa2e33bb00ee49c0e543b82bf990cf120aa4bd8",
+      "duration": 14.575001,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/PET_IDLE_20",
+      "file": "PET_IDLE/ME_02/PET_IDLE_20.vrma",
+      "category": "PET_IDLE",
+      "bytes": 239304,
+      "sha256": "e0ced9bff09d906bec8df4c786312879f01c2063ae89097e77f96274cab4f201",
+      "duration": 12.725,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/PET_IDLE_21",
+      "file": "PET_IDLE/ME_02/PET_IDLE_21.vrma",
+      "category": "PET_IDLE",
+      "bytes": 315160,
+      "sha256": "46c9b36ec104a90cbdbb3205063effd4db2614ae0a5b217377ebda2c50c44a78",
+      "duration": 17.016668,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/ME_02/PET_IDLE_22",
+      "file": "PET_IDLE/ME_02/PET_IDLE_22.vrma",
+      "category": "PET_IDLE",
+      "bytes": 264588,
+      "sha256": "01baeecaecbbdb4df0cef8d94e7b25217a9ded59ca260a07a235968966396fb3",
+      "duration": 14.166667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE 1",
+      "file": "PET_IDLE/PET_IDLE 1.vrma",
+      "category": "PET_IDLE",
+      "bytes": 58104,
+      "sha256": "19253dc80a1fbefe0239900fa9d90e8516a594b1a7cd250b7865706433c63912",
+      "duration": 2.450012,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_10",
+      "file": "PET_IDLE/PET_IDLE_10.vrma",
+      "category": "PET_IDLE",
+      "bytes": 209312,
+      "sha256": "10cb051b5a7f27259a3925fcc96ae1e9ffaf89d3b88fbba6d5033b242db3651d",
+      "duration": 11.000001,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 15,
+          "timeScale": 0.85,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_11",
+      "file": "PET_IDLE/PET_IDLE_11.vrma",
+      "category": "PET_IDLE",
+      "bytes": 86980,
+      "sha256": "0c6a50293fbbb61b4d9d33a3000571cc6f5b840f530eb4fc6b9ed971eaf6d522",
+      "duration": 4.066667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 16,
+          "timeScale": 0.4,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_12",
+      "file": "PET_IDLE/PET_IDLE_12.vrma",
+      "category": "PET_IDLE",
+      "bytes": 76396,
+      "sha256": "340eff2cedc7b5a8a2d17f99c0727a498bb7b087ae76a7c2aba3ad93c028dfbf",
+      "duration": 3.466667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 13,
+          "timeScale": 0.4,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_13",
+      "file": "PET_IDLE/PET_IDLE_13.vrma",
+      "category": "PET_IDLE",
+      "bytes": 88156,
+      "sha256": "ec6bc902f92f305e429373df1894b812f2b03257a4d0ef1a3e7c960ca17b6a67",
+      "duration": 4.133334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 11,
+          "timeScale": 0.4,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_14",
+      "file": "PET_IDLE/PET_IDLE_14.vrma",
+      "category": "PET_IDLE",
+      "bytes": 91684,
+      "sha256": "19f51db9ef28e12183b0418edb54e48ea2604c833589f5fae3624e1557bda33a",
+      "duration": 4.366667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 6,
+          "timeScale": 0.4,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_15",
+      "file": "PET_IDLE/PET_IDLE_15.vrma",
+      "category": "PET_IDLE",
+      "bytes": 98740,
+      "sha256": "b4d4e7517b2c0804309497cb0ed067e9e2828af995c8e00d5bd8e6b599813039",
+      "duration": 4.766667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 10,
+          "timeScale": 0.4,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_2",
+      "file": "PET_IDLE/PET_IDLE_2.vrma",
+      "category": "PET_IDLE",
+      "bytes": 250476,
+      "sha256": "8eb55d7ee77bdad884e22089b5e2d3a24c10181dea3e0fb7cff4dfe9c500fcf8",
+      "duration": 13.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 5,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_3",
+      "file": "PET_IDLE/PET_IDLE_3.vrma",
+      "category": "PET_IDLE",
+      "bytes": 81100,
+      "sha256": "8014a4fe06fd74c7345a5c04bfb61092eb240d503078b214ec2b58d29264fc84",
+      "duration": 3.733334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 8,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_4",
+      "file": "PET_IDLE/PET_IDLE_4.vrma",
+      "category": "PET_IDLE",
+      "bytes": 250476,
+      "sha256": "497b4773e2ff0ee32610b03307336ac5d3461b9a916b6327d6411d9d42974373",
+      "duration": 13.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 7,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_5",
+      "file": "PET_IDLE/PET_IDLE_5.vrma",
+      "category": "PET_IDLE",
+      "bytes": 182848,
+      "sha256": "09bfbaa057c0a150722708a9f93e9d66263520d6d687c122dcfe9c78c04702f8",
+      "duration": 9.500001,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 9,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_6",
+      "file": "PET_IDLE/PET_IDLE_6.vrma",
+      "category": "PET_IDLE",
+      "bytes": 115204,
+      "sha256": "0cddb09577206a0a13169eafa24909a848c9031313206fa39c2cab2c16bf4898",
+      "duration": 5.666667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 14,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_7",
+      "file": "PET_IDLE/PET_IDLE_7.vrma",
+      "category": "PET_IDLE",
+      "bytes": 179908,
+      "sha256": "45083205977c55c44c9de037a0160101bbd7c22b502d1e43f6ceaf288b1b6d47",
+      "duration": 9.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 17,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_8",
+      "file": "PET_IDLE/PET_IDLE_8.vrma",
+      "category": "PET_IDLE",
+      "bytes": 121088,
+      "sha256": "3c3dcf07143a86ad2aa05c25dec075cd293769b7b428a9d5e9e043d247e03a38",
+      "duration": 6,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 18,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_9",
+      "file": "PET_IDLE/PET_IDLE_9.vrma",
+      "category": "PET_IDLE",
+      "bytes": 191668,
+      "sha256": "1e9432cd02fa9696b53e592a30bc3c2fa63d72a65d0db2d0d811c00f48b60fe4",
+      "duration": 10.000001,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 12,
+          "timeScale": 0.75,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE_NON_1",
+      "file": "PET_IDLE/PET_IDLE_NON_1.vrma",
+      "category": "PET_IDLE",
+      "bytes": 138736,
+      "sha256": "0e66d6c6e9a46a92d19048980a731870f4ab6db24a4ae1318c217a091f0e4c69",
+      "duration": 7,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_IDLE/PET_IDLE",
+      "file": "PET_IDLE/PET_IDLE.vrma",
+      "category": "PET_IDLE",
+      "bytes": 58104,
+      "sha256": "19253dc80a1fbefe0239900fa9d90e8516a594b1a7cd250b7865706433c63912",
+      "duration": 2.450012,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 0,
+          "timeScale": 0.3,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 19,
+          "timeScale": 0.3,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_INTRO/PET_INTRO_END",
+      "file": "PET_INTRO/PET_INTRO_END.vrma",
+      "category": "PET_INTRO",
+      "bytes": 42200,
+      "sha256": "757c83fe65bbb77096de5e884a01604355ffd46d242be6e27482e55894fc4819",
+      "duration": 1.533334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": false,
+      "references": []
+    },
+    {
+      "id": "PET_INTRO/PET_INTRO_LOOP",
+      "file": "PET_INTRO/PET_INTRO_LOOP.vrma",
+      "category": "PET_INTRO",
+      "bytes": 250476,
+      "sha256": "5c9c60418f3f0af4dbed7a2475357e8d3dbe42df121b74f02aa6be9638a12b33",
+      "duration": 13.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_INTRO/PET_INTRO_START",
+      "file": "PET_INTRO/PET_INTRO_START.vrma",
+      "category": "PET_INTRO",
+      "bytes": 49848,
+      "sha256": "e9479e051f47d3280b1100a2cfa2762ddc1285daa9c3c02911cca1f735c954dd",
+      "duration": 2,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": false,
+      "references": []
+    },
+    {
+      "id": "PET_INTRO/PET_INTRO",
+      "file": "PET_INTRO/PET_INTRO.vrma",
+      "category": "PET_INTRO",
+      "bytes": 194608,
+      "sha256": "cfa47cbbc490322e958ebe8e6eacb98515263694cfbc8be8d323ec434787f5ca",
+      "duration": 10.18335,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": false,
+      "references": [
+        {
+          "kind": "state",
+          "state": "Intro",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_LOCOMOTION/PET_WALK_LEFT",
+      "file": "PET_LOCOMOTION/PET_WALK_LEFT.vrma",
+      "category": "PET_LOCOMOTION",
+      "bytes": 39844,
+      "sha256": "9d8e1b6530999d23ff23d81acbf7d7a3307f1cb1b8d31d0ab894ab7a9c66134c",
+      "duration": 1.416667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_LOCOMOTION/PET_WALK_RIGHT",
+      "file": "PET_LOCOMOTION/PET_WALK_RIGHT.vrma",
+      "category": "PET_LOCOMOTION",
+      "bytes": 39844,
+      "sha256": "9d8e1b6530999d23ff23d81acbf7d7a3307f1cb1b8d31d0ab894ab7a9c66134c",
+      "duration": 1.416667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_LOCOMOTION/walk_cycle_sexy_01_light",
+      "file": "PET_LOCOMOTION/walk_cycle_sexy_01_light.vrma",
+      "category": "PET_LOCOMOTION",
+      "bytes": 39844,
+      "sha256": "d0272221aecf73083266c29428bc4554b2331328782ec55712949ed4123dd42d",
+      "duration": 1.416667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_LOCOMOTION/walk_cycle_sexy_02_light",
+      "file": "PET_LOCOMOTION/walk_cycle_sexy_02_light.vrma",
+      "category": "PET_LOCOMOTION",
+      "bytes": 39844,
+      "sha256": "b7bd0561cdf2249d20917bb6d9d8d22ee682f9d0117b483d9444e96585c28b7d",
+      "duration": 1.416667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_LOCOMOTION/walk_cycle_sexy_02",
+      "file": "PET_LOCOMOTION/walk_cycle_sexy_02.vrma",
+      "category": "PET_LOCOMOTION",
+      "bytes": 39844,
+      "sha256": "b97774776613ff4985fe37d76d8944055a293e3e4cf936a9ab0e5a67d1792109",
+      "duration": 1.416667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_LOCOMOTION/walk_cycle_sexy_03_light",
+      "file": "PET_LOCOMOTION/walk_cycle_sexy_03_light.vrma",
+      "category": "PET_LOCOMOTION",
+      "bytes": 39844,
+      "sha256": "cf4ff8838ec35cff178f3365af6e4b6d5ad573eb7b9df2eb30d7cda0c2eb4397",
+      "duration": 1.416667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_LOCOMOTION/walk_cycle_sexy_03",
+      "file": "PET_LOCOMOTION/walk_cycle_sexy_03.vrma",
+      "category": "PET_LOCOMOTION",
+      "bytes": 39844,
+      "sha256": "eeb5c103c4ad6a7f66ed27828fc3adc4b152b41e685ea30b37e01a8e319b097c",
+      "duration": 1.416667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_MISC/FACE_SMILE 1",
+      "file": "PET_MISC/FACE_SMILE 1.vrma",
+      "category": "PET_MISC",
+      "bytes": 85216,
+      "sha256": "1a9dd19eda4215da8ebbfa1766808c2168ae30290376ad80d51581ede88d6ea3",
+      "duration": 4,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_MISC/FACE_SMILE",
+      "file": "PET_MISC/FACE_SMILE.vrma",
+      "category": "PET_MISC",
+      "bytes": 85216,
+      "sha256": "1a9dd19eda4215da8ebbfa1766808c2168ae30290376ad80d51581ede88d6ea3",
+      "duration": 4,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_MISC/HoverFace",
+      "file": "PET_MISC/HoverFace.vrma",
+      "category": "PET_MISC",
+      "bytes": 58104,
+      "sha256": "19253dc80a1fbefe0239900fa9d90e8516a594b1a7cd250b7865706433c63912",
+      "duration": 2.450012,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "HoverFace",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_MISC/HoverReaction",
+      "file": "PET_MISC/HoverReaction.vrma",
+      "category": "PET_MISC",
+      "bytes": 58104,
+      "sha256": "19253dc80a1fbefe0239900fa9d90e8516a594b1a7cd250b7865706433c63912",
+      "duration": 2.450012,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "HoverReaction",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_MISC/PET_DRAGGING",
+      "file": "PET_MISC/PET_DRAGGING.vrma",
+      "category": "PET_MISC",
+      "bytes": 240480,
+      "sha256": "8bda226c62600f9539fc9709086e32709603cad397bbc13d9a9b9541f46b1c98",
+      "duration": 12.783334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "Drag",
+          "timeScale": 1
+        }
+      ]
+    },
+    {
+      "id": "PET_MISC/PET_HAPPY",
+      "file": "PET_MISC/PET_HAPPY.vrma",
+      "category": "PET_MISC",
+      "bytes": 130500,
+      "sha256": "fa4a408b003ac7055636a12c6028e536c46570a827cc4e88646f7a1b2c5abbf2",
+      "duration": 6.55,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_MISC/PET_LAUGHING",
+      "file": "PET_MISC/PET_LAUGHING.vrma",
+      "category": "PET_MISC",
+      "bytes": 162264,
+      "sha256": "41d35aa7de15390ea23c6b1490c3a935eae5b0c1d606ccb5628316616ad2d284",
+      "duration": 8.333334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_MISC/PET_SHY_POINT",
+      "file": "PET_MISC/PET_SHY_POINT.vrma",
+      "category": "PET_MISC",
+      "bytes": 209312,
+      "sha256": "f8bdf0d0e44092803b5c2fff29899dc08377200ff0dec380db27d46418579fbc",
+      "duration": 11.000001,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": false,
+      "references": []
+    },
+    {
+      "id": "PET_MISC/PLACE_HOLDER_ANIMATION",
+      "file": "PET_MISC/PLACE_HOLDER_ANIMATION.vrma",
+      "category": "PET_MISC",
+      "bytes": 67532,
+      "sha256": "81e07be931bb8f718039581522e0debf9e07dc4d68abfd17a02922ab954826f7",
+      "duration": 3,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_POSE/PET_POSE_1",
+      "file": "PET_POSE/PET_POSE_1.vrma",
+      "category": "PET_POSE",
+      "bytes": 134616,
+      "sha256": "35ea67c6ad3848b07293f5bc98c3e20407989a79d8f15a0f8b5eec1a949e4f9f",
+      "duration": 6.8,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_POSE/PET_POSE_2",
+      "file": "PET_POSE/PET_POSE_2.vrma",
+      "category": "PET_POSE",
+      "bytes": 134616,
+      "sha256": "b5b2d59c115438ad14eef4c0ab1b3c37767af670549278f089d345c6dd82f4d8",
+      "duration": 6.8,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_POSE/PET_POSE_3",
+      "file": "PET_POSE/PET_POSE_3.vrma",
+      "category": "PET_POSE",
+      "bytes": 103444,
+      "sha256": "2f5899e38ac8d21bf1b088e62e86e117c97061a2a9712c91b571b8dab1bc0dbe",
+      "duration": 5,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_POSE/PET_POSE_4",
+      "file": "PET_POSE/PET_POSE_4.vrma",
+      "category": "PET_POSE",
+      "bytes": 134616,
+      "sha256": "06887e07fca6d6826408db0a0412aaefa4337c230b2e88629d02aeba9e20afbf",
+      "duration": 6.8,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/BETA_PET_WINDOW_LAY_2",
+      "file": "PET_SITTING/BETA_PET_WINDOW_LAY_2.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "30f6fc7d61f86aca7ffb8a41b0bcb9960c364f3671cf233cb45d60d5e8e6c00f",
+      "duration": 0.016667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 0,
+          "timeScale": 2,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/BETA_PET_WINDOW_LAY_3",
+      "file": "PET_SITTING/BETA_PET_WINDOW_LAY_3.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "16ef0dc5cfe1c72ed248757a56ad3a5aa96f5311764b5f24658e344c24d4e2a1",
+      "duration": 0.033333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 2,
+          "timeScale": 3,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/BETA_PET_WINDOW_LAY_4",
+      "file": "PET_SITTING/BETA_PET_WINDOW_LAY_4.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "16ef0dc5cfe1c72ed248757a56ad3a5aa96f5311764b5f24658e344c24d4e2a1",
+      "duration": 0.033333,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 3,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/BETA_PET_WINDOW_LAY_5",
+      "file": "PET_SITTING/BETA_PET_WINDOW_LAY_5.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "1ad4c1f80fec789d7dd693024ca3fb598fc9201ae82798de5911df30987bf56a",
+      "duration": 0,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 4,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/BETA_PET_WINDOW_LAY_6",
+      "file": "PET_SITTING/BETA_PET_WINDOW_LAY_6.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "23beb6ac6ebec1f4d0881e8a9df08f2a9efec08152d3e1b228a63f2b0a3dbc09",
+      "duration": 0,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 5,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/BETA_PET_WINDOW_LAY_7",
+      "file": "PET_SITTING/BETA_PET_WINDOW_LAY_7.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "7c5efc6f2590b4e6a4113cf1dad6f4c1efb67cb3472fdafa9e4716cc6e374146",
+      "duration": 0,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 6,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/BETA_PET_WINDOW_LAY",
+      "file": "PET_SITTING/BETA_PET_WINDOW_LAY.vrma",
+      "category": "PET_SITTING",
+      "bytes": 366904,
+      "sha256": "e05ff40588750e31c6865f5ab6cb0c0ffe8f03bd8192c0c18fb7e11675adca90",
+      "duration": 19.958334,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 1,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_01",
+      "file": "PET_SITTING/ME_02/PET_SIT_01.vrma",
+      "category": "PET_SITTING",
+      "bytes": 71060,
+      "sha256": "25d597037c785d6ac8781cc41bec36812669cd6adf48b070877abcd2936242dd",
+      "duration": 3.166748,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_02",
+      "file": "PET_SITTING/ME_02/PET_SIT_02.vrma",
+      "category": "PET_SITTING",
+      "bytes": 129324,
+      "sha256": "02dd1fadf737a6c0fd7153ef9b3db44705d21e8e009fcf3cc4490c2426c15bb8",
+      "duration": 6.466675,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_03",
+      "file": "PET_SITTING/ME_02/PET_SIT_03.vrma",
+      "category": "PET_SITTING",
+      "bytes": 128736,
+      "sha256": "16800a3141f54ced0064cb787c8154a61f0a43b50a1bc18acc3c815d04c9c5f3",
+      "duration": 6.466667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_04",
+      "file": "PET_SITTING/ME_02/PET_SIT_04.vrma",
+      "category": "PET_SITTING",
+      "bytes": 49848,
+      "sha256": "c4ebcd1b1a706f0cf8674115c0e319e88fc218436c2429b51c8e68c7cf63df8d",
+      "duration": 2,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_05",
+      "file": "PET_SITTING/ME_02/PET_SIT_05.vrma",
+      "category": "PET_SITTING",
+      "bytes": 85216,
+      "sha256": "35ded0bcdd443c257391956dbee250e4bec66afeb7722a9e0ce4efa439c9527e",
+      "duration": 4,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_06",
+      "file": "PET_SITTING/ME_02/PET_SIT_06.vrma",
+      "category": "PET_SITTING",
+      "bytes": 120500,
+      "sha256": "3c542dba43af653465e90591a4f8a3421b47e12ae8b5686a702ab9aef5729231",
+      "duration": 6,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_07",
+      "file": "PET_SITTING/ME_02/PET_SIT_07.vrma",
+      "category": "PET_SITTING",
+      "bytes": 155792,
+      "sha256": "3bd905436ce10f9e166ac78a12e1cdd36ea925373acce92db79f27737a73ca17",
+      "duration": 8,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/PET_SIT_SMOOTHIE_01",
+      "file": "PET_SITTING/ME_02/PET_SIT_SMOOTHIE_01.vrma",
+      "category": "PET_SITTING",
+      "bytes": 126972,
+      "sha256": "0f63d4dd483347cb4e2ead648802c79e70fc5a9db4b09ff3c7a0b647b9cbe61c",
+      "duration": 6.35,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/sit 1",
+      "file": "PET_SITTING/ME_02/sit 1.vrma",
+      "category": "PET_SITTING",
+      "bytes": 55752,
+      "sha256": "1f9714d0a229735ee409e9ab191e588622097650d4f26f8668d54af89dc3abd4",
+      "duration": 2.316666,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/suwari1_copy",
+      "file": "PET_SITTING/ME_02/suwari1_copy.vrma",
+      "category": "PET_SITTING",
+      "bytes": 126972,
+      "sha256": "041476ede49425275256ae8d1dd1ee640dca0eca8525fbf4436dc2112750eeeb",
+      "duration": 6.35,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/suwari1",
+      "file": "PET_SITTING/ME_02/suwari1.vrma",
+      "category": "PET_SITTING",
+      "bytes": 70472,
+      "sha256": "ee9455afa992ae14e4fa5797d5256772d572471d4604437b392d1886b1e4f714",
+      "duration": 3.166667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/suwari3",
+      "file": "PET_SITTING/ME_02/suwari3.vrma",
+      "category": "PET_SITTING",
+      "bytes": 65180,
+      "sha256": "60a68e18c4e88d20626d6431ce0471329442d8a24226a829e628f68b411eeb81",
+      "duration": 2.850098,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/WINDOW_LAY_10",
+      "file": "PET_SITTING/ME_02/WINDOW_LAY_10.vrma",
+      "category": "PET_SITTING",
+      "bytes": 68120,
+      "sha256": "d833043e05afe52d3d837a4fce974e0f88e49b759902227e85b340d407a08057",
+      "duration": 3.016663,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 9,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/ME_02/WINDOW_LAY_8",
+      "file": "PET_SITTING/ME_02/WINDOW_LAY_8.vrma",
+      "category": "PET_SITTING",
+      "bytes": 56928,
+      "sha256": "3fddb657801b8a7dcbe5916dfdeaa834577303f71671a8d32791bb1e15fc1216",
+      "duration": 2.399994,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/ME_02/WINDOW_LAY_9",
+      "file": "PET_SITTING/ME_02/WINDOW_LAY_9.vrma",
+      "category": "PET_SITTING",
+      "bytes": 51048,
+      "sha256": "44b294d2905e95991690915f6a9610dae0d80c9d2cf38488c23986f0058a4744",
+      "duration": 2.050003,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "WindowSitIndex",
+          "threshold": 8,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "PET_SITTING/PET_SITTING_DEMO_2",
+      "file": "PET_SITTING/PET_SITTING_DEMO_2.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "36cd1112b4a5405129dcabce2f9582fe735c6cfdb4f8afbdf9942dbde8244533",
+      "duration": 0,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/PET_SITTING_DEMO",
+      "file": "PET_SITTING/PET_SITTING_DEMO.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "dc45e96c36ee21dba86dfc1cfae002c38425a21a4bd9cd132c0503c542784f84",
+      "duration": 0.016667,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": false,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/sippose39",
+      "file": "PET_SITTING/sippose39.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "686528f42da736f4892424fd7c9e0628defeb7954ace400148c4d6f3d08f84ae",
+      "duration": 0,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SITTING/sipposeC06",
+      "file": "PET_SITTING/sipposeC06.vrma",
+      "category": "PET_SITTING",
+      "bytes": 15000,
+      "sha256": "2d3191b07f6adde19f6790293579cb942f0e61991de870de61497bb1830914a4",
+      "duration": 0,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "PET_SLEEPING/PET_SLEEPING",
+      "file": "PET_SLEEPING/PET_SLEEPING.vrma",
+      "category": "PET_SLEEPING",
+      "bytes": 635120,
+      "sha256": "5bf20d4d46373e7f9240e8e8ab07881e1167d18a4139ce59274529a10d3b60f5",
+      "duration": 35.166668,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "Sleeping",
+          "timeScale": 0.6
+        }
+      ]
+    },
+    {
+      "id": "U_MOTIONS/AnkhaZone",
+      "file": "U_MOTIONS/AnkhaZone.vrma",
+      "category": "U_MOTIONS",
+      "bytes": 32196,
+      "sha256": "71a256e1ca4ceb57baff79fb9d6f1d0c6e87ee7a43294fb19ac998c13d136ea1",
+      "duration": 1,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "U_MOTIONS/Float 2",
+      "file": "U_MOTIONS/Float 2.vrma",
+      "category": "U_MOTIONS",
+      "bytes": 474536,
+      "sha256": "1fbdaf16e2c4f05d2bbd12f3d019526ddb28f4b6cb53d779a88ef695f2899a10",
+      "duration": 26.040001,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "U_MOTIONS/Float v3",
+      "file": "U_MOTIONS/Float v3.vrma",
+      "category": "U_MOTIONS",
+      "bytes": 808584,
+      "sha256": "01c402be061be54dad7fb8440e09c44fe2e151574beb9c93448398da21416d3b",
+      "duration": 45,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": []
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_01",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_01.vrma",
+      "category": "UPDATE_2",
+      "bytes": 305752,
+      "sha256": "7c4a8535639bf482c577e04b9c8bc4c6d00be912aa64827547c2061e8d69bd21",
+      "duration": 16.5,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "BigScreenBlend",
+          "threshold": 5,
+          "timeScale": 0.7,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 1,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_02",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_02.vrma",
+      "category": "UPDATE_2",
+      "bytes": 248712,
+      "sha256": "7ed32ae7ddf03194a96c0d049350247dc9b3979dbf8828f604ac486d170e887d",
+      "duration": 13.233337,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "BigScreenBlend",
+          "threshold": 2,
+          "timeScale": 0.7,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 2,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_03",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_03.vrma",
+      "category": "UPDATE_2",
+      "bytes": 216368,
+      "sha256": "1168248036d68f68da24c3137fe9df25fd58dbfaedeffa5d17b3a141308e84c7",
+      "duration": 11.416687,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "BigScreenBlend",
+          "threshold": 3,
+          "timeScale": 0.7,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 3,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "UPDATE_2/PET_IDLE_UPDATE2_04",
+      "file": "UPDATE_2/PET_IDLE_UPDATE2_04.vrma",
+      "category": "UPDATE_2",
+      "bytes": 226364,
+      "sha256": "f0bb32bcf16ed476c6f6bd5d9d6bafd69363d5e510cd0ce5b55e5b8625b4698d",
+      "duration": 11.983368,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "blendTree",
+          "parameter": "BigScreenBlend",
+          "threshold": 4,
+          "timeScale": 0.7,
+          "cycleOffset": 0
+        },
+        {
+          "kind": "blendTree",
+          "parameter": "IdleIndex",
+          "threshold": 4,
+          "timeScale": 1,
+          "cycleOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "UPDATE_2/PET_TALKING",
+      "file": "UPDATE_2/PET_TALKING.vrma",
+      "category": "UPDATE_2",
+      "bytes": 32196,
+      "sha256": "2d1cd54dc252d8bd05aca07d93cad25e52da3746b79b2bc7c7954eb8697f3df6",
+      "duration": 1,
+      "generator": "MateEngineAnimToVrma (Unity Editor)",
+      "channels": 41,
+      "loop": true,
+      "references": [
+        {
+          "kind": "state",
+          "state": "PET_TALKING",
+          "timeScale": 1
+        },
+        {
+          "kind": "state",
+          "state": "Talk",
+          "timeScale": 1
+        }
+      ]
+    }
+  ]
+}
