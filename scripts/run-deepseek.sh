@@ -19,7 +19,7 @@ if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
 fi
 
 cd "$project_root"
-exec uv run --script scripts/pet.py \
+exec ./scripts/run-pet.sh \
     --task-provider deepseek \
     --task-model "${BOXAGENT_DEEPSEEK_MODEL:-deepseek-flash}" \
     "$@"

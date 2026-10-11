@@ -37,6 +37,7 @@ class Settings:
     jev_mem_cache: Path
     jev_mem_backend: str
     typesafe_api_key: str
+    perception_python: Path
     perception_model: Path
     soul_file: Path
     engine_watch: bool
@@ -165,8 +166,10 @@ def load_settings(*, log_dir=None) -> Settings:
         jev_mem_backend=read_renamed_setting(
             "BOXAGENT_JEV_MEM_BACKEND", "BOXAGENT_JEV_MEMORY_BACKEND", "auto"),
         typesafe_api_key=read_optional_secret("TYPESAFE_API_KEY"),
-        perception_model=Path(os.environ.get(
-            "BOXAGENT_PERCEPTION_MODEL", ROOT / "models/qwen3.5-0.8b-mlx")),
+        perception_python=Path(read_optional_setting("BOXAGENT_PERCEPTION_PYTHON")
+                               or ROOT / ".runtime/vision-venv/bin/python").expanduser().absolute(),
+        perception_model=Path(read_optional_setting("BOXAGENT_PERCEPTION_MODEL")
+                              or ROOT / ".runtime/models/qwen3.5-0.8b-mlx").expanduser().resolve(),
         soul_file=resolve_soul_file(data),
         engine_watch=read_bool("BOXAGENT_ENGINE_WATCH", default=(ROOT / ".git").exists()),
     )

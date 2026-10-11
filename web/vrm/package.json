@@ -1,6 +1,7 @@
 {
   "name": "boxagent-vrm",
   "private": true,
+  "packageManager": "pnpm@10.33.2",
   "type": "module",
   "scripts": {
     "build": "esbuild src.js --bundle --format=iife --target=safari16 --outfile=../../assets/vrm/viewer.js",

@@ -4,7 +4,10 @@
 
 | 脚本 | 用途与副作用 |
 | --- | --- |
-| `pet.py`、`pet.py.lock` | 唯一产品入口与宿主依赖锁，`uv run --script scripts/pet.py` |
+| `install.sh`、`runtime-env.sh` | 统一安装、路径配置与缓存；`install.sh --check` 仅检查本机安装 |
+| `run-pet.sh`、`pet.py`、`pet.py.lock` | 统一启动入口、产品入口与宿主依赖锁；用 `./scripts/run-pet.sh` 启动 |
+| `setup-vision.sh`、`requirements/*.lock.txt` | 用 uv 精确同步视觉与记忆环境的完整固定版本 |
+| `check_install.py` | 离线检查依赖版本、模型摘要、运行组件签名与凭据是否存在，不证明云端或 UI 可用 |
 | `window_summary_worker.py` | 当前产品依赖的常驻 MLX 子进程，由观察适配器启动 |
 | `setup-jev-mem.sh` | 为仓库内置 Jev-Mem 建立独立重依赖环境；不下载另一份源码 |
 | `setup-aoq-sdk.sh` | 下载并校验固定版本 AOQ macOS Framework；二进制仅放在 `.runtime/`，不提交仓库 |
@@ -31,4 +34,4 @@
 
 `--smoke` 的 `--allow-app` 用于匹配测试收到的授权请求，不是隔离所有工具操作的系统沙箱；不要据此承诺模型无法访问其他应用。测试执行器明确关闭产品默认自动授权，让测试回调能够生效。原生真实验收也显式使用手动授权，用于检查授权 UI。
 
-历史脚本保留用于复现技术选择与失败原因，不表示每条旧路径当前都可用。原始实验条件、失败路径见 `docs/` 中标注为历史的记录。原始界面、截图、日志、音频仅留在 `.runtime/`、`results/`、`logs/` 等忽略目录。
+历史脚本保留用于复现技术选择与失败原因，不表示每条旧路径当前都可用。原始实验条件、失败路径见 `docs/` 中标注为历史的记录。新检查产物应放在 `.runtime/checks/`，私人材料放在 `.runtime/private/`；旧文档中的 `results/`、`logs/`、`.venv/` 与 `.venv-pet/` 不再作为当前安装路径。

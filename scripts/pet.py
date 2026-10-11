@@ -19,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 if __name__ == "__main__":
-    if "--check" in sys.argv:
+    if "--check-install" in sys.argv:
+        from scripts.check_install import main
+        sys.exit(main())
+    elif "--check" in sys.argv:
         import unittest
         suite = unittest.defaultTestLoader.discover(str(ROOT / "tests"))
         result = unittest.TextTestRunner(verbosity=2).run(suite)

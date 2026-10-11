@@ -83,18 +83,15 @@ zsh scripts/set-key.zsh
 ### 3. 安装运行组件
 
 ```sh
-./scripts/setup-aoq-sdk.sh
-./scripts/setup-jev-mem.sh
-./scripts/download-qwen-mlx.zsh
-bash scripts/setup_vrm.sh
+./scripts/install.sh
 ```
 
-还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。
+安装前还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。安装入口按锁文件同步依赖，将环境、模型和缓存放在 `.runtime/`，最后检查安装与配置；以后可用 `./scripts/install.sh --check` 单独复查。
 
 ### 4. 启动
 
 ```sh
-uv run --script scripts/pet.py
+./scripts/run-pet.sh
 ```
 
 也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
