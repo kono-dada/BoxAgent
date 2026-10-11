@@ -7,7 +7,7 @@
 
 1. **已完成（本地 `zl_dev`，未推送）**：REQ-01、INFRA-03、FIX-01。FIX-01 已补齐截图超时重试、生产配置离线复验与仓库验收脚本，`fix/window-summary` 分支线收尾。
    - 2026-10-11 同步云端 `main` @ `2cd5ca3`，纳入 VRM 桌宠与启动行为调整；合并验证为 Python 298 passed、4 skipped（独立环境补跑 4 passed），前端 25 passed，VRM 构建成功。
-2. **2026-10-12 实施**：统一会话流、迁移/回滚、参考包到期、宿主控制回复、JEV 接入、屏幕摘要引用及 Electron 只读面板已在 `codex/companion-context` 实现。具体验收和边界见 [实施验收](<2026-10-12-陪伴上下文实施验收.md>)。Qwen 保持连续会话，Codex 保留同一线程并从 Product Session 补充正式历史。
+2. **2026-10-12 本地收尾**：`codex/companion-context` 的 `c503485` 已快进合入 `zl_dev`，未推送。统一会话流、迁移/回滚、参考包到期、宿主控制回复、JEV 可选接入、屏幕摘要引用及 Electron 只读面板已实现。具体验收和边界见 [实施验收](<2026-10-12-陪伴上下文实施验收.md>)。Qwen 保持连续会话，Codex 保留同一线程并从 Product Session 补充正式历史。
 3. **主线顺序**：数据层（INFRA-01/02/04）→ 回合前链路（REQ-04 实验 → REQ-02 → REQ-03）→ Electron 面板（UI-P0/P1）→ 其余。
 4. **合入方式**：各分支先在本地合入 `zl_dev`，整体验证后推送 `zl_dev`，再合入 `main`。未经确认不推送。
 
