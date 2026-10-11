@@ -5,10 +5,32 @@ import unittest
 from pathlib import Path
 
 from boxagent.interfaces.macos.pets.size import (
-    load_pet_scale, resized_pet_frame, save_pet_scale, scaled_pet_size)
+    load_pet_scale, resized_pet_frame, save_pet_scale, scaled_pet_size,
+    validated_render_bounds)
 
 
 class PetSizeTests(unittest.TestCase):
+    def test_crop_rejects_stale_viewports_and_invalid_bounds(self):
+        message = {"viewport": [504, 364], "bounds": {
+            "x": 180, "y": 30, "width": 140, "height": 300}}
+        self.assertEqual(validated_render_bounds(message, (504, 364)),
+                         ((180, 30), (140, 300)))
+        self.assertIsNone(validated_render_bounds(message, (252, 182)))
+        for key, value in (("x", -1), ("width", 0), ("height", 400),
+                           ("x", float("nan")), ("y", True)):
+            invalid = dict(message, bounds=dict(message["bounds"], **{key: value}))
+            self.assertIsNone(validated_render_bounds(invalid, (504, 364)))
+
+    def test_crop_accepts_float_subclasses_from_native_bridges(self):
+        class BridgedFloat(float):
+            pass
+
+        message = {"viewport": [BridgedFloat(504), BridgedFloat(364)],
+                   "bounds": {key: BridgedFloat(value) for key, value in
+                              zip(("x", "y", "width", "height"), (180, 30, 140, 300))}}
+        self.assertEqual(validated_render_bounds(message, (504, 364)),
+                         ((180, 30), (140, 300)))
+
     def test_saved_scale_survives_reload_and_bad_settings_fall_back(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "data"

@@ -128,6 +128,8 @@ class VrmAppearance:
         self.last_payload = None
         self.last_sent = 0
         self.dragging = False
+        self.render_bounds = None
+        self.bounds_changed = None
         self.server = AssetServer(self.directory, self.manifest)
 
         # PyObjC 类必须只注册一次；实例通过 owner 路由消息。
@@ -151,6 +153,10 @@ class VrmAppearance:
                         owner.fail(str(body.get("message", "渲染失败")))
                     elif kind == "warning":
                         print(f"VRM 动作提示：{body.get('message')}", flush=True)
+                    elif kind == "bounds":
+                        owner.render_bounds = dict(body)
+                        if owner.bounds_changed:
+                            owner.bounds_changed()
 
                 def webViewWebContentProcessDidTerminate_(handler, _web):
                     if handler.owner:
@@ -158,18 +164,31 @@ class VrmAppearance:
 
             _MessageHandler = VrmMessageHandler
         self.view = AK.NSView.alloc().initWithFrame_(((0, 0), self.size))
+        # 原生窗口裁掉透明空白，内部渲染视口仍保持缩放前后的完整坐标。
+        self.view.setWantsLayer_(True)
+        self.view.layer().setMasksToBounds_(True)
         config = WKWebViewConfiguration.alloc().init()
         config.setWebsiteDataStore_(WKWebsiteDataStore.nonPersistentDataStore())
         self.handler = _MessageHandler.alloc().init()
         self.handler.owner = self
         config.userContentController().addScriptMessageHandler_name_(self.handler, "pet")
         self.web = WKWebView.alloc().initWithFrame_configuration_(((0, 0), self.size), config)
-        self.web.setAutoresizingMask_(AK.NSViewWidthSizable | AK.NSViewHeightSizable)
         self.web.setValue_forKey_(False, "drawsBackground")
         self.web.setNavigationDelegate_(self.handler)
         self.web.setHidden_(True)
         self.view.addSubview_(self.web)
         self.web.loadRequest_(NSURLRequest.requestWithURL_(NSURL.URLWithString_(self.server.url)))
+
+    def set_viewport(self, size):
+        """缩放只改变完整渲染视口，后续窗口裁剪不会再次缩放模型。"""
+        self.view.setFrame_(((0, 0), size))
+        self.web.setFrame_(((0, 0), size))
+
+    def crop_view(self, bounds):
+        """保留原画面位置，用父视图裁掉窗口之外的透明区域。"""
+        (x, y), size = bounds
+        self.view.setFrame_(((0, 0), size))
+        self.web.setFrameOrigin_((-x, -y))
 
     def fail(self, message):
         if self.closed or self.error:
@@ -208,6 +227,7 @@ class VrmAppearance:
         if self.closed:
             return
         self.closed = True
+        self.bounds_changed = None
         self.handler.owner = None
         self.web.evaluateJavaScript_completionHandler_("window.pet && window.pet.dispose()", None)
         self.web.configuration().userContentController().removeScriptMessageHandlerForName_("pet")

@@ -11,7 +11,7 @@ test('待机按预制体参数每十秒循环索引，拖动中索引继续推�
  b.interact({kind:'drag-end'});advance(b,0.1);assert.equal(b.motion().name,'idle-2');
  advance(b,10);assert.equal(b.motion().name,'idle-0');
 });
-test('按下立即进入 Drag，快速松开也保持至少 0.3 秒',()=>{
+test('收到实际拖拽事件后进入 Drag，快速释放也保持至少 0.3 秒',()=>{
  const b=create();b.interact({kind:'drag-start'});assert.equal(b.motion().name,'drag');
  advance(b,0.05);b.interact({kind:'drag-end'});advance(b,0.1);assert.equal(b.dragging,true);
  advance(b,0.2);assert.equal(b.dragging,false);assert.equal(b.motion().name,'idle-0');

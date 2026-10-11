@@ -24,7 +24,8 @@ from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, F
                                    SendButton, button, label, symbol_button)
 from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
 from boxagent.interfaces.macos.pets.size import (
-    load_pet_scale, resized_pet_frame, save_pet_scale, scaled_pet_size, valid_pet_scale)
+    load_pet_scale, resized_pet_frame, save_pet_scale, scaled_pet_size, valid_pet_scale,
+    validated_render_bounds)
 
 
 class Desktop(NSObject):
@@ -75,22 +76,32 @@ class Desktop(NSObject):
         x, y = screen.origin.x + screen.size.width - width - 26, screen.origin.y + 30
         try:
             saved = json.loads((self.data_dir / "position.json").read_text())
-            if screen.origin.x <= saved[0] <= screen.origin.x + screen.size.width - width:
+            if (isinstance(saved, list) and len(saved) == 2
+                    and all(type(v) in (int, float) and math.isfinite(v) for v in saved)
+                    and saved[0] + width > screen.origin.x
+                    and saved[0] < screen.origin.x + screen.size.width
+                    and saved[1] + height > screen.origin.y
+                    and saved[1] < screen.origin.y + screen.size.height):
+                # 完整视口允许透明部分在屏幕外，实际角色边界在加载后校正。
                 x, y = saved
-                y = max(screen.origin.y, min(y, screen.origin.y + screen.size.height - height))
         except (OSError, ValueError, TypeError):
             pass
-        (x, y), _size = resized_pet_frame(
-            ((x, y), (width, height)), (width, height), screen)
         style = AK.NSWindowStyleMaskBorderless | AK.NSWindowStyleMaskNonactivatingPanel
         self.pet = PetPanel.alloc().initWithContentRect_styleMask_backing_defer_(((x, y), (width, height)), style, AK.NSBackingStoreBuffered, False)
         self.preparePanel(self.pet)
         self.pet.setHasShadow_(False)
         # AppKit 会对窗口尺寸取整，内容视图跟随实际尺寸以免出现空隙。
         width, height = self.pet.frame().size
+        self.pet_viewport = (width, height)
+        self.pet_crop = ((0, 0), self.pet_viewport)
+        self.pet_bubble_anchor_pending = True
+        self.anchorPetBubbles(reset=True)
         self.drag = DragView.alloc().initWithFrame_(((0, 0), (width, height)))
         self.drag.owner = self
         self.appearance.view.setFrameSize_((width, height))
+        if hasattr(self.appearance, "set_viewport"):
+            self.appearance.bounds_changed = self.fitPetWindow
+            self.appearance.set_viewport(self.pet_viewport)
         self.drag.addSubview_(self.appearance.view)
         self.pet.setContentView_(self.drag)
         self.pet.setTitle_(self.agent_name)
@@ -216,12 +227,64 @@ class Desktop(NSObject):
     def resizePet(self):
         screen = (self.pet.screen() or AK.NSScreen.mainScreen()).visibleFrame()
         size = scaled_pet_size(self.appearance.size, self.pet_scale, screen.size)
-        frame = resized_pet_frame(self.pet.frame(), size, screen)
+        frame = resized_pet_frame(self.petViewportFrame(), size, screen)
         self.pet.setFrame_display_(frame, True)
         size = self.pet.frame().size
+        self.pet_viewport = tuple(size)
+        self.pet_crop = ((0, 0), self.pet_viewport)
+        self.pet_bubble_anchor_pending = True
+        self.anchorPetBubbles(reset=True)
         self.drag.setFrameSize_(size)
         self.appearance.view.setFrameSize_(size)
+        if hasattr(self.appearance, "set_viewport"):
+            self.appearance.bounds_changed = self.fitPetWindow
+            self.appearance.set_viewport(self.pet_viewport)
         self.positionBubble()
+
+    @objc.python_method
+    def petViewportFrame(self):
+        """恢复完整画面的屏幕坐标，避免动画边界变化导致角色漂移。"""
+        point = self.pet.frame().origin
+        x, y = self.pet_crop[0]
+        return ((point.x - x, point.y - y), self.pet_viewport)
+
+    @objc.python_method
+    def fitPetWindow(self):
+        bounds = validated_render_bounds(
+            getattr(self.appearance, "render_bounds", None), self.pet_viewport)
+        if bounds is None or bounds == self.pet_crop:
+            return
+        origin, _size = self.petViewportFrame()
+        (x, y), size = bounds
+        screen = (self.pet.screen() or AK.NSScreen.mainScreen()).visibleFrame()
+        frame = resized_pet_frame(((origin[0] + x, origin[1] + y), size), size, screen)
+        self.pet.setFrame_display_(frame, True)
+        self.pet_crop = bounds
+        self.drag.setFrameSize_(self.pet.frame().size)
+        self.appearance.crop_view(bounds)
+        if self.pet_bubble_anchor_pending:
+            self.anchorPetBubbles(reset=True)
+            self.pet_bubble_anchor_pending = False
+            self.positionBubble()
+
+    @objc.python_method
+    def anchorPetBubbles(self, reset=False):
+        """气泡只跟随用户移动；角色动画裁剪不能改变聊天框的定位基准。"""
+        viewport_origin, _size = self.petViewportFrame()
+        if reset:
+            frame = self.pet.frame()
+            self.pet_bubble_frame = (tuple(frame.origin), tuple(frame.size))
+        else:
+            origin, size = self.pet_bubble_frame
+            previous = self.pet_bubble_viewport_origin
+            self.pet_bubble_frame = ((origin[0] + viewport_origin[0] - previous[0],
+                                      origin[1] + viewport_origin[1] - previous[1]), size)
+        self.pet_bubble_viewport_origin = viewport_origin
+
+    @objc.python_method
+    def petBubbleFrame(self):
+        origin, size = self.pet_bubble_frame
+        return AK.NSMakeRect(*origin, *size)
 
     def showMemoryDashboard_(self, _sender):
         if self.memory_dashboard_factory is None:
@@ -405,7 +468,7 @@ class Desktop(NSObject):
 
     @objc.python_method
     def positionBubble(self):
-        frame = self.pet.frame()
+        frame = self.petBubbleFrame()
         screen = (self.pet.screen() or AK.NSScreen.mainScreen()).visibleFrame()
         width, height = self.bubble.frame().size
         x = min(max(screen.origin.x + 8, frame.origin.x + frame.size.width - width), screen.origin.x + screen.size.width - width - 8)
@@ -449,8 +512,8 @@ class Desktop(NSObject):
 
     @objc.python_method
     def savePosition(self):
-        point = self.pet.frame().origin
-        (self.data_dir / "position.json").write_text(json.dumps([point.x, point.y]))
+        point, _size = self.petViewportFrame()
+        (self.data_dir / "position.json").write_text(json.dumps(list(point)))
 
     def toggleMic_(self, _sender):
         self.showBubble()
@@ -584,7 +647,7 @@ class Desktop(NSObject):
             progress = min(1, max(0, (time.monotonic() - self.context_reveal_at) / 2))
             count = int(len(self.state.context_text) * progress)
             self.context_label.setStringValue_(self.state.context_text[:count])
-            frame = self.pet.frame()
+            frame = self.petBubbleFrame()
             screen = (self.pet.screen() or AK.NSScreen.mainScreen()).visibleFrame()
             x = max(screen.origin.x + 8, min(frame.origin.x + frame.size.width - 300,
                     screen.origin.x + screen.size.width - 308))
@@ -596,8 +659,9 @@ class Desktop(NSObject):
             self.context_bubble.orderFrontRegardless()
         else:
             self.context_bubble.orderOut_(None)
-        point, frame = AK.NSEvent.mouseLocation(), self.pet.frame()
-        pointer = (point.x - frame.origin.x - frame.size.width / 2, point.y - frame.origin.y - frame.size.height / 2)
+        point = AK.NSEvent.mouseLocation()
+        origin, size = self.petViewportFrame()
+        pointer = (point.x - origin[0] - size[0] / 2, point.y - origin[1] - size[1] / 2)
         self.appearance.present(self.state, time.monotonic(), pointer)
         self.syncAppearanceState()
 
@@ -605,6 +669,8 @@ class Desktop(NSObject):
     def syncAppearanceState(self):
         """加载时透明且允许穿透；失败通过现有对话窗口明确提示。"""
         ready = getattr(self.appearance, "ready", True)
+        if ready:
+            self.fitPetWindow()
         self.pet.setIgnoresMouseEvents_(not ready)
         error = getattr(self.appearance, "error", None)
         if error and error != self.appearance_error:
