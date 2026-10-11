@@ -161,6 +161,13 @@ def main():
         if error:
             raise RuntimeError(error)
         result["renderer"] = json.loads(value)
+        if result.get("motion_gallery"):
+            initial_feet = result["motion_gallery"][0]["behavior"]["feet"]
+            movement = max(sum((a - b) ** 2 for a, b in zip(foot["position"], initial["position"])) ** 0.5
+                           for item in result["motion_gallery"]
+                           for foot, initial in zip(item["behavior"]["feet"], initial_feet))
+            result["foot_movement"] = movement
+            check(movement > 0.00001, "实际双脚随动画移动，没有被固定在加载姿势")
         check(result["renderer"]["frames"] > 10, "动画帧持续推进")
         check(len(result["renderer"]["behavior"]["idleActions"]) >= 3, "至少三种共享待机动作完成骨骼重定向")
         check(len(result["renderer"]["behavior"]["idleActions"]) == 11, "实际使用原版预制体的十一项待机顺序")
@@ -210,6 +217,9 @@ def main():
                 if error:
                     raise RuntimeError(error)
                 data = json.loads(value)
+                check(len(data["behavior"]["feet"]) == 2 and
+                      all(abs(coordinate) < 1000 for foot in data["behavior"]["feet"] for coordinate in foot["position"]),
+                      f"{name}：实际双脚姿势有效，保留动作中的位置和旋转")
                 picture = Image.open(io.BytesIO(base64.b64decode(data["image"].split(",", 1)[1])))
                 filename = f"motion-{len(result['motion_gallery']):02d}-{name.replace('/', '-')}.png"
                 picture.save(OUTPUT / filename)

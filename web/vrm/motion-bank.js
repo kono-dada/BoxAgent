@@ -29,8 +29,10 @@ export class MotionBank {
       if(repaired.length)this.repairs.push({name,bones:repaired});
       const clip=createVRMAnimationClip(animation,this.vrm);
       const nodes=new Set(Object.values(this.vrm.humanoid.normalizedHumanBones).map(bone=>bone.node.name));
-      // 人形旋转与表情仍分层处理；不把窗口根位移混入局部骨架。
-      clip.tracks=clip.tracks.filter(track=>track.name.endsWith('.quaternion') && nodes.has(track.name.slice(0,-11)));
+      // 与 Mate-Engine-Web 一样保留髋部位移和腿部旋转；表情仍由业务层控制。
+      const hips=this.vrm.humanoid.getNormalizedBoneNode('hips');
+      clip.tracks=clip.tracks.filter(track=>(track.name.endsWith('.quaternion') && nodes.has(track.name.slice(0,-11))) ||
+        (hips && track.name===`${hips.name}.position`));
       if(!clip.tracks.length)throw new Error('模型没有与动作匹配的骨骼轨道');
       if(!Number.isFinite(clip.duration) || clip.duration<=0)throw new Error('动作时长无效');
       clip.name=name;this.clips.set(name,clip);return clip;
