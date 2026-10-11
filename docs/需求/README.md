@@ -34,7 +34,7 @@
 | INFRA-04 | 索引与附件 | 面板每次现读现算；任务截图 39 MB 直接散放 | 会话统计缓存；截图按内容哈希存储、轨迹只存引用；旧会话压缩归档 | 02 | ⏳ | — |
 | **REQ-02** | **JEV 意图识别与回合前准备** | Qwen 自行决定是否调 `run_task`，会漏调或编结果；回合前注入（记忆、环境）常赶不上当前轮 | 见 §3 | REQ-04 的控制权实验；文字链路可先做 | ⏳ | — |
 | REQ-03 | 删除过期注入项 | 环境包与记忆包只增不减，14 回合时占上下文 42.6% | 环境包、记忆包在上下文中各恒为 1 份；同场景占比 < 15% | 02 | ⏳ | — |
-| REQ-04 | 宿主控制回复时机 | 语音回合由服务端自动回复，宿主无法保证注入先于生成 | 只在 AOQ 上实验（WebSocket 没有降噪和回声消除，不作为产品路径）：方案 A（VAD + `create_response:false`）或 B（Manual）；宿主在准备完成后发 `response.create`；语音晚到率 → 0 | — | 🚧 实验脚本已备好，待实测 | `scripts/experiments/qwen_turn_control.py` |
+| REQ-04 | 宿主控制回复时机 | 语音回合由服务端自动回复，宿主无法保证注入先于生成 | 只在 AOQ 上实验（WebSocket 没有降噪和回声消除，不作为产品路径）：方案 A（VAD + `create_response:false`）或 B（Manual）；宿主在准备完成后发 `response.create`；语音晚到率 → 0 | — | 🧪 方案 A 实测可用（§3.3） | `scripts/experiments/qwen_turn_control.py` |
 | REQ-05 | 屏幕感知接入对话 | 屏幕摘要只显示在气泡里，不进入对话上下文 | 设计待定（复用回合前链路的预算与注入规则） | 02、REQ-03 | ⏳ | — |
 | UI-P0 | Electron 骨架 | AppKit 界面难以迭代 | Electron 进程连接 Engine socket，显示状态 | 02 | ⏳ | — |
 | UI-P1 | 管理面板 | 上下文、日志、记忆没有统一查看入口 | 面板读取统一事件流与 `errors.jsonl` | UI-P0、02、03 | ⏳ | — |
@@ -88,6 +88,34 @@
 | 314 ms | 1104 ms | 1745 ms |
 
 p50 恰好在预算边上，p90 超出约 3 倍。意图判断需要：投机预判（用 ASR delta 稳定前缀提前调用）、硬超时，或本地 Laya 后端（`decision_backend=laya-mlx`）。
+
+### 3.3 实验结果（2026-10-11）
+
+#### REQ-04：AOQ 下宿主控制回答时机
+
+方法：系统 TTS 合成 4 句中文（操作 2 句、闲聊 2 句），经 AOQ SDK 外部音频流（`addAudioExternalStream`，走上行轨道）按实时节奏推送，替代麦克风；模型 `qwen3.8-omni-flash-realtime`。脚本 `scripts/experiments/qwen_turn_control.py`。
+
+| 方案 | 服务端接受 | 自动开口 | 宿主 `response.create` 后 | 断句 / ASR | 结论 |
+|---|---|---|---|---|---|
+| 对照（生产配置） | ✓ | ✓（ASR 后约 0.2 s） | — | 4 句只识别出 1 句 | 外部流推送合成语音时 VAD 漏检较多，属测试方法问题 |
+| **A**：`semantic_vad` + `create_response:false` | ✓（回显 `create_response: False`） | **✗，3 s 观察窗内 0/3 自动开口** | 0.35–0.6 s 出 `response.created`，正常作答 | 语义断句、`interrupt_response` 保留 | **可用，作为 REQ-04 方案** |
+| B：`turn_detection: null` | ✓（AOQ 下也接受） | ✗ | 正常作答 | 宿主 commit 切句不准：同一句被切成两段（“帮我。”/“把音乐暂停一下。”），还多出空 commit 引发额外回答 | 可用但需本地 VAD，备选 |
+
+发现：工具调用失败后（实验中不执行工具），Qwen 会**自动发起一轮新回答**并口头编造“刚才没打开成功，再试一次”。这与 `create_response:false` 无关，是工具结果回传后的续答，REQ-02 的路由要一起处理。
+
+#### REQ-02：JEV 意图问题
+
+- TypeSafe 远程 API 当前返回 **HTTP 451 “not available in your region”**（出口在 SG）。`decisions.jsonl` 里已有 8 次 451 和 117 次超时 —— **生产的记忆写入也在受影响**。
+- 改用本地 Laya（`laya-mlx` 0.4.0，模型 `convaiinnovations/laya`，缓存 `.runtime/hf/`，807 MB）。117 条标注集结果：
+
+| 问题定义 | AUC | 延迟 p50 / p90 | 最佳阈值处 漏判 / 误触发 |
+|---|---:|---:|---|
+| v1：长 Noul（含上一轮回复） | 0.45 | 44 / 80 ms | 无区分能力 |
+| 短 Noul（单字段） | 0.81 | 23 ms | — |
+| **v2：Choice `operate`/`chat`（单字段）** | **0.83** | **24 / 26 ms** | 阈值 0.6：11/36、12/81；阈值 0.9：26/36、2/81 |
+
+- 延迟远低于预算；但**区分度不足以单独路由**：阈值 0.9 时误触发只剩 2/81，漏判却有 26/36。高置信直启 `run_task` 只能覆盖少数清晰请求；中间段仍要交给 Qwen。
+- 典型错误：“继续”“安装”“可以”被判为操作（缺上下文）；“点赞这条”“我收藏这一段”“给某某发个消息”被判为闲聊（动词不在示例里）。
 
 ## 4. 待登记
 

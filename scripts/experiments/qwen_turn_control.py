@@ -32,6 +32,7 @@ import asyncio
 import json
 import sys
 import time
+import wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,6 +49,8 @@ PLANS = {
     "A": {"type": "semantic_vad", "threshold": 0.5, "silence_duration_ms": 1500,
           "create_response": False},
     "B": None,
+    # 对照组：生产配置，不改 turn_detection，用于确认音频输入链路本身正常。
+    "base": {"type": "semantic_vad", "threshold": 0.5, "silence_duration_ms": 1500},
 }
 WATCH = {
     "session.updated", "error",
@@ -67,6 +70,87 @@ class ProbeSession(AoqRealtimeSession):
         self.turn = None
         self.turns = []
 
+    async def feed(self, paths, gap):
+        """用 SDK 外部音频流代替麦克风，按实时节奏推入 16 kHz PCM。
+
+        这样实验可重复，也不依赖终端的麦克风权限。音频仍走 AOQ 的上行轨道。
+        """
+        import objc
+
+        native = self.transport
+        classes = {name: objc.lookUpClass(name) for name in
+                   ("AoqAudioExternalStreamConfig", "AoqAudioFrameData",
+                    "AoqAudioCaptureConfig")}
+        # 外部流混入上行采集管线：采集需以 isExternal=YES 启动，不打开麦克风。
+        capture = classes["AoqAudioCaptureConfig"].alloc().init()
+        capture.setIsExternal_(True)
+        capture.setChannel_(1)
+        code = int(native.engine.startAudioCapture_(capture))
+        self.log({"t": time.time(), "event": "host.external_capture", "result": code})
+        config = classes["AoqAudioExternalStreamConfig"].alloc().init()
+        config.setTrackType_(0)
+        config.setCodecType_(1)  # PCM
+        config.setChannels_(1)
+        config.setSampleRate_(16000)
+        config.setPublishVolume_(100)
+        config.setPlayoutVolume_(0)
+        config.setMaxBufferDuration_(3000)
+        result = int(native.engine.addAudioExternalStream_config_("probe", config))
+        self.log({"t": time.time(), "event": "host.external_stream", "result": result})
+        if result != 0:
+            raise RuntimeError(f"addAudioExternalStream 返回 {result}")
+        native.enable_audio_send(True)
+        chunk = 320  # 20 ms
+        silence = b"\0" * chunk * 2
+        sequence = 0
+
+        async def push(payload):
+            nonlocal sequence
+            frame = classes["AoqAudioFrameData"].alloc().init()
+            buffer = bytearray(payload)
+            import ctypes
+            holder = (ctypes.c_char * len(buffer)).from_buffer(buffer)
+            frame.setDataPtr_(ctypes.addressof(holder))
+            frame.setDataSize_(len(buffer))
+            frame.setNumOfSamples_(len(buffer) // 2)
+            frame.setBytesPerSample_(2)
+            frame.setNumOfChannels_(1)
+            frame.setSamplesPerSec_(16000)
+            frame.setPushSequence_(sequence)
+            frame.setTimeStamp_(int(time.time() * 1000))
+            code = int(native.engine.pushAudioExternalStreamData_data_("probe", frame))
+            sequence += 1
+            await asyncio.sleep(0.02)
+            return code
+
+        codes = {}
+        _push = push
+
+        async def push(payload):
+            code = await _push(payload)
+            codes[code] = codes.get(code, 0) + 1
+            return code
+
+        for _ in range(50):  # 1 s 静音，让服务端建立底噪基线
+            await push(silence)
+        for path in paths:
+            with wave.open(str(path)) as source:
+                pcm = source.readframes(source.getnframes())
+            self.log({"t": time.time(), "event": "host.utterance", "file": Path(path).name})
+            for offset in range(0, len(pcm), chunk * 2):
+                await push(pcm[offset:offset + chunk * 2].ljust(chunk * 2, b"\0"))
+            if self.plan == "B":
+                # Manual 模式没有服务端断句，宿主在句末自己提交音频缓冲。
+                for _ in range(15):
+                    await push(silence)
+                self.mark("input_audio_buffer.speech_stopped", synthetic=True)
+                await self.send({"type": "input_audio_buffer.commit"})
+                self.mark("host.commit")
+            for _ in range(int(gap / 0.02)):
+                await push(silence)
+        self.log({"t": time.time(), "event": "host.push_codes", "codes": codes})
+        print("push 返回码统计：", codes, flush=True)
+
     async def send_session_update(self, config):
         config = {**config, "turn_detection": PLANS[self.plan]}
         await super().send_session_update(config)
@@ -85,12 +169,11 @@ class ProbeSession(AoqRealtimeSession):
             extra = {}
             if kind == "error":
                 extra["error"] = event.get("error")
+            if kind == "session.updated":
+                extra["turn_detection"] = (event.get("session") or {}).get("turn_detection", "<absent>")
             if kind.endswith("transcription.completed") or kind.endswith("transcript.done"):
                 extra["text"] = event.get("transcript", "")
             self.mark(kind, **extra)
-        if self.plan == "B" and kind == "input_audio_buffer.speech_stopped":
-            await self.send({"type": "input_audio_buffer.commit"})
-            self.mark("host.commit")
         await super().receive(event)
         if kind == "conversation.item.input_audio_transcription.completed":
             asyncio.get_running_loop().create_task(self.answer_after_hold())
@@ -131,6 +214,9 @@ async def main():
     parser.add_argument("--hold", type=float, default=3.0,
                         help="ASR 定稿后等待多久再由宿主发 response.create（秒）")
     parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--wav", nargs="*", type=Path, default=[],
+                        help="16 kHz 单声道 WAV；提供时用外部音频流代替麦克风")
+    parser.add_argument("--gap", type=float, default=8.0, help="两句之间的静音秒数")
     args = parser.parse_args()
 
     settings = load_settings()
@@ -149,7 +235,8 @@ async def main():
         if record["event"] in {"session.updated", "error", "host.response_create",
                                "conversation.item.input_audio_transcription.completed",
                                "response.created"}:
-            print(record["event"], record.get("text") or record.get("error") or "", flush=True)
+            print(record["event"], record.get("text") or record.get("error")
+                  or record.get("turn_detection") or "", flush=True)
 
     session = ProbeSession(
         lambda *a, **k: {"ok": False, "error": "实验中不执行工具"},
@@ -158,18 +245,34 @@ async def main():
         instructions=realtime.INSTRUCTIONS, trace=lambda *a, **k: None,
         workspace_id=settings.qwen_workspace_id, region=settings.qwen_region,
         sdk_dir=settings.aoq_sdk_dir, work_dir=settings.aoq_work_dir,
-        plan=args.plan, hold=args.hold, log=log)
+        plan=args.plan, hold=args.hold, log=log, microphone=not args.wav)
     print(f"方案 {args.plan}：{json.dumps(PLANS[args.plan], ensure_ascii=False)}；"
           f"请说 {args.turns} 句短话。", flush=True)
     runner = asyncio.create_task(session.run())
+    feeder = None
+    if args.wav:
+        while not runner.done() and not any(
+                "session.updated" in t["events"] for t in session.turns):
+            await asyncio.sleep(0.2)
+        await asyncio.sleep(1.0)
+        feeder = asyncio.create_task(session.feed(args.wav, args.gap))
     deadline = time.monotonic() + args.timeout
     try:
         while time.monotonic() < deadline and not runner.done():
             done = sum("response.done" in t["events"] for t in session.turns)
             if done >= args.turns:
                 break
+            if feeder and feeder.done():
+                if feeder.exception():
+                    print("feed 失败：", feeder.exception(), flush=True)
+                    break
+                await asyncio.sleep(args.hold + 4)
+                break
             await asyncio.sleep(0.5)
     finally:
+        if feeder:
+            feeder.cancel()
+            await asyncio.gather(feeder, return_exceptions=True)
         await session.stop()
         runner.cancel()
         await asyncio.gather(runner, return_exceptions=True)

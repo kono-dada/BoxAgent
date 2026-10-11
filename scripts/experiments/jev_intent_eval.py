@@ -22,28 +22,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from typesafe_sdk import Noul  # noqa: E402
+from typesafe_sdk import Choice  # noqa: E402
 
 
 def intent_questions():
-    """“本轮是否要求操作电脑”的命题定义；只描述状态字段，不暴露问题 ID。"""
+    """“本轮是否要求操作电脑”的命题定义；只描述状态字段，不暴露问题 ID。
+
+    v1（长指令 + 上一轮回复）在本地 Laya 上 AUC 0.45，接近随机；v2 改为单字段、
+    两选项的 Choice，AUC 0.83。P(action) 取 ``operate`` 选项的概率。
+    """
     return {
-        "action": Noul(
-            instructions=(
-                "Does `user_utterance` ask the assistant to operate the user's computer "
-                "now, i.e. open, close, click, type into, play, pause, favourite, search in "
-                "or read the screen of an application, website or system setting? "
-                "Use `previous_assistant_reply` only to resolve short follow-ups such as "
-                "\"继续\" or \"安装\"."),
+        "action": Choice(
+            instructions="What does `user_message` want from a desktop assistant?",
             criteria={
-                "true": ("The utterance requests, confirms or continues a concrete operation "
-                         "on the computer that the assistant should carry out in this turn, "
-                         "including a reply that confirms a computer operation the assistant "
-                         "has just offered."),
-                "false": ("Chit-chat, a question about the assistant or the user, a request "
-                          "to remember or recall something, a complaint that a previous "
-                          "operation failed without asking to retry, or an unfinished "
-                          "sentence with no request."),
+                "operate": ("Operate an app, website or the computer "
+                            "(open, play, stop, click, search, calculate)."),
+                "chat": "Chat, answer a question, or remember/recall something.",
             }),
     }
 
@@ -74,12 +68,16 @@ def main():
     results = []
     with args.out.open("w", encoding="utf-8") as out:
         for row in rows:
-            state = {"user_utterance": row["text"],
-                     "previous_assistant_reply": row.get("context", "")}
+            state = {"user_message": row["text"]}
             started = time.perf_counter()
-            result = client.probabilities("intent", state, questions)
+            try:
+                result = client.evaluate("intent", state, questions)
+            except Exception as exc:  # 区域限制等硬失败：记录后继续
+                print("调用失败：", exc, flush=True)
+                result = None
             ms = (time.perf_counter() - started) * 1000
-            p = None if result is None else result.values.get("action")
+            p = (None if result is None
+                 else result.choices["action"].probabilities.get("operate"))
             record = {**row, "p_action": p, "ms": round(ms)}
             results.append(record)
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
