@@ -46,6 +46,63 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
+    async def test_capture_timeout_is_retried_and_process_is_reaped(self):
+        events = []
+        observer = WindowSummary(lambda kind, **fields: events.append(kind))
+        observer.process = SimpleNamespace(stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+        observer.reply = AsyncMock(return_value={"summary": "正在阅读代码。"})
+        process = SimpleNamespace(returncode=None, communicate=AsyncMock(),
+                                  kill=Mock(), wait=AsyncMock())
+        window = {"id": 7, "app": "测试窗口"}
+
+        async def timeout(awaitable, seconds):
+            awaitable.close()
+            raise TimeoutError
+
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value=window), patch("asyncio.create_subprocess_exec",
+                   AsyncMock(return_value=process)), patch("asyncio.wait_for",
+                   timeout):
+            await observer.observe()
+        self.assertEqual(events[-1], "context.waiting")
+        self.assertEqual(observer.capture_failures, 1)
+        process.kill.assert_called_once()
+        process.wait.assert_awaited_once()
+
+        async def capture(*args):
+            Image.new("RGB", (400, 300)).save(Path(args[-1]))
+
+        observer.command = capture
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value=window):
+            await observer.observe()
+        self.assertEqual(events[-1], "context.updated")
+        self.assertEqual(observer.capture_failures, 0)
+
+    async def test_mixed_capture_failures_share_the_retry_limit(self):
+        events = []
+        observer = WindowSummary(lambda kind, **fields: events.append(kind))
+        observer.command = AsyncMock(side_effect=[
+            RuntimeError("could not create image from window"),
+            TimeoutError(), OSError("capture unavailable")])
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value={"id": 7, "app": "测试窗口"}):
+            await observer.observe()
+            await observer.observe()
+            self.assertEqual(events[-1], "context.waiting")
+            with self.assertRaises(OSError):
+                await observer.observe()
+        self.assertEqual(observer.capture_failures, 3)
+
+    async def test_capture_cancellation_is_not_a_retry(self):
+        observer = WindowSummary(lambda kind, **fields: None)
+        observer.command = AsyncMock(side_effect=asyncio.CancelledError)
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value={"id": 7, "app": "测试窗口"}):
+            with self.assertRaises(asyncio.CancelledError):
+                await observer.observe()
+        self.assertEqual(observer.capture_failures, 0)
+
     async def test_transient_capture_failure_skips_round_until_limit(self):
         from boxagent.infrastructure.perception.qwen_mlx import MAX_CAPTURE_FAILURES
 

@@ -1,0 +1,216 @@
+{
+  "requirement": "FIX-01",
+  "verified_on": "2026-10-11",
+  "model": "qwen3.5-0.8b-mlx",
+  "model_config_sha256": "ba7770da23eae5ebd6827571f086e331956b33f4442a9e876fb4aa10969a6772",
+  "evaluator": "scripts/experiments/window_summary_eval.py",
+  "evaluator_sha256": "f4a4f1251c4a548cc797a1041735c44ebfddea96ea3af1864ac2ecdce730e953",
+  "tests": {
+    "main": {
+      "passed": 285,
+      "skipped": 4
+    },
+    "jev_mem": {
+      "passed": 4,
+      "skipped": 0
+    }
+  },
+  "worker_protocol_smoke": "ready then summary; exit 0",
+  "datasets": {
+    "local": {
+      "input_kind": "private_window_crops",
+      "fixtures": [
+        {
+          "file": "0.png",
+          "sha256": "91113281b1d258518f147a62201028fabff0c8dc427db49db57e1d30decc3446"
+        },
+        {
+          "file": "1.png",
+          "sha256": "f66f4044b57fa73b71a085d037f9676777c99aa2bc058d9a776650bfee95765a"
+        },
+        {
+          "file": "10.png",
+          "sha256": "0c9064ce566aea0c14343713d48f924e206099396abe94f56e11959db52158af"
+        },
+        {
+          "file": "11.png",
+          "sha256": "476865e427cef61d5d652eb42c38d9da19f065b7bd35086938a57547afdea4ac"
+        },
+        {
+          "file": "2.png",
+          "sha256": "2f6c05b86c0df479362143e9850c352dd85cbc4be791505be8b05489f8c55999"
+        },
+        {
+          "file": "3.png",
+          "sha256": "a6c402468485b8c1279f76bd5eb2ee887a44103febfc0c33708f010651c8aec6"
+        },
+        {
+          "file": "4.png",
+          "sha256": "395ce6a9d52bb737c5f78e469f55e0f72c02670a0e51a1730be4c5c452bc186c"
+        },
+        {
+          "file": "5.png",
+          "sha256": "be097bff049bdf077df4f6ba5044eb82601b02d8608e7a3afd8165e3c2ca5469"
+        },
+        {
+          "file": "6.png",
+          "sha256": "663b05b251d1dfef880c485f4c67223c8dd7e1a3942be9520cca5088b104dffd"
+        },
+        {
+          "file": "7.png",
+          "sha256": "bb9d7a659c46d1b2daf70063b49e6fee9ddbd00e0343a16be9a14015830675fa"
+        },
+        {
+          "file": "8.png",
+          "sha256": "4e0f0b46c9fe8bc6b8baab12b1b0f7f47beb9b3b158af81f31f0d65bbb2c2248"
+        },
+        {
+          "file": "9.png",
+          "sha256": "941d889c3a34870a1a3ff390c35a8ea5651f2339a1e2bd95b977a297e4d9a857"
+        }
+      ],
+      "versions": {
+        "mlx": "0.32.2",
+        "mlx-vlm": "0.7.0",
+        "pillow": "12.3.0"
+      },
+      "summary": {
+        "rp1.15_512": {
+          "samples": 12,
+          "sec_p50": 0.662,
+          "chars_p50": 176.5,
+          "chars_max": 271,
+          "tokens_max": 144,
+          "repeated_samples": 0,
+          "ngram_rep_mean": 0.0028,
+          "clean_repeated_samples": 0,
+          "empty_samples": 0
+        },
+        "production": {
+          "samples": 12,
+          "sec_p50": 0.713,
+          "chars_p50": 176.5,
+          "chars_max": 271,
+          "tokens_max": 144,
+          "repeated_samples": 0,
+          "ngram_rep_mean": 0.0028,
+          "clean_repeated_samples": 0,
+          "empty_samples": 0
+        }
+      },
+      "options": {
+        "rp1.15_512": {
+          "max_tokens": 512,
+          "temperature": 0.0,
+          "repetition_penalty": 1.15,
+          "repetition_context_size": 64
+        },
+        "production": {
+          "max_tokens": 256,
+          "temperature": 0.0,
+          "repetition_penalty": 1.15,
+          "repetition_context_size": 64
+        }
+      }
+    },
+    "synthetic": {
+      "input_kind": "repository_generated_ui",
+      "fixtures": [
+        {
+          "file": "00.png",
+          "sha256": "3353946cf9ec3cb91f3570022348b39c7b787689f85dbb4dc0dd127fca64acbf"
+        },
+        {
+          "file": "01.png",
+          "sha256": "b192f8b41c153bcdc683e5916a166ecb33a8986f130d398672aa87020c87ef12"
+        },
+        {
+          "file": "02.png",
+          "sha256": "6b966bb78986c692f6cf6e46ea7db1402da0b0b20bec08cf1a0529e63cdb696a"
+        },
+        {
+          "file": "03.png",
+          "sha256": "554f2f0927e85e0979804a60583fca0a981fbbb1a3c498c02977ea4b9abb4c6d"
+        },
+        {
+          "file": "04.png",
+          "sha256": "af581ad3091cc4bece34235c5b0b5d3f085c83e4aa40bc8076c8aaa33712cc56"
+        },
+        {
+          "file": "05.png",
+          "sha256": "c391502574269be2dcf5c4baef8ecfe3af5a66b2700ce95e977092361ab15c43"
+        },
+        {
+          "file": "06.png",
+          "sha256": "a59d610ce0714f30affdffe56038c68816b66e0d6dd7f473c1f885f2ab397b9a"
+        },
+        {
+          "file": "07.png",
+          "sha256": "5fd0ff9b88a66f9c26e3fa21b077fcd4d586ad3db48bc790e95bd0917792b3cd"
+        },
+        {
+          "file": "08.png",
+          "sha256": "69670abbb49329d2a93bb44650e7d4e885982e91cc60f67bcead82431c7c8566"
+        },
+        {
+          "file": "09.png",
+          "sha256": "3d74e4c250bb4669d750d4c8256dac9ee66fff54f9a6c5bdd130ead121900d4f"
+        },
+        {
+          "file": "10.png",
+          "sha256": "f69deb78e1a6ee8a622ad0a0215f83bb910973eb67a3f903e91c22e206d580e8"
+        },
+        {
+          "file": "11.png",
+          "sha256": "dee7effdfd254503a4ff420405f2846fd447e9eb65459d3830d36d458446484f"
+        }
+      ],
+      "versions": {
+        "mlx": "0.32.2",
+        "mlx-vlm": "0.7.0",
+        "pillow": "12.3.0"
+      },
+      "summary": {
+        "baseline": {
+          "samples": 12,
+          "sec_p50": 0.63,
+          "chars_p50": 97.0,
+          "chars_max": 211,
+          "tokens_max": 89,
+          "repeated_samples": 0,
+          "ngram_rep_mean": 0.0,
+          "clean_repeated_samples": 0,
+          "empty_samples": 0
+        },
+        "production": {
+          "samples": 12,
+          "sec_p50": 0.608,
+          "chars_p50": 88.0,
+          "chars_max": 209,
+          "tokens_max": 76,
+          "repeated_samples": 0,
+          "ngram_rep_mean": 0.0,
+          "clean_repeated_samples": 0,
+          "empty_samples": 0
+        }
+      },
+      "options": {
+        "baseline": {
+          "max_tokens": 512,
+          "temperature": 0.0
+        },
+        "production": {
+          "max_tokens": 256,
+          "temperature": 0.0,
+          "repetition_penalty": 1.15,
+          "repetition_context_size": 64
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Historical window crops remain local; other machines can regenerate synthetic fixtures.",
+    "The synthetic baseline also has zero repetitions; this set checks reproducibility, not improvement.",
+    "Small sample results do not establish quality on all applications."
+  ]
+}

@@ -147,13 +147,13 @@ class WindowSummary:
             try:
                 await self.command("/usr/sbin/screencapture", "-x", "-o", "-l",
                                    str(window["id"]), str(path))
-            except RuntimeError as exc:
+            except (RuntimeError, TimeoutError, OSError) as exc:
                 # 窗口在列举与截图之间关闭、缩放或被系统暂时拒绝时会失败；
                 # 跳过这一轮，连续失败才视为权限或环境问题。
                 self.capture_failures += 1
                 logger.warning("window capture failed (%d/%d) app=%s: %s",
                                self.capture_failures, MAX_CAPTURE_FAILURES,
-                               window["app"], str(exc).strip())
+                               window["app"], str(exc).strip() or type(exc).__name__)
                 if self.capture_failures >= MAX_CAPTURE_FAILURES:
                     raise
                 self.emit("context.waiting", context_text="",
