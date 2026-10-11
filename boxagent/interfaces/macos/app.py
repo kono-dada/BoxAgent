@@ -23,6 +23,8 @@ from boxagent.interfaces.macos.state import ACTIVE_TASK_STATES, mode_text, trans
 from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, RoundedSurface,
                                    SendButton, button, label, symbol_button)
 from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
+from boxagent.interfaces.macos.pets.size import (
+    load_pet_scale, resized_pet_frame, save_pet_scale, scaled_pet_size, valid_pet_scale)
 
 
 class Desktop(NSObject):
@@ -35,6 +37,7 @@ class Desktop(NSObject):
                   editable_soul_file=None):
         self.backend, self.appearance = backend, appearance
         self.data_dir = data_dir or backend.log_dir
+        self.pet_scale = load_pet_scale(self.data_dir)
         self.pet_catalog = catalog
         self.appearance_factory = appearance_factory
         self.memory_dashboard_factory = memory_dashboard_factory
@@ -67,7 +70,8 @@ class Desktop(NSObject):
     def applicationDidFinishLaunching_(self, _notification):
         AK.NSApplication.sharedApplication().setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
         screen = AK.NSScreen.mainScreen().visibleFrame()
-        width, height = self.appearance.size
+        width, height = scaled_pet_size(
+            self.appearance.size, self.pet_scale, screen.size)
         x, y = screen.origin.x + screen.size.width - width - 26, screen.origin.y + 30
         try:
             saved = json.loads((self.data_dir / "position.json").read_text())
@@ -76,12 +80,17 @@ class Desktop(NSObject):
                 y = max(screen.origin.y, min(y, screen.origin.y + screen.size.height - height))
         except (OSError, ValueError, TypeError):
             pass
+        (x, y), _size = resized_pet_frame(
+            ((x, y), (width, height)), (width, height), screen)
         style = AK.NSWindowStyleMaskBorderless | AK.NSWindowStyleMaskNonactivatingPanel
         self.pet = PetPanel.alloc().initWithContentRect_styleMask_backing_defer_(((x, y), (width, height)), style, AK.NSBackingStoreBuffered, False)
         self.preparePanel(self.pet)
         self.pet.setHasShadow_(False)
+        # AppKit 会对窗口尺寸取整，内容视图跟随实际尺寸以免出现空隙。
+        width, height = self.pet.frame().size
         self.drag = DragView.alloc().initWithFrame_(((0, 0), (width, height)))
         self.drag.owner = self
+        self.appearance.view.setFrameSize_((width, height))
         self.drag.addSubview_(self.appearance.view)
         self.pet.setContentView_(self.drag)
         self.pet.setTitle_(self.agent_name)
@@ -183,6 +192,37 @@ class Desktop(NSObject):
     def makeMenu(self):
         self.menu, self.context_menu_item, self.status_item = install_menus(self)
 
+    def setPetSize_(self, sender):
+        scale = round(sender.doubleValue()) / 100
+        if not valid_pet_scale(scale):
+            return
+        try:
+            save_pet_scale(self.data_dir, scale)
+        except OSError as error:
+            self.input_feedback = f"无法保存桌宠大小：{error}"
+            self.showBubble()
+            return
+        self.pet_scale = scale
+        self.resizePet()
+        self.pet_size_slider.setDoubleValue_(scale * 100)
+        self.pet_size_label.setStringValue_(f"{round(scale * 100)}%")
+        self.savePosition()
+
+    def resetPetSize_(self, _sender):
+        self.pet_size_slider.setDoubleValue_(100)
+        self.setPetSize_(self.pet_size_slider)
+
+    @objc.python_method
+    def resizePet(self):
+        screen = (self.pet.screen() or AK.NSScreen.mainScreen()).visibleFrame()
+        size = scaled_pet_size(self.appearance.size, self.pet_scale, screen.size)
+        frame = resized_pet_frame(self.pet.frame(), size, screen)
+        self.pet.setFrame_display_(frame, True)
+        size = self.pet.frame().size
+        self.drag.setFrameSize_(size)
+        self.appearance.view.setFrameSize_(size)
+        self.positionBubble()
+
     def showMemoryDashboard_(self, _sender):
         if self.memory_dashboard_factory is None:
             self.state.error = "记忆看板未配置"
@@ -267,14 +307,7 @@ class Desktop(NSObject):
             raise
         previous.view.removeFromSuperview()
         self.appearance = appearance
-        if appearance.size != previous.size:
-            # 保持角色底部中心不动，为长发和附属物留出透明取景区域。
-            frame = self.pet.frame()
-            width, height = appearance.size
-            x = frame.origin.x + (frame.size.width - width) / 2
-            self.pet.setFrame_display_(((x, frame.origin.y), (width, height)), True)
-            self.drag.setFrameSize_((width, height))
-            self.positionBubble()
+        self.resizePet()
         if hasattr(previous, "close"):
             previous.close()
         self.syncAppearanceName()

@@ -36,6 +36,9 @@ if __name__ == "__main__":
     elif "--check-vrm-ui" in sys.argv:
         from scripts.check_vrm_ui import main
         main()
+    elif "--check-pet-size-ui" in sys.argv:
+        from scripts.check_pet_size_ui import main
+        main()
     elif "--smoke-desktop" in sys.argv:
         from scripts.smoke_desktop import main
         main()

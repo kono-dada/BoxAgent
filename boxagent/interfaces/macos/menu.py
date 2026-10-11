@@ -1,8 +1,45 @@
-"""Build the application and status-bar menus for the native host."""
+"""原生应用菜单、状态栏菜单和桌宠大小滑块。"""
 
 import json
 
 import AppKit as AK
+from boxagent.interfaces.macos.pets.size import PET_MIN_SCALE, PET_MAX_SCALE
+
+
+def pet_size_controls(owner):
+    """在菜单里直接拖动滑块，连续发送大小变化。"""
+    view = AK.NSView.alloc().initWithFrame_(((0, 0), (280, 112)))
+
+    def label(text, frame):
+        field = AK.NSTextField.labelWithString_(text)
+        field.setFrame_(frame)
+        field.setFont_(AK.NSFont.systemFontOfSize_(12))
+        view.addSubview_(field)
+        return field
+
+    label("拖动调整大小", ((16, 84), (170, 18)))
+    owner.pet_size_label = label(f"{round(owner.pet_scale * 100)}%", ((202, 84), (62, 18)))
+    owner.pet_size_label.setAlignment_(AK.NSTextAlignmentRight)
+    slider = AK.NSSlider.alloc().initWithFrame_(((16, 48), (248, 28)))
+    slider.setMinValue_(PET_MIN_SCALE * 100)
+    slider.setMaxValue_(PET_MAX_SCALE * 100)
+    slider.setDoubleValue_(owner.pet_scale * 100)
+    slider.setContinuous_(True)
+    slider.setTarget_(owner)
+    slider.setAction_("setPetSize:")
+    slider.setAccessibilityLabel_("桌宠大小百分比")
+    owner.pet_size_slider = slider
+    view.addSubview_(slider)
+    label(f"{round(PET_MIN_SCALE * 100)}%", ((16, 28), (52, 18)))
+    maximum = label(f"{round(PET_MAX_SCALE * 100)}%", ((212, 28), (52, 18)))
+    maximum.setAlignment_(AK.NSTextAlignmentRight)
+    reset = AK.NSButton.alloc().initWithFrame_(((91, 4), (98, 24)))
+    reset.setTitle_("恢复默认")
+    reset.setBezelStyle_(AK.NSBezelStyleRounded)
+    reset.setTarget_(owner)
+    reset.setAction_("resetPetSize:")
+    view.addSubview_(reset)
+    return view
 
 
 def install_menus(owner):
@@ -58,6 +95,16 @@ def install_menus(owner):
         item = AK.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("3D 形象", None, "")
         item.setSubmenu_(local_menu)
         menu.insertItem_atIndex_(item, 4)
+    size_menu = AK.NSMenu.alloc().initWithTitle_("桌宠大小")
+    size_menu.setAutoenablesItems_(False)
+    controls = AK.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("调整大小", None, "")
+    controls.setView_(pet_size_controls(owner))
+    controls.setEnabled_(True)
+    size_menu.addItem_(controls)
+    size_item = AK.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+        "桌宠大小", None, "")
+    size_item.setSubmenu_(size_menu)
+    menu.insertItem_atIndex_(size_item, 4)
     status_item = AK.NSStatusBar.systemStatusBar().statusItemWithLength_(
         AK.NSVariableStatusItemLength)
     status_item.button().setTitle_("◉")

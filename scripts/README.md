@@ -17,6 +17,7 @@
 | `import_vrm.mjs` | 导入本地 VRM；默认引用共享动作包，校验资源并拒绝覆盖现有形象 |
 | `setup_vrm.sh` | 下载 Git LFS 中的模型和共享动作，使用 pnpm 安装并构建播放器 |
 | `check_vrm_ui.py` | `pet.py --check-vrm-ui`，验证真实 VRM 渲染、3D 换装、失败保留和资源释放；语音与任务使用替身 |
+| `check_pet_size_ui.py` | `pet.py --check-pet-size-ui`，验证 50%～600% 连续滑块、恢复默认、原生窗口与 WebKit 同步缩放、换装与重启恢复；不调用云端服务，结果在 `.runtime/pet-size-check/` |
 | `check_pet_ui.py` | `pet.py --check-ui`，仅测试窗口、合成文字、记忆图和替身；结果在 `.runtime/pet/ui-check/` |
 | `check_memory_graph_ui.py` | `pet.py --check-memory-graph-ui`，锁屏下用离屏 WKWebView 验证本地图加载、Canvas 像素、布局、筛选和原生消息桥；不使用 CU 或屏幕录制权限 |
 | `check_window_summary.py` | `pet.py --check-context`，读取真实前台窗口，运行本地模型 |

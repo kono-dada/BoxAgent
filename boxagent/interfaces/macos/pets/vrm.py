@@ -164,6 +164,7 @@ class VrmAppearance:
         self.handler.owner = self
         config.userContentController().addScriptMessageHandler_name_(self.handler, "pet")
         self.web = WKWebView.alloc().initWithFrame_configuration_(((0, 0), self.size), config)
+        self.web.setAutoresizingMask_(AK.NSViewWidthSizable | AK.NSViewHeightSizable)
         self.web.setValue_forKey_(False, "drawsBackground")
         self.web.setNavigationDelegate_(self.handler)
         self.web.setHidden_(True)
