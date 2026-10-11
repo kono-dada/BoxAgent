@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 PERSONA_MARKER = PERSONA_BOUNDARY.split("{name}", 1)[0]
 SYSTEM_PREFIXES = (
+    ("<boxagent_query_reference>", "reference"),
     ("<boxagent_user_profile>", "profile"),
     ("<boxagent_context_checkpoint>", "checkpoint"),
     ("[BoxAgent可信运行环境]", "environment"),
@@ -47,6 +48,8 @@ class _SessionState:
         self.restoring = False
         self.turn_open = False
         self.turn_has_user = False
+        self.pending_reference = None
+        self.provider_items = {}
 
 
 class QwenContextRecorder:
@@ -165,6 +168,20 @@ class QwenContextRecorder:
         elif event == "response.created":
             state.restoring = False
             self._append(session_id, "response/created", {})
+        elif event == "reference.installed":
+            seq = state.pending_reference
+            self._append(session_id, "context/bound", {
+                "content": seq, "item_id": data.get("item_id"),
+                "query_id": data.get("query_id")})
+            state.provider_items[data.get("item_id")] = seq
+        elif event == "reference.expired":
+            self._append(session_id, "context/expired", {
+                "item_id": data.get("item_id"), "query_id": data.get("query_id")})
+        elif event == "reference.delete_failed":
+            self._append(session_id, "context/delete_failed", {
+                "item_id": data.get("item_id"), "query_id": data.get("query_id")})
+        elif event == "conversation.item.deleted":
+            self._append(session_id, "context/deleted", {"item_id": data.get("item_id")})
         elif event in {"response.audio_transcript.done", "response.text.done"}:
             transcript = str(data.get("transcript") or "")
             if transcript.strip():
@@ -186,6 +203,8 @@ class QwenContextRecorder:
             self._append(session_id, "response/requested", {})
         elif kind == "conversation.item.create":
             self._item(session_id, state, request.get("item") or {})
+        elif kind == "conversation.item.delete":
+            self._append(session_id, "context/delete_requested", {"item_id": request.get("item_id")})
 
     def _session_update(self, session_id, state, session):
         instructions = str(session.get("instructions") or "")
@@ -227,6 +246,9 @@ class QwenContextRecorder:
                              if text.startswith(prefix)), "system_other")
             if category in {"environment", "memory"}:
                 state.restoring = False
+            if category == "reference":
+                state.restoring = False
+                state.pending_reference = text
             self._append(session_id, "system/message", _measure(
                 text, category=category, role="system"))
         elif state.restoring:

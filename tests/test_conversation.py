@@ -24,6 +24,24 @@ from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
 
 
 class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
+    async def test_task_terminal_does_not_skip_unseen_qwen_chat(self):
+        with tempfile.TemporaryDirectory() as directory:
+            conversation = ConversationService(JsonlSessionStore(Path(directory)))
+            session = await conversation.start()
+            prior = await conversation.begin_interaction("之前聊天", runtime="qwen_realtime")
+            await conversation.finish_interaction(prior, status="succeeded", assistant_content="收到", runtime="qwen_realtime")
+            task = await conversation.begin_interaction("做任务", runtime="codex")
+            await conversation.bind_runtime(session.session_id, runtime="codex", provider="codex", model="m", thread_id="thread")
+            chat = await conversation.begin_interaction("任务期间的新约定", runtime="qwen_realtime")
+            await conversation.finish_interaction(chat, status="succeeded", assistant_content="我知道了", runtime="qwen_realtime")
+            await conversation.mark_runtime_synced(session.session_id, "codex", chat.user_event.sequence, task.interaction_id)
+            before = await conversation.store.runtime_binding(session.session_id, "codex")
+            await conversation.finish_interaction(task, status="succeeded", assistant_content="真实结果", runtime="codex")
+            after = await conversation.store.runtime_binding(session.session_id, "codex")
+            self.assertEqual(before.context_cursor, after.context_cursor)
+            self.assertLess(after.context_cursor, chat.user_event.sequence)
+            await conversation.bind_runtime(session.session_id, runtime="codex", provider="codex", model="m", thread_id="new-thread")
+            self.assertEqual((await conversation.store.runtime_binding(session.session_id, "codex")).context_cursor, 0)
     async def test_new_session_replaces_previous_session_task_projection(self):
         with tempfile.TemporaryDirectory() as directory:
             published = []

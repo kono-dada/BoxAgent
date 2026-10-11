@@ -60,10 +60,12 @@ class RuntimeBinding:
     thread_id: str
     context_cursor: int = 0
     previous_threads: tuple[str, ...] = ()
+    synced_event_ids: tuple[str, ...] = ()
 
     def payload(self) -> dict[str, Any]:
         value = asdict(self)
         value["previous_threads"] = list(self.previous_threads)
+        value["synced_event_ids"] = list(self.synced_event_ids)
         return value
 
     @classmethod
@@ -71,6 +73,7 @@ class RuntimeBinding:
         data = {key: value.get(key) for key in cls.__dataclass_fields__}
         data["context_cursor"] = int(data.get("context_cursor") or 0)
         data["previous_threads"] = tuple(data.get("previous_threads") or ())
+        data["synced_event_ids"] = tuple(data.get("synced_event_ids") or ())
         return cls(**data)
 
 

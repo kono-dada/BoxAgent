@@ -179,4 +179,5 @@ class WindowSummary:
         if not text:
             raise RuntimeError("模型返回空摘要")
         self.emit("context.updated", context_status="", context_text=text,
-                  context_app=window["app"], context_at=captured_at)
+                  context_app=window["app"], context_window_id=window["id"],
+                  context_at=captured_at)

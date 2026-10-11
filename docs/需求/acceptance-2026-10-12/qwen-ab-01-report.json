@@ -1,0 +1,39 @@
+{
+  "model": "qwen3.8-omni-flash-realtime",
+  "summaries": {
+    "A": {
+      "cases": 32,
+      "action_cases": 14,
+      "chat_cases": 18,
+      "missed": 1,
+      "false_triggered": 0,
+      "unsupported_completion_flags": 0,
+      "host_fallback": 0,
+      "prepare_p50_ms": 0.55,
+      "first_output_p50_ms": 776.05,
+      "response_created_p50_ms": 775.5,
+      "intent_ready": 0
+    },
+    "B": {
+      "cases": 32,
+      "action_cases": 14,
+      "chat_cases": 18,
+      "missed": 1,
+      "false_triggered": 0,
+      "unsupported_completion_flags": 0,
+      "host_fallback": 0,
+      "prepare_p50_ms": 173.60000000000002,
+      "first_output_p50_ms": 1098.3,
+      "response_created_p50_ms": 1098.0,
+      "intent_ready": 25
+    }
+  },
+  "checks": {
+    "intent_budget": true,
+    "no_miss_regression": true,
+    "no_false_trigger_regression": true,
+    "no_completion_regression": true,
+    "text_latency": false
+  },
+  "limits": "合成输入、每组连续会话、固定顺序且每例一次；编结果为词法筛查，须检查原文。不能证明真实用户总体改善或缓存命中。"
+}

@@ -1,0 +1,171 @@
+{
+  "cases": [
+    {
+      "kind": "persona",
+      "query": "我想给你取名小芽，可以吗？",
+      "reply": "可以呀，小芽这个名字很可爱。",
+      "calls": []
+    },
+    {
+      "kind": "continuity",
+      "query": "我刚才给你取的名字是什么？",
+      "reply": "你刚才给我取的名字是小芽。",
+      "calls": []
+    },
+    {
+      "kind": "support",
+      "query": "今天忙了一整天，好累。",
+      "reply": "辛苦了，小芽在这儿陪着你。",
+      "calls": []
+    },
+    {
+      "kind": "rest",
+      "query": "别放音乐了，我准备睡觉。",
+      "reply": "好，那我不放音乐了。你安心准备睡觉吧，小芽在这儿陪着你。",
+      "calls": []
+    },
+    {
+      "kind": "action",
+      "query": "请帮我打开计算器。",
+      "reply": "我来帮你打开计算器。",
+      "calls": [
+        "run_task"
+      ]
+    }
+  ],
+  "checks": {
+    "name_retained": true,
+    "chat_did_not_run_task": true,
+    "action_called_tool": true,
+    "one_reference": true,
+    "deletion_ack": true
+  },
+  "totals": {
+    "chars": 3707,
+    "tokens": 2055,
+    "entries": 16
+  },
+  "composition": [
+    {
+      "key": "instructions",
+      "label": "系统指令",
+      "count": 1,
+      "chars": 1078,
+      "tokens": 862,
+      "percent": 42.0
+    },
+    {
+      "key": "persona",
+      "label": "角色设定",
+      "count": 0,
+      "chars": 0,
+      "tokens": 0,
+      "percent": 0.0
+    },
+    {
+      "key": "tools",
+      "label": "工具定义",
+      "count": 1,
+      "chars": 2208,
+      "tokens": 948,
+      "percent": 46.1
+    },
+    {
+      "key": "profile",
+      "label": "用户画像",
+      "count": 1,
+      "chars": 56,
+      "tokens": 21,
+      "percent": 1.0
+    },
+    {
+      "key": "checkpoint",
+      "label": "上下文检查点",
+      "count": 0,
+      "chars": 0,
+      "tokens": 0,
+      "percent": 0.0
+    },
+    {
+      "key": "history",
+      "label": "恢复历史",
+      "count": 1,
+      "chars": 13,
+      "tokens": 13,
+      "percent": 0.6
+    },
+    {
+      "key": "environment",
+      "label": "环境包",
+      "count": 0,
+      "chars": 0,
+      "tokens": 0,
+      "percent": 0.0
+    },
+    {
+      "key": "memory",
+      "label": "记忆包",
+      "count": 0,
+      "chars": 0,
+      "tokens": 0,
+      "percent": 0.0
+    },
+    {
+      "key": "reference",
+      "label": "本轮参考包",
+      "count": 1,
+      "chars": 136,
+      "tokens": 49,
+      "percent": 2.4
+    },
+    {
+      "key": "user",
+      "label": "用户消息",
+      "count": 4,
+      "chars": 45,
+      "tokens": 45,
+      "percent": 2.2
+    },
+    {
+      "key": "assistant",
+      "label": "助手回复",
+      "count": 5,
+      "chars": 78,
+      "tokens": 78,
+      "percent": 3.8
+    },
+    {
+      "key": "tool_call",
+      "label": "工具调用",
+      "count": 1,
+      "chars": 36,
+      "tokens": 9,
+      "percent": 0.4
+    },
+    {
+      "key": "tool_result",
+      "label": "工具结果",
+      "count": 1,
+      "chars": 57,
+      "tokens": 30,
+      "percent": 1.5
+    },
+    {
+      "key": "notification",
+      "label": "任务通知",
+      "count": 0,
+      "chars": 0,
+      "tokens": 0,
+      "percent": 0.0
+    },
+    {
+      "key": "system_other",
+      "label": "其他系统消息",
+      "count": 0,
+      "chars": 0,
+      "tokens": 0,
+      "percent": 0.0
+    }
+  ],
+  "delete_ack_count": 1
+}

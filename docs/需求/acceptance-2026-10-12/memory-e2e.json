@@ -1,0 +1,13 @@
+{
+  "backend": "mock",
+  "status": "passed",
+  "checks": {
+    "legacy_canonical_upgrade": "passed",
+    "user_commit_to_jev": "passed",
+    "cross_session_l2_recall": "passed",
+    "narrative_recall": "passed",
+    "secret_rejection": "passed",
+    "delete_no_resurrection": "passed"
+  },
+  "command": "UV_CACHE_DIR=/tmp/uvcache uv run python scripts/check_memory_e2e.py --backend mock --data-dir /tmp/boxagent-memory-companion-final"
+}

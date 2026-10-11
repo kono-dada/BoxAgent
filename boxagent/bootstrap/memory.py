@@ -13,6 +13,19 @@ from boxagent.application.memory_profile import (
 from boxagent.domain.memory.service import MemoryService
 from boxagent.infrastructure.memory import JevMemWorker
 from boxagent.infrastructure.persistence import JsonMemoryJobStore
+from boxagent.bootstrap.settings import Settings
+from boxagent.infrastructure.context.intent import IntentReference
+
+
+def create_intent_reference(app_settings: Settings) -> IntentReference:
+    worker = JevMemWorker(
+        python=app_settings.jev_mem_python, workspace=app_settings.root,
+        command=[str(app_settings.jev_mem_python), str(app_settings.root / "scripts/intent_worker.py")],
+        decision_api_key=app_settings.decision_api_key,
+        decision_base_url=app_settings.decision_base_url,
+        decision_model=app_settings.decision_model,
+        log_path=app_settings.log_dir / "intent-worker.log")
+    return IntentReference(worker)
 
 
 def create_memory_module(*, app_settings, conversation_store, runtime_host,

@@ -506,7 +506,7 @@ class ProjectionAndRecallTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(backend.queries[-1][2], "deep")
         self.assertNotIn("metadata", recalled["memories"][0])
 
-    async def test_context_packet_contains_profile_fact_and_narrative(self):
+    async def test_context_packet_has_query_evidence_without_repeating_stable_profile(self):
         with tempfile.TemporaryDirectory() as directory:
             profile_store = JsonProfileStore(Path(directory) / "profile.json")
             await profile_store.apply([{
@@ -526,7 +526,7 @@ class ProjectionAndRecallTests(unittest.IsolatedAsyncioTestCase):
                 MemoryService(backend),
                 context=MemoryContextProvider(backend, profile_store))
             packet = await module.context_packet("继续做", session_id="ses-1")
-            self.assertIn("answer_style", packet)
+            self.assertNotIn("answer_style", packet)
             self.assertIn("用户喜欢爵士乐", packet)
             self.assertIn("用户正在实现 BoxAgent", packet)
             evidence = await module.evidence("继续做", session_id="ses-1")

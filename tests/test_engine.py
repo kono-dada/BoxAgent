@@ -129,6 +129,12 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
         await self.server.close()
         self.temporary.cleanup()
 
+    async def test_engine_close_does_not_wait_for_connected_panel(self):
+        await asyncio.wait_for(self.server.close(), 1)
+        self.assertTrue(self.application.closed)
+        self.assertFalse(self.socket_path.exists())
+        self.assertIsNone(self.server.lock_stream)
+
     async def test_commands_cross_process_contract_and_events_return_state(self):
         self.assertFalse(self.application.state.context_enabled)
         result = await self.client.request("submit_text", {"goal": "打开音乐"})

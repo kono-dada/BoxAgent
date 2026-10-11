@@ -27,7 +27,7 @@ class RuntimeContextProjector:
 
     def runtime_messages(self, *, turns=(), after_sequence=0,
                          character_budget=None,
-                         require_user_start=True) -> tuple[RuntimeMessage, ...]:
+                         require_user_start=True, exclude_event_ids=()) -> tuple[RuntimeMessage, ...]:
         """Project final product messages into provider-neutral native history."""
         budget = (self.history_character_budget
                   if character_budget is None else character_budget)
@@ -35,6 +35,7 @@ class RuntimeContextProjector:
             raise ValueError("历史上下文预算必须大于 0")
         eligible = [turn for turn in turns
                     if turn.sequence > after_sequence
+                    and turn.event_id not in exclude_event_ids
                     and turn.role in {"user", "assistant"}
                     and isinstance(turn.content, str) and turn.content.strip()]
         recent = keep_recent_turns(eligible, character_budget=budget)

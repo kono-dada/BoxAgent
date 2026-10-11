@@ -27,6 +27,7 @@ class RuntimeRequestBuilder:
             history=self.context_assembler.runtime_messages(turns=item.turns),
             history_delta=self.context_assembler.runtime_messages(
                 turns=item.turns, after_sequence=item.context_cursor,
+                exclude_event_ids=item.synced_event_ids,
                 require_user_start=False),
             evidence_context=self.context_assembler.evidence_packet(
                 memories=item.memories, environment=item.environment),

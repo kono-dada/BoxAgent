@@ -150,6 +150,10 @@ class EngineServer:
                 params.get("session_id", ""),
                 after_sequence=int(params.get("after_sequence", 0)),
                 limit=int(limit) if limit is not None else None)
+        if method == "session_timeline":
+            return await self.application.session_timeline(
+                str(params.get("session_id") or ""), after_seq=int(params.get("after_seq", 0)),
+                limit=int(params.get("limit", 150)))
         if method == "cancel_task":
             await self.application.cancel_task()
             return self.application.last_result
@@ -201,11 +205,6 @@ class EngineServer:
         try:
             if self.server:
                 self.server.close()
-                await self.server.wait_closed()
-                self.server = None
-            if self.application:
-                await self.application.close()
-                self.application = None
             clients, self.clients = tuple(self.clients.items()), {}
             for writer, (_outbox, sender) in clients:
                 sender.cancel()
@@ -215,6 +214,12 @@ class EngineServer:
                   for task in (sender, writer.wait_closed())),
                 return_exceptions=True,
             )
+            if self.server:
+                await self.server.wait_closed()
+                self.server = None
+            if self.application:
+                await self.application.close()
+                self.application = None
         finally:
             self.socket_path.unlink(missing_ok=True)
             if self.lock_stream:

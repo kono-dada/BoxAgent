@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
+<title>伙伴 · 会话管理</title><link rel="stylesheet" href="style.css"></head><body>
+<header><h1>伙伴的上下文</h1><span id="status">正在连接 Engine…</span><button id="refresh">刷新</button></header>
+<main><aside><h2>会话</h2><div id="sessions"></div></aside><section>
+<nav><button data-view="context">有效上下文</button><button data-view="timeline">事件时间线</button><button data-view="memory">长期记忆</button><button data-view="errors">诊断日志</button></nav>
+<p id="summary">选择会话查看。</p><div id="content"></div>
+<dialog id="detail"><button id="close">关闭</button><pre id="full"></pre></dialog>
+</section></main><script src="renderer.js"></script></body></html>

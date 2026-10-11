@@ -1,0 +1,12 @@
+{
+  "python": {
+    "passed": 319,
+    "skipped": 4,
+    "subtests_passed": 3
+  },
+  "pyright_errors": 0,
+  "new_module_pyright_errors": 0,
+  "vrm_tests": 25,
+  "panel_tests": 1,
+  "scope": "2026-10-12 local validation; synthetic protocol cases, no desktop actions"
+}

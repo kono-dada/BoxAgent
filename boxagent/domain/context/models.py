@@ -22,6 +22,7 @@ CATEGORIES = (
     ("history", "恢复历史"),
     ("environment", "环境包"),
     ("memory", "记忆包"),
+    ("reference", "本轮参考包"),
     ("user", "用户消息"),
     ("assistant", "助手回复"),
     ("tool_call", "工具调用"),
@@ -179,7 +180,39 @@ def project_context(session_id: str, events) -> dict[str, Any]:
     rebuilds = [item for item in events if item.type == "context/rebuild"]
     start = rebuilds[-1].seq if rebuilds else 0
     current = [item for item in events if item.seq >= start]
-    entries = [_entry(item) for item in current if item.type in SURFACE_TYPES]
+    bound: dict[str, int] = {}
+    expired: set[int] = set()
+    deleted: set[int] = set()
+    for item in current:
+        if item.type == "context/bound":
+            match = next((e for e in reversed(current)
+                          if e.seq < item.seq and e.type in SURFACE_TYPES
+                          and e.data.get("content") == item.data.get("content")), None)
+            if match:
+                bound[item.data["item_id"]] = match.seq
+        elif item.type in {"context/expired", "context/deleted"}:
+            seq = bound.get(item.data.get("item_id"))
+            if seq is not None:
+                (expired if item.type == "context/expired" else deleted).add(seq)
+    entries = [_entry(item) for item in current if item.type in SURFACE_TYPES
+               and item.seq not in expired | deleted]
+    provider_entries = [_entry(item) for item in current if item.type in SURFACE_TYPES
+                        and item.seq not in deleted]
+    requests = []
+    active: list[int] = []
+    previous: list[int] = []
+    for item in current:
+        if item.type in SURFACE_TYPES:
+            active.append(item.seq)
+        elif item.type == "context/expired":
+            remove = bound.get(item.data.get("item_id"))
+            active = [seq for seq in active if seq != remove]
+        elif item.type == "response/requested":
+            requests.append({"seq": item.seq, "time": item.time, "entries": list(active),
+                             "added": [seq for seq in active if seq not in previous],
+                             "removed": [seq for seq in previous if seq not in active],
+                             "estimated": True})
+            previous = list(active)
     composition = _composition(entries)
     total_tokens = sum(row["tokens"] for row in composition)
     total_chars = sum(row["chars"] for row in composition)
@@ -197,6 +230,10 @@ def project_context(session_id: str, events) -> dict[str, Any]:
                    "entries": len(entries)},
         "composition": composition,
         "entries": entries,
+        "provider_entries": provider_entries,
+        "requests": requests,
+        "expired_count": len(expired),
+        "delete_ack_count": len(deleted),
         "turns": _turns(current),
         "all_turn_count": len(_turns(events)),
         "accumulation": {

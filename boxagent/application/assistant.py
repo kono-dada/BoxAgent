@@ -2,6 +2,9 @@
 
 import asyncio
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from boxagent.core.events import StateEvents
 from boxagent.application.memory import DisabledMemoryModule
@@ -27,7 +30,7 @@ class BoxAgentApplication:
                  voice_history_builder=None, skill_service=None,
                  skill_authoring=None, task_trace_reader=None,
                  notification_outbox=None, context_ledger=None,
-                 context_observer=None, context_history=None):
+                 context_observer=None, context_history=None, turn_preparer=None):
         self.events = StateEvents(publish)
         self.conversation_service = conversation_service or ConversationService()
         self.notification_outbox = notification_outbox or NotificationOutbox()
@@ -39,7 +42,9 @@ class BoxAgentApplication:
         self.skill_authoring = skill_authoring
         self.task_trace_reader = task_trace_reader
         self.context_ledger = context_ledger
+        self.context_observer = context_observer
         self.context_history = context_history
+        self.context_cache = {}
         self.perception_service = PerceptionService(self.events)
         self.interaction_service = InteractionService(
             self.events, voice_factory, self.handle_tool,
@@ -47,6 +52,7 @@ class BoxAgentApplication:
             history_builder=voice_history_builder,
             notification_event=self._voice_notification_event,
             memory=self.memory,
+            turn_preparer=turn_preparer,
             context_observer=context_observer)
         self.runtime_resources = tuple(runtime_resources)
         self.skill_jobs = set()
@@ -220,6 +226,14 @@ class BoxAgentApplication:
             session_id, after_sequence=after_sequence, limit=limit)
         return [item.payload() for item in events]
 
+    async def session_timeline(self, session_id: str, *, after_seq: int = 0,
+                               limit: int = 150) -> list[dict]:
+        stream = getattr(self.conversation_service.store, "events", None)
+        if stream is None:
+            return await self.session_events(session_id, after_sequence=after_seq, limit=limit)
+        rows = await asyncio.to_thread(stream.read, session_id, after_seq=after_seq)
+        return [row.payload() for row in rows[-max(1, min(limit, 500)):]]
+
     def _require_idle_session_switch(self):
         if self.execution_service.job and not self.execution_service.job.done():
             raise RuntimeError("任务执行期间不能切换 Session；请等待完成或先停止任务")
@@ -303,8 +317,12 @@ class BoxAgentApplication:
                     "session_title": title,
                     "message": f"「{title or session_id}」还没有发给 Qwen 的上下文；"
                                "开启语音或发一句文字后点刷新"}
-        return {"status": "ready", "session_title": title, "source": source,
-                **project_context(session_id, events)}
+        key = (len(events), events[-1].seq, events[-1].time)
+        cached = self.context_cache.get(session_id)
+        if cached is None or cached[0] != key:
+            cached = (key, project_context(session_id, events))
+            self.context_cache[session_id] = cached
+        return {"status": "ready", "session_title": title, "source": source, **cached[1]}
 
     async def context_entry(self, session_id, seq):
         """Return the full model-visible text of one ledger entry."""
@@ -568,7 +586,12 @@ class BoxAgentApplication:
             await asyncio.gather(*self.skill_jobs, return_exceptions=True)
         self.skill_jobs.clear()
         await self.interaction_service.close()
+        logger.info("closing memory")
         await self.memory.close()
+        logger.info("memory closed")
+        if self.context_observer is not None and hasattr(self.context_observer, "flush"):
+            await asyncio.to_thread(self.context_observer.flush)
         for resource in reversed(self.runtime_resources):
+            logger.info("closing resource %s", type(resource).__name__)
             await resource.close()
         self._closed = True

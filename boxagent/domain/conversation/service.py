@@ -103,7 +103,7 @@ class ConversationService:
             runtime=runtime, status=status,
             occurred_at=time.time(), data=dict(data or {})))
         binding = await self.store.runtime_binding(context.session.session_id, runtime)
-        if binding:
+        if binding and runtime != "codex":
             await self.store.save_runtime_binding(
                 context.session.session_id,
                 RuntimeBinding(
@@ -138,7 +138,26 @@ class ConversationService:
 
     async def for_runtime(self, context: InteractionContext, runtime: str):
         binding = await self.store.runtime_binding(context.session.session_id, runtime)
-        return replace(context, runtime_binding=binding)
+        messages = await self.recent_messages(context.session.session_id, limit=None)
+        prior = tuple(e for e in messages if e.interaction_id != context.interaction_id)
+        return replace(context, runtime_binding=binding, prior_messages=prior)
+
+    async def mark_runtime_synced(self, session_id: str, runtime: str,
+                                  sequence: int, interaction_id: str = "",
+                                  event_ids: tuple[str, ...] = ()) -> None:
+        if interaction_id:
+            # The current query/outcome will be restored after ephemeral task
+            # history is reverted. A later queued chat must not skip over it.
+            messages = await self.recent_messages(session_id, limit=None)
+            current = next((e for e in messages if e.interaction_id == interaction_id
+                            and e.role == "user"), None)
+            if current:
+                sequence = min(sequence, current.sequence - 1)
+        binding = await self.store.runtime_binding(session_id, runtime)
+        if binding:
+            await self.store.save_runtime_binding(session_id, replace(
+                binding, context_cursor=max(binding.context_cursor, sequence),
+                synced_event_ids=tuple(dict.fromkeys((*binding.synced_event_ids, *event_ids)))))
 
     async def _recover_interrupted_interactions(self):
         sessions = await self.store.list_sessions(include_archived=True)
@@ -194,7 +213,8 @@ class ConversationService:
             previous.append(current.thread_id)
         await self.store.save_runtime_binding(session_id, RuntimeBinding(
             runtime=runtime, provider=provider, model=model, thread_id=thread_id,
-            context_cursor=current.context_cursor if current else 0,
+            context_cursor=current.context_cursor if current and current.thread_id == thread_id else 0,
+            synced_event_ids=current.synced_event_ids if current and current.thread_id == thread_id else (),
             previous_threads=tuple(dict.fromkeys(previous))))
 
     @staticmethod
