@@ -91,7 +91,7 @@ if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.
   if(!motions || !mate)throw new Error('用法：node scripts/sync_mate_motion_profile.mjs 动作包目录 Mate-Engine目录');
   const profile=extractProfile(path.resolve(motions),path.resolve(mate));
   fs.writeFileSync(path.join(root,'web/vrm/mate-motion-profile.json'),JSON.stringify(profile,null,2)+'\n');
-  const lines=['# 本地动作目录','',`动作范围来自 \`mate_engine_motions\` 中的 ${profile.entries.length} 个 VRMA 文件。自动待机使用原版预制体的 ${profile.idleCount} 项范围，并只保留本地实际存在的动作。其它动作登记为可用资源，不会混入自动待机。`,'','## 自动待机顺序','','| 顺序 | 动作 | 播放速度 |','| --- | --- | --- |'];
+  const lines=['# 本地动作目录','',`动作范围来自 \`mate_engine_motions\` 中的 ${profile.entries.length} 个 VRMA 文件。自动待机使用原版预制体的 ${profile.idleCount} 项范围，并只保留本地实际存在的动作。其它动作登记为可用资源，不会混入自动待机。`,'','## 自动待机候选','','下表序号保留原版清单顺序，不代表运行时播放顺序；运行时按 [耗能概率](vrm-idle-energy.md) 抽样。','','| 顺序 | 动作 | 播放速度 |','| --- | --- | --- |'];
   for(const [index,id] of profile.motionSet.idle.entries())lines.push(`| ${index+1} | ${id} | ${profile.motionSettings[id].timeScale} × |`);
   lines.push('','## 全部可用资源','','速度取自原版对应的待机混合树或状态；同一素材在不同状态有不同配置时，完整引用保存在 `web/vrm/mate-motion-profile.json`。没有控制器引用的素材按 1 倍作为手动预览默认值，不冒充原版状态配置。','','| 文件 | 时长（秒） | 控制器引用 |','| --- | --- | --- |');
   for(const e of profile.entries)lines.push(`| ${e.file} | ${e.duration} | ${e.references.map(r=>`${r.state||r.parameter}：${r.timeScale} ×`).join('；') || '未引用'} |`);

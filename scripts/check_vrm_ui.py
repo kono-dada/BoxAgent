@@ -170,7 +170,15 @@ def main():
             check(movement > 0.00001, "实际双脚随动画移动，没有被固定在加载姿势")
         check(result["renderer"]["frames"] > 10, "动画帧持续推进")
         check(len(result["renderer"]["behavior"]["idleActions"]) >= 3, "至少三种共享待机动作完成骨骼重定向")
-        check(len(result["renderer"]["behavior"]["idleActions"]) == 11, "实际使用原版预制体的十一项待机顺序")
+        check(len(result["renderer"]["behavior"]["idleActions"]) == 11, "实际使用原版预制体的十一项待机候选")
+        distribution = result["renderer"]["behavior"]["idleDistribution"]
+        check(len(distribution) == 11 and all(item["energy"] >= 0 for item in distribution),
+              "真实播放器为全部待机候选计算耗能值")
+        check(abs(sum(item["probability"] for item in distribution) - 1) < 1e-9,
+              "真实待机抽样概率归一化")
+        ordered = sorted(distribution, key=lambda item: item["energy"])
+        check(all(a["probability"] >= b["probability"] for a, b in zip(ordered, ordered[1:])),
+              "高耗能动作在真实播放器中有更低的出现概率")
         check(result["renderer"]["lighting"]["key"]["intensity"] == 2.4 and
               result["renderer"]["lighting"]["fill"]["intensity"] == 2.1,
               "实际渲染使用 Web 版主光与补光设置")

@@ -79,7 +79,7 @@ export class AvatarAnimator {
     next.setEffectiveWeight(1).setEffectiveTimeScale(settings.timeScale).play();
     next.time = settings.cycleOffset * clip.duration;
     const idleBlend = kind === 'idle' && this.currentKind === 'idle';
-    const duration = idleBlend ? (this.behavior.idleIndex === 0 ? 0 : this.behavior.settings.idleTransitionTime) : this.behavior.settings.dragTransitionTime;
+    const duration = idleBlend ? this.behavior.settings.idleTransitionTime : this.behavior.settings.dragTransitionTime;
     // Idle BlendTree 共用归一化播放相位；Drag 进入时从动作起点播放。
     if (idleBlend) next.time = (this.active.time % this.active.getClip().duration) / this.active.getClip().duration * clip.duration;
     next.crossFadeFrom(this.active, duration, false);

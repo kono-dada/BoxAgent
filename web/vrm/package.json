@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src.js --bundle --format=iife --target=safari16 --outfile=../../assets/vrm/viewer.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "idle:report": "node analyze-idle.mjs"
   },
   "dependencies": {
     "@pixiv/three-vrm": "3.4.4",

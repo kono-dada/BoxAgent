@@ -29,7 +29,7 @@ node scripts/import_vrm.mjs '/路径/角色.vrm' local-example '角色名称'
 
 | 行为 | Mate-Engine 来源 | BoxAgent 实现 |
 | --- | --- | --- |
-| 待机轮换 | `AvatarAnimatorController.Update` 更新 IdleIndex；预制体实际覆盖为 10 秒切换、1 秒混合 | `mate-controller.js` 按索引轮换共享待机，动作循环播放；拖拽期间索引也继续推进 |
+| 待机轮换 | `AvatarAnimatorController.Update` 更新 IdleIndex；预制体实际覆盖为 10 秒切换、1 秒混合 | `mate-controller.js` 每 10 秒自主待机时间按耗能抽样，动作循环播放；交互期间暂停抽样，待机切换统一 1 秒混合 |
 | 按下和松开 | 按下设置 isDragging，最短保持 0.30 秒，松开后退出 | 原生 `mouseDown` 立即发送开始，`mouseUp` 发送结束；短按也保留最短 Drag 时间 |
 | Drag 状态 | 控制器引用 `PET_DRAGGING.anim`，以 0.25 秒过渡进入/退出 | `motionSet.dragging` 对应 `PET_DRAGGING.vrma`，在 AnimationMixer 中循环播放 |
 | 摆动 | `AvatarSwayController.Update` 先清理旧叠加，`LateUpdate` 在动画 hips 局部旋转后乘摆动 | 每帧恢复动画基准、更新 Mixer、保存新基准，再后乘 hips 摆动，防止逐帧累积 |
@@ -53,7 +53,7 @@ Web 版的 `SpringBoneGroundCollider` 只把平面碰撞器加入头发、衣物
 
 动作范围限定为本地 `mate_engine_motions` 目录的 128 个 VRMA，全部登记在仓库共享动作包中；启动只预载自动状态需要的动作，其余保留为按需加载资源。完整清单见 [本地动作目录](vrm-motion-catalog.md)。表情、舞蹈、坐姿等素材不会混入自动待机。
 
-待机顺序取原版控制器 Idle 混合树中预制体允许的前 11 项：基础待机、4 个 UPDATE2 待机、PET_IDLE_2、14、4、3、5、15。基础待机按 0.3 倍，14 和 15 按 0.4 倍，其余按各自配置播放。睡眠动作按原版 0.6 倍；没有统一将动作都调慢。索引回到 0 时直接切换，其余按 1 秒过渡；待机切换起点保留归一化动作相位。说话和任务成功是 BoxAgent 的业务状态适配，Drag 优先于它们。
+待机候选取原版控制器 Idle 混合树中预制体允许的前 11 项：基础待机、4 个 UPDATE2 待机、PET_IDLE_2、14、4、3、5、15。基础待机按 0.3 倍，14 和 15 按 0.4 倍，其余按各自配置播放。睡眠动作按原版 0.6 倍；没有统一将动作都调慢。每个动作由修复后的关节摆幅、角速度及髋部位移计算耗能，使用 `p ∝ exp(−E / T)` 抽样，默认 `T=0.8`。启动选最低耗能动作；允许连续抽到同一个动作，保持连续播放。拖拽、说话等交互状态暂停抽样计时，恢复先前动作；待机之间统一按 1 秒过渡并保留归一化动作相位。全部 39 个待机类别素材的分数、11 个自动候选的概率与计算方法见 [待机动作耗能与抽样](vrm-idle-energy.md)。说话和任务成功是 BoxAgent 的业务状态适配，Drag 优先于它们。
 
 `scripts/sync_mate_motion_profile.mjs` 从实际动作文件、Unity .meta 的 GUID、控制器与预制体提取清单、引用、顺序和速度，生成 `web/vrm/mate-motion-profile.json`，包含源控制器和动作文件摘要。导入器以实际存在的文件与该配置的交集生成运行清单。配置复核命令：
 
@@ -103,7 +103,7 @@ BOXAGENT_VRM_CONTROLS_ONLY=1 BOXAGENT_VRM_PET_DIR=assets/vrm/models/zome \
   uv run --script scripts/pet.py --check-vrm-ui
 ```
 
-单元检查覆盖 10 秒待机轮换、拖动中的索引推进、按下即进入 Drag、短按 0.30 秒保持、持续移动不重置保持时间、Drag 优先级和退出恢复。骨架测试检查上身/手臂姿态保留、髋部位移和脚部旋转按轨道求值、脚能随动作移动，以及连续数百帧后的摆动和位置不累积。
+单元检查覆盖 10 秒待机抽样、交互中暂停计时、能量对摆幅与速度的响应、Boltzmann 概率及十万次固定种子抽样、按下即进入 Drag、短按 0.30 秒保持、持续移动不重置保持时间、Drag 优先级和退出恢复。骨架测试检查上身/手臂姿态保留、髋部位移和脚部旋转按轨道求值、脚能随动作移动，以及连续数百帧后的摆动和位置不累积。
 
 控制模式的真实 WebKit 检查透明像素、帧推进、说话画面变化、原生按下消息后 Drag 动作开始计时、释放后恢复待机、菜单换装、草稿与位置保留和资源释放。控制模式报告位于 `.runtime/vrm-control-check/zome/report.json`。语音与任务使用本地替身，此检查不是人工鼠标操作验收或与 Unity 原版的视觉一致性测试。
 
