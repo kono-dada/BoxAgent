@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -11,6 +12,75 @@ from boxagent.bootstrap import settings
 
 
 class InstallationTests(unittest.TestCase):
+    def test_command_reuses_global_python_and_preserves_arguments(self):
+        result, calls = self._launch_fixture("global", ["--task-model", "model with spaces"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('"UV_PYTHON_INSTALL_DIR": null', calls)
+        self.assertIn('"--no-python-downloads"', calls)
+        self.assertIn('"model with spaces"', calls)
+        self.assertIn('"--locked"', calls)
+
+    def test_command_missing_python_exits_without_run_or_download(self):
+        result, calls = self._launch_fixture("missing", [])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("请先运行 ./scripts/install.sh", result.stderr)
+        self.assertNotIn('"run"', calls)
+
+    def test_command_respects_explicit_python_and_offline_check(self):
+        result, calls = self._launch_fixture("explicit", ["--check-install"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('"UV_PYTHON_INSTALL_DIR": null', calls)
+        self.assertIn('"--offline"', calls)
+        self.assertIn('"--no-sync"', calls)
+
+    def test_command_rejects_incompatible_explicit_python(self):
+        result, calls = self._launch_fixture("incompatible", [])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("需要 Python 3.12", result.stderr)
+        self.assertNotIn('"run"', calls)
+
+    def _launch_fixture(self, mode: str, arguments: list[str]) -> tuple[subprocess.CompletedProcess[str], str]:
+        """Exercise the real shell entrypoints without network or app startup."""
+        import shutil
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(prefix="boxagent launcher ") as directory:
+            root = Path(directory)
+            (root / "scripts").mkdir()
+            for name in ("run-pet.sh", "runtime-env.sh"):
+                shutil.copy2(repo / "scripts" / name, root / "scripts" / name)
+            shutil.copy2(repo / "启动桌宠.command", root / "启动桌宠.command")
+            uv_bin = root / ".local/bin"
+            uv_bin.mkdir(parents=True)
+            log = root / "calls.jsonl"
+            uv = uv_bin / "uv"
+            uv.write_text(f'''#!{sys.executable}
+import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+with Path(os.environ["LAUNCHER_LOG"]).open("a") as stream:
+    stream.write(json.dumps({{"args": args, "UV_PYTHON_INSTALL_DIR": os.environ.get("UV_PYTHON_INSTALL_DIR")}}) + "\\n")
+if args[:2] == ["python", "find"]:
+    if os.environ["LAUNCHER_MODE"] == "missing": sys.exit(1)
+    if os.environ["LAUNCHER_MODE"] == "global" and os.environ.get("UV_PYTHON_INSTALL_DIR") and args[-1] == "3.12": sys.exit(1)
+    print(os.environ.get("LAUNCHER_PYTHON", sys.executable))
+elif args[0] == "run": sys.exit(0)
+else: sys.exit(2)
+''')
+            uv.chmod(0o755)
+            # run-pet prepends HOME/.local/bin; use a fixture HOME to reach our uv.
+            env = {"HOME": str(root), "PATH": f"{uv_bin}:/usr/bin:/bin",
+                   "LAUNCHER_MODE": mode, "LAUNCHER_LOG": str(log)}
+            if mode in ("explicit", "incompatible"):
+                env["UV_PYTHON"] = sys.executable
+            if mode == "incompatible":
+                incompatible = root / "python"
+                incompatible.write_text('#!/bin/sh\nexit 1\n')
+                incompatible.chmod(0o755)
+                env["LAUNCHER_PYTHON"] = str(incompatible)
+            result = subprocess.run([str(root / "启动桌宠.command"), *arguments],
+                                    cwd="/tmp", env=env, text=True, capture_output=True)
+            return result, log.read_text() if log.exists() else result.stderr
+
     def test_session_layout_respects_rollback_without_original_legacy_tree(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

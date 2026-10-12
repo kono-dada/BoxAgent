@@ -20,7 +20,7 @@ def main():
             failures.append(name)
 
     check("Apple Silicon macOS", platform.system() == "Darwin" and platform.machine() == "arm64")
-    check("宿主 Python 3.12.9", sys.version_info[:3] == (3, 12, 9))
+    check("宿主 Python 3.12.x", sys.version_info[:2] == (3, 12), platform.python_version())
     for module in ("AppKit", "Quartz", "pyaudio", "websockets", "PIL"):
         check(f"宿主依赖 {module}", importlib.util.find_spec(module) is not None)
 
