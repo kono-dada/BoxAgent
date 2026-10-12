@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from boxagent.interfaces.macos.pets.catalog import PetCatalog
+from boxagent.interfaces.desktop.pets.catalog import PetCatalog
 
 
 class VrmCatalogTests(unittest.TestCase):

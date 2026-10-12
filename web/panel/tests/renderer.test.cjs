@@ -6,16 +6,15 @@ const vm = require('node:vm');
 // Independent recorded response shapes: unified events and legacy product events
 // expose different type/content fields. Exercise decoding without duplicating UI.
 function renderer() {
-  const handlers = {};
-  const node = { addEventListener() {}, dataset: {}, style: {} };
-  const context = vm.createContext({
-    document: { title:'', getElementById: () => node, querySelectorAll: () => [], addEventListener() {} },
-    boxagent: { onState() {}, onDiagnostic() {}, request: async () => new Promise(() => {}) },
-    console, Intl, Date, setTimeout, t: value => value, locale: () => 'zh-CN', startPreferences() {}
-  });
-  vm.runInContext(fs.readFileSync(require.resolve('../renderer.js'), 'utf8').replace(/^import .*;\n/gm, ''), context);
-  handlers.event = row => JSON.parse(vm.runInContext(`JSON.stringify(normalizeEvent(${JSON.stringify(row)}))`, context));
-  return handlers;
+  const ts = require('typescript');
+  const exports = {};
+  const source = fs.readFileSync(require.resolve('../src/event-model.ts'), 'utf8');
+  const compiled = ts.transpileModule(source, { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022
+  } }).outputText;
+  const context = vm.createContext({ exports, require: () => ({ t: value => value }) });
+  vm.runInContext(compiled, context);
+  return { event: row => JSON.parse(JSON.stringify(exports.normalizeEvent(row))) };
 }
 
 test('unified final messages retain their readable role and content', () => {

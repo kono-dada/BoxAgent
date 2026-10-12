@@ -7,12 +7,20 @@ import { AvatarAnimator } from './avatar-animator.js';
 import { SpringPhysics } from './spring-physics.js';
 import { visibleBounds, BoundsEnvelope } from './visible-bounds.js';
 
-const report = (type, detail = {}) => window.webkit?.messageHandlers.pet.postMessage({ type, ...detail });
+const report = (type, detail = {}) => {
+  const value = { type, ...detail };
+  if (window.parent !== window) window.parent.postMessage({type:'boxagent-pet-report',value}, '*');
+};
+window.addEventListener('message', event => {
+  if (event.source !== window.parent || event.data?.type !== 'boxagent-pet-command') return;
+  const { method, value } = event.data;
+  if (['present','interact','dispose'].includes(method)) window.pet?.[method](value);
+});
 const previewTheme = new URLSearchParams(location.search).get('previewTheme');
 function applyPreviewTheme(theme) {
   if (!['light', 'dark'].includes(theme)) return;
   document.documentElement.style.colorScheme = theme;
-  document.documentElement.style.background = theme === 'dark' ? '#151c18' : '#ffffff';
+  document.documentElement.style.background = theme === 'dark' ? '#171717' : '#ffffff';
   document.body.style.background = 'transparent';
 }
 if (previewTheme) {

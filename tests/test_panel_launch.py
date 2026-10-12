@@ -1,35 +1,42 @@
-"""Menu launches installed assets and reports incomplete installations."""
-
+"""The Python entrypoint launches one installed Electron desktop host."""
 import json
 from pathlib import Path
-
+from dataclasses import replace
 import pytest
+from boxagent.bootstrap.settings import load_settings
+from boxagent.bootstrap.electron_launch import run_electron
 
-from boxagent.interfaces.macos.panel_launch import launch_panel
 
-
-def test_menu_launch_runs_installed_binary_without_node_or_pnpm(tmp_path: Path, monkeypatch):
+def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monkeypatch):
     panel = tmp_path / "web/panel"
     executable = panel / "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
     executable.parent.mkdir(parents=True)
-    executable.write_text('#!/bin/sh\nprintf "%s\\n" "$1" "$BOXAGENT_DATA_DIR"\n')
+    record = tmp_path / "record.json"
+    executable.write_text('#!/usr/bin/env python3\nimport os,sys,json\n'
+                          'from pathlib import Path\n'
+                          f'Path({str(record)!r}).write_text(json.dumps([sys.argv[1:], os.environ["BOXAGENT_DESKTOP_ARGS"], os.environ["BOXAGENT_DATA_DIR"]]))\n')
     executable.chmod(0o700)
     (panel / "dist").mkdir()
-    (panel / "dist/index.html").write_text("fixture")
-    monkeypatch.setenv("PATH", "/nonexistent")
-    process = launch_panel(tmp_path, tmp_path / "data", tmp_path / "diagnostics")
-    assert process.wait(timeout=5) == 0
-    assert (tmp_path / "diagnostics/panel.log").read_text().splitlines() == [
-        str(panel), str(tmp_path / "data")]
+    for name in ("index", "pet", "companion"):
+        (panel / f"dist/{name}.html").write_text("fixture")
+    settings = replace(load_settings(), root=tmp_path, data_dir=tmp_path / "data")
+    from subprocess import CompletedProcess
+    monkeypatch.setattr("boxagent.bootstrap.electron_launch.subprocess.run",
+                        lambda *args, **kwargs: CompletedProcess(args, 0, str(executable)))
+    assert run_electron(settings, ["--pet", "a path with spaces"]) == 0
+    args, forwarded, data = json.loads(record.read_text())
+    assert args == [str(panel), "--desktop"]
+    assert json.loads(forwarded) == ["--pet", "a path with spaces"]
+    assert data == str(settings.data_dir)
 
 
-def test_missing_build_reports_installation_before_spawning(tmp_path: Path):
+def test_missing_build_reports_installation(tmp_path: Path):
+    settings = replace(load_settings(), root=tmp_path)
     with pytest.raises(RuntimeError, match="安装并构建"):
-        launch_panel(tmp_path, tmp_path / "data", tmp_path / "diagnostics")
-    assert not (tmp_path / "diagnostics").exists()
+        run_electron(settings, [])
 
 
 def test_start_command_does_not_rebuild_but_dev_does():
     scripts = json.loads((Path(__file__).resolve().parents[1] / "web/panel/package.json").read_text())["scripts"]
-    assert scripts["start"] == "electron ."
+    assert scripts["start"] == "node scripts/launch.cjs"
     assert "build" in scripts["dev"]

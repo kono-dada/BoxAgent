@@ -1,6 +1,6 @@
 # 通用 VRM 桌宠展示
 
-透明 WKWebView 和 Three.js / three-vrm 在现有 macOS 窗口中渲染 VRM。窗口、菜单、聊天、语音和任务仍由原生宿主管理。动画代码不读取角色名称；所有本地模型使用同一状态控制器、动作池和骨架重定向路径。本轮实际渲染检查使用 Zome 和小企鹅。
+Electron 透明窗口中的 iframe 使用 Three.js / three-vrm 渲染 VRM。Electron 管理窗口、拖动、菜单和 React 小窗，Python Engine 继续处理语音和任务。动画代码不读取角色名称；所有本地模型使用同一状态控制器、动作池和骨架重定向路径。本轮实际渲染检查使用 Zome 和小企鹅。
 
 ## 使用
 
@@ -9,7 +9,7 @@ bash scripts/setup_vrm.sh
 ./启动桌宠.command
 ```
 
-右键桌宠，在「3D 形象」中选择角色。新模型首帧成功后才保存选择，下次启动直接恢复该 3D 形象。没有保存选择，或旧配置选过内置／下载的 2D 形象时，使用仓库内的 Zome。产品只保留 VRM，旧图集和在线商店已移除。导入其他模型：
+右键桌宠打开控制台，在「设置 → 3D 形象」中选择角色。新模型首帧成功后才保存选择，下次启动直接恢复该 3D 形象。没有保存选择，或旧配置选过内置／下载的 2D 形象时，使用仓库内的 Zome。产品只保留 VRM，旧图集和在线商店已移除。导入其他模型：
 
 ```sh
 node scripts/import_vrm.mjs '/路径/角色.vrm' local-example '角色名称'
@@ -79,7 +79,8 @@ Zome 原有头发重力 0、刚度 0.6、阻尼 0.3 与碰撞配置保留。试�
 - `web/vrm/spring-physics.js`：短时窗口外力与作者物理配置恢复。
 - `web/vrm/mate-animation-compat.js`：旧导出包断开骨骼的坐标兼容。
 - `web/vrm/expressions.js`：优先标准 VRM 表情，缺失时按常见 morph 名称适配。
-- `boxagent/interfaces/macos/pets/vrm.py`：本地服务、WebKit 消息和资源释放。
+- `boxagent/interfaces/desktop/pets/vrm.py`：受限本机资源 HTTP 服务。
+- `web/panel/desktop/host.cjs`、`src/companion/pet.tsx`：透明窗口、两阶段换装、边界裁剪、拖动与 renderer 消息。
 
 这不是 Unity Mecanim 的运行时移植。Unity 原版播放 `.anim`，当前宿主播放已有 `.vrma`；当前动作库使用骨骼旋转与髋部位置轨道，表情和视线轨道没有直接交给 Mixer。窗口控制全局移动，表情和视线由各自适配层控制。尚未完整复现 Unity 的根运动/人体求解、分层表情、手部 IK、窗沿坐姿与音乐驱动舞蹈，不能据此声称画面逐帧等同于原版。
 
@@ -117,7 +118,7 @@ BOXAGENT_VRM_CONTROLS_ONLY=1 BOXAGENT_VRM_PET_DIR=assets/vrm/models/zome \
 
 ## 控制台角色预览主题
 
-控制台复用同一播放器，以 `previewTheme=light|dark` 指定预览背景，并通过父窗口主题消息同步变化；深色预览使用控制台同色底，模型无需重载。未带预览参数的原生桌宠保持透明背景。预览页面只处理明暗枚举，不处理业务命令；形象应用仍走 `desktop.sock`。
+控制台复用同一播放器，以 `previewTheme=light|dark` 指定预览背景，并通过父窗口主题消息同步变化；深色预览使用控制台同色底，模型无需重载。未带预览参数的 Electron 桌宠保持透明背景。预览页面处理明暗枚举；桌宠 iframe 仅接受来自父窗口的 present / interact / dispose 消息。形象应用由 Electron Host 调用 stdio 资源服务，收到 ready 后提交。
 
 ## 桌宠大小与窗口边界
 

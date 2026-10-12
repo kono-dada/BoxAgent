@@ -21,7 +21,7 @@ class EngineClient:
         self.connected = asyncio.Event()
         self.closed = False
 
-    async def connect(self, timeout=20):
+    async def connect(self, timeout: float = 20):
         deadline = asyncio.get_running_loop().time() + timeout
         last_error = None
         while not self.closed and asyncio.get_running_loop().time() < deadline:

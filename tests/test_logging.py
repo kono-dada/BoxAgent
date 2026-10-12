@@ -309,20 +309,13 @@ class FileMaintenanceTests(unittest.TestCase):
 
 
 class DesktopShutdownTests(unittest.TestCase):
-    # AppKit 不在测试环境中，按源码检查退出顺序：先关 Engine，最后写完日志。
-    def test_terminate_flushes_logs_after_backend_close(self):
-        tree = ast.parse((PACKAGE / "interfaces/macos/app.py").read_text(encoding="utf-8"))
-        method = next(node for node in ast.walk(tree)
-                      if isinstance(node, ast.FunctionDef)
-                      and node.name == "applicationShouldTerminate_")
-        calls = [ast.unparse(node.func) for node in ast.walk(method)
+    def test_service_finally_closes_backend_before_flushing_logs(self):
+        tree = ast.parse((PACKAGE / "entrypoints/desktop_service.py").read_text())
+        cleanup = next(node.finalbody for node in ast.walk(tree)
+                       if isinstance(node, ast.Try) and node.finalbody)
+        calls = [ast.unparse(node.func) for statement in cleanup for node in ast.walk(statement)
                  if isinstance(node, ast.Call)]
-        self.assertIn("self.on_terminated", calls)
-        self.assertLess(calls.index("self.backend.close"), calls.index("self.on_terminated"))
-
-    def test_bootstrap_wires_log_shutdown_into_desktop(self):
-        source = (PACKAGE / "bootstrap/desktop.py").read_text(encoding="utf-8")
-        self.assertIn("on_terminated=shutdown_logging", source)
+        self.assertLess(calls.index("service.close"), calls.index("shutdown_logging"))
 
 
 class NoSilentSwallowTests(unittest.TestCase):

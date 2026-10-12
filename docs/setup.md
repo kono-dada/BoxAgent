@@ -24,7 +24,11 @@ BoxAgent 的源码安装面向 Apple Silicon macOS。以下规范对应当前安
 
 安装与启动脚本共用 `scripts/runtime-env.sh`。路径优先级是进程环境、`.env.local`、仓库默认值；`.env.local` 只读取指定变量的字面值，不执行命令，也不展开 `$HOME` 或 `$(...)`。覆盖路径时填写绝对路径，示例见 `.env.local.example`。
 
+安装入口保留 Python 3.12.9 的基准版本；日常启动接受已安装的 Python 3.12.x，包括本机已验证的 3.12.12。`启动桌宠.command`（Finder 双击或终端执行）调用 `scripts/run-pet.sh`，从 uv 可发现的本地解释器中选择 3.12，优先使用仓库环境，并兼容本机已有的全局 uv Python；不自动下载解释器。未找到时明确提示先安装。需要指定解释器时使用 `UV_PYTHON=/绝对路径/python ./启动桌宠.command`；显式配置不兼容或不存在时直接报错，不静默换用其他版本。宿主依赖仍按 `pet.py.lock` 同步，`./启动桌宠.command --check-install` 为离线检查。
+
 保留已在使用的 `uv-cache`、记忆环境和运行组件路径，避免迁移破坏现有进程。虚拟环境的激活文件和命令入口含绝对路径；更换仓库位置后应重新安装，不能直接搬运环境。
+
+`启动桌宠.command` 准备并复用 `.runtime/desktop/BoxAgent.app`，系统显示名称与图标为 BoxAgent；独立控制台 `pnpm --dir web/panel start` 共用该本机 bundle。它基于依赖内 Electron.app 复制后设置产品身份与 ad-hoc 签名，源运行时/图标不变则不重复构建，依赖文件不被改写。仍通过启动脚本注入 Python 和产品数据目录；此 bundle 不是独立发行包。
 
 ## 桌宠宿主与语音
 
@@ -51,14 +55,14 @@ zsh scripts/set-key.zsh
 ./scripts/install.sh --check
 ```
 
-检查覆盖固定依赖版本、模型文件摘要、Framework、播放器、控制台构建与 Electron 可执行文件、运行组件签名与所选决策服务凭据是否存在；不验证密钥有效性、云端连通性、系统权限或可见 UI。缺少项目时返回非零状态。安装和检查通过后启动：
+检查覆盖固定依赖版本、模型文件摘要、Framework、播放器、控制台构建与 Electron 可执行文件、运行组件签名与所选决策服务凭据是否存在；不验证密钥有效性、云端连通性、系统权限或可见 UI。缺少项目时返回非零状态。安装和检查通过后启动（Electron 统一桌宠、小窗和控制台）：
 
 ```sh
 ./scripts/run-pet.sh
 ```
 
 源码 checkout 默认将 Agent 后端运行在独立 Engine 进程，并监视后端 Python 文件。
-后端变更会触发 Engine 重启，AppKit 窗口和菜单栏进程保持不变。正在执行的任务、语音和
+后端变更会触发 Engine 重启，Electron 窗口和菜单栏保持不变。正在执行的任务、语音和
 审批会被中断；JSONL Product Session、Jev-Mem 长期记忆和本地配置仍可在新 Engine 中恢复。修改原生 UI 或 IPC
 客户端时必须重启整个应用。通过 `BOXAGENT_ENGINE_WATCH=0` 可禁用后端源码监听。
 
@@ -104,7 +108,7 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 ./scripts/run-pet.sh --context-interval 15
 ```
 
-用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 AppKit 依赖装进视觉环境。
+用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 macOS 系统依赖装进视觉环境。
 
 ## 电脑操作执行器
 

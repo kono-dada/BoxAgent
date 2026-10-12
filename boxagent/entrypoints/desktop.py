@@ -1,16 +1,13 @@
-"""Thin macOS process entry; concrete implementations live in bootstrap.desktop."""
+"""Launch Electron desktop; concrete implementations live in bootstrap."""
 
 import argparse
-import signal
-import fcntl
 import math
 from pathlib import Path
 
 from boxagent.bootstrap.settings import load_settings
-from boxagent.bootstrap.logs import configure_logging, migrate_legacy_logs
 
 
-def main():
+def main() -> None:
     app_settings = load_settings()
     parser = argparse.ArgumentParser(description="BoxAgent 桌宠")
     parser.add_argument("--pet", type=Path, help="本次启动指定本地形象目录；默认恢复上次选择")
@@ -33,31 +30,16 @@ def main():
         parser.error("--context-size 必须在 320 至 1920 之间")
     app_settings = app_settings.with_log_dir(args.log_dir)
     print(f"诊断日志：{app_settings.log_dir}", flush=True)
-    app_settings.data_dir.mkdir(parents=True, exist_ok=True)
-    instance_lock = (app_settings.data_dir / "instance.lock").open("w")
-    try:
-        fcntl.flock(instance_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        print("BoxAgent 已在运行，可从菜单栏或 ⌃⌥空格唤起。", flush=True)
-        return
-    configure_logging(app_settings.log_dir, process="desktop")
-    migrate_legacy_logs(app_settings.data_dir, app_settings.log_dir)
-    import AppKit as AK
-    from PyObjCTools import AppHelper
-    from boxagent.bootstrap.desktop import create_desktop_host
-
-    app = AK.NSApplication.sharedApplication()
-    app.setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
-    _, delegate = create_desktop_host(
-        pet_directory=args.pet.expanduser().resolve() if args.pet else None,
-        task_provider=args.task_provider, task_model=args.task_model,
-        auto_approve=not args.require_approval,
-        context_interval=args.context_interval, context_size=args.context_size,
-        app_settings=app_settings)
-    app.setDelegate_(delegate)
-    signal.signal(signal.SIGTERM, lambda *_: AppHelper.callAfter(delegate.quit_, None))
-    signal.signal(signal.SIGINT, lambda *_: AppHelper.callAfter(delegate.quit_, None))
-    AppHelper.runEventLoop()
+    from boxagent.bootstrap.electron_launch import run_electron
+    arguments = ["--log-dir", str(app_settings.log_dir), "--task-provider", args.task_provider,
+                 "--context-interval", str(args.context_interval), "--context-size", str(args.context_size)]
+    if args.pet:
+        arguments.extend(("--pet", str(args.pet.expanduser().resolve())))
+    if args.task_model:
+        arguments.extend(("--task-model", args.task_model))
+    if args.require_approval:
+        arguments.append("--require-approval")
+    raise SystemExit(run_electron(app_settings, arguments))
 
 
 if __name__ == "__main__":

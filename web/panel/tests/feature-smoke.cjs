@@ -58,6 +58,7 @@ app.whenReady().then(async()=>{
   await js(`document.querySelector('[aria-label="启用此 Skill"]').click()`);await new Promise(r=>setTimeout(r,150));assert.equal(skills[1].enabled,false);
   await click('删除');assert.equal(skills.length,1);
   await nav('conversation');await click('开启麦克风');assert.equal(state.voice,'ready');await click('关闭麦克风');assert.equal(state.voice,'off');await fill('对话消息','隔离消息','textarea');await click('发送');assert.equal(events[0].content,'隔离消息');
+  await js(`document.querySelector('.conversation-toolbar [aria-label="显示 / 收起桌面小窗"]').click()`);assert(calls.some(c=>c.method==='desktop_toggle_bubble'));
   await click('新建会话');await fill('新会话名称','新验收');await click('创建并开始');assert(calls.some(c=>c.method==='create_session'&&c.params.title==='新验收'));
   await nav('runs');await click('允许操作');assert(calls.some(c=>c.method==='answer_approval'&&c.params.allowed===true));await click('停止后台任务');assert.equal(state.task,'cancelled');
   await click('打开最近运行');await click('打开会话运行目录');assert(calls.some(c=>c.method==='desktop_open_run'&&c.params.latest));

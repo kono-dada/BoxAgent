@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from boxagent.interfaces.macos.run_records import SessionRunRecords
+from boxagent.interfaces.desktop.run_records import SessionRunRecords
 
 
 class SessionRunRecordsTests(unittest.TestCase):

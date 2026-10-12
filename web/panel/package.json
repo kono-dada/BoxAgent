@@ -1,11 +1,12 @@
 {
   "name": "boxagent-panel",
+  "productName": "BoxAgent",
   "private": true,
   "packageManager": "pnpm@10.33.2",
   "version": "0.1.0",
   "main": "main.cjs",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/launch.cjs",
     "dev": "pnpm run build && pnpm start",
     "test": "node --test tests/*.test.cjs",
     "build": "tsc --noEmit && vite build",
@@ -22,6 +23,8 @@
   "dependencies": {
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "react-markdown": "9.0.3",
+    "remark-gfm": "4.0.1",
     "vis-network": "9.1.9"
   }
 }

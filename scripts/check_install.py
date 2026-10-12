@@ -20,8 +20,8 @@ def main():
             failures.append(name)
 
     check("Apple Silicon macOS", platform.system() == "Darwin" and platform.machine() == "arm64")
-    check("宿主 Python 3.12.9", sys.version_info[:3] == (3, 12, 9))
-    for module in ("AppKit", "Quartz", "WebKit", "pyaudio", "websockets", "PIL"):
+    check("宿主 Python 3.12.x", sys.version_info[:2] == (3, 12), platform.python_version())
+    for module in ("AppKit", "Quartz", "pyaudio", "websockets", "PIL"):
         check(f"宿主依赖 {module}", importlib.util.find_spec(module) is not None)
 
     for name, executable, lock in (("视觉环境", settings.perception_python, "vision"),
@@ -40,7 +40,7 @@ def main():
         check(framework, (settings.aoq_sdk_dir / framework).is_dir())
     check("3D 播放器", (settings.root / "assets/vrm/viewer.js").is_file())
     panel = settings.root / "web/panel"
-    check("伙伴控制台构建", (panel / "dist/index.html").is_file())
+    check("Electron 桌面构建", all((panel / "dist" / page).is_file() for page in ("index.html", "companion.html", "pet.html")))
     check("伙伴控制台 Electron", (panel / "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron").is_file())
     check("默认 VRM 模型", (settings.default_pet / "model.vrm").stat().st_size > 1024
           if (settings.default_pet / "model.vrm").is_file() else False)
