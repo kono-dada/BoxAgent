@@ -61,8 +61,8 @@ class WindowSummary:
                  python=None, worker_script=None, log_path=None):
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
-        self.model = Path(model or self.workspace / "models/qwen3.5-0.8b-mlx")
-        self.python = Path(python or self.workspace / ".venv/bin/python")
+        self.model = Path(model or self.workspace / ".runtime/models/qwen3.5-0.8b-mlx")
+        self.python = Path(python or self.workspace / ".runtime/vision-venv/bin/python")
         self.worker_script = Path(worker_script or self.workspace / "scripts/window_summary_worker.py")
         self.log_path = Path(log_path or self.workspace / ".runtime/pet/context-worker.log")
         self.max_size = max_size

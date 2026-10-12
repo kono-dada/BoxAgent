@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 | 统一会话上下文 | 文字、语音、Qwen 与任务 Runtime 共享同一个持久 Product Session |
 | 长期记忆 | Jev-Mem 自动判断值得保存的信息，支持画像、叙事记忆和主动召回 |
 | Skill 系统 | 管理内置与用户 Skill，也可以从真实任务轨迹生成并安装 Skill 草稿 |
-| 原生桌宠界面 | 提供 3D 角色、任务状态、记忆图谱和 Skill 管理入口 |
+| 桌宠与伙伴控制台 | Electron 统一管理 3D 桌宠、React 对话小窗、任务展示和伙伴控制台 |
 
 例如，你可以对它说：
 
@@ -56,6 +56,8 @@ flowchart LR
 - 后台结果先写入持久 Outbox，再通过语音、桌宠未读状态或系统通知送达。
 - Final User Message 落盘后异步进入 Jev-Mem，不阻塞当轮回复。
 
+桌面界面统一由 Electron 管理，React / TypeScript / Vite 提供对话小窗和控制台，Three.js / three-vrm 提供透明桌宠。界面通过受限 IPC 调用 Python Engine；形象资源与 Engine 生命周期由无界面的 Python 本机服务管理。详细连接方式见 [前后端连接](docs/BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
+
 更完整的数据流和模块边界见 [架构重构方案](docs/BoxAgent-架构重构方案.md)、[Conversation Context 设计](docs/BoxAgent-Phase3-Conversation-Context-设计.md) 与 [Memory 设计](docs/BoxAgent-Phase4-Memory-设计.md)。
 
 ## 快速开始
@@ -63,10 +65,10 @@ flowchart LR
 ### 1. 准备环境
 
 - macOS / Apple Silicon
-- Git LFS、Node.js 与 pnpm（用于下载 3D 资源和构建播放器）
+- Git LFS、Node.js 与 pnpm（用于 3D 播放器和 Electron 控制台）
 - Python 3.12、[uv](https://docs.astral.sh/uv/) 与 PortAudio
 - 北京地域 DashScope API Key 与百炼 Workspace ID
-- DeepSeek API Key 与 TypeSafe.ai API Key
+- DeepSeek API Key；TypeSafe.ai API Key 仅在显式选择该决策服务时需要
 - AOQ macOS SDK、Jev-Mem Worker 与本地 MLX 视觉模型
 - Codex App Server、`codex-code-mode-host` 与 Computer Use 组件
 
@@ -78,35 +80,35 @@ flowchart LR
 zsh scripts/set-key.zsh
 ```
 
-该脚本会依次读取 DashScope API Key、百炼 Workspace ID、DeepSeek API Key 与 TypeSafe.ai API Key，并生成仅本机可读的 `.env.local`。
+该脚本读取 DashScope API Key、百炼 Workspace ID、DeepSeek API Key，并可选读取 TypeSafe.ai API Key，生成仅本机可读的 `.env.local`。默认决策模型使用阿里云百炼，与 Qwen 共用 DashScope Key 和 Workspace。
 
 ### 3. 安装运行组件
 
 ```sh
-./scripts/setup-aoq-sdk.sh
-./scripts/setup-jev-mem.sh
-./scripts/download-qwen-mlx.zsh
-bash scripts/setup_vrm.sh
+./scripts/install.sh
 ```
 
-还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。
+安装前还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。安装入口按锁文件同步依赖，将环境、模型和缓存放在 `.runtime/`，构建 3D 播放器与伙伴控制台，最后检查安装与配置；以后可用 `./scripts/install.sh --check` 单独复查。
 
 ### 4. 启动
 
 ```sh
-uv run --script scripts/pet.py
+./scripts/run-pet.sh
 ```
 
 也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
 
-启动时只显示 3D 桌宠，默认形象为 Zome。聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从菜单开启，开启后默认每 15 秒检查前台窗口。
+启动时只显示 3D 桌宠，默认形象为 Zome。聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从伙伴控制台的「设置 → 语音与桌面」开启，开启后默认每 15 秒检查前台窗口。
 
 ### 5. 开始使用
 
 - `Control + Option + Space`：开启或关闭麦克风
 - 点击桌宠：展开或收起对话
 - 拖动桌宠：移动位置
-- 右键桌宠或点击菜单栏 `◉`：打开角色、记忆、Skill、形象和屏幕总结等入口
+- 右键桌宠或点击菜单栏星光图标：打开伙伴控制台、新建会话或退出 BoxAgent
+- 伙伴控制台左下角「设置」：界面语言（中文 / English）、浅色 / 深色 / 跟随系统、3D 形象、角色、语音与桌面、诊断
+- 对话小窗上滑查看历史时，点击右下角箭头回到最新消息
+- 伙伴控制台「设置 → 3D 形象 → 桌宠大小」：50%～600% 连续缩放，恢复默认回到 100%；重启和换装保留设置，实际尺寸受屏幕范围限制
 - “取消任务”或“停止任务”：停止当前后台任务的后续操作
 
 ## 配置
@@ -115,8 +117,8 @@ uv run --script scripts/pet.py
 | --- | --- | --- |
 | Qwen Realtime | AOQ 提供全双工语音、回声消除与降噪；WebSocket 仅作诊断降级 | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
 | 桌面任务 | DeepSeek 负责规划，Codex Runtime 提供工具循环与 Computer Use | `DEEPSEEK_API_KEY`、`BOXAGENT_CODEX_BIN` |
-| Jev-Mem | 使用 JEV Decision Model 完成记忆准入与检索决策 | `TYPESAFE_API_KEY`、`BOXAGENT_JEV_MEM_BACKEND=jev` |
-| 本地屏幕总结 | 启动时关闭，可从菜单开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
+| 决策模型 / Jev-Mem | 默认阿里云 `decision-model-preview`，用于记忆准入/检索和当前 Query 的意图参考 | `BOXAGENT_DECISION_PROVIDER=auto`、DashScope Key / Workspace、`BOXAGENT_JEV_MEM_BACKEND=jev`；意图参考可用 `BOXAGENT_INTENT_REFERENCE=0` 关闭 |
+| 本地屏幕总结 | 启动时关闭，可从控制台设置开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
 | 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |
 | 用户 Skill | 默认保存在本地运行目录并热同步 Runtime | `BOXAGENT_SKILLS_DIR` |
 
@@ -130,7 +132,7 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 日志可能包含任务目标、应用界面文字和工具参数，不应直接上传或公开分享。
 - 当前版本默认自动允许 Computer Use 工具请求；使用 `--require-approval` 可恢复逐次确认。
 - 不可逆操作仍依赖任务策略和最终状态核验；当前版本不是完整操作系统沙箱。
-- 启用真实 Jev-Mem backend 时，相关文本会发送给 TypeSafe.ai；Qwen、任务模型与 Profile 模型也会接收各自完成请求所需的上下文。
+- 启用真实 Jev-Mem backend 时，相关文本会发送给所选决策服务（默认阿里云，亦可选 TypeSafe.ai）；Qwen、任务模型与 Profile 模型也会接收各自完成请求所需的上下文。
 - 屏幕总结截图仅在本地推理期间临时存在，当前不会自动进入长期记忆。
 
 请只在你信任的机器和测试账号中运行开发版。详细的数据落盘与审计说明见 [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md)。
@@ -143,7 +145,8 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 异步 Computer Use、取消、终态核验与持久通知 Outbox
 - 持久 Product Session、Runtime 恢复 Checkpoint 与跨 Runtime 上下文
 - Jev-Mem 自动写入、Profile、Narrative、L2 direct recall 与 L3 deep recall
-- 原生记忆图谱、Skill 管理、对话式 Skill 创建与安装
+- React / Electron 伙伴控制台：记忆图、上下文请求控制台、会话、Skill、任务与设置；中英文和浅色 / 深色 / 系统主题
+- React 对话小窗：Markdown、历史回到底部、任务授权 / 停止；旧 AppKit 窗口与 WebKit UI 已移除
 - 仅支持 3D VRM 形象、本地导入与运行中换装；共享模型和动作通过 Git LFS 管理
 - 本地 MLX 前台窗口总结
 
@@ -155,7 +158,7 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 脚本型 Skill 沙箱、ZIP / Git 导入与 Skill 市场
 - 持续委托、活动时间线和长期运行可靠性
 
-当前能力的验证边界见 [POC 验收记录](docs/poc-verification.md)。
+本分支交付、迁移与最新验证边界见 [分支交付与 PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md)；早期能力验证见 [POC 验收记录](docs/poc-verification.md)。
 
 ## 项目结构
 
@@ -169,7 +172,10 @@ boxagent/
 │   ├── harness/       # 上下文、策略与 Runtime 编排
 │   └── runtime/       # Runtime 合同与模型 Profile
 ├── infrastructure/   # Qwen、Codex、Jev-Mem、持久化等适配器
-└── interfaces/        # macOS 原生 UI 与 Engine IPC
+└── interfaces/        # Engine API、桌面资源与进程监督
+web/
+├── panel/             # React / TypeScript / Vite + Electron 桌宠、小窗和控制台
+└── vrm/               # Three.js / three-vrm 共享角色播放器
 ```
 
 依赖方向为 `entrypoints → bootstrap → application/domain/agent ← infrastructure`。领域层不直接依赖 Qwen、Codex、Jev-Mem 或 AppKit 的具体实现。
@@ -184,7 +190,15 @@ uv run --script scripts/pet.py --check
 uv run --script scripts/pet.py --check-ui
 
 # 测试套件
-uv run --with pytest python -m pytest -q
+uv run --python 3.12 --with pytest --with 'pillow>=11,<13' --with 'websockets>=15,<17' --with 'pyaudio>=0.2.14' python -m pytest -q
+
+# 控制台构建与前端测试
+pnpm --dir web/panel install
+pnpm --dir web/panel build
+pnpm --dir web/panel test
+
+# 打开控制台（需先启动桌宠，或独立 Engine）
+pnpm --dir web/panel start
 ```
 
 真实语音、Computer Use 和屏幕总结测试可能产生模型用量、读取屏幕或改变应用状态。运行前请先阅读 [脚本用途与副作用](scripts/README.md)。
@@ -194,10 +208,12 @@ uv run --with pytest python -m pytest -q
 | 主题 | 文档 |
 | --- | --- |
 | 安装与配置 | [本机环境准备](docs/setup.md) |
-| 当前架构 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
+| 当前架构与前后端连接 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
+| 伙伴控制台与界面偏好 | [Panel README](web/panel/README.md) |
 | 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
 | 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
 | 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |
+| 需求状态与本次交付 | [需求路线图](docs/需求/README.md) · [PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md) |
 | 3D 形象与共享资产 | [VRM 桌宠](docs/vrm.md) |
 | Computer Use | [Python Computer Use](docs/python-codex-computer-use.md) |
 | 语音链路 | [Qwen 全双工实验](docs/qwen-full-duplex-summary.md) |

@@ -64,21 +64,6 @@ class ArchitectureTests(unittest.TestCase):
                 resolve_decision_model(provider="other", dashscope_key="", workspace_id="",
                                        region="", typesafe_key="")
 
-    def test_memory_graph_uses_bundled_web_assets_without_remote_runtime(self):
-        graph_root = ROOT / "assets/memory-graph"
-        html = (graph_root / "index.html").read_text(encoding="utf-8")
-
-        self.assertIn('src="vendor/vis-network.min.js"', html)
-        self.assertNotIn("https://", html)
-        self.assertTrue((graph_root / "vendor/vis-network.min.js").is_file())
-        self.assertTrue((graph_root / "vendor/LICENSE-vis-network-MIT").is_file())
-        self.assertTrue((graph_root / "vendor/LICENSE-vis-network-APACHE-2.0").is_file())
-        self.assertIn("network.setData({ nodes, edges })", html)
-        self.assertIn("settleLayout(layoutGeneration)", html)
-        self.assertIn("selectConnectedEdges: false", html)
-        self.assertIn("physics: index === 0", html)
-        self.assertTrue((ROOT / "scripts/check_memory_graph_ui.py").is_file())
-
     def test_explicit_soul_file_overrides_default_persona(self):
         from boxagent.bootstrap.settings import load_settings
 
@@ -173,13 +158,10 @@ class ArchitectureTests(unittest.TestCase):
             "infrastructure/persistence/filesystem_skill_repository.py",
             "interfaces/engine/client.py", "interfaces/engine/protocol.py",
             "interfaces/engine/server.py", "interfaces/engine/supervisor.py",
-            "interfaces/macos/app.py", "interfaces/macos/engine_bridge.py",
-            "interfaces/macos/state.py", "interfaces/macos/menu.py",
-            "interfaces/macos/windows/pet.py",
-            "interfaces/macos/windows/conversation.py",
-            "interfaces/macos/windows/memory.py",
-            "interfaces/macos/windows/skills.py",
-            "bootstrap/engine.py", "bootstrap/memory.py", "bootstrap/desktop.py",
+            "interfaces/desktop/service.py", "interfaces/desktop/engine_bridge.py",
+            "interfaces/desktop/pets/vrm.py", "interfaces/desktop/run_records.py",
+            "bootstrap/engine.py", "bootstrap/memory.py", "bootstrap/electron.py",
+            "bootstrap/electron_launch.py", "entrypoints/desktop_service.py",
             "bootstrap/settings.py", "bootstrap/logs.py", "core/logs.py",
             "entrypoints/engine.py", "entrypoints/desktop.py",
         }
@@ -236,8 +218,8 @@ class ArchitectureTests(unittest.TestCase):
         concrete = {
             "BoxAgentApplication", "EngineBridge", "VrmAppearance",
             "JsonlSessionStore", "JevMemWorker", "PetCatalog",
-            "AgentRuntimeRegistry", "CodexRuntimeHost", "MemoryDashboardWindow",
-            "PersonaSettingsWindow", "TaskExecutor",
+            "AgentRuntimeRegistry", "CodexRuntimeHost",
+            "TaskExecutor",
             "SkillFileRepository", "SkillService",
             "JsonlContextLedgerStore", "QwenContextRecorder",
             "WindowSummary",

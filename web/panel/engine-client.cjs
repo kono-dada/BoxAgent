@@ -16,7 +16,7 @@ class EngineClient extends EventEmitter {
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
         try {
           const row = JSON.parse(line);
-          if (row.type === 'event') this.emit('state', row.event.state || {});
+          if (row.type === 'event') this.emit('state', row.event.state || {}, row.event);
           else if (this.pending.has(row.id)) {
             const { resolve, reject, timer } = this.pending.get(row.id);
             clearTimeout(timer); this.pending.delete(row.id);

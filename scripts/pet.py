@@ -5,7 +5,6 @@
 #   "websockets>=15,<17",
 #   "pyobjc-framework-Cocoa>=11,<13",
 #   "pyobjc-framework-Quartz>=11,<13",
-#   "pyobjc-framework-WebKit>=11,<13",
 #   "pillow>=11,<13",
 # ]
 # ///
@@ -19,7 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 if __name__ == "__main__":
-    if "--check" in sys.argv:
+    if "--check-install" in sys.argv:
+        from scripts.check_install import main
+        sys.exit(main())
+    elif "--check" in sys.argv:
         import unittest
         suite = unittest.defaultTestLoader.discover(str(ROOT / "tests"))
         result = unittest.TextTestRunner(verbosity=2).run(suite)
@@ -27,18 +29,9 @@ if __name__ == "__main__":
     elif "--check-context" in sys.argv:
         from scripts.check_window_summary import main
         asyncio.run(main())
-    elif "--check-ui" in sys.argv:
-        from scripts.check_pet_ui import main
-        main()
-    elif "--check-memory-graph-ui" in sys.argv:
-        from scripts.check_memory_graph_ui import main
-        main()
-    elif "--check-vrm-ui" in sys.argv:
-        from scripts.check_vrm_ui import main
-        main()
-    elif "--smoke-desktop" in sys.argv:
-        from scripts.smoke_desktop import main
-        main()
+    elif any(flag in sys.argv for flag in ("--check-ui", "--check-vrm-ui", "--check-pet-size-ui", "--smoke-desktop")):
+        from scripts.check_electron_ui import main
+        sys.exit(main())
     elif "--smoke" in sys.argv:
         sys.argv.remove("--smoke")
         from scripts.smoke_pet import main

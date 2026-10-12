@@ -114,6 +114,8 @@ flowchart LR
 
 ### 4.4 落盘结构
 
+当前统一实现将下方旧布局的正式事件、Checkpoint、Segment 和账本合并到 `sessions/<id>/session.v1.jsonl`；绑定与元数据在 `state.json`，任务在 `tasks/<task_id>/`。下面保留兼容布局和领域合同的说明；新安装直接用统一布局，旧安装需离线迁移。具体目录与升级步骤见 [当前架构](BoxAgent-架构重构方案.md#8-持久化布局) 和 [安装文档](setup.md#旧会话迁移与回滚)。
+
 ```text
 <BOXAGENT_DATA_DIR>/conversations/
 ├── index.json
@@ -326,6 +328,8 @@ RuntimeRequest(
 
 ### 9.2 Thread 状态
 
+当前 Query 临时参考在任务结束后通过 `thread/revert(beforeTurnId)` 移除任务轮，任务轨迹保留。下一任务仍复用同一 Thread，并根据实际同步事件 ID 从 Product Session 补回正式目标/结果；移除失败使绑定失效并新建 Thread。这会去掉该轮原生工具细节，不撤销电脑动作。协议实测与边界见 [上下文实施验收](需求/2026-10-12-陪伴上下文实施验收.md)。
+
 | 状态 | 行为 |
 | --- | --- |
 | Warm | 继续当前进程内 Thread，只注入 `history_delta` |
@@ -337,7 +341,7 @@ RuntimeRequest(
 3. `thread/inject_items` 只注入原生 `user` / `assistant` Message。
 4. 当前 Query 始终通过 `turn/start.input` 单独发送。
 5. Environment 与 Memory Evidence 放在当前 Query 前，并明确标记为不可覆盖策略的数据。
-6. Interaction 封口后，Codex Binding Cursor 更新到 Terminal Event Sequence。
+6. Codex Binding 按实际发送的消息事件 ID 与 Sequence 更新，未发送的期间闲聊不标记为已同步；临时任务轮移除后保留正式消息补回能力。
 
 ## 10. Context Checkpoint 与 Segment
 

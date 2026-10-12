@@ -16,10 +16,12 @@ export class AvatarAnimator {
     this.bones = {};
     this.rest = {};
     this.base = {};
+    this.basePosition = {};
     vrm.scene.updateMatrixWorld(true);
     for (const [name, bone] of Object.entries(vrm.humanoid.normalizedHumanBones)) {
       this.bones[name] = bone.node;
       this.rest[name] = bone.node.quaternion.clone();
+      this.basePosition[name] = bone.node.position.clone();
     }
     // 从上臂到前臂的真实方向计算自然垂手姿势，不假定 T/A pose 或四肢比例。
     for (const side of ['left', 'right']) {
@@ -37,6 +39,10 @@ export class AvatarAnimator {
     for (const [name, bone] of Object.entries(this.bones)) {
       const values = this.rest[name].toArray();
       tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, [0, 1], [...values, ...values]));
+      if (name === 'hips') {
+        const p = bone.position.toArray();
+        tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, [0, 1], [...p, ...p]));
+      }
       bone.quaternion.copy(this.rest[name]);
       this.base[name] = this.rest[name].clone();
     }
@@ -73,7 +79,7 @@ export class AvatarAnimator {
     next.setEffectiveWeight(1).setEffectiveTimeScale(settings.timeScale).play();
     next.time = settings.cycleOffset * clip.duration;
     const idleBlend = kind === 'idle' && this.currentKind === 'idle';
-    const duration = idleBlend ? (this.behavior.idleIndex === 0 ? 0 : this.behavior.settings.idleTransitionTime) : this.behavior.settings.dragTransitionTime;
+    const duration = idleBlend ? this.behavior.settings.idleTransitionTime : this.behavior.settings.dragTransitionTime;
     // Idle BlendTree 共用归一化播放相位；Drag 进入时从动作起点播放。
     if (idleBlend) next.time = (this.active.time % this.active.getClip().duration) / this.active.getClip().duration * clip.duration;
     next.crossFadeFrom(this.active, duration, false);
@@ -93,15 +99,19 @@ export class AvatarAnimator {
     const b = this.behavior.step(dt), h = this.height;
     const motion = this.behavior.motion();
     this.play(motion.name,motion.loop,motion.kind);
-    // 清除上一帧附加旋转，再求值动画；对应原版 Update → Animator → LateUpdate。
-    for (const [name, node] of Object.entries(this.bones)) node.quaternion.copy(this.base[name]);
+    // 恢复纯动画的位置与旋转，清除上一帧附加摆动，再求值动画。
+    for (const [name, node] of Object.entries(this.bones)) {
+      node.quaternion.copy(this.base[name]);
+      node.position.copy(this.basePosition[name]);
+    }
     this.mixer.update(dt);
     for (const [name, node] of Object.entries(this.bones)) {
       this.base[name].copy(node.quaternion);
+      this.basePosition[name].copy(node.position);
     }
     this.vrm.scene.updateMatrixWorld(true);
     this.tracking?.apply(dt,this.behavior.pointer,!this.behavior.sleep);
-    // 原版 AvatarSwayController 在动画 hips.localRotation 后乘摆动，不改写四肢动作。
+    // 与 Mate 的叠加层一样保留腿部动作，在动画髋部旋转后乘拖拽摆动。
     this.add('hips',[b.pitch,0,b.roll]);
     this.shadow.scale.set(h * 0.34,h * 0.045,1);
     this.shadow.material.opacity = 1 - b.drag * 0.65;
@@ -110,7 +120,11 @@ export class AvatarAnimator {
   afterUpdate() { this.expressions.flush(); }
   debug() {
     return { ...this.behavior.debug(), action: this.current, actionTime:this.active.time, actionSpeed:this.active.getEffectiveTimeScale(), actionLoop:this.active.loop, transitionKind:this.currentKind, idleActions:this.bank.idleActions().map(x => x.name),
-      expressions: this.expressions.debug(), rejectedClips:this.bank.rejected, animationRepairs:this.bank.repairs, boneCount:Object.keys(this.bones).length };
+      expressions: this.expressions.debug(), rejectedClips:this.bank.rejected, animationRepairs:this.bank.repairs, boneCount:Object.keys(this.bones).length,
+      feet:['leftFoot','rightFoot'].map(name => {
+        const node=this.vrm.humanoid.getRawBoneNode(name);
+        return node ? {name,position:node.getWorldPosition(new THREE.Vector3()).toArray(),rotation:node.getWorldQuaternion(new THREE.Quaternion()).toArray()} : null;
+      }).filter(Boolean) };
   }
   dispose() {
     this.mixer.stopAllAction();

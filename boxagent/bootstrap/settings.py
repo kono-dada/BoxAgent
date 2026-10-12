@@ -41,6 +41,7 @@ class Settings:
     decision_api_key: str
     decision_base_url: str
     decision_model: str
+    perception_python: Path
     perception_model: Path
     soul_file: Path
     engine_watch: bool
@@ -48,8 +49,16 @@ class Settings:
 
     @property
     def runs_dir(self) -> Path:
-        """Canonical, user-auditable task-run root independent from process logs."""
+        """Legacy task-run root independent from process logs."""
         return self.data_dir / "runs"
+
+    @property
+    def uses_unified_sessions(self) -> bool:
+        """Rollback takes precedence, including installs with no legacy source."""
+        root = self.data_dir / "sessions"
+        return not (root / ".rollback-v1").exists() and (
+            (root / ".migrated-v1").exists()
+            or not (self.data_dir / "conversations/index.json").exists())
 
     def task_run_dir(self, task_id: str, *, now=None) -> Path:
         moment = now or datetime.now().astimezone()
@@ -207,8 +216,10 @@ def load_settings(*, log_dir=None) -> Settings:
         decision_api_key=decision[1],
         decision_base_url=decision[2],
         decision_model=decision[3],
-        perception_model=Path(os.environ.get(
-            "BOXAGENT_PERCEPTION_MODEL", ROOT / "models/qwen3.5-0.8b-mlx")),
+        perception_python=Path(read_optional_setting("BOXAGENT_PERCEPTION_PYTHON")
+                               or ROOT / ".runtime/vision-venv/bin/python").expanduser().absolute(),
+        perception_model=Path(read_optional_setting("BOXAGENT_PERCEPTION_MODEL")
+                              or ROOT / ".runtime/models/qwen3.5-0.8b-mlx").expanduser().resolve(),
         soul_file=resolve_soul_file(data),
         engine_watch=read_bool("BOXAGENT_ENGINE_WATCH", default=(ROOT / ".git").exists()),
         intent_reference_enabled=(read_optional_setting("BOXAGENT_INTENT_REFERENCE") or "1").strip().lower()

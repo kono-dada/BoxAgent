@@ -7,8 +7,8 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 from unittest.mock import patch
 
-from boxagent.interfaces.macos.pets.catalog import PetCatalog
-from boxagent.interfaces.macos.pets.vrm import AssetServer, read_manifest
+from boxagent.interfaces.desktop.pets.catalog import PetCatalog
+from boxagent.interfaces.desktop.pets.vrm import AssetServer, read_manifest
 
 
 class VrmTests(unittest.TestCase):
@@ -71,7 +71,7 @@ class VrmTests(unittest.TestCase):
         (pack / "idle.vrma").write_bytes(b"shared-motion")
         self.manifest.update(motionPack="mate-engine", actions={"idle": "motions/idle.vrma"})
         self.save()
-        with patch("boxagent.interfaces.macos.pets.vrm.WEB_ROOT", web):
+        with patch("boxagent.interfaces.desktop.pets.vrm.WEB_ROOT", web):
             server = AssetServer(self.directory, read_manifest(self.directory))
             try:
                 with urlopen(server.url.removesuffix("index.html") + "asset/motions/idle.vrma") as response:
