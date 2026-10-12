@@ -15,9 +15,9 @@ bash scripts/setup_vrm.sh
 node scripts/import_vrm.mjs '/路径/角色.vrm' local-example '角色名称'
 ```
 
-参数是模型、以 `local-` 开头的标识和可选显示名；默认引用仓库共享动作包。需要自定义动作时，可在标识前增加动作目录参数。导入前检查 VRM/VRMA 格式与 LFS 内容，相同素材和配置直接复用已有目录，不覆盖其他已存在的标识；全部复制成功后才发布形象目录。导入后重启即可在菜单中选择。
+参数是模型、以 `local-` 开头的标识和可选显示名；默认引用仓库共享动作包。需要自定义动作时，可在标识前增加动作目录参数。导入前检查 VRM/VRMA 格式与 LFS 内容，相同素材和配置直接复用已有目录，不覆盖其他已存在的标识；全部复制成功后才发布形象目录。导入后重启即可在伙伴控制台「设置 → 3D 形象」中选择。
 
-菜单按模型内容、动作内容和渲染配置去重，优先展示仓库版本；仅名称相同不会合并。旧选择若指向等价本地副本，会恢复到仓库版本。不同模型或配置变体仍可独立选择。
+形象目录按模型内容、动作内容和渲染配置去重，优先展示仓库版本；仅名称相同不会合并。旧选择若指向等价本地副本，会恢复到仓库版本。不同模型或配置变体仍可独立选择。
 
 团队共享模型位于 `assets/vrm/models/zome/`，128 个动作只保留一份，位于 `assets/vrm/motions/mate-engine/`。`.vrm` 和 `.vrma` 由 Git LFS 管理；清单、文件摘要与来源说明使用普通 Git。额外的个人模型仍可导入 `.runtime/pets/`，引用仓库动作包时不再复制动作。依赖由 pnpm 管理，构建输出 `assets/vrm/viewer.js` 不提交。安装后显示形象不依赖外网。
 
@@ -30,7 +30,7 @@ node scripts/import_vrm.mjs '/路径/角色.vrm' local-example '角色名称'
 | 行为 | Mate-Engine 来源 | BoxAgent 实现 |
 | --- | --- | --- |
 | 待机轮换 | `AvatarAnimatorController.Update` 更新 IdleIndex；预制体实际覆盖为 10 秒切换、1 秒混合 | `mate-controller.js` 每 10 秒自主待机时间按耗能抽样，动作循环播放；交互期间暂停抽样，待机切换统一 1 秒混合 |
-| 按下和松开 | 按下设置 isDragging，最短保持 0.30 秒，松开后退出 | 原生 `mouseDown` 立即发送开始，`mouseUp` 发送结束；短按也保留最短 Drag 时间 |
+| 按下和松开 | 按下设置 isDragging，最短保持 0.30 秒，松开后退出 | 实际移动时发送 Drag 开始，拖动后的 `mouseUp` 发送结束；单击只展开或收起对话 |
 | Drag 状态 | 控制器引用 `PET_DRAGGING.anim`，以 0.25 秒过渡进入/退出 | `motionSet.dragging` 对应 `PET_DRAGGING.vrma`，在 AnimationMixer 中循环播放 |
 | 摆动 | `AvatarSwayController.Update` 先清理旧叠加，`LateUpdate` 在动画 hips 局部旋转后乘摆动 | 每帧恢复动画基准、更新 Mixer、保存新基准，再后乘 hips 摆动，防止逐帧累积 |
 | 摆动参数 | 弹簧频率 2.6、阻尼 0.35、混合速度 8；默认四肢附加权重为 0 | 使用相同参数；原生速度换算为 60 Hz 鼠标位移，弹簧分子步积分以适应 WebKit 调度 |
@@ -114,3 +114,11 @@ BOXAGENT_VRM_CONTROLS_ONLY=1 BOXAGENT_VRM_PET_DIR=assets/vrm/models/zome \
 动作目前尚未与 Unity 运行结果逐帧对照，AnimationMixer 的混合不是完整 Mecanim 实现。视觉参数直接参考同为 Three.js 的 Web 版，但保留桌宠的透明窗口与固定取景，没有加入 Web 版岛屿和相机跟随。原版完整表情动画层尚未移植，眨眼与口型仍由 BoxAgent 的适配层驱动；清单中存在一个表情资源，不代表其对应的 Unity 状态已经接入。
 
 团队仓库通过 LFS 保存 Zome 与共享动作包。资源来源、模型元数据与原始许可见 `assets/vrm/licenses/`，各素材原有授权条件保持不变。
+
+## 控制台角色预览主题
+
+控制台复用同一播放器，以 `previewTheme=light|dark` 指定预览背景，并通过父窗口主题消息同步变化；深色预览使用控制台同色底，模型无需重载。未带预览参数的原生桌宠保持透明背景。预览页面只处理明暗枚举，不处理业务命令；形象应用仍走 `desktop.sock`。
+
+## 桌宠大小与窗口边界
+
+伙伴控制台「设置 → 3D 形象 → 桌宠大小」支持 50%～600% 连续调整和恢复默认。偏好保存在当前数据目录的 `appearance.json`，重启和换装保留；实际尺寸受屏幕可见范围限制。前端通过 `desktop_set_pet_scale` 调用 Host，复用本机缩放与持久化逻辑。WebKit 返回角色可见边界，原生窗口裁掉透明空白，渲染视口保持原比例；聊天框使用稳定锚点，不随动画裁剪漂移。

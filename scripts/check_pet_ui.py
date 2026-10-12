@@ -2,27 +2,22 @@
 
 import asyncio
 import json
-import tempfile
 import traceback
 import time
 from pathlib import Path
 
 import AppKit as AK
-from Foundation import NSRunLoop, NSDate, NSIndexSet
+from Foundation import NSRunLoop, NSDate
 from PyObjCTools import AppHelper
 
 import boxagent.interfaces.macos.app as host
 from boxagent.interfaces.macos.pets.vrm import VrmAppearance
-from boxagent.infrastructure.persistence import SkillFileRepository
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.memory import MemoryModule
 from boxagent.bootstrap.settings import load_settings
 from boxagent.core.states import Snapshot
-from boxagent.domain.skill import SkillService
 from boxagent.domain.memory.service import MemoryService
 from boxagent.interfaces.macos.inprocess_bridge import BackendBridge
-from boxagent.interfaces.macos.windows.memory import MemoryDashboardWindow
-from boxagent.interfaces.macos.windows.skills import SkillManagerWindow
 
 
 class PreviewExecutor:
@@ -53,6 +48,9 @@ class PreviewMemory:
             {"id": "edge-2", "source": "memory-2", "target": "episode-1",
              "type": "SEMANTIC", "subtype": "PART_OF"},
         ]
+
+    async def health(self):
+        return {"status": "ready"}
 
     async def inspect(self, *, query="", selected_id=None, node_limit=100, edge_limit=200):
         if selected_id:
@@ -89,22 +87,13 @@ def main():
     app_settings = load_settings()
     output = app_settings.data_dir / "ui-check"
     output.mkdir(parents=True, exist_ok=True)
-    skill_sandbox = tempfile.TemporaryDirectory(prefix="boxagent-skill-ui-")
-    skill_service = SkillService(SkillFileRepository(
-        builtin_root=app_settings.builtin_skills_dir,
-        user_root=Path(skill_sandbox.name) / "skills"))
     backend = BackendBridge(lambda publish: BoxAgentApplication(
         publish, lambda _id: PreviewExecutor(), None,
-        memory=MemoryModule(MemoryService(PreviewMemory())),
-        skill_service=skill_service),
+        memory=MemoryModule(MemoryService(PreviewMemory()))),
         log_dir=output)
     desktop = host.Desktop.alloc().init().configure(
         backend, VrmAppearance(app_settings.default_pet),
-        data_dir=output,
-        memory_dashboard_factory=lambda owner:
-            MemoryDashboardWindow.alloc().init().configure(owner),
-        skill_manager_factory=lambda owner:
-            SkillManagerWindow.alloc().init().configure(owner))
+        data_dir=output)
     app = AK.NSApplication.sharedApplication()
     app.setActivationPolicy_(AK.NSApplicationActivationPolicyAccessory)
     app.setDelegate_(desktop)
@@ -142,7 +131,6 @@ def main():
         print(json.dumps(result, ensure_ascii=False), flush=True)
         # terminate_ 会直接以 0 退出进程；先清理再停事件循环，让失败返回非零。
         desktop.applicationShouldTerminate_(app)
-        skill_sandbox.cleanup()
         AppHelper.stopEventLoop()
 
     def idle():
@@ -154,8 +142,37 @@ def main():
         check(not desktop.context_bubble.isVisible(), "启动时不显示屏幕总结")
         desktop.toggleBubble_(None)
         check(desktop.bubble.isVisible(), "手动打开聊天面板")
-        check(desktop.bubble.frame().size.height <= 180, "空闲面板不超过 180pt")
+        check(desktop.bubble.frame().size.height <= 204, "空闲面板不超过 204pt")
         check(desktop.cancel_button.isHidden(), "空闲时隐藏停止按钮")
+        check(desktop.latest_button.isHidden(), "短对话隐藏回到最新按钮")
+        check(desktop.panel_button.toolTip() == "打开伙伴控制台", "小窗提供控制台快捷入口")
+        check(desktop.mic_button.title() == "开启语音" and "全双工" in desktop.mic_button.toolTip(),
+              "关闭语音时明确提供开启全双工语音入口")
+        check(desktop.mic_button.frame().size.width >= 134 and not desktop.shortcut_label.isHidden()
+              and "全双工" in desktop.shortcut_label.stringValue(), "语音按钮旁明确显示全双工与快捷键")
+        check(desktop.mic_button.frame().origin.x + desktop.mic_button.frame().size.width + 8
+              <= desktop.shortcut_label.frame().origin.x, "语音入口与提示保留间距")
+        check(desktop.mic_button.refusesFirstResponder(), "语音开关不抢占文字输入焦点")
+        for voice, title in [("connecting", "连接中…"), ("ready", "结束语音"), ("stopping", "关闭中…")]:
+            desktop.state.voice = voice
+            desktop.updateLabels()
+            check(desktop.mic_button.title() == title
+                  and desktop.mic_button.isEnabled() == (voice == "ready"), f"语音{voice}状态与可点击状态一致")
+            capture(f"voice-{voice}")
+        desktop.state.voice = "off"
+        desktop.updateLabels()
+        check(desktop.mode_label.frame().origin.y < desktop.title_label.frame().origin.y,
+              "角色名称与状态分行")
+        check(desktop.transcript_scroll.frame().origin.y >= desktop.composer.frame().origin.y + desktop.composer.frame().size.height + 10,
+              "消息区和输入区保留间距")
+        before = desktop.bubble.frame().origin
+        pet_before = desktop.pet.frame().origin
+        desktop.bubble_offset = (before.x - pet_before.x - 20, before.y - pet_before.y)
+        desktop.positionBubble()
+        shifted = desktop.bubble.frame().origin
+        check(abs(shifted.x - (before.x - 20)) < 1, "记住用户调整后的小窗相对位置")
+        desktop.bubble_offset = None
+        desktop.positionBubble()
         check(not desktop.send_button.isEnabled(), "空白输入不能提交")
         capture("idle")
         desktop.bubble.makeKeyWindow()
@@ -192,14 +209,55 @@ def main():
         desktop.input_feedback = ""
         desktop.updateLabels()
         capture("approval")
-        desktop.state = Snapshot(task="succeeded", task_text="这是用于检查滚动的长结果。" * 90)
+        desktop.state = Snapshot(task="succeeded", assistant_text="这是用于检查滚动的长结果。" * 90)
         desktop.updateLabels()
-        check(desktop.bubble.frame().size.height <= 328, "长结果限制面板高度")
+        check(desktop.bubble.frame().size.height <= 416, "长结果限制面板高度")
         check(desktop.transcript.frame().size.height > desktop.transcript_scroll.frame().size.height,
               "长结果完整保留并支持滚动")
         capture("long-result")
+        desktop.follow_latest_message = True
+        desktop.conversation_events = [
+            {"type":"message.final", "role":"user", "content":"今天工作有点累，想听点轻松的音乐。", "interaction_id":"ui-history"},
+            {"type":"message.final", "role":"assistant", "content":"辛苦了。我们放慢一点，你想听钢琴还是爵士？", "interaction_id":"ui-history"},
+        ]
+        desktop.state = Snapshot(voice="ready", user_text="钢琴吧", assistant_text="好，让今晚轻松一点。", speaking=True)
+        desktop.input_feedback = ""
+        desktop.updateLabels()
+        check(len(desktop.transcript.subviews()) == 4, "正式历史与当前回复使用独立消息卡片")
+        check(desktop.transcript.subviews()[0].kind == "user" and desktop.transcript.subviews()[1].kind == "assistant", "用户与伙伴消息区分颜色和对齐")
+        check("回复中" in desktop.mode_label.stringValue(), "语音回复状态独立可见")
+        capture("conversation")
+        check(abs(desktop.transcript_scroll.contentView().bounds().origin.y - max(0, desktop.transcript.frame().size.height - desktop.transcript_scroll.contentView().bounds().size.height)) < 1, "首次恢复历史定位最新消息")
+        check(desktop.latest_button.isHidden(), "首次恢复到最新消息时隐藏跳转按钮")
+        responder = desktop.bubble.firstResponder()
+        draft = desktop.input.stringValue()
+        desktop.transcript_scroll.contentView().scrollToPoint_((0, 0))
+        check(not desktop.latest_button.isHidden(), "原生滚动通知直接显示回到最新按钮")
+        capture("history-scroll")
+        earlier_card = desktop.transcript.subviews()[0]
+        desktop.state.assistant_text += " 我去看看你喜欢的那一首。"
+        desktop.updateLabels()
+        check(desktop.transcript_scroll.contentView().bounds().origin.y == 0, "阅读历史时流式更新不强制跳到底部")
+        check(earlier_card in list(desktop.transcript.subviews()), "流式回复复用未变化的历史卡片")
+        check(not desktop.latest_button.isHidden(), "阅读历史时流式回复保留跳转按钮")
+        desktop.latest_button.performClick_(None)
+        clip = desktop.transcript_scroll.contentView()
+        check(abs(clip.bounds().origin.y - max(0, desktop.transcript.frame().size.height - clip.bounds().size.height)) < 1,
+              "点击回到最新滚动到当前完整回复底部")
+        check(desktop.latest_button.isHidden(), "回到底部后跳转按钮消失")
+        check(desktop.bubble.firstResponder() == responder and desktop.input.stringValue() == draft,
+              "跳转不改变输入焦点或草稿")
+        desktop.state.assistant_text += "\n" + "后续流式回复继续跟随。" * 24
+        desktop.updateLabels()
+        check(abs(clip.bounds().origin.y - max(0, desktop.transcript.frame().size.height - clip.bounds().size.height)) < 1,
+              "回到最新后自动跟随后续流式回复")
+        clip.scrollToPoint_((0, 0))
+        check(not desktop.latest_button.isHidden(), "再次上滑重新显示跳转按钮")
+        clip.scrollToPoint_((0, desktop.transcript.frame().size.height - clip.bounds().size.height))
+        check(desktop.latest_button.isHidden(), "手动滚到底部也隐藏跳转按钮")
+        desktop.conversation_events = []
         app.setAppearance_(AK.NSAppearance.appearanceNamed_(AK.NSAppearanceNameDarkAqua))
-        desktop.state = Snapshot(task="succeeded", task_text="界面检查完成，没有操作其他应用。")
+        desktop.state = Snapshot(task="succeeded", assistant_text="界面检查完成，没有操作其他应用。")
         desktop.updateLabels()
         later(dark)
 
@@ -232,7 +290,7 @@ def main():
         desktop.context_bubble.displayIfNeeded()
         NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(.2))
         render(desktop.context_bubble.contentView(), output / "context.png")
-        check(desktop.context_menu_item.title() == "关闭屏幕总结", "菜单反映开关状态")
+        check(desktop.state.context_enabled, "菜单精简后屏幕总结状态仍正常更新")
         long_summary = "这是较长的窗口摘要，用于检查自动换行与完整显示。" * 70 + "全文结束。"
         desktop.backend.events.put({"type": "context.updated", "state": Snapshot(
             context_enabled=True, context_text=long_summary,
@@ -249,62 +307,16 @@ def main():
         desktop.context_until = 0
         desktop.tick_(None)
         check(not desktop.context_bubble.isVisible(), "摘要到期自动消失")
-        titles = [item.title() for item in desktop.menu.itemArray()]
-        check("记忆看板…" in titles, "菜单栏提供记忆看板入口")
-        check("Skill 管理…" in titles, "菜单栏提供 Skill 管理入口")
-        desktop.showMemoryDashboard_(None)
-        later(dashboard)
-
-    def dashboard():
-        window = desktop.memory_dashboard
-        check(window.window.isVisible(), "记忆看板以独立原生窗口打开")
-        check(len(window.items) == 3, "看板加载脱敏记忆列表")
-        check(window.selected_node["id"] == "memory-2", "默认选择最新记忆")
-        check(len(window.graph.snapshot["nodes"]) == 3, "选中节点显示一跳邻居")
-        check("memory-2" in window.detail.string(), "详情展示精确记忆 ID")
-        window.window.displayIfNeeded()
-        NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(.2))
-        render(window.window.contentView(), output / "memory-dashboard.png")
-        result["screenshots"].append("memory-dashboard")
-        desktop.showSkillManager_(None)
-        later(skill_manager)
-
-    def skill_manager():
-        window = desktop.skill_manager
-        check(window.window.isVisible(), "Skill 管理以独立原生窗口打开")
-        check(any(item["source"] == "builtin" for item in window.items),
-              "Skill 管理加载内置 Skill")
-        window.newSkill_(None)
-        window.skill_id.setStringValue_("ui-preview")
-        window.name.setStringValue_("UI Preview")
-        window.description.setStringValue_("验证 Skill 编辑界面")
-        window.instructions.setString_("只用于本地 UI 冒烟验证。")
-        window.save_(None)
-        later(skill_saved)
-
-    def skill_saved():
-        window = desktop.skill_manager
-        created = next((item for item in window.items
-                        if item["skill_id"] == "ui-preview"), None)
-        check(created is not None, "Skill 管理可新建用户 Skill")
-        check(created["instructions"] == "只用于本地 UI 冒烟验证。",
-              "Skill 正文通过 UI 完整落盘和回读")
-        row = next(index for index, item in enumerate(window.items)
-                   if item["skill_id"] == "ui-preview")
-        window.table.selectRowIndexes_byExtendingSelection_(
-            NSIndexSet.indexSetWithIndex_(row), False)
-        window._select(window.items[row])
-        check(window.skill_id.stringValue() == "ui-preview",
-              "Skill ID 在深色模式编辑器中可回读")
-        check(window.name.stringValue() == "UI Preview",
-              "Skill 名称在深色模式编辑器中可回读")
-        check(window.save_button.attributedTitle().string() == "保存",
-              "Skill 操作按钮标题可见")
-        window.window.displayIfNeeded()
-        NSRunLoop.currentRunLoop().runUntilDate_(
-            NSDate.dateWithTimeIntervalSinceNow_(.2))
-        render(window.window.contentView(), output / "skill-manager.png")
-        result["screenshots"].append("skill-manager")
+        titles = [item.title() for item in desktop.menu.itemArray() if not item.isSeparatorItem()]
+        check(titles == ["伙伴控制台…", "新建会话…", "退出 BoxAgent"], "菜单保留控制台、新建会话和退出，移除其他重复功能")
+        check(desktop.menu.itemAtIndex_(0).target() == desktop and str(desktop.menu.itemAtIndex_(0).action()) == "openPanel:",
+              "菜单入口连接真实控制台打开操作")
+        edit_menu = next(item.submenu() for item in app.mainMenu().itemArray() if item.title() == "编辑")
+        edit_keys = {str(item.action()): str(item.keyEquivalent()) for item in edit_menu.itemArray()}
+        check(all(edit_keys.get(action) == key for action, key in {
+            "undo:": "z", "cut:": "x", "copy:": "c", "paste:": "v", "selectAll:": "a"}.items()),
+              "保留系统编辑菜单与键盘快捷键")
+        check(desktop.status_item.button().image() is not None, "状态栏使用原生符号图标")
         finish()
 
     AppHelper.callLater(.8, lambda: later(idle))

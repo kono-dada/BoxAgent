@@ -698,7 +698,7 @@ $$
 | `memory/jobs/ingestion.jsonl` | Durable Ingestion Job 状态 |
 | `memory/projections/profile.json` | User Profile 投影 |
 | `logs/memory/events.jsonl` | BoxAgent Memory 编排日志 |
-| `runs/.../memory-retrieval.json` | 单次任务的召回输入、耗时和结果 |
+| `sessions/<id>/tasks/<task_id>/memory-retrieval.json`（兼容布局为 `runs/.../`） | 单次任务的召回输入、耗时和结果 |
 
 每次 L2 Recall 至少记录：
 

@@ -18,8 +18,12 @@ from boxagent.domain.conversation import ConversationService
 from boxagent.domain.notification import NotificationOutbox
 from boxagent.domain.skill import SkillService
 from boxagent.core.errors import append_jsonl
+from boxagent.core.states import Snapshot
 from boxagent.infrastructure.environment import LocalSystemEnvironmentProvider
 from boxagent.infrastructure.perception import WindowSummary
+from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
+from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
+from boxagent.infrastructure.context.qwen_trace_history import QwenTraceHistory
 from boxagent.infrastructure.persistence import (
     JsonNotificationRepository,
     JsonSkillDraftRepository,
@@ -46,8 +50,21 @@ def create_agent_runtime_registry(app_settings):
     )
 
 
+def current_screen_reference(state: Snapshot) -> str:
+    if not state.context_enabled or not state.context_text \
+            or not 0 <= time.time() - state.context_at <= 45:
+        return ""
+    from boxagent.infrastructure.perception import focused_window
+    window = focused_window()
+    if not window or window["app"] != state.context_app \
+            or window["id"] != state.context_window_id:
+        return ""
+    return f"观察时间：{state.context_at}；应用：{state.context_app}；摘要：{state.context_text}"
+
+
 def create_voice_factory(app_settings, *, persona=None,
-                         environment_provider=None, context_projector=None):
+                         environment_provider=None, context_projector=None,
+                         context_recorder=None, host_turn_control=False):
     # Keep realtime audio dependencies out of task-runtime imports and tests.
     from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
     from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession, aoq_preflight
@@ -59,6 +76,8 @@ def create_voice_factory(app_settings, *, persona=None,
     def qwen_trace(event, **data):
         append_jsonl(trace_path, {
             "event": event, "occurred_at": time.time(), **data})
+        if context_recorder is not None:
+            context_recorder.observe(event, **data)
 
     transport = app_settings.qwen_transport
     if transport not in {"auto", "aoq", "websocket"}:
@@ -94,6 +113,7 @@ def create_voice_factory(app_settings, *, persona=None,
         trace=qwen_trace,
         environment_context=lambda: context_projector.environment_packet(
             environment_provider.capture()),
+        host_turn_control=host_turn_control,
         **transport_options,
     )
 
@@ -103,7 +123,7 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
                          request_builder=None, app_settings=None, registry=None,
                          session_id=None, interaction_id=None, prior_messages=(),
                          runtime_binding=None, conversation_service=None,
-                         environment_provider=None, memory=None):
+                         environment_provider=None, memory=None, session_events=None):
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)
     selected = registry.runtime(provider or app_settings.task_provider, model)
@@ -115,11 +135,26 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         model_profile=selected.profile,
         permission_check=can_auto_approve_computer_use,
     )
+    unified = bool(app_settings.uses_unified_sessions and session_id
+                   and (app_settings.data_dir / "sessions" / session_id / "state.json").exists())
+    if unified and tool_gateway_factory is ComputerUseToolGateway:
+        from boxagent.infrastructure.persistence.attachments import AttachmentStore
+        attachments = AttachmentStore(app_settings.data_dir / "attachments/v1/objects")
+        tool_gateway_factory = partial(ComputerUseToolGateway, image_store=attachments.put)
+    def record_task(kind, data):
+        mapping = {"task_started": "task/start", "task_ended": "task/end",
+                   "runtime_request_sent": "context/request", "runtime_reference_removed": "context/expired"}
+        if session_events is not None and session_id and kind in mapping:
+            session_events.append(session_id, mapping[kind], {
+                **data, "task_id": task_id, "interaction_id": interaction_id,
+                "runtime": "codex", "reference": f"tasks/{task_id}"})
     return TaskExecutor(
         task_id,
         provider=selected.provider,
         model=selected.model,
-        output=app_settings.task_run_dir(task_id),
+        output=(app_settings.data_dir / "sessions" / session_id / "tasks" / task_id
+                if unified
+                else app_settings.task_run_dir(task_id)),
         runtime_factory=selected.factory,
         session_factory=session_factory,
         tool_gateway_factory=tool_gateway_factory,
@@ -132,12 +167,19 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         environment_provider=(environment_provider
                               or LocalSystemEnvironmentProvider()),
         memory=memory,
-        run_index_path=app_settings.runs_dir / "index.jsonl",
-        latest_run_path=app_settings.runs_dir / "latest.json",
+        run_index_path=None if unified else app_settings.runs_dir / "index.jsonl",
+        latest_run_path=None if unified else app_settings.runs_dir / "latest.json",
+        event_sink=record_task if session_events is not None else None,
         on_thread_bound=(
             lambda thread_id: conversation_service.bind_runtime(
                 session_id, runtime="codex", provider=selected.provider,
                 model=selected.model, thread_id=thread_id)
+            if conversation_service and session_id else None),
+        on_context_synced=(
+            lambda actual: conversation_service.mark_runtime_synced(
+                session_id, "codex", max(
+                    [getattr(e, "sequence", 0) for e in actual] + [0]), interaction_id or "",
+                tuple(getattr(e, "event_id", "") for e in actual if getattr(e, "event_id", "")))
             if conversation_service and session_id else None),
     )
 
@@ -156,7 +198,27 @@ def create_application(publish, *, task_provider=None, task_model=None,
         context_assembler=RuntimeContextProjector(
             history_character_budget=app_settings.codex_history_character_budget))
     environment_provider = LocalSystemEnvironmentProvider()
-    conversation_store = JsonlSessionStore(app_settings.data_dir / "conversations")
+    from boxagent.infrastructure.persistence.session_events import SessionEventStore
+    from boxagent.infrastructure.persistence.unified_session import (
+        UnifiedContextLedger, UnifiedSessionRepository,
+    )
+    use_unified = app_settings.uses_unified_sessions
+    session_events = None
+    if use_unified:
+        session_events = SessionEventStore(app_settings.data_dir / "sessions")
+        conversation_store = UnifiedSessionRepository(session_events)
+        context_ledger = UnifiedContextLedger(session_events)
+    else:
+        legacy_root = app_settings.data_dir / (
+            "conversations-unified-rollback"
+            if (app_settings.data_dir / "sessions/.rollback-v1").exists() else "conversations")
+        conversation_store = JsonlSessionStore(legacy_root)
+        context_ledger = JsonlContextLedgerStore(legacy_root)
+    context_log_path = app_settings.log_dir / "context/ledger.jsonl"
+    context_recorder = QwenContextRecorder(
+        context_ledger, model=app_settings.voice_model, background=True,
+        log=lambda event, **data: append_jsonl(context_log_path, {
+            "event": event, "occurred_at": time.time(), **data}))
     notification_outbox = NotificationOutbox(JsonNotificationRepository(
         app_settings.data_dir / "notifications/outbox.json"))
     skill_service = SkillService(SkillFileRepository(
@@ -198,7 +260,7 @@ def create_application(publish, *, task_provider=None, task_model=None,
     )
     task_trace_reader = JsonTaskTraceReader(
         app_settings.runs_dir,
-        fallback_roots=(app_settings.data_dir / "tasks",
+        fallback_roots=(app_settings.data_dir / "sessions", app_settings.data_dir / "tasks",
                         app_settings.log_dir / "tasks"))
     memory = create_memory_module(
         app_settings=app_settings,
@@ -221,6 +283,14 @@ def create_application(publish, *, task_provider=None, task_model=None,
         conversation_store, message_sinks=(memory,),
         finalization_sinks=(memory,),
         checkpoint_sink=checkpoint_coordinator)
+    from boxagent.application.turn_preparation import TurnPreparer
+    from boxagent.bootstrap.memory import create_intent_reference
+    intent_reference = create_intent_reference(app_settings) \
+        if app_settings.intent_reference_enabled and app_settings.decision_api_key else None
+    turn_preparer = TurnPreparer(memory,
+        intent=intent_reference,
+        environment=lambda: request_builder.context_assembler.environment_packet(environment_provider.capture()),
+        screen=lambda: current_screen_reference(application.events.state))
     application = BoxAgentApplication(
         publish,
         lambda task_id, **context: create_task_executor(
@@ -229,18 +299,29 @@ def create_application(publish, *, task_provider=None, task_model=None,
             app_settings=app_settings, registry=registry,
             environment_provider=environment_provider,
             memory=memory,
-            conversation_service=conversation_service, **context),
+            conversation_service=conversation_service, session_events=session_events, **context),
         voice_factory or create_voice_factory(
             app_settings, persona=persona,
             environment_provider=environment_provider,
-            context_projector=request_builder.context_assembler),
+            context_projector=request_builder.context_assembler,
+            context_recorder=context_recorder, host_turn_control=True),
         memory=memory,
+        turn_preparer=turn_preparer if voice_factory is None else None,
         conversation_service=conversation_service,
         notification_outbox=notification_outbox,
         skill_service=skill_service,
         skill_authoring=skill_authoring,
         task_trace_reader=task_trace_reader,
-        runtime_resources=(runtime_host, checkpoint_coordinator),
+        context_ledger=context_ledger,
+        context_observer=context_recorder,
+        context_history=QwenTraceHistory(
+            app_settings.log_dir / "runtime/qwen/events.jsonl",
+            lambda store, clock: QwenContextRecorder(
+                store, model=app_settings.voice_model, clock=clock),
+            memory_log_path=memory_log_path),
+        runtime_resources=(runtime_host, *((conversation_store,) if use_unified else ()),
+                           *((intent_reference,) if intent_reference else ()),
+                           turn_preparer, checkpoint_coordinator),
         voice_history_builder=partial(
             request_builder.context_assembler.restore_context,
             character_budget=app_settings.qwen_history_character_budget),
@@ -255,3 +336,23 @@ def create_application(publish, *, task_provider=None, task_model=None,
         log_path=app_settings.log_dir / "context-worker.log",
     )
     return application
+
+
+def create_engine_server(socket_path, *, app_settings, task_provider, task_model,
+                         auto_approve, context_interval, context_size):
+    """Assemble the socket server that owns one Engine application."""
+    from boxagent.interfaces.engine.server import EngineServer
+
+    return EngineServer(
+        socket_path,
+        lambda publish: create_application(
+            publish,
+            task_provider=task_provider,
+            task_model=task_model,
+            auto_approve=auto_approve,
+            app_settings=app_settings,
+            context_interval=context_interval,
+            context_size=context_size,
+        ),
+        start_context=context_interval > 0,
+    )

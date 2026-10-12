@@ -8,6 +8,19 @@ import { SpringPhysics } from './spring-physics.js';
 import { visibleBounds, BoundsEnvelope } from './visible-bounds.js';
 
 const report = (type, detail = {}) => window.webkit?.messageHandlers.pet.postMessage({ type, ...detail });
+const previewTheme = new URLSearchParams(location.search).get('previewTheme');
+function applyPreviewTheme(theme) {
+  if (!['light', 'dark'].includes(theme)) return;
+  document.documentElement.style.colorScheme = theme;
+  document.documentElement.style.background = theme === 'dark' ? '#151c18' : '#ffffff';
+  document.body.style.background = 'transparent';
+}
+if (previewTheme) {
+  applyPreviewTheme(previewTheme);
+  window.addEventListener('message', event => {
+    if (event.source === window.parent && event.data?.type === 'boxagent-preview-theme') applyPreviewTheme(event.data.theme);
+  });
+}
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 configureRenderer(renderer);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));

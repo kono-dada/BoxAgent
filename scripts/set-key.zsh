@@ -32,12 +32,8 @@ if [[ -z "$deepseek_api_key" ]]; then
   exit 1
 fi
 
-read -rs 'typesafe_api_key?请粘贴 TypeSafe.ai API Key，按回车确认（输入不会显示）：'
+read -rs 'typesafe_api_key?可选 TypeSafe.ai API Key（默认用阿里云决策模型，可直接回车，输入不会显示）：'
 print
-if [[ -z "$typesafe_api_key" ]]; then
-  print -u2 '未输入 TypeSafe.ai API Key。'
-  exit 1
-fi
 
 umask 077
 {

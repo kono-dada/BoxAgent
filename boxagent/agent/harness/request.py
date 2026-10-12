@@ -13,3 +13,4 @@ class HarnessInput:
     memories: Iterable[object] = ()
     environment: EnvironmentContext | None = None
     context_cursor: int = 0
+    synced_event_ids: tuple[str, ...] = ()

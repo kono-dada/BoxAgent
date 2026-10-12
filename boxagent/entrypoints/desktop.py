@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 
 from boxagent.bootstrap.settings import load_settings
+from boxagent.bootstrap.logs import configure_logging, migrate_legacy_logs
 
 
 def main():
@@ -15,7 +16,7 @@ def main():
     parser.add_argument("--pet", type=Path, help="本次启动指定本地形象目录；默认恢复上次选择")
     parser.add_argument("--log-dir", type=Path, default=app_settings.log_dir,
                         help="诊断日志目录，默认 <data-dir>/logs；"
-                             "任务运行记录始终保存在 <data-dir>/runs")
+                             "任务记录保存在 <data-dir>/sessions/<id>/tasks；未迁移/回滚时用 runs")
     parser.add_argument("--require-approval", action="store_true",
                         help="电脑操作需要手动确认；默认自动允许（不影响 macOS 系统权限）")
     parser.add_argument("--task-provider", choices=("codex", "deepseek"), default=app_settings.task_provider,
@@ -31,7 +32,6 @@ def main():
     if not 320 <= args.context_size <= 1920:
         parser.error("--context-size 必须在 320 至 1920 之间")
     app_settings = app_settings.with_log_dir(args.log_dir)
-    app_settings.log_dir.mkdir(parents=True, exist_ok=True)
     print(f"诊断日志：{app_settings.log_dir}", flush=True)
     app_settings.data_dir.mkdir(parents=True, exist_ok=True)
     instance_lock = (app_settings.data_dir / "instance.lock").open("w")
@@ -40,6 +40,8 @@ def main():
     except BlockingIOError:
         print("BoxAgent 已在运行，可从菜单栏或 ⌃⌥空格唤起。", flush=True)
         return
+    configure_logging(app_settings.log_dir, process="desktop")
+    migrate_legacy_logs(app_settings.data_dir, app_settings.log_dir)
     import AppKit as AK
     from PyObjCTools import AppHelper
     from boxagent.bootstrap.desktop import create_desktop_host

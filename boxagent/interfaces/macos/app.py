@@ -9,8 +9,7 @@ from pathlib import Path
 
 import AppKit as AK
 import objc
-from Foundation import (NSObject, NSTimer, NSAttributedString,
-                        NSMutableAttributedString, NSUserNotification,
+from Foundation import (NSObject, NSTimer, NSNotificationCenter, NSUserNotification,
                         NSUserNotificationCenter,
                         NSUserNotificationDefaultSoundName, NSURL)
 
@@ -18,41 +17,37 @@ from boxagent.core.states import Snapshot
 from boxagent.agent.harness.persona import update_persona_name
 from boxagent.interfaces.macos.hotkey import Hotkey
 from boxagent.interfaces.macos.menu import install_menus
-from boxagent.interfaces.macos.run_records import SessionRunRecords
 from boxagent.interfaces.macos.state import ACTIVE_TASK_STATES, mode_text, transcript_sections
-from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, RoundedSurface,
-                                   SendButton, button, label, symbol_button)
-from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
+from boxagent.interfaces.macos.surfaces.conversation import (ConversationPanel, FlippedView, LatestMessageButton, RoundedSurface,
+                                   SendButton, TranscriptView, VoiceToggleButton, accent_color, button, label, symbol_button)
+from boxagent.interfaces.macos.surfaces.pet import DragView, PetPanel
 from boxagent.interfaces.macos.pets.size import (
     load_pet_scale, resized_pet_frame, save_pet_scale, scaled_pet_size, valid_pet_scale,
     validated_render_bounds)
+
+logger = logging.getLogger(__name__)
 
 
 class Desktop(NSObject):
     @objc.python_method
     def configure(self, backend, appearance, catalog=None, *, data_dir=None,
-                  appearance_factory=None, memory_dashboard_factory=None,
-                  skill_manager_factory=None, persona_settings_factory=None,
+                  appearance_factory=None,
                   persona=None,
                   persona_loader=None, soul_file=None,
-                  editable_soul_file=None):
+                  editable_soul_file=None, on_terminated=None):
         self.backend, self.appearance = backend, appearance
         self.data_dir = data_dir or backend.log_dir
         self.pet_scale = load_pet_scale(self.data_dir)
         self.pet_catalog = catalog
         self.appearance_factory = appearance_factory
-        self.memory_dashboard_factory = memory_dashboard_factory
-        self.skill_manager_factory = skill_manager_factory
-        self.persona_settings_factory = persona_settings_factory
         self.persona_loader = persona_loader
         self.soul_file = soul_file
         self.editable_soul_file = editable_soul_file or soul_file
+        self.on_terminated = on_terminated
         self.agent_name = getattr(persona, "name", None) or "伙伴"
-        self.memory_dashboard = None
-        self.skill_manager = None
-        self.persona_settings = None
         self.state = Snapshot()
         self.bubble_open = False
+        self.bubble_offset: tuple[float, float] | None = None
         self.last_revision = -1
         self.closing = False
         self.submission = None
@@ -64,6 +59,7 @@ class Desktop(NSObject):
         self.history_request = None
         self.history_request_session = ""
         self.history_refresh_pending = False
+        self.follow_latest_message = True
         self.context_until = 0
         self.context_reveal_at = 0
         return self
@@ -114,10 +110,12 @@ class Desktop(NSObject):
         self.pet.setIgnoresMouseEvents_(getattr(self.appearance, "ready", True) is False)
         self.hotkey = Hotkey(lambda: self.toggleMic_(None))
         if not self.hotkey.registered:
-            self.state.error = "快捷键已被占用，请使用菜单或麦克风按钮"
+            self.state.error = "快捷键已被占用，请使用控制台或小窗的麦克风按钮"
         self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1 / 30, self, "tick:", None, True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "app.pid").write_text(str(os.getpid()))
+        from boxagent.interfaces.macos.panel_control import PanelControl
+        self.panel_control = PanelControl(self, self.data_dir / "desktop.sock")
 
     @objc.python_method
     def preparePanel(self, panel):
@@ -129,44 +127,51 @@ class Desktop(NSObject):
         panel.setReleasedWhenClosed_(False)
 
     @objc.python_method
-    def makeBubble(self):
-        self.bubble = ConversationPanel.alloc().initWithContentRect_styleMask_backing_defer_(((0, 0), (360, 178)),
+    def makeBubble(self) -> None:
+        self.bubble = ConversationPanel.alloc().initWithContentRect_styleMask_backing_defer_(((0, 0), (392, 200)),
             AK.NSWindowStyleMaskBorderless | AK.NSWindowStyleMaskNonactivatingPanel, AK.NSBackingStoreBuffered, False)
         self.preparePanel(self.bubble)
         self.bubble.setBecomesKeyOnlyIfNeeded_(True)
         self.bubble.setTitle_(self.agent_name)
-        view = RoundedSurface.alloc().initWithFrame_(((0, 0), (360, 178)))
+        view = RoundedSurface.alloc().initWithFrame_(((0, 0), (392, 200)))
         view.kind = "panel"
+        view.owner = self
+        self.bubble.setHasShadow_(True)
         self.bubble.setContentView_(view)
         self.bubble_view = view
-        self.title_label = label(self.agent_name, ((18, 138), (112, 24)), 15)
+        self.title_label = label(self.agent_name, ((18, 160), (276, 24)), 15)
+        self.title_label.setMaximumNumberOfLines_(1)
+        self.title_label.setLineBreakMode_(AK.NSLineBreakByTruncatingTail)
         self.title_label.setFont_(AK.NSFont.systemFontOfSize_weight_(15, AK.NSFontWeightSemibold))
-        self.mode_label = label("", ((139, 140), (166, 20)), 11, AK.NSColor.secondaryLabelColor())
-        self.mode_label.setAlignment_(AK.NSTextAlignmentRight)
-        self.close_button = symbol_button("xmark", "收起对话", ((316, 138), (28, 28)), self, "toggleBubble:")
+        self.mode_label = label("", ((18, 140), (310, 18)), 11, AK.NSColor.secondaryLabelColor())
+        self.mode_label.setMaximumNumberOfLines_(1)
+        self.mode_label.setLineBreakMode_(AK.NSLineBreakByTruncatingTail)
+        self.close_button = symbol_button("xmark", "收起对话", ((346, 158), (28, 28)), self, "toggleBubble:")
         self.close_button.setContentTintColor_(AK.NSColor.secondaryLabelColor())
 
-        self.transcript = AK.NSTextView.alloc().initWithFrame_(((0, 0), (328, 24)))
-        self.transcript.setEditable_(False)
-        self.transcript.setSelectable_(True)
-        self.transcript.setDrawsBackground_(False)
-        self.transcript.setTextContainerInset_((0, 0))
-        self.transcript.textContainer().setLineFragmentPadding_(0)
-        self.transcript.setVerticallyResizable_(True)
-        self.transcript.setHorizontallyResizable_(False)
-        self.transcript.setAutoresizingMask_(AK.NSViewWidthSizable)
-        self.transcript.textContainer().setWidthTracksTextView_(True)
-        self.transcript_scroll = AK.NSScrollView.alloc().initWithFrame_(((16, 104), (328, 24)))
+        self.panel_button = symbol_button("sidebar.left", "打开伙伴控制台", ((310, 158), (28, 28)), self, "openPanel:")
+        self.panel_button.setContentTintColor_(AK.NSColor.secondaryLabelColor())
+        self.transcript = TranscriptView.alloc().initWithFrame_(((0, 0), (356, 24)))
+        self.transcript_scroll = AK.NSScrollView.alloc().initWithFrame_(((18, 108), (356, 24)))
         self.transcript_scroll.setDrawsBackground_(False)
         self.transcript_scroll.setBorderType_(AK.NSNoBorder)
         self.transcript_scroll.setHasVerticalScroller_(True)
         self.transcript_scroll.setAutohidesScrollers_(True)
         self.transcript_scroll.setScrollerStyle_(AK.NSScrollerStyleOverlay)
         self.transcript_scroll.setDocumentView_(self.transcript)
+        self.latest_button = symbol_button("arrow.down", "回到最新消息", ((334, 116), (32, 32)),
+                                           self, "scrollToLatest:", LatestMessageButton)
+        self.latest_button.setContentTintColor_(AK.NSColor.whiteColor())
+        self.latest_button.setRefusesFirstResponder_(True)
+        self.latest_button.setHidden_(True)
+        clip = self.transcript_scroll.contentView()
+        clip.setPostsBoundsChangedNotifications_(True)
+        NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+            self, "transcriptScrolled:", AK.NSViewBoundsDidChangeNotification, clip)
 
-        self.composer = RoundedSurface.alloc().initWithFrame_(((16, 50), (328, 42)))
+        self.composer = RoundedSurface.alloc().initWithFrame_(((18, 50), (356, 46)))
         self.composer.kind = "input"
-        self.input = AK.NSTextField.alloc().initWithFrame_(((12, 10), (263, 22)))
+        self.input = AK.NSTextField.alloc().initWithFrame_(((14, 12), (282, 22)))
         self.input.setFont_(AK.NSFont.systemFontOfSize_(13))
         self.input.setBordered_(False)
         self.input.setDrawsBackground_(False)
@@ -179,49 +184,38 @@ class Desktop(NSObject):
         self.input.cell().setUsesSingleLineMode_(True)
         self.input.cell().setScrollable_(True)
         self.input.cell().setSendsActionOnEndEditing_(False)
-        self.send_button = symbol_button("arrow.up", "发送 · 回车", ((286, 6), (30, 30)), self, "submitText:", SendButton)
+        self.send_button = symbol_button("arrow.up", "发送 · 回车", ((312, 7), (32, 32)), self, "submitText:", SendButton)
         self.composer.addSubview_(self.input)
         self.composer.addSubview_(self.send_button)
 
-        self.mic_button = button("语音", ((12, 10), (78, 28)), self, "toggleMic:")
+        self.mic_button = VoiceToggleButton.buttonWithTitle_target_action_("开启语音", self, "toggleMic:")
+        self.mic_button.setFrame_(((18, 10), (134, 30)))
         self.mic_button.setBordered_(False)
-        self.mic_button.setImagePosition_(AK.NSImageLeading)
-        self.mic_button.setToolTip_("开启或关闭语音 · Control + Option + 空格")
-        self.shortcut_label = label("⌃⌥ 空格", ((94, 15), (80, 18)), 11, AK.NSColor.tertiaryLabelColor())
-        self.cancel_button = button("停止", ((272, 10), (74, 28)), self, "cancelTask:")
+        self.mic_button.setRefusesFirstResponder_(True)
+        self.shortcut_label = label("全双工 · ⌃⌥空格", ((164, 15), (126, 18)), 10, AK.NSColor.secondaryLabelColor())
+        self.cancel_button = button("停止", ((300, 12), (74, 28)), self, "cancelTask:")
         self.cancel_button.setBordered_(False)
-        self.allow_button = button("允许操作", ((179, 10), (100, 28)), self, "allow:")
-        self.deny_button = button("拒绝", ((279, 10), (67, 28)), self, "deny:")
-        for item in (self.title_label, self.mode_label, self.close_button, self.transcript_scroll,
-                     self.composer, self.mic_button, self.shortcut_label, self.cancel_button,
+        self.allow_button = button("允许操作", ((197, 12), (108, 28)), self, "allow:")
+        self.deny_button = button("拒绝", ((305, 12), (69, 28)), self, "deny:")
+        for item in (self.title_label, self.mode_label, self.close_button, self.panel_button, self.transcript_scroll,
+                     self.latest_button, self.composer, self.mic_button, self.shortcut_label, self.cancel_button,
                      self.allow_button, self.deny_button):
             view.addSubview_(item)
         self.allow_button.setHidden_(True)
         self.deny_button.setHidden_(True)
 
     @objc.python_method
-    def makeMenu(self):
-        self.menu, self.context_menu_item, self.status_item = install_menus(self)
+    def makeMenu(self) -> None:
+        self.menu, self.status_item = install_menus(self)
 
-    def setPetSize_(self, sender):
-        scale = round(sender.doubleValue()) / 100
+    @objc.python_method
+    def setPetScale(self, scale: float) -> None:
         if not valid_pet_scale(scale):
-            return
-        try:
-            save_pet_scale(self.data_dir, scale)
-        except OSError as error:
-            self.input_feedback = f"无法保存桌宠大小：{error}"
-            self.showBubble()
-            return
+            raise ValueError("桌宠大小必须在 50%～600% 之间")
+        save_pet_scale(self.data_dir, scale)
         self.pet_scale = scale
         self.resizePet()
-        self.pet_size_slider.setDoubleValue_(scale * 100)
-        self.pet_size_label.setStringValue_(f"{round(scale * 100)}%")
         self.savePosition()
-
-    def resetPetSize_(self, _sender):
-        self.pet_size_slider.setDoubleValue_(100)
-        self.setPetSize_(self.pet_size_slider)
 
     @objc.python_method
     def resizePet(self):
@@ -286,33 +280,31 @@ class Desktop(NSObject):
         origin, size = self.pet_bubble_frame
         return AK.NSMakeRect(*origin, *size)
 
-    def showMemoryDashboard_(self, _sender):
-        if self.memory_dashboard_factory is None:
-            self.state.error = "记忆看板未配置"
-            self.updateLabels()
-            return
-        if self.memory_dashboard is None:
-            self.memory_dashboard = self.memory_dashboard_factory(self)
-        self.memory_dashboard.show()
+    def transcriptScrolled_(self, _notification: object) -> None:
+        self.updateLatestButton()
 
-    def showSkillManager_(self, _sender):
-        if self.skill_manager_factory is None:
-            self.state.error = "Skill 管理未配置"
-            self.updateLabels()
-            return
-        if self.skill_manager is None:
-            self.skill_manager = self.skill_manager_factory(self)
-        self.skill_manager.show()
+    @objc.python_method
+    def updateLatestButton(self) -> None:
+        bounds = self.transcript_scroll.contentView().bounds()
+        gap = self.transcript.frame().size.height - bounds.origin.y - bounds.size.height
+        self.latest_button.setHidden_(gap <= 24)
 
-    def openRunRecords_(self, _sender):
-        records = SessionRunRecords(self.data_dir / "runs")
-        self._openDirectory(records.materialize_view(self.state.session_id))
+    def scrollToLatest_(self, _sender: object) -> None:
+        clip = self.transcript_scroll.contentView()
+        bottom = max(0, self.transcript.frame().size.height - clip.bounds().size.height)
+        clip.scrollToPoint_((0, bottom))
+        self.transcript_scroll.reflectScrolledClipView_(clip)
+        self.updateLatestButton()
 
-    def openLatestRun_(self, _sender):
-        records = SessionRunRecords(self.data_dir / "runs")
-        latest = records.latest(self.state.session_id)
-        self._openDirectory(
-            latest or records.materialize_view(self.state.session_id))
+    def openPanel_(self, _sender: object) -> None:
+        from boxagent.interfaces.macos.panel_launch import launch_panel
+        root = Path(__file__).resolve().parents[3]
+        try:
+            launch_panel(root, self.data_dir, self.backend.log_dir)
+        except (RuntimeError, OSError) as exc:
+            logger.warning("伙伴控制台启动失败", exc_info=True)
+            self.input_feedback = str(exc)
+            self.showBubble()
 
     def openDiagnosticLogs_(self, _sender):
         self._openDirectory(self.backend.log_dir)
@@ -322,17 +314,6 @@ class Desktop(NSObject):
         path.mkdir(parents=True, exist_ok=True)
         AK.NSWorkspace.sharedWorkspace().openURL_(
             NSURL.fileURLWithPath_(str(path)))
-
-    def editSoul_(self, _sender):
-        if (self.persona_settings_factory is None
-                or self.editable_soul_file is None or self.soul_file is None):
-            self.state.error = "角色设定文件未配置"
-            self.updateLabels()
-            return
-        if self.persona_settings is None:
-            self.persona_settings = self.persona_settings_factory(
-                self, self.soul_file, self.editable_soul_file)
-        self.persona_settings.show()
 
     @objc.python_method
     def reloadPersona(self):
@@ -467,7 +448,7 @@ class Desktop(NSObject):
         self.backend.submit(self.backend.application.toggle_context())
 
     @objc.python_method
-    def positionBubble(self):
+    def positionBubble(self) -> None:
         frame = self.petBubbleFrame()
         screen = (self.pet.screen() or AK.NSScreen.mainScreen()).visibleFrame()
         width, height = self.bubble.frame().size
@@ -475,6 +456,10 @@ class Desktop(NSObject):
         y = frame.origin.y + frame.size.height - 10
         if y + height > screen.origin.y + screen.size.height:
             y = max(screen.origin.y + 8, frame.origin.y - height + 10)
+        if self.bubble_offset is not None:
+            dx, dy = self.bubble_offset
+            x = max(screen.origin.x + 8, min(frame.origin.x + dx, screen.origin.x + screen.size.width - width - 8))
+            y = max(screen.origin.y + 8, min(frame.origin.y + dy, screen.origin.y + screen.size.height - height - 8))
         self.bubble.setFrameOrigin_((x, y))
 
     @objc.python_method
@@ -553,14 +538,18 @@ class Desktop(NSObject):
         self.updateLabels()
 
     def tick_(self, _timer):
+        if getattr(self, "panel_control", None) is not None:
+            self.panel_control.pump()
         changed = False
         if self.history_request and self.history_request.done():
             try:
                 events = self.history_request.result()
                 if self.history_request_session == self.state.session_id:
+                    if events and not self.conversation_events:
+                        self.follow_latest_message = True
                     self.conversation_events = events
             except Exception:
-                pass
+                logger.warning("conversation history refresh failed", exc_info=True)
             self.history_request = None
             if self.history_refresh_pending:
                 self.history_refresh_pending = False
@@ -579,6 +568,7 @@ class Desktop(NSObject):
                 if not self.input.stringValue():
                     self.input.setStringValue_(self.submitted_draft)
                 self.input_feedback = "未能提交，请重试"
+                logger.warning("text submission failed", exc_info=True)
             self.pending_user_text = ""
             self.submission = None
             changed = True
@@ -675,20 +665,28 @@ class Desktop(NSObject):
         error = getattr(self.appearance, "error", None)
         if error and error != self.appearance_error:
             self.appearance_error = error
-            self.input_feedback = f"3D 形象加载失败：{error}。请从菜单重新选择形象。"
+            self.input_feedback = f"3D 形象加载失败：{error}。请到伙伴控制台的设置中重新选择形象。"
             self.showBubble()
         elif ready:
             self.appearance_error = None
 
     @objc.python_method
-    def updateLabels(self):
-        self.context_menu_item.setTitle_("关闭屏幕总结" if self.state.context_enabled else "开启屏幕总结")
+    def updateLabels(self) -> None:
         active = self.state.task in ACTIVE_TASK_STATES
-        self.mode_label.setStringValue_(mode_text(self.state))
-        self.mic_button.setTitle_("结束语音" if self.state.voice != "off" else "语音")
-        self.mic_button.setImage_(AK.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
-            "mic.fill" if self.state.voice != "off" else "mic", "语音"))
+        self.mode_label.setStringValue_(mode_text(self.state) or "在这里陪你")
+        self.mode_label.setToolTip_(mode_text(self.state) or "在这里陪你")
+        self.mic_button.voice_state = self.state.voice
+        self.mic_button.setTitle_({"off": "开启语音", "connecting": "连接中…", "stopping": "关闭中…"}.get(
+            self.state.voice, "结束语音"))
+        voice_hint = "开启全双工语音，可以直接说话，也可以在伙伴回复时打断" if self.state.voice == "off" else (
+            "正在连接全双工语音" if self.state.voice == "connecting" else
+            "正在关闭全双工语音" if self.state.voice == "stopping" else "全双工语音已开启，点击结束语音")
+        self.mic_button.setToolTip_(f"{voice_hint} · Control + Option + 空格")
+        self.mic_button.setAccessibilityLabel_(voice_hint)
+        self.mic_button.setAccessibilityValue_("已开启" if self.state.voice == "ready" else
+                                              "已关闭" if self.state.voice == "off" else self.mic_button.title())
         self.mic_button.setEnabled_(self.state.voice not in {"connecting", "stopping"})
+        self.mic_button.setNeedsDisplay_(True)
         approval = bool(self.state.approval)
         self.cancel_button.setHidden_(approval or not active)
         self.shortcut_label.setHidden_(approval)
@@ -700,7 +698,8 @@ class Desktop(NSObject):
         self.send_button.setContentTintColor_(AK.NSColor.whiteColor() if enabled else AK.NSColor.tertiaryLabelColor())
         self.send_button.setNeedsDisplay_(True)
         self.updateTranscript()
-        self.status_item.button().setTitle_("●" if self.state.voice != "off" else "◉")
+        self.status_item.button().setImage_(AK.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+            "mic.fill" if self.state.voice != "off" else "sparkles", "语音已开启" if self.state.voice != "off" else "伙伴控制台"))
         self.last_revision = self.state.revision
         (self.data_dir / "ui.json").write_text(json.dumps({**self.state.payload(), "pet_window": self.pet.windowNumber(),
             "bubble_window": self.bubble.windowNumber(), "pid": os.getpid()}, ensure_ascii=False), encoding="utf-8")
@@ -716,10 +715,11 @@ class Desktop(NSObject):
                 notification)
             return True
         except Exception:
+            logger.warning("system notification not delivered", exc_info=True)
             return False
 
     @objc.python_method
-    def updateTranscript(self):
+    def updateTranscript(self) -> None:
         sections = transcript_sections(
             self.state, self.input_feedback, history=self.conversation_events,
             assistant_name=self.agent_name,
@@ -728,34 +728,25 @@ class Desktop(NSObject):
         if signature == self.content_signature:
             return
         self.content_signature = signature
-        content = NSMutableAttributedString.alloc().initWithString_("")
-        def append(text, size, color, spacing=0):
-            paragraph = AK.NSMutableParagraphStyle.alloc().init()
-            paragraph.setParagraphSpacing_(spacing)
-            paragraph.setLineSpacing_(3)
-            content.appendAttributedString_(NSAttributedString.alloc().initWithString_attributes_(text, {
-                AK.NSFontAttributeName: AK.NSFont.systemFontOfSize_(size),
-                AK.NSForegroundColorAttributeName: color, AK.NSParagraphStyleAttributeName: paragraph}))
-        for index, (role, text) in enumerate(sections):
-            append(role + "\n", 10, AK.NSColor.secondaryLabelColor(), 3)
-            append(text + ("\n" if index < len(sections) - 1 else ""), 13, AK.NSColor.labelColor(), 10)
-        if not sections:
-            append("有什么需要我帮忙？", 13, AK.NSColor.secondaryLabelColor())
-        self.transcript.textStorage().setAttributedString_(content)
-        self.transcript.textContainer().setContainerSize_((328, 1000000))
-        manager = self.transcript.layoutManager()
-        manager.ensureLayoutForTextContainer_(self.transcript.textContainer())
-        text_height = max(22, manager.usedRectForTextContainer_(self.transcript.textContainer()).size.height + 4)
-        visible_height = min(172, text_height)
-        height = visible_height + 156
-        self.bubble.setContentSize_((360, height))
-        self.bubble_view.setFrame_(((0, 0), (360, height)))
+        clip = self.transcript_scroll.contentView()
+        previous_y = clip.bounds().origin.y
+        previous_height = self.transcript.frame().size.height
+        at_bottom = self.follow_latest_message or previous_y + clip.bounds().size.height >= previous_height - 24
+        self.follow_latest_message = False
+        text_height = self.transcript.render(sections, 356)
+        visible_height = min(240, text_height)
+        height = visible_height + 176
+        self.bubble.setContentSize_((392, height))
+        self.bubble_view.setFrame_(((0, 0), (392, height)))
         self.title_label.setFrameOrigin_((18, height - 40))
-        self.mode_label.setFrameOrigin_((139, height - 38))
-        self.close_button.setFrameOrigin_((316, height - 40))
-        self.transcript_scroll.setFrame_(((16, 104), (328, visible_height)))
-        self.transcript.setFrameSize_((328, text_height))
-        self.transcript.scrollRangeToVisible_((content.length(), 0))
+        self.mode_label.setFrameOrigin_((18, height - 59))
+        self.close_button.setFrameOrigin_((346, height - 42))
+        self.panel_button.setFrameOrigin_((310, height - 42))
+        self.transcript_scroll.setFrame_(((18, 108), (356, visible_height)))
+        self.transcript_scroll.contentView().scrollToPoint_((0,
+            max(0, text_height - visible_height) if at_bottom else min(previous_y, max(0, text_height - visible_height))))
+        self.transcript_scroll.reflectScrolledClipView_(clip)
+        self.updateLatestButton()
         self.positionBubble()
 
     @objc.python_method
@@ -778,10 +769,17 @@ class Desktop(NSObject):
             self.closing = True
             self.hotkey.close()
             self.timer.invalidate()
+            NSNotificationCenter.defaultCenter().removeObserver_name_object_(
+                self, AK.NSViewBoundsDidChangeNotification, self.transcript_scroll.contentView())
+            if getattr(self, "panel_control", None) is not None:
+                self.panel_control.close()
             for appearance in (self.appearance, getattr(self, "pending_appearance", None)):
                 if hasattr(appearance, "close"):
                     appearance.close()
             self.savePosition()
             self.backend.close()
             (self.data_dir / "app.pid").unlink(missing_ok=True)
+            if self.on_terminated is not None:
+                # 最后一步：把排队中的诊断日志写完，再交给 AppKit 退出进程。
+                self.on_terminated()
         return AK.NSTerminateNow

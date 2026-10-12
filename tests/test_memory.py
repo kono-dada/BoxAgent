@@ -227,8 +227,20 @@ class MemoryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
     def test_jev_backend_requires_key(self):
         worker = JevMemWorker(backend="jev", command=[sys.executable, "unused"])
-        with self.assertRaisesRegex(MemoryUnavailable, "TYPESAFE_API_KEY"):
+        with self.assertRaisesRegex(MemoryUnavailable, "决策模型密钥"):
             worker._environment()
+
+    def test_decision_service_is_passed_through_sdk_variables(self):
+        worker = JevMemWorker(
+            backend="jev", command=[sys.executable, "unused"],
+            decision_api_key="sk-test",
+            decision_base_url="https://ws.cn-beijing.maas.aliyuncs.com/compatible-mode",
+            decision_model="decision-model-preview")
+        env = worker._environment()
+        self.assertEqual(env["TYPESAFE_API_KEY"], "sk-test")
+        self.assertEqual(env["TYPESAFE_BASE_URL"],
+                         "https://ws.cn-beijing.maas.aliyuncs.com/compatible-mode")
+        self.assertEqual(env["TYPESAFE_DEFAULT_MODEL"], "decision-model-preview")
 
     def test_forget_removes_graph_vector_and_keyword_indexes(self):
         worker = Worker.__new__(Worker)
@@ -494,7 +506,7 @@ class ProjectionAndRecallTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(backend.queries[-1][2], "deep")
         self.assertNotIn("metadata", recalled["memories"][0])
 
-    async def test_context_packet_contains_profile_fact_and_narrative(self):
+    async def test_context_packet_has_query_evidence_without_repeating_stable_profile(self):
         with tempfile.TemporaryDirectory() as directory:
             profile_store = JsonProfileStore(Path(directory) / "profile.json")
             await profile_store.apply([{
@@ -514,7 +526,7 @@ class ProjectionAndRecallTests(unittest.IsolatedAsyncioTestCase):
                 MemoryService(backend),
                 context=MemoryContextProvider(backend, profile_store))
             packet = await module.context_packet("继续做", session_id="ses-1")
-            self.assertIn("answer_style", packet)
+            self.assertNotIn("answer_style", packet)
             self.assertIn("用户喜欢爵士乐", packet)
             self.assertIn("用户正在实现 BoxAgent", packet)
             evidence = await module.evidence("继续做", session_id="ses-1")

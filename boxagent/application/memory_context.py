@@ -2,6 +2,9 @@
 
 import asyncio
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryContextProvider:
@@ -53,7 +56,9 @@ class MemoryContextProvider:
             result = await asyncio.wait_for(
                 self.backend.query(query, top_k=top_k, mode="direct"),
                 timeout=self.recall_timeout)
-        except Exception:  # noqa: BLE001 - Runtime context must degrade quickly
+        except Exception as exc:  # noqa: BLE001 - Runtime context must degrade quickly
+            logger.warning("memory recall degraded: %s", type(exc).__name__,
+                           exc_info=not isinstance(exc, TimeoutError))
             return []
         evidence = []
         for item in result.get("memories", []):

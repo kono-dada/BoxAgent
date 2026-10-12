@@ -9,7 +9,15 @@ import json
 import logging
 import uuid
 from typing import Dict, List, Optional, Any, Tuple, Union, Set
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _time_key(node):
+    """Sort key tolerant of untimed and naive (legacy) timestamps."""
+    value = getattr(node, "timestamp", None)
+    if value is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 from dataclasses import dataclass, field
 from pathlib import Path
 import numpy as np
@@ -387,7 +395,7 @@ class TemporalResonanceGraphMemory:
     def _create_temporal_links(self, event_node: EventNode):
         """Create temporal links for a new event"""
         all_nodes = list(self.graph_db.nodes.values())
-        all_nodes.sort(key=lambda n: n.timestamp if n.timestamp else datetime.min)
+        all_nodes.sort(key=_time_key)
 
         for i, node in enumerate(all_nodes):
             if node.node_id == event_node.node_id and i > 0:
@@ -514,7 +522,7 @@ class TemporalResonanceGraphMemory:
             # Sort by timestamp to find previous
             sorted_nodes = sorted(
                 [n for n in all_nodes if n.node_id != event_node.node_id],
-                key=lambda n: n.timestamp if hasattr(n, 'timestamp') else datetime.min
+                key=_time_key
             )
             if sorted_nodes:
                 prev_node = sorted_nodes[-1]

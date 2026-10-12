@@ -13,7 +13,8 @@ class JevMemWorker:
     """Run Jev-Mem behind a serialized JSONL request/response boundary."""
 
     def __init__(self, *, python=None, cache_dir=None, backend="auto",
-                 workspace=None, typesafe_api_key="",
+                 workspace=None, decision_api_key="", decision_base_url="",
+                 decision_model="",
                  startup_timeout=90, request_timeout=30, command=None, log_path=None):
         workspace = Path(workspace or Path.cwd())
         self.python = Path(python or workspace / ".runtime/jev-mem-venv/bin/python").expanduser()
@@ -23,7 +24,11 @@ class JevMemWorker:
         self.request_timeout = request_timeout
         self.command = list(command) if command else None
         self.workspace = workspace
-        self.typesafe_api_key = typesafe_api_key
+        # One System One decision service (Aliyun or TypeSafe) behind the
+        # SDK's TYPESAFE_* variables; the provider choice lives in bootstrap.
+        self.decision_api_key = decision_api_key
+        self.decision_base_url = decision_base_url
+        self.decision_model = decision_model
         self.log_path = Path(log_path or workspace / ".runtime/pet/memory-worker.log")
         self.process = None
         self.stderr = None
@@ -45,11 +50,16 @@ class JevMemWorker:
                  "HF_ENDPOINT", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
                  "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
         env = {name: os.environ[name] for name in names if name in os.environ}
-        if self.typesafe_api_key:
-            env["TYPESAFE_API_KEY"] = self.typesafe_api_key
+        if self.decision_api_key:
+            env["TYPESAFE_API_KEY"] = self.decision_api_key
+            if self.decision_base_url:
+                env["TYPESAFE_BASE_URL"] = self.decision_base_url
+            if self.decision_model:
+                env["TYPESAFE_DEFAULT_MODEL"] = self.decision_model
         elif self.backend == "jev":
             raise MemoryUnavailable(
-                "BOXAGENT_JEV_MEM_BACKEND=jev 时需要 TYPESAFE_API_KEY")
+                "BOXAGENT_JEV_MEM_BACKEND=jev 时需要决策模型密钥"
+                "（DASHSCOPE_API_KEY + 工作空间，或 TYPESAFE_API_KEY）")
         env.update(PYTHONUNBUFFERED="1", TOKENIZERS_PARALLELISM="false")
         return env
 

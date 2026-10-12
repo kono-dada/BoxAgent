@@ -2,10 +2,13 @@
 
 import asyncio
 import fcntl
+import logging
 import os
 from pathlib import Path
 
-from boxagent.interfaces.engine.protocol import PROTOCOL_VERSION, decode, encode
+from boxagent.interfaces.engine.protocol import PROTOCOL_VERSION, STREAM_LIMIT, decode, encode
+
+logger = logging.getLogger(__name__)
 
 
 class EngineServer:
@@ -33,7 +36,8 @@ class EngineServer:
         await self.application.start()
         if self.start_context:
             await self.application.toggle_context()
-        self.server = await asyncio.start_unix_server(self._handle_client, path=self.socket_path)
+        self.server = await asyncio.start_unix_server(
+            self._handle_client, path=self.socket_path, limit=STREAM_LIMIT)
         os.chmod(self.socket_path, 0o600)
 
     async def run(self):
@@ -109,6 +113,8 @@ class EngineServer:
             response = {"type": "response", "id": request_id, "ok": True,
                         "result": result}
         except Exception as exc:
+            logger.error("engine request %s failed", request.get("method"),
+                         exc_info=True)
             response = {"type": "response", "id": request_id, "ok": False,
                         "error": str(exc) or type(exc).__name__}
         await self._send(writer, response)
@@ -144,6 +150,10 @@ class EngineServer:
                 params.get("session_id", ""),
                 after_sequence=int(params.get("after_sequence", 0)),
                 limit=int(limit) if limit is not None else None)
+        if method == "session_timeline":
+            return await self.application.session_timeline(
+                str(params.get("session_id") or ""), after_seq=int(params.get("after_seq", 0)),
+                limit=int(params.get("limit", 150)))
         if method == "cancel_task":
             await self.application.cancel_task()
             return self.application.last_result
@@ -158,6 +168,12 @@ class EngineServer:
                 params.get("query", ""), top_k=int(params.get("top_k", 5)))
         if method == "forget_memory":
             return await self.application.forget_memory(params.get("memory_ids") or [])
+        if method == "context_snapshot":
+            return await self.application.context_snapshot(
+                str(params.get("session_id") or ""))
+        if method == "context_entry":
+            return await self.application.context_entry(
+                str(params.get("session_id") or ""), int(params.get("seq") or 0))
         if method == "memory_snapshot":
             return await self.application.memory_snapshot(**params)
         if method == "delete_memory_node":
@@ -189,11 +205,6 @@ class EngineServer:
         try:
             if self.server:
                 self.server.close()
-                await self.server.wait_closed()
-                self.server = None
-            if self.application:
-                await self.application.close()
-                self.application = None
             clients, self.clients = tuple(self.clients.items()), {}
             for writer, (_outbox, sender) in clients:
                 sender.cancel()
@@ -203,6 +214,12 @@ class EngineServer:
                   for task in (sender, writer.wait_closed())),
                 return_exceptions=True,
             )
+            if self.server:
+                await self.server.wait_closed()
+                self.server = None
+            if self.application:
+                await self.application.close()
+                self.application = None
         finally:
             self.socket_path.unlink(missing_ok=True)
             if self.lock_stream:

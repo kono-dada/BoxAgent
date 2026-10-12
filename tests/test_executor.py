@@ -530,6 +530,53 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.captured_turn["input"][0]["text"],
                          "[记忆证据]喜欢轻音乐\n当前用户请求：\n打开音乐")
 
+    async def test_product_task_reverts_reference_turn_after_completion(self):
+        session = self.make_session()
+        session.ensure_thread = AsyncMock(return_value=("thread-1", "reused"))
+        calls = []
+        async def rpc(method, params, timeout=120):
+            calls.append((method, params))
+            if method == "turn/start":
+                asyncio.get_running_loop().call_soon(session.completed.set_result, {"status": "completed"})
+                return {"turn": {"id": "turn-reference"}}
+            if method == "thread/revert":
+                return {}
+            self.fail(method)
+        session.rpc = rpc
+        await session.run_codex_turn(model="m", instructions="stable", query="q", output_schema={},
+                                     evidence_context="temporary", product_session_id="ses_test")
+        self.assertEqual(calls[-1], ("thread/revert", {"threadId": "thread-1", "beforeTurnId": "turn-reference"}))
+
+    async def test_reference_revert_failure_invalidates_thread_binding(self):
+        session = self.make_session()
+        session.ensure_thread = AsyncMock(return_value=("thread-1", "reused"))
+        async def rpc(method, params, timeout=120):
+            if method == "turn/start":
+                asyncio.get_running_loop().call_soon(session.completed.set_result, {"status": "completed"})
+                return {"turn": {"id": "turn-reference"}}
+            raise RuntimeError("revert failed")
+        session.rpc = rpc
+        bound = AsyncMock()
+        await session.run_codex_turn(model="m", instructions="stable", query="q", output_schema={},
+            evidence_context="temporary", product_session_id="ses_test", on_thread_bound=bound)
+        self.assertIsNone(session.thread_id)
+        self.assertIsNone(session.thread_signature)
+        self.assertEqual(bound.await_args_list[-1].args, ("",))
+
+    async def test_sync_callback_failure_still_removes_reference(self):
+        session = self.make_session()
+        session.ensure_thread = AsyncMock(return_value=("thread-1", "reused"))
+        calls = []
+        async def rpc(method, params, timeout=120):
+            calls.append(method)
+            return {"turn": {"id": "turn-reference"}} if method == "turn/start" else {}
+        session.rpc = rpc
+        with self.assertRaises(RuntimeError):
+            await session.run_codex_turn(model="m", instructions="stable", query="q", output_schema={},
+                evidence_context="temporary", product_session_id="ses_test",
+                on_context_synced=AsyncMock(side_effect=RuntimeError("store unavailable")))
+        self.assertEqual(calls, ["turn/start", "thread/revert"])
+
     async def test_new_product_session_does_not_reuse_another_sessions_thread(self):
         session = self.make_session()
         session.tools = [{"name": "click"}]

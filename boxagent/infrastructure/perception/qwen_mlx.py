@@ -2,10 +2,39 @@
 
 import asyncio
 import json
+import logging
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+# 连续这么多次截图失败才停止观察；单次失败多为窗口正在切换、缩放或关闭。
+MAX_CAPTURE_FAILURES = 3
+_SENTENCE = re.compile(r"[^。！？!?\n]+[。！？!?]?")
+
+
+def clean_summary(text):
+    """去掉复读的句子，并丢弃被长度上限截断的半句。
+
+    小模型偶尔把同一句话重复到 max_tokens；这里按句去重（忽略首尾空白），
+    保留第一次出现的顺序。若最后一句没有结束标点且前面已有完整句子，
+    视为截断残句并丢弃。
+    """
+    seen, kept = set(), []
+    for match in _SENTENCE.finditer(text.strip()):
+        sentence = match.group(0).strip()
+        key = sentence.rstrip("。！？!?")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        kept.append(sentence)
+    if len(kept) > 1 and not kept[-1].endswith(("。", "！", "？", "!", "?")):
+        kept.pop()
+    return "".join(kept)
+
 
 def focused_window():
     """选择前台应用最上层的普通窗口；不截整屏，也不改变焦点。"""
@@ -21,6 +50,7 @@ def focused_window():
         bounds = window.get("kCGWindowBounds", {})
         if (window.get("kCGWindowOwnerPID") == app.processIdentifier()
                 and window.get("kCGWindowLayer") == 0
+                and window.get("kCGWindowAlpha", 1) > 0
                 and bounds.get("Width", 0) > 80 and bounds.get("Height", 0) > 80):
             return {"id": int(window["kCGWindowNumber"]), "app": str(app.localizedName())}
     return None
@@ -37,6 +67,7 @@ class WindowSummary:
         self.log_path = Path(log_path or self.workspace / ".runtime/pet/context-worker.log")
         self.max_size = max_size
         self.process = self.task = None
+        self.capture_failures = 0
 
     async def stop(self):
         if self.task:
@@ -87,6 +118,7 @@ class WindowSummary:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            logger.error("desktop observation stopped", exc_info=True)
             with self.log_path.open("a") as errors:
                 errors.write(f"\n观察失败：{exc!r}\n")
             self.emit("context.error", context_enabled=False, context_text="", context_status=
@@ -112,7 +144,22 @@ class WindowSummary:
         # 临时图片随本轮结束删除，模型和图片均不上传云端。
         with tempfile.TemporaryDirectory(prefix="boxagent-context-") as directory:
             path = Path(directory) / "window.png"
-            await self.command("/usr/sbin/screencapture", "-x", "-o", "-l", str(window["id"]), str(path))
+            try:
+                await self.command("/usr/sbin/screencapture", "-x", "-o", "-l",
+                                   str(window["id"]), str(path))
+            except (RuntimeError, TimeoutError, OSError) as exc:
+                # 窗口在列举与截图之间关闭、缩放或被系统暂时拒绝时会失败；
+                # 跳过这一轮，连续失败才视为权限或环境问题。
+                self.capture_failures += 1
+                logger.warning("window capture failed (%d/%d) app=%s: %s",
+                               self.capture_failures, MAX_CAPTURE_FAILURES,
+                               window["app"], str(exc).strip() or type(exc).__name__)
+                if self.capture_failures >= MAX_CAPTURE_FAILURES:
+                    raise
+                self.emit("context.waiting", context_text="",
+                          context_status="前台窗口暂时无法截图，稍后重试")
+                return
+            self.capture_failures = 0
             with Image.open(path) as source:
                 image = source.convert("RGB")
                 image.thumbnail((self.max_size, self.max_size))
@@ -124,8 +171,13 @@ class WindowSummary:
         if focused_window() != window:
             self.emit("context.stale", context_text="", context_status="窗口已切换，等待下一次观察")
             return
-        text = result.get("summary", "").strip()
+        raw = result.get("summary", "").strip()
+        text = clean_summary(raw)
+        if len(text) < len(raw):
+            logger.info("summary cleaned", extra={"data": {
+                "raw_chars": len(raw), "clean_chars": len(text)}})
         if not text:
             raise RuntimeError("模型返回空摘要")
         self.emit("context.updated", context_status="", context_text=text,
-                  context_app=window["app"], context_at=captured_at)
+                  context_app=window["app"], context_window_id=window["id"],
+                  context_at=captured_at)

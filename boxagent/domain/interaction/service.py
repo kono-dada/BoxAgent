@@ -2,6 +2,12 @@
 
 import asyncio
 import contextlib
+import logging
+import time
+
+from boxagent.domain.context.contracts import NullContextObserver
+
+logger = logging.getLogger(__name__)
 
 
 def _is_idle_realtime_disconnect(message):
@@ -24,14 +30,17 @@ def _is_reconnectable_voice_disconnect(message):
 class InteractionService:
     def __init__(self, events, voice_factory, handle_tool, *, conversation=None,
                  history_builder=None, notification_event=None,
-                 memory=None, reconnect_delays=(.5, 1.5, 3.0)):
+                 memory=None, reconnect_delays=(.5, 1.5, 3.0),
+                 context_observer=None, turn_preparer=None):
         self.events = events
+        self.context_observer = context_observer or NullContextObserver()
         self.voice_factory = voice_factory
         self.handle_tool = handle_tool
         self.conversation = conversation
         self.history_builder = history_builder
         self.notification_event = notification_event
         self.memory = memory
+        self.turn_preparer = turn_preparer
         self.voice = self.task = None
         self.connection_microphone = False
         self.connection_error = None
@@ -41,6 +50,7 @@ class InteractionService:
         self.pending_user_responses = []
         self.closed_interactions = set()
         self.toggle_lock = asyncio.Lock()
+        self.text_lock = asyncio.Lock()
         self.voice_requested = False
         self.reconnect_delays = tuple(reconnect_delays)
         self.reconnect_task = None
@@ -73,6 +83,10 @@ class InteractionService:
                 raise
 
     async def submit_text(self, text):
+        async with self.text_lock:
+            return await self._submit_text(text)
+
+    async def _submit_text(self, text):
         if not isinstance(text, str) or not text.strip():
             return {"status": "failed", "message": "请输入想说的话"}
         async with self.toggle_lock:
@@ -84,12 +98,18 @@ class InteractionService:
                 self._close_interaction(self.interaction)
             self.interaction = await self.conversation.begin_interaction(
                 text, source="text", runtime="qwen_realtime")
+            begin_query = getattr(self.voice, "begin_query", None)
+            if begin_query is not None:
+                begin_query(self.interaction.interaction_id)
+            self.context_observer.turn_started(
+                self.interaction.session.session_id, channel="text")
             # Publish the durable user turn before optional memory retrieval.
             # Recall may take hundreds of milliseconds, but it should not make
             # the text input appear unresponsive.
             self.events.emit(
                 "front.user_text", user_text=text, assistant_text="", error="")
-            await self._inject_memory_context(text, self.interaction)
+            if self.turn_preparer is None:
+                await self._inject_memory_context(text, self.interaction)
         else:
             self.events.emit(
                 "front.user_text", user_text=text, assistant_text="", error="")
@@ -97,7 +117,18 @@ class InteractionService:
             submit = getattr(self.voice, "submit_text", None)
             if submit is None:
                 raise RuntimeError("当前前台 Runtime 不支持文字输入")
-            await submit(text)
+            if self.turn_preparer is not None and self.interaction is not None:
+                context = self.interaction
+                voice = self.voice
+                packet, report = await self.turn_preparer.prepare(
+                    text, session_id=context.session.session_id,
+                    query_id=context.interaction_id)
+                if self.interaction is not context or self.voice is not voice:
+                    return {"status": "interrupted", "message": "本轮已被新的输入打断"}
+                self.context_observer.turn_prepared(context.session.session_id, **report)
+                await submit(text, reference=packet, query_id=context.interaction_id)
+            else:
+                await submit(text)
         except Exception:
             if self.interaction is not None:
                 await self.conversation.finish_interaction(
@@ -144,7 +175,8 @@ class InteractionService:
             except Exception:
                 # Product Session remains authoritative and restores this turn
                 # after reconnect even if the live provider connection closes.
-                pass
+                logger.warning("host exchange not injected into live voice",
+                               exc_info=True)
         return {"status": "accepted", "message": message,
                 "session_id": context.session.session_id,
                 "interaction_id": context.interaction_id}
@@ -173,6 +205,7 @@ class InteractionService:
             try:
                 stable_memory_context = await self.memory.stable_profile()
             except Exception:
+                logger.warning("stable memory profile unavailable", exc_info=True)
                 stable_memory_context = ""
         self.voice = self.voice_factory(
             self._handle_tool, self.events.emit,
@@ -215,7 +248,18 @@ class InteractionService:
                 self.interaction = await self.conversation.begin_interaction(
                     transcript, source="voice",
                     runtime="qwen_realtime")
-                await self._inject_memory_context(transcript, self.interaction)
+                if self.turn_preparer is not None:
+                    context = self.interaction
+                    voice = self.voice
+                    packet, report = await self.turn_preparer.prepare(
+                        transcript, session_id=context.session.session_id,
+                        query_id=context.interaction_id)
+                    if self.interaction is not context or self.voice is not voice:
+                        return
+                    self.context_observer.turn_prepared(context.session.session_id, **report)
+                    await voice.respond_to_query(packet, query_id=context.interaction_id)
+                else:
+                    await self._inject_memory_context(transcript, self.interaction)
                 self._bind_pending_response(self.interaction)
                 self.events.emit("conversation.updated")
         elif kind == "response_created":
@@ -274,14 +318,25 @@ class InteractionService:
         inject = getattr(self.voice, "inject_memory_context", None)
         if inject is None:
             return
+        session_id = context.session.session_id
+        started = time.perf_counter()
+        packet, status = "", "empty"
         try:
             packet = await self.memory.context_packet(
-                query, session_id=context.session.session_id, top_k=5)
+                query, session_id=session_id, top_k=5)
             if packet:
                 await inject(packet)
-        except Exception:
+                status = "injected"
+        except Exception as exc:
             # A recall timeout must never block or fail the foreground turn.
-            return
+            status = "failed:" + type(exc).__name__
+            logger.warning("memory injection failed: %s", status, exc_info=True)
+        finally:
+            self.context_observer.turn_prepared(
+                session_id,
+                memory={"status": status,
+                        "ms": round((time.perf_counter() - started) * 1000, 1),
+                        "chars": len(packet or "")})
 
     def _bind_pending_response(self, context):
         while self.pending_user_responses:

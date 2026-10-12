@@ -33,9 +33,6 @@ if __name__ == "__main__":
     elif "--check-ui" in sys.argv:
         from scripts.check_pet_ui import main
         main()
-    elif "--check-memory-graph-ui" in sys.argv:
-        from scripts.check_memory_graph_ui import main
-        main()
     elif "--check-vrm-ui" in sys.argv:
         from scripts.check_vrm_ui import main
         main()

@@ -34,13 +34,15 @@ def model_content(response: dict, step: int, goal: str = "") -> list[dict]:
 
 
 class ComputerUseToolGateway:
-    def __init__(self, session, *, output: Path, goal: str, report, log, is_stopped):
+    def __init__(self, session, *, output: Path, goal: str, report, log, is_stopped,
+                 image_store=None):
         self.session = session
         self.output = Path(output)
         self.goal = goal
         self.report = report
         self.log = log
         self.is_stopped = is_stopped
+        self.image_store = image_store
         self.lock = asyncio.Lock()
         self.tool_specs = {}
         self.observations = {}
@@ -114,6 +116,13 @@ class ComputerUseToolGateway:
             if item.get("type") != "image":
                 continue
             suffix = "png" if item.get("mimeType") == "image/png" else "jpg"
+            if self.image_store is not None:
+                reference = self.image_store(base64.b64decode(item["data"]), item.get("mimeType", "image/jpeg"))
+                observation.setdefault("attachments", []).append(reference)
+                observation["screenshot"] = reference["path"]
+                (self.output / f"step-{step}-{index}.attachment.json").write_text(
+                    json.dumps(reference, ensure_ascii=False), encoding="utf-8")
+                continue
             path = self.output / f"step-{step}-{index}.{suffix}"
             path.write_bytes(base64.b64decode(item["data"]))
             observation["screenshot"] = str(path)

@@ -1,6 +1,6 @@
 # 本机环境准备
 
-BoxAgent 的源码安装面向 Apple Silicon macOS。以下规范与 2026-10-11 的安装入口对应；在现有机器上重建视觉环境并验证了安装流程，尚未完成全新机器的完整安装与系统授权验收。
+BoxAgent 的源码安装面向 Apple Silicon macOS。以下规范对应当前安装入口（2026-10-12）；现有机器已验证视觉环境重建和控制台安装/构建，尚未完成全新机器的完整安装与系统授权验收。
 
 ## 目录与依赖规则
 
@@ -43,7 +43,7 @@ zsh scripts/set-key.zsh
 ./scripts/install.sh
 ```
 
-`install.sh` 可重复执行：准备仓库内 Python，以锁文件同步宿主、视觉和记忆依赖，补齐缺失的 AOQ Framework，校验或下载模型，拉取 Git LFS 资产并构建播放器，最后执行安装检查。它不会修改密钥、删除用户数据、自动登录账号或替用户设置系统权限。
+`install.sh` 可重复执行：准备仓库内 Python，以锁文件同步宿主、视觉和记忆依赖，补齐缺失的 AOQ Framework，校验或下载模型，拉取 Git LFS 资产并构建播放器，安装并构建 React / Electron 伙伴控制台，最后执行安装检查。它不会修改密钥、删除用户数据、自动登录账号或替用户设置系统权限。
 
 只检查安装与配置，不调用云端、不操作应用：
 
@@ -51,7 +51,7 @@ zsh scripts/set-key.zsh
 ./scripts/install.sh --check
 ```
 
-检查覆盖固定依赖版本、模型文件摘要、Framework、播放器、运行组件签名与凭据是否存在；不验证密钥有效性、云端连通性、系统权限或可见 UI。缺少项目时返回非零状态。安装和检查通过后启动：
+检查覆盖固定依赖版本、模型文件摘要、Framework、播放器、控制台构建与 Electron 可执行文件、运行组件签名与所选决策服务凭据是否存在；不验证密钥有效性、云端连通性、系统权限或可见 UI。缺少项目时返回非零状态。安装和检查通过后启动：
 
 ```sh
 ./scripts/run-pet.sh
@@ -62,7 +62,7 @@ zsh scripts/set-key.zsh
 审批会被中断；JSONL Product Session、Jev-Mem 长期记忆和本地配置仍可在新 Engine 中恢复。修改原生 UI 或 IPC
 客户端时必须重启整个应用。通过 `BOXAGENT_ENGINE_WATCH=0` 可禁用后端源码监听。
 
-配置脚本依次读取北京地域 DashScope API Key、百炼 Workspace ID、DeepSeek API Key 与 TypeSafe.ai API Key，并写入被 Git 忽略、仅本机可读的 `.env.local`。这些凭据是当前完整产品配置的一部分，不应提交到仓库。
+配置脚本读取北京地域 DashScope API Key、百炼 Workspace ID、DeepSeek API Key，以及可选的 TypeSafe.ai API Key，写入被 Git 忽略、仅本机可读的 `.env.local`。默认决策服务复用 DashScope Key / Workspace，无需 TypeSafe Key；凭据不应提交到仓库。
 
 外放全双工语音使用 AOQ，由原生 SDK 同时管理麦克风、扬声器、回声消除和降噪。安装：
 
@@ -131,7 +131,7 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 
 Jev-Mem 源码已经随 BoxAgent 固定在 `boxagent/infrastructure/memory/jev_mem/`，不再从 `.runtime/` 克隆或导入源码。独立解释器默认位于 `.runtime/jev-mem-venv/bin/python`，只负责隔离重型依赖；新安装的持久化目录为 `.runtime/pet/memory/jev-mem`。可分别用 `BOXAGENT_JEV_MEM_PYTHON` 和 `BOXAGENT_JEV_MEM_CACHE` 覆盖；已有 `.runtime/pet/memory/jev` 时会继续读取旧 Store，避免升级后看不到已有记忆。
 
-当前完整产品配置要求 `TYPESAFE_API_KEY` 与 `BOXAGENT_JEV_MEM_BACKEND=jev`，由 TypeSafe.ai 的 JEV Decision Model 完成记忆决策。`auto` 和 mock System-One 仅用于开发与协议验证，不代表生产记忆质量。
+真实记忆后端使用 `BOXAGENT_JEV_MEM_BACKEND=jev`。`BOXAGENT_DECISION_PROVIDER=auto` 在配置 DashScope Key / Workspace 时优先阿里云百炼 `decision-model-preview`，否则选择 TypeSafe.ai；可显式设置 `aliyun` 或 `typesafe`，后者需要 `TYPESAFE_API_KEY`。记忆决策与回合前意图估计共用所选服务，分别使用 Worker。意图参考默认开启，最多等待 400 ms，`BOXAGENT_INTENT_REFERENCE=0` 仅关闭意图参考。mock System-One 只验证协议，不代表生产记忆质量。
 
 Qwen 冷恢复默认在完成消息累计到 18000 字符时异步生成 Context Checkpoint，单次摘要输入
 上限为 32000 字符。可分别用 `BOXAGENT_QWEN_CHECKPOINT_TRIGGER_CHARS` 和
@@ -139,16 +139,30 @@ Qwen 冷恢复默认在完成消息累计到 18000 字符时异步生成 Context
 Codex structured turn 生成，不进入桌面任务 Thread；自动记忆准入则把已落盘的原始
 Final User Message 直接交给 Jev-Mem，不再调用 Codex 候选提取器，两者都不阻塞当前回复。
 
-产品数据默认落在 `<BOXAGENT_DATA_DIR>`：Session 原始事件与 Checkpoint 位于
-`conversations/`；Jev-Mem 是长期记忆唯一 Store，图、向量、关键词索引与审计位于
+产品数据默认落在 `<BOXAGENT_DATA_DIR>`：新安装的 Session 事件、Checkpoint 与上下文账本合并于
+`sessions/<id>/session.v1.jsonl`，任务位于 `sessions/<id>/tasks/<task_id>/`；已有 `conversations/index.json` 的安装需离线迁移才切换布局。Jev-Mem 是长期记忆唯一 Store，图、向量、关键词索引与审计位于
 `memory/jev-mem/`；异步投递状态位于 `memory/jobs/ingestion.jsonl`；可重建 User Profile
 投影位于 `memory/projections/profile.json`。Job 和 Profile 都不是第二份记忆真相。
 
 桌宠启动时会后台预热记忆 Worker。首次启动仍需加载本地 embedding 模型，可能明显慢于后续请求。Final User Message 一经 Session Store 持久化就创建 durable ingestion job，Jev-Mem 完成是否保存、类型判断、关系构造和索引；Assistant 消息、屏幕摘要、原始音频和未经验证的桌面操作中间状态不会进入自动写入链路。显式“记住”带 `explicit` 标记并强制进入 Jev-Mem，但仍经过本地 Secret Filter。
 
-启动桌宠后，可从 macOS 右上角 `◉` 菜单或桌宠右键菜单打开“记忆看板…”。看板通过同一个 Worker 读取 Jev-Mem 的脱敏、限量图快照；不开放本机端口，也不直接读取 `graph.json`。删除使用 Jev-Mem 的精确节点 ID，并在界面显示原生确认框。
+启动桌宠后，从菜单栏星光图标或桌宠右键菜单打开「伙伴控制台…」，在长期记忆页查看图、列表和节点关系。React / Electron 页面通过本机 `engine.sock` 调用同一个 Worker 的脱敏、限量图快照，不直接读取 `graph.json`。删除使用精确节点 ID，并在控制台确认。旧 AppKit 记忆、Skill、角色管理窗口已移除。
 
-持久化文件保留在本机，但启用真实后端时，Jev-Mem 会把决策所需的记忆文本和查询发送给 TypeSafe.ai JEV Decision Model；语音回忆命中的精简内容会通过 Function Calling 结果返回当前千问 Realtime 会话。不应将敏感信息写入当前记忆实现，也不应将这一路径描述为纯本地处理。
+完整安装已包含控制台；单独准备依次执行 `pnpm --dir web/panel install --frozen-lockfile`、`pnpm --dir web/panel build`、`pnpm --dir web/panel start`。菜单和 `start` 直接载入构建产物，避免每次打开都检查/构建；修改前端源码后用 `pnpm --dir web/panel dev` 重建并打开。如设置 `BOXAGENT_DATA_DIR`，控制台与桌宠须使用同一目录。设置 → 界面偏好提供中英文及浅色 / 深色 / 跟随系统。架构与通道详见 [前后端连接](BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
+
+持久化文件保留在本机，但启用真实后端时，Jev-Mem 会把决策所需的记忆文本和查询发送给所选决策服务（默认阿里云，也可选 TypeSafe.ai）；回忆命中的精简内容进入当前千问 Realtime 会话的 Query 参考包，显式深度召回也可通过 Function Calling 返回。不应将这一路径描述为纯本地处理。
+
+## 旧会话迁移与回滚
+
+先退出桌宠和独立 Engine，再运行：
+
+```sh
+uv run --python 3.12 python scripts/migrate_sessions_v1.py --data-dir .runtime/pet
+# 回滚时导出迁移后的最新正式历史，切回兼容布局
+uv run --python 3.12 python scripts/migrate_sessions_v1.py --data-dir .runtime/pet --rollback
+```
+
+自定义数据目录须替换 `--data-dir`。迁移复制并校验，保留源目录；回滚生成 `conversations-unified-rollback/`，不撤销电脑动作、不删除长期记忆。Engine 活跃时拒绝操作。新安装直接使用统一布局，不需要迁移。详情见 [交付与迁移边界](需求/2026-10-12-分支交付与PR验收.md)。
 
 这些二进制与登录信息不随仓库提交。仓库安装入口检查本机组件，官方账号登录与 Computer Use 安装仍需要单独完成；当前依赖已验证的组件组合。版本兼容性历史见 [Computer Use 预实验](python-codex-computer-use.md)。
 

@@ -4,7 +4,7 @@
 
 | 脚本 | 用途与副作用 |
 | --- | --- |
-| `install.sh`、`runtime-env.sh` | 统一安装、路径配置与缓存；`install.sh --check` 仅检查本机安装 |
+| `install.sh`、`runtime-env.sh` | 统一安装、路径配置与缓存；包含播放器和伙伴控制台构建；`install.sh --check` 仅检查本机安装 |
 | `run-pet.sh`、`pet.py`、`pet.py.lock` | 统一启动入口、产品入口与宿主依赖锁；用 `./scripts/run-pet.sh` 启动 |
 | `setup-vision.sh`、`requirements/*.lock.txt` | 用 uv 精确同步视觉与记忆环境的完整固定版本 |
 | `check_install.py` | 离线检查依赖版本、模型摘要、运行组件签名与凭据是否存在，不证明云端或 UI 可用 |
@@ -20,10 +20,15 @@
 | `import_vrm.mjs` | 导入本地 VRM；默认引用共享动作包，校验资源并拒绝覆盖现有形象 |
 | `setup_vrm.sh` | 下载 Git LFS 中的模型和共享动作，使用 pnpm 安装并构建播放器 |
 | `check_vrm_ui.py` | `pet.py --check-vrm-ui`，验证真实 VRM 渲染、3D 换装、失败保留和资源释放；语音与任务使用替身 |
-| `check_pet_size_ui.py` | `pet.py --check-pet-size-ui`，验证 50%～600% 连续滑块、恢复默认、原生窗口与 WebKit 同步缩放、换装与重启恢复；不调用云端服务，结果在 `.runtime/pet-size-check/` |
+| `check_pet_size_ui.py` | `pet.py --check-pet-size-ui`，验证桌面 API 的 50%～600% 连续比例、恢复默认、原生窗口与 WebKit 同步缩放、换装与重启恢复；不调用云端服务，结果在 `.runtime/pet-size-check/` |
 | `check_pet_ui.py` | `pet.py --check-ui`，仅测试窗口、合成文字、记忆图和替身；结果在 `.runtime/pet/ui-check/` |
-| `check_memory_graph_ui.py` | `pet.py --check-memory-graph-ui`，锁屏下用离屏 WKWebView 验证本地图加载、Canvas 像素、布局、筛选和原生消息桥；不使用 CU 或屏幕录制权限 |
 | `check_window_summary.py` | `pet.py --check-context`，读取真实前台窗口，运行本地模型 |
+| `experiments/window_summary_eval.py` | FIX-01 离线对比，默认生成 12 张合成界面；`--images` 可指定本机截图。与生产 worker 共用提示词和配置，结果及样本哈希写入 `.runtime/window-summary-eval/` |
+| `migrate_sessions_v1.py` | 持 Engine 锁与 Session 锁复制、校验旧会话和任务；要求 Engine 退出；`--rollback` 导出全部正式历史再切换，原数据保留 |
+| `intent_worker.py` | 生产独立 JEV 概率参考 Worker；默认开启意图参考，可用 `BOXAGENT_INTENT_REFERENCE=0` 关闭；不操作电脑，不写入长期记忆 |
+| `experiments/qwen_intent_ab.py` | 32条仓库内合成输入的配对 AOQ/JEV A/B；真实云端模型费用，麦克风/播放关闭，工具全部 stub，不操作电脑；输出新临时目录 |
+| `experiments/companion_context_acceptance.py`、`qwen_context_lifecycle.py` | 真实 AOQ 合成上下文/连续性/删除回执验收；无麦克风及电脑动作；可显式提供测试 WAV |
+| `experiments/codex_reference_lifecycle.py`、`codex_product_session_acceptance.py` | 实际 Codex App Server 线程复用与临时参考移除验收；合成请求禁止工具，任务0步骤，独立临时目录；真实模型费用 |
 | `smoke_pet.py` | `pet.py --smoke`，真实自然语言执行／语音检查；会操作应用和使用云端模型，`--dry-run` 仅将执行器替换为目标记录器，语音仍可调用云端 |
 | `smoke_desktop.py` | `pet.py --smoke-desktop --audio /绝对路径/请求.wav`，真实语音、授权界面与桌面操作检查；显式要求 PCM16、16 kHz、单声道 WAV，不再依赖未提交的固定录音 |
 | `voice-demo.py`、`calculator.py` | 独立语音预实验；工具是本地延迟算术函数，不操作计算器 App |

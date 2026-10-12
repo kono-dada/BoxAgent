@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from boxagent.core.errors import append_jsonl, redact, timestamp, write_json
+from boxagent.core.logs import bind_log_context
 from boxagent.agent.harness.request import HarnessInput
 from boxagent.agent.harness.policies.result import validate_task_result
 
@@ -24,7 +25,8 @@ class TaskExecutor:
                  auto_approve: bool = True, session_id=None, interaction_id=None,
                  prior_messages=(), runtime_binding=None, on_thread_bound=None,
                  environment_provider=None, memory=None,
-                 run_index_path=None, latest_run_path=None):
+                 run_index_path=None, latest_run_path=None, on_context_synced=None,
+                 event_sink=None):
         self.task_id = task_id
         self.provider = provider
         self.model = model
@@ -39,6 +41,8 @@ class TaskExecutor:
         self.prior_messages = tuple(prior_messages)
         self.runtime_binding = runtime_binding
         self.on_thread_bound = on_thread_bound
+        self.on_context_synced = on_context_synced
+        self.event_sink = event_sink
         self.environment_provider = environment_provider
         self.memory = memory
         self.run_index_path = Path(run_index_path) if run_index_path else None
@@ -128,6 +132,8 @@ class TaskExecutor:
                 runtime_thread_id=(self.runtime_binding.thread_id
                                    if self.runtime_binding else None),
                 on_thread_bound=self.on_thread_bound)
+            if self.on_context_synced is not None:
+                session_arguments["on_context_synced"] = self.on_context_synced
         self.session = self.session_factory(**session_arguments)
         self.gateway = self.tool_gateway_factory(
             self.session, output=self.output, goal=goal, report=self.report,
@@ -191,6 +197,7 @@ class TaskExecutor:
             request = self.request_factory(HarnessInput(
                 goal=goal, turns=self.prior_messages, memories=memories,
                 environment=environment,
+                synced_event_ids=(self.runtime_binding.synced_event_ids if self.runtime_binding else ()),
                 context_cursor=(self.runtime_binding.context_cursor
                                 if self.runtime_binding else 0)))
             history = [self._record(item) for item in request.history]
@@ -248,6 +255,8 @@ class TaskExecutor:
 
     async def run(self, goal, progress, approve):
         self.started_at = time.time()
+        bind_log_context(task_id=self.task_id, session_id=self.session_id or "",
+                         interaction_id=self.interaction_id or "")
         self.progress = progress
         self.approve = approve
         self.log("task_started", goal=goal, provider=self.provider, model=self.model,
@@ -336,6 +345,8 @@ class TaskExecutor:
             await self.session.interrupt()
 
     def log(self, kind: str, **data):
+        if self.event_sink is not None:
+            self.event_sink(kind, data)
         self.output.mkdir(parents=True, exist_ok=True)
         event = {"kind": kind, "occurred_at": time.time(), "timestamp": timestamp(),
                  "task_id": self.task_id,

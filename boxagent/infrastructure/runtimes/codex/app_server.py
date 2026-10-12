@@ -332,7 +332,8 @@ class CodexAppServer:
     async def run_codex_turn(self, *, model, instructions, query, output_schema,
                              history=(), history_delta=(), evidence_context="",
                              preferred_thread_id=None,
-                             on_thread_bound=None, product_session_id=None):
+                             on_thread_bound=None, product_session_id=None,
+                             on_context_synced=None):
         self.completed = asyncio.get_running_loop().create_future()
         self.agent_text = ""
         thread_id, state = await self.ensure_thread(
@@ -400,11 +401,36 @@ class CodexAppServer:
             "turn_started_at_unix_ms": turn_started_at_unix_ms,
         }
         self.log("turn_started", thread_id=self.thread_id, turn_id=self.turn_id)
-        result = await asyncio.wait_for(asyncio.shield(self.completed), 300)
-        if self.stopped or result.get("status") == "interrupted":
-            raise asyncio.CancelledError
-        if result.get("status") != "completed":
-            raise RuntimeError("后台执行未结束：" + str(result.get("error") or result.get("status")))
+        try:
+            if on_context_synced:
+                synced = on_context_synced(selected_history)
+                if asyncio.iscoroutine(synced):
+                    await synced
+            result = await asyncio.wait_for(asyncio.shield(self.completed), 300)
+            if self.stopped or result.get("status") == "interrupted":
+                raise asyncio.CancelledError
+            if result.get("status") != "completed":
+                raise RuntimeError("后台执行未结束：" + str(result.get("error") or result.get("status")))
+        finally:
+            if evidence_context and product_session_id:
+                # Remove the closed task turn containing temporary evidence;
+                # the next task restores formal query/outcome from Product
+                # Session. Audit and side effects remain in task artifacts.
+                try:
+                    await self.rpc("thread/revert", {"threadId": thread_id, "beforeTurnId": self.turn_id}, timeout=5)
+                    self.log("runtime_reference_removed", thread_id=thread_id,
+                             turn_id=self.turn_id, strategy="closed_turn_revert")
+                except (Exception, asyncio.CancelledError) as exc:
+                    self.log("runtime_reference_removal_failed", thread_id=thread_id)
+                    # Never reuse a context whose reference expiry is unknown.
+                    self.thread_id = None
+                    self.thread_signature = None
+                    if on_thread_bound:
+                        invalidated = on_thread_bound("")
+                        if asyncio.iscoroutine(invalidated):
+                            await asyncio.shield(invalidated)
+                    if isinstance(exc, asyncio.CancelledError):
+                        raise
         return self.agent_text
 
     async def run_isolated_structured_turn(self, *, model, instructions, query,

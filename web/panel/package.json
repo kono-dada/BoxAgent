@@ -1,0 +1,27 @@
+{
+  "name": "boxagent-panel",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "version": "0.1.0",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "pnpm run build && pnpm start",
+    "test": "node --test tests/*.test.cjs",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "electron": "^38.0.0",
+    "typescript": "5.7.3",
+    "vite": "6.4.1"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "vis-network": "9.1.9"
+  }
+}

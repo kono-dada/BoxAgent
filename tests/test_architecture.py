@@ -43,20 +43,26 @@ class ArchitectureTests(unittest.TestCase):
         self.assertEqual(settings.default_pet, settings.root / "assets/vrm/models/zome")
         self.assertTrue((settings.default_pet / "pet.json").is_file())
 
-    def test_memory_graph_uses_bundled_web_assets_without_remote_runtime(self):
-        graph_root = ROOT / "assets/memory-graph"
-        html = (graph_root / "index.html").read_text(encoding="utf-8")
+    def test_decision_model_prefers_aliyun_when_workspace_is_configured(self):
+        from boxagent.bootstrap.settings import resolve_decision_model
 
-        self.assertIn('src="vendor/vis-network.min.js"', html)
-        self.assertNotIn("https://", html)
-        self.assertTrue((graph_root / "vendor/vis-network.min.js").is_file())
-        self.assertTrue((graph_root / "vendor/LICENSE-vis-network-MIT").is_file())
-        self.assertTrue((graph_root / "vendor/LICENSE-vis-network-APACHE-2.0").is_file())
-        self.assertIn("network.setData({ nodes, edges })", html)
-        self.assertIn("settleLayout(layoutGeneration)", html)
-        self.assertIn("selectConnectedEdges: false", html)
-        self.assertIn("physics: index === 0", html)
-        self.assertTrue((ROOT / "scripts/check_memory_graph_ui.py").is_file())
+        with patch.dict("os.environ", {"BOXAGENT_DECISION_MODEL": "",
+                                       "TYPESAFE_BASE_URL": "", "TYPESAFE_DEFAULT_MODEL": ""}):
+            provider, key, url, model = resolve_decision_model(
+                provider="auto", dashscope_key="sk-ali", workspace_id="ws1",
+                region="cn-beijing", typesafe_key="ts")
+            self.assertEqual((provider, key, model), ("aliyun", "sk-ali", "decision-model-preview"))
+            self.assertEqual(url, "https://ws1.cn-beijing.maas.aliyuncs.com/compatible-mode")
+            provider, key, url, _ = resolve_decision_model(
+                provider="auto", dashscope_key="sk-ali", workspace_id="",
+                region="cn-beijing", typesafe_key="ts")
+            self.assertEqual((provider, key, url), ("typesafe", "ts", "https://api.typesafe.ai"))
+            self.assertEqual(resolve_decision_model(
+                provider="typesafe", dashscope_key="sk-ali", workspace_id="ws1",
+                region="cn-beijing", typesafe_key="ts")[0], "typesafe")
+            with self.assertRaises(ValueError):
+                resolve_decision_model(provider="other", dashscope_key="", workspace_id="",
+                                       region="", typesafe_key="")
 
     def test_explicit_soul_file_overrides_default_persona(self):
         from boxagent.bootstrap.settings import load_settings
@@ -143,18 +149,21 @@ class ArchitectureTests(unittest.TestCase):
             "infrastructure/perception/qwen_mlx.py",
             "infrastructure/environment/local_system.py",
             "infrastructure/persistence/jsonl_session_repository.py",
+            "infrastructure/persistence/jsonl_context_ledger.py",
+            "infrastructure/context/qwen_ledger.py",
+            "infrastructure/context/qwen_trace_history.py",
+            "domain/context/models.py", "domain/context/contracts.py",
+            "domain/context/estimate.py",
             "infrastructure/persistence/json_notification_repository.py",
             "infrastructure/persistence/filesystem_skill_repository.py",
             "interfaces/engine/client.py", "interfaces/engine/protocol.py",
             "interfaces/engine/server.py", "interfaces/engine/supervisor.py",
             "interfaces/macos/app.py", "interfaces/macos/engine_bridge.py",
             "interfaces/macos/state.py", "interfaces/macos/menu.py",
-            "interfaces/macos/windows/pet.py",
-            "interfaces/macos/windows/conversation.py",
-            "interfaces/macos/windows/memory.py",
-            "interfaces/macos/windows/skills.py",
+            "interfaces/macos/surfaces/pet.py",
+            "interfaces/macos/surfaces/conversation.py",
             "bootstrap/engine.py", "bootstrap/memory.py", "bootstrap/desktop.py",
-            "bootstrap/settings.py",
+            "bootstrap/settings.py", "bootstrap/logs.py", "core/logs.py",
             "entrypoints/engine.py", "entrypoints/desktop.py",
         }
         missing = sorted(path for path in expected if not (PACKAGE / path).is_file())
@@ -210,9 +219,10 @@ class ArchitectureTests(unittest.TestCase):
         concrete = {
             "BoxAgentApplication", "EngineBridge", "VrmAppearance",
             "JsonlSessionStore", "JevMemWorker", "PetCatalog",
-            "AgentRuntimeRegistry", "CodexRuntimeHost", "MemoryDashboardWindow",
-            "PersonaSettingsWindow", "TaskExecutor",
+            "AgentRuntimeRegistry", "CodexRuntimeHost",
+            "TaskExecutor",
             "SkillFileRepository", "SkillService",
+            "JsonlContextLedgerStore", "QwenContextRecorder",
             "WindowSummary",
             "LocalSystemEnvironmentProvider",
         }
@@ -268,9 +278,10 @@ class ArchitectureTests(unittest.TestCase):
             path = PACKAGE / "entrypoints" / name
             self.assertLessEqual(len(path.read_text(encoding="utf-8").splitlines()), 80)
             found = imports(path)
+            # 入口只依赖 Bootstrap（架构文档 5.1）；标准库与 AppKit 不受限。
             self.assertFalse(any(
-                imported.startswith(("boxagent.domain", "boxagent.agent",
-                                     "boxagent.infrastructure"))
+                imported.startswith("boxagent.")
+                and not imported.startswith("boxagent.bootstrap")
                 for imported in found), found)
 
     def test_deepseek_is_a_model_profile_not_a_second_runtime(self):

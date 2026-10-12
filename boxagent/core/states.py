@@ -45,6 +45,7 @@ class Snapshot:
     context_enabled: bool = False
     context_status: str = ""
     context_app: str = ""
+    context_window_id: int = 0
     context_at: float = 0
     notification_id: str = ""
     notification_text: str = ""

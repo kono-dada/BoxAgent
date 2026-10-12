@@ -5,30 +5,28 @@ import asyncio
 import signal
 from pathlib import Path
 
+from boxagent.bootstrap.logs import configure_logging, install_asyncio_handler, shutdown_logging
+
 
 async def run(args):
-    from boxagent.bootstrap.engine import create_application
+    from boxagent.bootstrap.engine import create_engine_server
     from boxagent.bootstrap.settings import load_settings
-    from boxagent.interfaces.engine.server import EngineServer
 
     settings = load_settings(log_dir=args.log_dir)
-    server = EngineServer(
-        args.socket,
-        lambda publish: create_application(
-            publish,
-            task_provider=args.task_provider,
-            task_model=args.task_model,
-            auto_approve=not args.require_approval,
-            app_settings=settings,
-            context_interval=args.context_interval,
-            context_size=args.context_size,
-        ),
-        start_context=args.context_interval > 0,
-    )
+    configure_logging(settings.log_dir, process="engine")
+    install_asyncio_handler()
+    server = create_engine_server(
+        args.socket, app_settings=settings,
+        task_provider=args.task_provider, task_model=args.task_model,
+        auto_approve=not args.require_approval,
+        context_interval=args.context_interval, context_size=args.context_size)
     loop = asyncio.get_running_loop()
     for name in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(name, server.request_stop)
-    await server.run()
+    try:
+        await server.run()
+    finally:
+        shutdown_logging()
 
 
 def main():

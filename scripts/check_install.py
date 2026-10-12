@@ -39,6 +39,9 @@ def main():
     for framework in ("AoqClientSdk.framework", "PluginOpus.framework"):
         check(framework, (settings.aoq_sdk_dir / framework).is_dir())
     check("3D 播放器", (settings.root / "assets/vrm/viewer.js").is_file())
+    panel = settings.root / "web/panel"
+    check("伙伴控制台构建", (panel / "dist/index.html").is_file())
+    check("伙伴控制台 Electron", (panel / "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron").is_file())
     check("默认 VRM 模型", (settings.default_pet / "model.vrm").stat().st_size > 1024
           if (settings.default_pet / "model.vrm").is_file() else False)
     manifest = settings.root / "scripts/model-manifests/qwen3.5-0.8b-mlx.manifest.tsv"
@@ -75,7 +78,7 @@ def main():
     for name, value in (("DashScope Key", settings.qwen_api_key),
                         ("百炼 Workspace", settings.qwen_workspace_id),
                         ("DeepSeek Key", settings.deepseek_api_key),
-                        ("TypeSafe Key", settings.typesafe_api_key)):
+                        (f"决策模型 Key ({settings.decision_provider})", settings.decision_api_key)):
         check(name, bool(value) and not value.startswith("请在"))
     print("安装检查通过；此检查不证明云端连通性、系统权限或真实界面行为。"
           if not failures else "请按 docs/setup.md 补齐以上项目后重新检查。")

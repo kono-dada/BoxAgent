@@ -60,10 +60,15 @@ class JsonTaskTraceReader:
                 return direct
             if not root.is_dir():
                 continue
+            session_matches = sorted(root.glob(f"ses_*/tasks/{task_id}"), reverse=True)
+            for candidate in session_matches:
+                if candidate.resolve().is_relative_to(root):
+                    return candidate.resolve()
             # Canonical runs are partitioned by date and named HHMMSS-task_id.
             matches = sorted(root.glob(f"????-??-??/??????-{task_id}"), reverse=True)
-            if matches:
-                return matches[0].resolve()
+            for candidate in matches:
+                if candidate.resolve().is_relative_to(root):
+                    return candidate.resolve()
         return None
 
     @staticmethod

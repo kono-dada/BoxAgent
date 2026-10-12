@@ -3,10 +3,13 @@
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class LegacyCanonicalMemoryImporter:
@@ -123,6 +126,8 @@ class LegacyCanonicalMemoryImporter:
         except Exception:
             # The worker may have persisted the node before its response timed
             # out. Query by exact content and migration metadata before retrying.
+            logger.warning("memory migration write unconfirmed; checking before retry",
+                           exc_info=True)
             graph = await self.backend.inspect(
                 query=content[:500], node_limit=20, edge_limit=0)
             existing = next((item for item in graph.get("nodes", [])

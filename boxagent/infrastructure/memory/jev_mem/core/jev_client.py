@@ -137,7 +137,45 @@ class JevClient:
             raise ValueError("Use evaluate() for mixed Noul/Choice questions")
         return self.evaluate(operation, state, questions, mock_values=mock_values, budget=budget)
 
+    # Aliyun's System One rejects more than 16 questions per request.
+    MAX_QUESTIONS_PER_CALL = 16
+
     def evaluate(self, operation, state, questions, *, mock_values=None, budget=None):
+        """Split batches over the per-request question limit and merge results.
+
+        Questions are independent, so splitting never changes an answer. All
+        chunks share one budget; any failed chunk fails the whole batch.
+        """
+        limit = self.MAX_QUESTIONS_PER_CALL
+        if len(questions) <= limit or self.config.jev_mock or \
+                self.config.decision_backend in ("laya", "laya-mlx"):
+            return self._evaluate_once(operation, state, questions,
+                                       mock_values=mock_values, budget=budget)
+        if budget is None:
+            chunks = -(-len(questions) // limit)
+            budget = CallBudget(chunks * (self.config.max_retries + 1),
+                                time.monotonic() + self.config.timeout_seconds
+                                * (self.config.max_retries + 1))
+        names = list(questions)
+        values, choices, usage, sources = {}, {}, {}, set()
+        model = ""
+        for start in range(0, len(names), limit):
+            part = {name: questions[name] for name in names[start:start + limit]}
+            result = self._evaluate_once(operation, state, part, mock_values=mock_values,
+                                         budget=budget)
+            if result is None:
+                return None
+            values.update(result.values)
+            choices.update(result.choices)
+            sources.add(result.source)
+            model = result.model or model
+            for key, value in (result.usage or {}).items():
+                if isinstance(value, (int, float)):
+                    usage[key] = usage.get(key, 0) + value
+        source = sources.pop() if len(sources) == 1 else "jev"
+        return ProbabilityResult(values, source, choices, model, usage)
+
+    def _evaluate_once(self, operation, state, questions, *, mock_values=None, budget=None):
         """Ask a batch of independent typed questions against shared state.
 
         Returns None on configured fallback. Choice results retain their selected

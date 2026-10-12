@@ -11,12 +11,13 @@ class CodexTaskSession:
     """A task-local view over the shared App Server and Codex thread."""
 
     def __init__(self, host, callbacks, *, product_session_id=None,
-                 runtime_thread_id=None, on_thread_bound=None):
+                 runtime_thread_id=None, on_thread_bound=None, on_context_synced=None):
         self.host = host
         self.callbacks = callbacks
         self.product_session_id = product_session_id
         self.runtime_thread_id = runtime_thread_id
         self.on_thread_bound = on_thread_bound
+        self.on_context_synced = on_context_synced
         self.server = None
         self.acquired = False
 
@@ -54,6 +55,7 @@ class CodexTaskSession:
         return await self.server.run_codex_turn(
             preferred_thread_id=self.runtime_thread_id,
             on_thread_bound=self.on_thread_bound,
+            on_context_synced=self.on_context_synced,
             product_session_id=self.product_session_id,
             **arguments)
 
@@ -96,10 +98,11 @@ class CodexRuntimeHost:
         product_session_id = callbacks.pop("product_session_id", None)
         runtime_thread_id = callbacks.pop("runtime_thread_id", None)
         on_thread_bound = callbacks.pop("on_thread_bound", None)
+        on_context_synced = callbacks.pop("on_context_synced", None)
         return CodexTaskSession(
             self, callbacks, product_session_id=product_session_id,
             runtime_thread_id=runtime_thread_id,
-            on_thread_bound=on_thread_bound)
+            on_thread_bound=on_thread_bound, on_context_synced=on_context_synced)
 
     async def start(self):
         """Lifecycle hook; the expensive process launch remains lazy."""
