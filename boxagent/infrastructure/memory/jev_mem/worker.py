@@ -11,6 +11,8 @@ import sys
 import traceback
 from pathlib import Path
 
+from boxagent.domain.memory.contracts import MemoryUnavailable
+
 
 def node_payload(node):
     attributes = dict(getattr(node, "attributes", {}) or {})
@@ -88,15 +90,20 @@ def _source_event_ids(metadata):
 
 
 class Worker:
-    def __init__(self, cache_dir, backend):
+    def __init__(self, cache_dir: Path, backend: str) -> None:
+        if backend not in {"auto", "jev", "mock"}:
+            raise ValueError("backend must be auto, jev or mock")
+        use_jev = backend != "mock"
+        if use_jev and not os.getenv("TYPESAFE_API_KEY"):
+            raise MemoryUnavailable("长期记忆需要决策模型密钥；不会自动切换到 mock")
         # Third-party initialization can print progress; stdout belongs solely
         # to the JSONL protocol, so redirect incidental output to stderr.
         with contextlib.redirect_stdout(sys.stderr):
             from boxagent.infrastructure.memory.jev_mem.api import JevMemConfig, JevMemSystem
             from boxagent.infrastructure.memory.jev_mem.core.query_engine import QueryEngine
-            use_jev = backend == "jev" or (backend == "auto" and bool(os.getenv("TYPESAFE_API_KEY")))
             config = JevMemConfig.load(write_enabled=True, read_enabled=True,
                                        admission_enabled=True, jev_mock=not use_jev,
+                                       fallback_to_magma=False,
                                        audit_path=str(cache_dir / "decisions.jsonl"))
             self.system = JevMemSystem(cache_dir=str(cache_dir), jev_config=config)
             if (cache_dir / "graph.json").is_file():

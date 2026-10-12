@@ -332,7 +332,8 @@ class JevClient:
 
     def _failure(self, operation, reason, budget):
         budget.fallback_events.append({"operation": operation, "reason": reason})
-        self.audit.emit("jev_fallback", operation=operation, reason=reason)
+        self.audit.emit("jev_fallback" if self.config.fallback_to_magma else "jev_unavailable",
+                        operation=operation, reason=reason)
         if not self.config.fallback_to_magma:
             raise JevUnavailable(operation + ": " + reason)
         return None

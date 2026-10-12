@@ -5,6 +5,7 @@ import time
 from dataclasses import replace
 
 from boxagent.domain.memory.policy import redact_memory_source
+from boxagent.domain.memory.models import MemoryIngestionCounts
 
 
 class MemoryIngestionCoordinator:
@@ -135,10 +136,13 @@ class MemoryIngestionCoordinator:
         counts["observation_count"] = 1
         counts["admitted"] = int(result.get("admitted") or 0)
         counts["rejected"] = int(result.get("rejected") or 0)
+        reason = result.get("reason")
+        if isinstance(reason, str) and reason:
+            counts["reason"] = reason
         return counts
 
     @staticmethod
-    def _empty_counts():
+    def _empty_counts() -> MemoryIngestionCounts:
         return {"observation_count": 0, "admitted": 0, "rejected": 0}
 
     async def drain(self):

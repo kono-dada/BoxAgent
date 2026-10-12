@@ -125,7 +125,7 @@ class WritePolicy:
         questions = observation_questions()
         # Upstream's whitespace-only heuristic rejects ordinary Chinese text,
         # where a full preference sentence often contains no spaces.  The
-        # deterministic fallback is test/degraded-mode behavior; live Jev
+        # deterministic fixture is explicit mock-mode behavior; live Jev
         # still decides from the typed questions above.
         normalized = content.strip()
         contains_cjk = any("\u4e00" <= character <= "\u9fff"
