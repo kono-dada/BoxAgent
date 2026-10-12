@@ -4,10 +4,12 @@
 
 ```bash
 pnpm --dir web/panel install --frozen-lockfile
+pnpm --dir web/panel build
 pnpm --dir web/panel start
 ```
 
-`start` 先执行 TypeScript 检查与 Vite 构建，再由 Electron 载入 `dist/index.html`。
+`start` 直接由 Electron 载入已构建的 `dist/index.html`。菜单直接启动本机 Electron 可执行文件，不经过 pnpm 或重新构建；已打开时由单实例机制唤起原窗口。关闭窗口仍退出控制台进程，下次打开保留 Electron 冷启动开销。
+修改前端源码后执行 `pnpm --dir web/panel dev`，先检查/构建再打开；或者手动 `build` 后 `start`。菜单启动日志保存在 `<数据目录>/logs/panel.log`（自定义诊断目录时随 `--log-dir`）。
 完整 `scripts/install.sh` 已包含控制台依赖和构建；菜单启动缺少依赖时在小窗提示安装。
 记忆、上下文、角色、Skill、对话和控制页使用 React 18 + TypeScript；关系图使用 vis-network 9.1.9。
 共用外壳、时间线和日志仍是原生 JavaScript，样式为自定义 CSS。

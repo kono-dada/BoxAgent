@@ -148,7 +148,7 @@ Final User Message 直接交给 Jev-Mem，不再调用 Codex 候选提取器，�
 
 启动桌宠后，从菜单栏星光图标或桌宠右键菜单打开「伙伴控制台…」，在长期记忆页查看图、列表和节点关系。React / Electron 页面通过本机 `engine.sock` 调用同一个 Worker 的脱敏、限量图快照，不直接读取 `graph.json`。删除使用精确节点 ID，并在控制台确认。旧 AppKit 记忆、Skill、角色管理窗口已移除。
 
-完整安装已包含控制台；单独准备可执行 `pnpm --dir web/panel install --frozen-lockfile`、`pnpm --dir web/panel start`。如设置 `BOXAGENT_DATA_DIR`，控制台与桌宠须使用同一目录。设置 → 界面偏好提供中英文及浅色 / 深色 / 跟随系统。架构与通道详见 [前后端连接](BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
+完整安装已包含控制台；单独准备依次执行 `pnpm --dir web/panel install --frozen-lockfile`、`pnpm --dir web/panel build`、`pnpm --dir web/panel start`。菜单和 `start` 直接载入构建产物，避免每次打开都检查/构建；修改前端源码后用 `pnpm --dir web/panel dev` 重建并打开。如设置 `BOXAGENT_DATA_DIR`，控制台与桌宠须使用同一目录。设置 → 界面偏好提供中英文及浅色 / 深色 / 跟随系统。架构与通道详见 [前后端连接](BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
 
 持久化文件保留在本机，但启用真实后端时，Jev-Mem 会把决策所需的记忆文本和查询发送给所选决策服务（默认阿里云，也可选 TypeSafe.ai）；回忆命中的精简内容进入当前千问 Realtime 会话的 Query 参考包，显式深度召回也可通过 Function Calling 返回。不应将这一路径描述为纯本地处理。
 

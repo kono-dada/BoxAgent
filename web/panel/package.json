@@ -5,7 +5,8 @@
   "version": "0.1.0",
   "main": "main.cjs",
   "scripts": {
-    "start": "pnpm run build && electron .",
+    "start": "electron .",
+    "dev": "pnpm run build && pnpm start",
     "test": "node --test tests/*.test.cjs",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit"

@@ -4,7 +4,7 @@
   "base_main": "00c1f09",
   "python": {
     "version": "3.12.12",
-    "passed": 338,
+    "passed": 341,
     "skipped": 4,
     "subtests_passed": 3,
     "isolated_candidate_tree": true,
@@ -24,7 +24,14 @@
     "locked_install_and_electron_postinstall": "passed",
     "feature_fixture": "passed",
     "preferences_fixture_checks": 25,
-    "pet_scale_fixture": "passed"
+    "pet_scale_fixture": "passed",
+    "startup": {
+      "old_build_seconds": 2.568,
+      "cold_load_ms": 903,
+      "second_instance_ms": 235,
+      "page_reload": false,
+      "scope": "single local isolated real Electron measurement; not a cross-device guarantee"
+    }
   },
   "vrm": {
     "build": "passed",
@@ -42,7 +49,10 @@
     "unified task list visibility and ownership",
     "migration-copy deduplication",
     "rollback precedence without original legacy source",
-    "task output falls back to legacy after rollback"
+    "task output falls back to legacy after rollback",
+    "menu launches installed assets without pnpm or build",
+    "missing build produces installation feedback",
+    "second instance reuses loaded window"
   ],
   "credentials_fixture": [
     "optional TypeSafe",

@@ -297,21 +297,14 @@ class Desktop(NSObject):
         self.updateLatestButton()
 
     def openPanel_(self, _sender: object) -> None:
-        import shutil
-        import subprocess
-        command = shutil.which("pnpm")
-        if command is None:
-            self.input_feedback = "请先安装 pnpm，再打开伙伴控制台。"
-            self.showBubble()
-            return
+        from boxagent.interfaces.macos.panel_launch import launch_panel
         root = Path(__file__).resolve().parents[3]
-        if not (root / "web/panel/node_modules/.bin/electron").exists():
-            self.input_feedback = "请先运行 ./scripts/install.sh 安装伙伴控制台。"
+        try:
+            launch_panel(root, self.data_dir, self.backend.log_dir)
+        except (RuntimeError, OSError) as exc:
+            logger.warning("伙伴控制台启动失败", exc_info=True)
+            self.input_feedback = str(exc)
             self.showBubble()
-            return
-        subprocess.Popen([command, "--dir", str(root / "web/panel"), "start"],
-                         env={**os.environ, "BOXAGENT_DATA_DIR": str(self.data_dir)},
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def openDiagnosticLogs_(self, _sender):
         self._openDirectory(self.backend.log_dir)
