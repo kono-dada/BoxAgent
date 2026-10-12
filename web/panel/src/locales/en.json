@@ -412,5 +412,9 @@
   "{0} 项本地已到期，服务端删除尚未确认。": "{0} local items have expired; server deletion is not confirmed yet.",
   "当前载入 {0} 个节点 / {1} 条关系": "Loaded {0} nodes / {1} relations",
   "{0} 个可见节点 · {1} 条可见关系": "{0} visible nodes · {1} visible relations",
-  "预览": "Preview"
+  "预览": "Preview",
+  "桌宠大小": "Desktop companion size",
+  "桌宠大小百分比": "Desktop companion size percentage",
+  "实际大小受屏幕范围限制，重启与换装保留。": "Size fits your screen and persists across restarts and avatar changes.",
+  "恢复默认": "Reset to default"
 }

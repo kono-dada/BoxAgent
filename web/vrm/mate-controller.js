@@ -1,6 +1,8 @@
-// 对齐 Mate-Engine：预制体覆盖后的待机参数、Drag 状态与独立摆动控制。
+import {DEFAULT_IDLE_TEMPERATURE,idleDistribution,sampleIdle} from './idle-energy.js';
+// 保留 Mate-Engine 的播放参数与拖拽控制；待机改用耗能加权抽样。
 export const MATE_DEFAULTS = Object.freeze({
   idleSwitchTime: 10, idleTransitionTime: 1, dragTransitionTime: 0.25,
+  idleEnergyTemperature: DEFAULT_IDLE_TEMPERATURE,
   dragMinimumHold: 0.30, enableSleep: false, sleepTimer: 60,
 });
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -32,9 +34,12 @@ export class MateController {
   constructor(options = {}) {
     this.settings = {...MATE_DEFAULTS, ...options.settings};
     this.idleActions = options.idleActions || [];
+    this.random = options.random || Math.random;
+    this.idleProbabilities = idleDistribution(this.idleActions,this.settings.idleEnergyTemperature);
     this.roles = options.roles || {};
     this.time = 0; this.state = 'idle'; this.stateSince = 0;
-    this.idleIndex = 0; this.idleTimer = 0;
+    this.idleIndex = this.idleProbabilities.reduce((best,item,i,all)=>item.probability>all[best].probability?i:best,0);
+    this.idleTimer = 0;
     this.mouseHeld = false; this.dragging = false; this.dragUntil = 0;
     this.dragVelocity = [0,0]; this.dragAt = -100;
     this.sleep = 0; this.sleepElapsed = 0;
@@ -69,11 +74,11 @@ export class MateController {
   advanceState(dt) {
     this.time += dt;
     if (!this.mouseHeld && this.time >= this.dragUntil) this.dragging = false;
-    // 原版独立更新 IdleIndex；拖拽结束后恢复当前索引，而不是重置第一个动作。
-    this.idleTimer += dt;
+    // 只有可见的自主待机消耗调度时间，交互结束后恢复先前动作。
+    if(this.state === 'idle' && !this.dragging && !this.sleep && !this.gesture)this.idleTimer += dt;
     if (this.idleTimer >= this.settings.idleSwitchTime && this.idleActions.length) {
       this.idleTimer %= this.settings.idleSwitchTime;
-      this.idleIndex = (this.idleIndex + 1) % this.idleActions.length;
+      this.idleIndex = sampleIdle(this.idleProbabilities,this.random);
       this.history.push(this.idleActions[this.idleIndex].name);
       this.history = this.history.slice(-24);
     }

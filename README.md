@@ -85,18 +85,15 @@ zsh scripts/set-key.zsh
 ### 3. 安装运行组件
 
 ```sh
-./scripts/setup-aoq-sdk.sh
-./scripts/setup-jev-mem.sh
-./scripts/download-qwen-mlx.zsh
-bash scripts/setup_vrm.sh
+./scripts/install.sh
 ```
 
-还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。
+安装前还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。安装入口按锁文件同步依赖，将环境、模型和缓存放在 `.runtime/`，最后检查安装与配置；以后可用 `./scripts/install.sh --check` 单独复查。
 
 ### 4. 启动
 
 ```sh
-uv run --script scripts/pet.py
+./scripts/run-pet.sh
 ```
 
 也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
@@ -111,6 +108,7 @@ uv run --script scripts/pet.py
 - 右键桌宠或点击菜单栏星光图标：打开伙伴控制台、新建会话或退出 BoxAgent
 - 伙伴控制台左下角「设置」：界面语言（中文 / English）、浅色 / 深色 / 跟随系统、3D 形象、角色、语音与桌面、诊断
 - 对话小窗上滑查看历史时，点击右下角箭头回到最新消息
+- 伙伴控制台「设置 → 3D 形象 → 桌宠大小」：50%～600% 连续缩放，恢复默认回到 100%；重启和换装保留设置，实际尺寸受屏幕范围限制
 - “取消任务”或“停止任务”：停止当前后台任务的后续操作
 
 ## 配置

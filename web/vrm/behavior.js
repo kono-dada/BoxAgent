@@ -4,7 +4,7 @@ const smooth = v => {const x=clamp(v,0,1);return x*x*(3-2*x);};
 // 业务状态和表情适配保留在外围；动作调度与拖拽优先级由 MateController 决定。
 export class PetBehavior extends MateController {
   constructor(random = Math.random, options = {}) {
-    super(options); this.random=random;
+    super({...options,random});
     this.pointer=[0,0];
     this.nextBlink=this.range(1.5,3.5);this.blinkStart=-100;this.doubleBlink=false;
     this.lastOutput=null;
@@ -37,5 +37,6 @@ export class PetBehavior extends MateController {
   }
   debug(){return {state:this.state,time:this.time,gesture:this.lastOutput?.gesture,history:[...this.history],
     dragging:this.dragging,mouseHeld:this.mouseHeld,sleep:this.sleep,idleIndex:this.idleIndex,
-    roll:this.lastOutput?.roll || 0,events:[...this.events],settings:this.settings};}
+    roll:this.lastOutput?.roll || 0,events:[...this.events],settings:this.settings,
+    idleDistribution:this.idleProbabilities};}
 }

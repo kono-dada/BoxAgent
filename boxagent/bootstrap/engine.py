@@ -331,7 +331,7 @@ def create_application(publish, *, task_provider=None, task_model=None,
         model=app_settings.perception_model,
         max_size=context_size,
         workspace=app_settings.root,
-        python=app_settings.root / ".venv/bin/python",
+        python=app_settings.perception_python,
         worker_script=app_settings.root / "scripts/window_summary_worker.py",
         log_path=app_settings.log_dir / "context-worker.log",
     )

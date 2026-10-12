@@ -223,7 +223,7 @@ sequenceDiagram
 | --- | --- | --- |
 | `window.boxagent.request(method, params)` | 界面调用能力 | `web/panel/preload.cjs`，通过 `ipcRenderer.invoke` 进入主进程 |
 | `engine.sock` | 会话、发消息、语音、记忆、Skill、上下文、时间线、任务授权 / 停止 | `web/panel/main.cjs` → `EngineClient` → `interfaces/engine/server.py` → `BoxAgentApplication` |
-| `desktop.sock` | 3D 形象预览 / 应用、角色保存、小窗、Finder、退出 | Electron Main → `interfaces/macos/panel_control.py`；socket 线程收发，AppKit 主线程执行 |
+| `desktop.sock` | 3D 形象预览 / 应用、桌宠大小与持久化、角色保存、小窗、Finder、退出 | Electron Main → `interfaces/macos/panel_control.py`；socket 线程收发，AppKit 主线程执行 |
 | `engine:state` / `onState` | Engine 主动推送运行状态 | Socket event → Electron Main → preload → 页面；不是只靠请求刷新 |
 | `boxagent.errors()` | 最近诊断记录 | Electron Main 只读取固定 `logs/errors.jsonl` 尾部；渲染器不直接访问文件系统 |
 | 本机回环 HTTP AssetServer | VRM 模型、动作与播放器静态资源 | `127.0.0.1`、随机路径令牌与精确文件白名单；此 HTTP 仅提供预览资源，业务操作仍走 Socket |

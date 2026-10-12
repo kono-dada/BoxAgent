@@ -77,3 +77,5 @@ pnpm --dir web/panel exec electron tests/preferences-smoke.cjs
 页面通过 `window.boxagent.request(method, params)` 调用 API。preload 用 Electron IPC 转给主进程，主进程按白名单连接 Python `engine.sock` 或 macOS `desktop.sock`；Socket 使用带请求 ID 的 JSONL RPC，并支持 Engine 状态事件推送。业务 API 不走 HTTP；3D 预览资源由本机回环 HTTP AssetServer 提供。诊断日志尾部由主进程读取固定路径。完整时序、通道、权限和生命周期见 [系统架构](../../docs/BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
 
 角色预览 iframe 通过初始主题参数与主题消息同步背景；跟随系统变化不重载模型。独立桌宠播放器继续保持透明背景。
+
+「设置 → 3D 形象」的桌宠大小滑块支持 50%～600% 连续调整、当前百分比和恢复默认。前端通过 `desktop_set_pet_scale` 请求本机 Host，合并连续拖动的待处理值，按顺序发送；偏好保存到数据目录 `appearance.json`，重启与换装保留。菜单继续保留控制台、新建会话和退出三项。

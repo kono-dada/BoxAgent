@@ -63,7 +63,7 @@ class RoundedSurface(AK.NSView):
             self.window().performWindowDragWithEvent_(event)
             if self.owner is not None:
                 origin = self.window().frame().origin
-                pet_origin = self.owner.pet.frame().origin
+                pet_origin = self.owner.petBubbleFrame().origin
                 self.owner.bubble_offset = (origin.x - pet_origin.x, origin.y - pet_origin.y)
         else:
             objc.super(RoundedSurface, self).mouseDown_(event)

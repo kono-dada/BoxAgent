@@ -5,6 +5,7 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { MotionBank } from './motion-bank.js';
 import { AvatarAnimator } from './avatar-animator.js';
 import { SpringPhysics } from './spring-physics.js';
+import { visibleBounds, BoundsEnvelope } from './visible-bounds.js';
 
 const report = (type, detail = {}) => window.webkit?.messageHandlers.pet.postMessage({ type, ...detail });
 const previewTheme = new URLSearchParams(location.search).get('previewTheme');
@@ -30,7 +31,38 @@ const camera = new THREE.OrthographicCamera();
 let vrm, animator, physics, height = 1, width = 1, state = 'idle', elapsed = 0;
 let disposed = false, frames = 0, last = 0, started = 0, suspended = false;
 const warnings = [];
+const boundsCanvas = document.createElement('canvas');
+const boundsContext = boundsCanvas.getContext('2d', {willReadFrequently:true});
+let lastBounds = '';
+const boundsEnvelope = new BoundsEnvelope();
+let lastBoundsCheck = -Infinity, fastBoundsUntil = 0, boundsMotion = '';
+let boundsChecks = 0, boundsReports = 0, boundsMilliseconds = 0;
+function reportBounds(force = false) {
+  const now = performance.now();
+  if (boundsMotion !== animator?.current) {
+    boundsMotion = animator?.current; fastBoundsUntil = now + 400;
+  }
+  // 平稳动作每秒采样十次，拖动或动作过渡期间最多每秒三十次。
+  const interval = animator?.behavior.dragging || now < fastBoundsUntil ? 1000 / 30 : 100;
+  if (!force && now - lastBoundsCheck < interval - .7) return;
+  lastBoundsCheck = now; boundsChecks++;
+  const ratio = Math.min(1, 256 / Math.max(innerWidth, innerHeight));
+  const w = Math.ceil(innerWidth * ratio), h = Math.ceil(innerHeight * ratio);
+  if (boundsCanvas.width !== w || boundsCanvas.height !== h) {
+    boundsCanvas.width = w; boundsCanvas.height = h;
+  }
+  boundsContext.clearRect(0, 0, w, h);
+  boundsContext.drawImage(renderer.domElement, 0, 0, w, h);
+  const measured = visibleBounds(boundsContext.getImageData(0, 0, w, h).data, w, h, innerWidth, innerHeight);
+  boundsMilliseconds += performance.now() - now;
+  if (!measured) return;
+  const bounds = boundsEnvelope.fit(measured, [innerWidth, innerHeight], now);
+  const detail = {bounds, viewport:[innerWidth, innerHeight]};
+  const signature = JSON.stringify(detail);
+  if (signature !== lastBounds) { lastBounds = signature; boundsReports++; report('bounds', detail); }
+}
 function resize() {
+  lastBoundsCheck = -Infinity;
   renderer.setSize(innerWidth, innerHeight);
   const half = Math.max(height * 0.72, width * 0.56 * innerHeight / innerWidth);
   camera.left = -half * innerWidth / innerHeight; camera.right = -camera.left;
@@ -57,13 +89,15 @@ function frame(now) {
   const delta = Math.min((now - (last || now)) / 1000, 0.08);
   last = now;
   if (!animator) return;
-  update(delta); renderer.render(scene, camera); frames++;
+  update(delta); renderer.render(scene, camera); reportBounds(); frames++;
 }
 function snapshot() {
   renderer.render(scene, camera);
+  reportBounds(true);
   return { image: renderer.domElement.toDataURL('image/png'), behavior: animator.debug() };
 }
 window.pet = {
+  bounds() { return lastBounds ? JSON.parse(lastBounds) : null; },
   motions() { return animator?.bank.catalog() || []; },
   async playMotion(name) {
     if (!animator) throw new Error('模型尚未准备好');
@@ -73,10 +107,14 @@ window.pet = {
     return animator.bank.settings(name);
   },
   present(value) { state = value.state; animator?.behavior.present(value); },
-  interact(value) { animator?.behavior.interact(value); physics?.interact(value); },
+  interact(value) {
+    animator?.behavior.interact(value); physics?.interact(value);
+    if (value.kind !== 'drag-move') fastBoundsUntil = performance.now() + 400;
+  },
   debug() { return { ready: Boolean(animator), state, frames, warnings, elapsed,
     visibility: document.visibilityState, seconds: (performance.now() - started) / 1000,
-    behavior: animator?.debug(), physics:physics?.debug(), modelVersion:vrm?.meta.metaVersion, lighting:WEB_RENDER_PROFILE }; },
+    behavior: animator?.debug(), physics:physics?.debug(), modelVersion:vrm?.meta.metaVersion, lighting:WEB_RENDER_PROFILE,
+    windowSizing:{checks:boundsChecks,reports:boundsReports,milliseconds:boundsMilliseconds} }; },
   // 原生验收推进同一套行为与渲染逻辑，不引入角色专用的测试动画。
   preview(name, seconds = 1) {
     if (!animator) return null;
@@ -107,7 +145,7 @@ window.pet = {
     return snapshot();
   },
   resume() { suspended = false; last = performance.now(); },
-  screenshot() { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/png'); },
+  screenshot() { renderer.render(scene, camera); reportBounds(true); return renderer.domElement.toDataURL('image/png'); },
   dispose() {
     disposed = true; physics?.dispose(); animator?.dispose();
     if (vrm) VRMUtils.deepDispose(vrm.scene);
@@ -138,5 +176,5 @@ window.addEventListener('unhandledrejection', event => report('error', { message
   physics = new SpringPhysics(vrm,manifest.physicsSettings);
   animator = new AvatarAnimator(vrm, scene, box, bank, manifest, camera, () => ({width:innerWidth,height:innerHeight}));
   update(1 / 30); started = performance.now(); renderer.render(scene, camera);
-  report('ready'); requestAnimationFrame(frame);
+  reportBounds(); report('ready'); requestAnimationFrame(frame);
 })().catch(error => report('error', { message:String(error) }));

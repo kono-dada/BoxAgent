@@ -1,25 +1,60 @@
 # 本机环境准备
 
-这是 macOS / Apple Silicon 的本机 POC，不是开箱即用的分发包。以下与 2026-09-19 的代码路径对应；已在现有机器运行，不代表已完成全新机器安装验收。
+BoxAgent 的源码安装面向 Apple Silicon macOS。以下规范与 2026-10-11 的安装入口对应；在现有机器上重建视觉环境并验证了安装流程，尚未完成全新机器的完整安装与系统授权验收。
+
+## 目录与依赖规则
+
+源码、共享资产、依赖锁和安装脚本提交到 Git；本机依赖、缓存、下载模型和用户数据全部放在被忽略的 `.runtime/`，凭据只放在 `.env.local`。
+
+| 路径 | 内容 | 管理规则 |
+| --- | --- | --- |
+| `.runtime/python/` | uv 管理的 Python 3.12.9 及本地命令链接 | 重建，不移动已有虚拟环境 |
+| `.runtime/uv-cache/` | uv 缓存及桌宠宿主的脚本环境 | 宿主环境由 `pet.py.lock` 管理，不另建 `.venv-pet` |
+| `.runtime/vision-venv/` | MLX 视觉环境 | 使用 `scripts/requirements/vision.lock.txt` 精确同步 |
+| `.runtime/jev-mem-venv/` | 独立记忆环境 | 使用 `scripts/requirements/jev-mem.lock.txt` 精确同步 |
+| `.runtime/cache/` | Hugging Face、XDG、pnpm 缓存 | 由统一入口设置路径，pnpm 同时有项目配置 |
+| `.runtime/models/` | 本地视觉模型 | 下载后逐文件校验仓库中的 SHA256 清单 |
+| `.runtime/aoq-sdk/1.3.0/` | AOQ Framework 与下载包 | 固定版本及压缩包 SHA256 |
+| `.runtime/codex-0.153.0/` | Codex 与同版本工具宿主 | 从官方发布获取，并检查签名 |
+| `.runtime/pet/`、`.runtime/pets/` | 会话、记忆、Skill、人格、设置、个人形象 | 用户数据，不能当缓存清理 |
+| `.runtime/checks/` | 自动化检查产物 | 可在确认没有检查运行后清理 |
+| `.runtime/private/` | 历史用户记录及私人原稿 | 只保存在本机，不提交 |
+
+视觉与记忆依赖锁是从现有可用环境导出的完整固定版本清单，适用于 Python 3.12.9 / Apple Silicon macOS；不包含软件包文件哈希，也不宣称支持其他平台。更新依赖时显式修改清单并重跑检查，不在日常安装中自动升级。
+
+安装与启动脚本共用 `scripts/runtime-env.sh`。路径优先级是进程环境、`.env.local`、仓库默认值；`.env.local` 只读取指定变量的字面值，不执行命令，也不展开 `$HOME` 或 `$(...)`。覆盖路径时填写绝对路径，示例见 `.env.local.example`。
+
+保留已在使用的 `uv-cache`、记忆环境和运行组件路径，避免迁移破坏现有进程。虚拟环境的激活文件和命令入口含绝对路径；更换仓库位置后应重新安装，不能直接搬运环境。
 
 ## 桌宠宿主与语音
 
-准备 uv、Python 3.12、PortAudio、Git LFS、Node.js 与 pnpm。使用 Homebrew 的机器可以安装 `uv`、`portaudio`；PyAudio 首次构建还可能需要 Xcode Command Line Tools。桌宠的 Python 依赖由 `scripts/pet.py` 与 `scripts/pet.py.lock` 管理，不要把它们装入视觉 `.venv`。
+准备 Xcode Command Line Tools、uv、Node.js、pnpm、PortAudio、pkg-config、Git LFS 与 jq。使用 Homebrew 的机器可执行：
+
+```sh
+brew install uv node pnpm portaudio pkg-config git-lfs jq
+```
+
+这是系统工具安装；后续 Python、项目依赖、模型和缓存由仓库内安装入口管理。本机验证使用 uv 0.9.13、pnpm 10.33.2；前端的 `packageManager` 固定为 pnpm 10.33.2。先按下文准备官方 Codex、工具宿主与 Computer Use 组件，再执行安装。
 
 当前支持的完整产品配置要求先在项目根目录完成凭据、运行组件和 3D 资产的准备：
 
 ```sh
 zsh scripts/set-key.zsh
-./scripts/setup-aoq-sdk.sh
-./scripts/setup-jev-mem.sh
-./scripts/download-qwen-mlx.zsh
-bash scripts/setup_vrm.sh
+./scripts/install.sh
 ```
 
-同时准备 Codex App Server、同版本 `codex-code-mode-host` 与 Computer Use 组件。全部完成后启动：
+`install.sh` 可重复执行：准备仓库内 Python，以锁文件同步宿主、视觉和记忆依赖，补齐缺失的 AOQ Framework，校验或下载模型，拉取 Git LFS 资产并构建播放器，最后执行安装检查。它不会修改密钥、删除用户数据、自动登录账号或替用户设置系统权限。
+
+只检查安装与配置，不调用云端、不操作应用：
 
 ```sh
-uv run --script scripts/pet.py --log-dir ./logs/boxagent
+./scripts/install.sh --check
+```
+
+检查覆盖固定依赖版本、模型文件摘要、Framework、播放器、运行组件签名与凭据是否存在；不验证密钥有效性、云端连通性、系统权限或可见 UI。缺少项目时返回非零状态。安装和检查通过后启动：
+
+```sh
+./scripts/run-pet.sh
 ```
 
 源码 checkout 默认将 Agent 后端运行在独立 Engine 进程，并监视后端 Python 文件。
@@ -53,21 +88,23 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 ./scripts/run-deepseek.sh
 ```
 
-脚本不会执行 `.env.local`，只检查 `DEEPSEEK_API_KEY` 是否存在；具体密钥由 Python 配置层读取并传给 App Server 子进程。可用 `BOXAGENT_DEEPSEEK_MODEL` 覆盖默认的 `deepseek-flash`，其他参数可直接追加在脚本后。
+脚本使用同一个启动入口，只检查 `DEEPSEEK_API_KEY` 是否存在；具体密钥由 Python 配置层读取并传给 App Server 子进程。可用 `BOXAGENT_DEEPSEEK_MODEL` 覆盖默认的 `deepseek-flash`，其他参数可直接追加在脚本后。双击 `启动桌宠.command` 与 Codex 项目运行按钮也调用同一入口。
 
 优先从独立 Terminal 启动。直接 uv 运行没有独立应用权限身份；系统权限取决于启动终端及 Computer Use 组件。麦克风用于语音，屏幕录制用于本地截图；电脑操作还依赖执行组件获得所需系统权限。产品内的自动／手动授权不是 macOS 权限开关。
 
 ## 本地窗口摘要
 
-运行 `./scripts/download-qwen-mlx.zsh` 准备 `models/qwen3.5-0.8b-mlx/`，并按 [MLX 预实验](qwen-mlx-probe.md) 准备视觉 `.venv`。下载脚本使用 `curl`、`jq`、`shasum`；模型来自远端 master，下载时校验远端提供的哈希，但没有固定模型仓库 revision，不能保证未来下载与历史模型逐字节相同。
+安装入口通过 `setup-vision.sh` 准备 `.runtime/vision-venv/`，通过 `download-qwen-mlx.zsh` 准备 `.runtime/models/qwen3.5-0.8b-mlx/`。后者校验仓库中固定的 13 个文件摘要，已有匹配文件不会重新下载，新文件在 `.part` 中校验通过后才发布。
 
-当前完整产品配置要求本地视觉环境。宿主默认开启观察；模型缺失时实现会暂停观察并显示错误，以下关闭方式仅用于开发诊断：
+下载源仍为 ModelScope 的 master；若上游替换文件，下载将因固定摘要不匹配而失败，不会静默接受新版本。完整的新机器复现仍取决于上游保留对应文件。原始模型来源与推理实验见 [MLX 预实验](qwen-mlx-probe.md)，其中旧路径属于历史记录。
+
+桌宠默认关闭屏幕总结，菜单开启后才启动视觉进程；也可以显式启用：
 
 ```sh
-uv run --script scripts/pet.py --log-dir ./logs/boxagent --context-interval 0
+./scripts/run-pet.sh --context-interval 15
 ```
 
-MLX 依赖目前记录了核心版本，但没有独立的完整依赖锁文件；全新环境的完全可复现性仍待验证。
+用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 AppKit 依赖装进视觉环境。
 
 ## 电脑操作执行器
 
@@ -115,19 +152,19 @@ Final User Message 直接交给 Jev-Mem，不再调用 Codex 候选提取器，�
 
 持久化文件保留在本机，但启用真实后端时，Jev-Mem 会把决策所需的记忆文本和查询发送给 TypeSafe.ai JEV Decision Model；语音回忆命中的精简内容会通过 Function Calling 结果返回当前千问 Realtime 会话。不应将敏感信息写入当前记忆实现，也不应将这一路径描述为纯本地处理。
 
-这些二进制与登录信息不随仓库提交。当前代码依赖这个本机组件布局及已验证版本组合，没有自动安装程序，也没有承诺稳定第三方 SDK 支持。版本兼容性历史见 [Computer Use 预实验](python-codex-computer-use.md)。
+这些二进制与登录信息不随仓库提交。仓库安装入口检查本机组件，官方账号登录与 Computer Use 安装仍需要单独完成；当前依赖已验证的组件组合。版本兼容性历史见 [Computer Use 预实验](python-codex-computer-use.md)。
 
 ## 开发检查
 
 ```sh
 # 本地替身测试，不调用模型或操作应用。
-uv run --script scripts/pet.py --check
+./scripts/run-pet.sh --check
 
 # 原生测试窗口与合成内容，不调用模型或操作其他应用。
-uv run --script scripts/pet.py --check-ui
+./scripts/run-pet.sh --check-ui
 
 # 真实截取前台窗口并调用本地模型，需屏幕录制权限。
-uv run --script scripts/pet.py --check-context
+./scripts/run-pet.sh --check-context
 ```
 
 真实语音／电脑操作验收需单独执行，可能产生模型用量或改变应用状态，详见 [脚本目录说明](../scripts/README.md)。不要把全部实验脚本当作无副作用测试批量运行。

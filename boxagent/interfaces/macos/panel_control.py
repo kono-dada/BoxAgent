@@ -13,6 +13,7 @@ from typing import Any
 from boxagent.agent.harness.persona import persona_name, update_persona_name
 from boxagent.interfaces.macos.run_records import SessionRunRecords
 from boxagent.interfaces.macos.pets.vrm import AssetServer
+from boxagent.interfaces.macos.pets.size import PET_MIN_SCALE, PET_MAX_SCALE, valid_pet_scale
 
 
 class PanelControl:
@@ -81,7 +82,14 @@ class PanelControl:
                     "appearance_ready": owner.appearance.ready,
                     "appearance_error": owner.appearance.error,
                     "switching": getattr(owner, "pending_appearance", None) is not None,
-                    "feedback": owner.input_feedback}
+                    "feedback": owner.input_feedback,
+                    "scale": owner.pet_scale, "min_scale": PET_MIN_SCALE, "max_scale": PET_MAX_SCALE}
+        if method == "desktop_set_pet_scale":
+            scale = params.get("scale")
+            if not valid_pet_scale(scale):
+                raise ValueError("桌宠大小必须在 50%～600% 之间")
+            owner.setPetScale(float(scale))
+            return self.dispatch("desktop_snapshot", {})
         if method == "desktop_toggle_bubble":
             owner.toggleBubble_(None)
             return self.dispatch("desktop_snapshot", {})

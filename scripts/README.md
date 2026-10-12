@@ -4,7 +4,10 @@
 
 | 脚本 | 用途与副作用 |
 | --- | --- |
-| `pet.py`、`pet.py.lock` | 唯一产品入口与宿主依赖锁，`uv run --script scripts/pet.py` |
+| `install.sh`、`runtime-env.sh` | 统一安装、路径配置与缓存；`install.sh --check` 仅检查本机安装 |
+| `run-pet.sh`、`pet.py`、`pet.py.lock` | 统一启动入口、产品入口与宿主依赖锁；用 `./scripts/run-pet.sh` 启动 |
+| `setup-vision.sh`、`requirements/*.lock.txt` | 用 uv 精确同步视觉与记忆环境的完整固定版本 |
+| `check_install.py` | 离线检查依赖版本、模型摘要、运行组件签名与凭据是否存在，不证明云端或 UI 可用 |
 | `window_summary_worker.py` | 当前产品依赖的常驻 MLX 子进程，由观察适配器启动 |
 | `setup-jev-mem.sh` | 为仓库内置 Jev-Mem 建立独立重依赖环境；不下载另一份源码 |
 | `setup-aoq-sdk.sh` | 下载并校验固定版本 AOQ macOS Framework；二进制仅放在 `.runtime/`，不提交仓库 |
@@ -17,6 +20,7 @@
 | `import_vrm.mjs` | 导入本地 VRM；默认引用共享动作包，校验资源并拒绝覆盖现有形象 |
 | `setup_vrm.sh` | 下载 Git LFS 中的模型和共享动作，使用 pnpm 安装并构建播放器 |
 | `check_vrm_ui.py` | `pet.py --check-vrm-ui`，验证真实 VRM 渲染、3D 换装、失败保留和资源释放；语音与任务使用替身 |
+| `check_pet_size_ui.py` | `pet.py --check-pet-size-ui`，验证桌面 API 的 50%～600% 连续比例、恢复默认、原生窗口与 WebKit 同步缩放、换装与重启恢复；不调用云端服务，结果在 `.runtime/pet-size-check/` |
 | `check_pet_ui.py` | `pet.py --check-ui`，仅测试窗口、合成文字、记忆图和替身；结果在 `.runtime/pet/ui-check/` |
 | `check_window_summary.py` | `pet.py --check-context`，读取真实前台窗口，运行本地模型 |
 | `experiments/window_summary_eval.py` | FIX-01 离线对比，默认生成 12 张合成界面；`--images` 可指定本机截图。与生产 worker 共用提示词和配置，结果及样本哈希写入 `.runtime/window-summary-eval/` |
@@ -35,4 +39,4 @@
 
 `--smoke` 的 `--allow-app` 用于匹配测试收到的授权请求，不是隔离所有工具操作的系统沙箱；不要据此承诺模型无法访问其他应用。测试执行器明确关闭产品默认自动授权，让测试回调能够生效。原生真实验收也显式使用手动授权，用于检查授权 UI。
 
-历史脚本保留用于复现技术选择与失败原因，不表示每条旧路径当前都可用。原始实验条件、失败路径见 `docs/` 中标注为历史的记录。原始界面、截图、日志、音频仅留在 `.runtime/`、`results/`、`logs/` 等忽略目录。
+历史脚本保留用于复现技术选择与失败原因，不表示每条旧路径当前都可用。原始实验条件、失败路径见 `docs/` 中标注为历史的记录。新检查产物应放在 `.runtime/checks/`，私人材料放在 `.runtime/private/`；旧文档中的 `results/`、`logs/`、`.venv/` 与 `.venv-pet/` 不再作为当前安装路径。

@@ -505,7 +505,7 @@ boxagent/
 │   │   └── protocol.py           # startup snapshot / probe 协议
 │   └── macos/
 │       ├── startup_controller.py
-│       └── windows/
+│       └── surfaces/
 │           ├── onboarding.py
 │           └── repair.py
 └── bootstrap/

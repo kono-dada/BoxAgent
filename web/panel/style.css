@@ -288,6 +288,11 @@ body[data-view="conversation"] .feature-page { width: 100%; max-width: 1040px; m
 .avatar-choice { display: block; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 7px; background: var(--canvas); padding: 12px; margin: 12px 0; }
 .avatar-choice.active { border-color: #96afa0; background: var(--accent-soft); }
 .avatar-choice strong { display: block; font-size: 13px; font-weight: 550; }
+.pet-scale { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 18px; }
+.pet-scale > label { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+.pet-scale output { font-variant-numeric: tabular-nums; color: var(--accent); }
+.pet-scale input[type="range"] { width: 100%; accent-color: var(--accent); margin: 12px 0; cursor: pointer; }
+.pet-scale-actions { display: flex; gap: 14px; align-items: center; justify-content: space-between; }
 .avatar-choice span, .avatar-choice small { display: block; font-size: 11px; color: var(--secondary); margin-top: 4px; }
 .skill-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; }
 .skill-layout .feature-card { padding: 16px; }

@@ -22,9 +22,8 @@ class DragView(AK.NSView):
 
     def mouseDown_(self, event):
         self.down = AK.NSEvent.mouseLocation()
-        self.origin = self.window().frame().origin
+        self.origin = self.owner.petViewportFrame()[0]
         self.dragged = False
-        self.sendInteraction("drag-start")
         self.motion = DragMotion.begin((self.down.x, self.down.y), time.monotonic())
 
     def mouseDragged_(self, event):
@@ -34,11 +33,15 @@ class DragView(AK.NSView):
             kind, (dx, dy), velocity = sample
             self.dragged = True
             self.sendInteraction(kind, velocity)
-            self.window().setFrameOrigin_((self.origin.x + dx, self.origin.y + dy))
+            crop = self.owner.pet_crop[0]
+            self.window().setFrameOrigin_((self.origin[0] + dx + crop[0],
+                                          self.origin[1] + dy + crop[1]))
+            self.owner.anchorPetBubbles()
             self.owner.positionBubble()
 
     def mouseUp_(self, event):
-        self.sendInteraction("drag-end")
+        if self.dragged:
+            self.sendInteraction("drag-end")
         if not self.dragged:
             self.sendInteraction("tap")
         if self.dragged:
@@ -48,6 +51,7 @@ class DragView(AK.NSView):
             x = max(screen.origin.x, min(frame.origin.x, screen.origin.x + screen.size.width - frame.size.width))
             y = max(screen.origin.y, min(frame.origin.y, screen.origin.y + screen.size.height - frame.size.height))
             self.window().setFrameOrigin_((x, y))
+            self.owner.anchorPetBubbles()
             self.owner.positionBubble()
         if not self.dragged:
             self.owner.toggleBubble_(None)

@@ -4,7 +4,7 @@ const path = require('node:path');
 const { EngineClient } = require('./engine-client.cjs');
 const data = path.resolve(process.env.BOXAGENT_DATA_DIR || path.join(__dirname, '../../.runtime/pet'));
 const methods = new Set(['state', 'list_sessions', 'context_snapshot', 'context_entry', 'session_timeline', 'session_events', 'memory_snapshot', 'delete_memory_node', 'create_session', 'activate_session', 'archive_session', 'toggle_voice', 'toggle_context', 'submit_text', 'cancel_task', 'answer_approval', 'list_skills', 'create_skill', 'update_skill', 'set_skill_enabled', 'delete_skill']);
-const desktopMethods = new Set(['desktop_snapshot','desktop_toggle_bubble','desktop_avatars','desktop_preview_avatar','desktop_select_avatar','desktop_persona','desktop_save_persona','desktop_runs','desktop_open_run','desktop_open_logs','desktop_quit']);
+const desktopMethods = new Set(['desktop_snapshot','desktop_set_pet_scale','desktop_toggle_bubble','desktop_avatars','desktop_preview_avatar','desktop_select_avatar','desktop_persona','desktop_save_persona','desktop_runs','desktop_open_run','desktop_open_logs','desktop_quit']);
 let client, desktop, window;
 if (!process.argv.includes('--smoke') && !app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => { window?.show(); window?.focus(); });

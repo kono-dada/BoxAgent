@@ -48,6 +48,26 @@ class PanelControlTests(unittest.TestCase):
             self.control.dispatch('desktop_select_avatar', {'id':'/tmp/untrusted'})
         self.control.owner.useLocalVrm_.assert_not_called()
 
+    def test_scale_api_rejects_invalid_values_before_native_mutation(self):
+        self.control.owner.setPetScale = Mock()
+        for scale in (True, "2", None, 0, 6.01, float("nan"), float("inf")):
+            with self.assertRaises(ValueError):
+                self.control.dispatch('desktop_set_pet_scale', {'scale': scale})
+        self.control.owner.setPetScale.assert_not_called()
+
+    def test_scale_api_passes_continuous_value_and_returns_applied_state(self):
+        self.control.owner.agent_name = '伙伴'
+        self.control.owner.bubble_open = False
+        self.control.owner.appearance = SimpleNamespace(directory=self.root, ready=True, error=None)
+        self.control.owner.input_feedback = ''
+        self.control.owner.pet_scale = 1
+        def apply(scale):
+            self.control.owner.pet_scale = scale
+        self.control.owner.setPetScale = Mock(side_effect=apply)
+        result = self.control.dispatch('desktop_set_pet_scale', {'scale': 2.37})
+        self.control.owner.setPetScale.assert_called_once_with(2.37)
+        self.assertEqual((result['scale'], result['min_scale'], result['max_scale']), (2.37, .5, 6))
+
     def test_open_run_requires_matching_session_manifest(self):
         directory=self.root/'runs'/'2026-10-12'/'110000-task-one'
         directory.mkdir(parents=True)
