@@ -305,6 +305,10 @@ class Desktop(NSObject):
             self.showBubble()
             return
         root = Path(__file__).resolve().parents[3]
+        if not (root / "web/panel/node_modules/.bin/electron").exists():
+            self.input_feedback = "请先运行 ./scripts/install.sh 安装伙伴控制台。"
+            self.showBubble()
+            return
         subprocess.Popen([command, "--dir", str(root / "web/panel"), "start"],
                          env={**os.environ, "BOXAGENT_DATA_DIR": str(self.data_dir)},
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

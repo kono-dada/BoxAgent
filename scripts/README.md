@@ -4,7 +4,7 @@
 
 | 脚本 | 用途与副作用 |
 | --- | --- |
-| `install.sh`、`runtime-env.sh` | 统一安装、路径配置与缓存；`install.sh --check` 仅检查本机安装 |
+| `install.sh`、`runtime-env.sh` | 统一安装、路径配置与缓存；包含播放器和伙伴控制台构建；`install.sh --check` 仅检查本机安装 |
 | `run-pet.sh`、`pet.py`、`pet.py.lock` | 统一启动入口、产品入口与宿主依赖锁；用 `./scripts/run-pet.sh` 启动 |
 | `setup-vision.sh`、`requirements/*.lock.txt` | 用 uv 精确同步视觉与记忆环境的完整固定版本 |
 | `check_install.py` | 离线检查依赖版本、模型摘要、运行组件签名与凭据是否存在，不证明云端或 UI 可用 |

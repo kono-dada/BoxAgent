@@ -1,6 +1,7 @@
 {
   "name": "boxagent-panel",
   "private": true,
+  "packageManager": "pnpm@10.33.2",
   "version": "0.1.0",
   "main": "main.cjs",
   "scripts": {

@@ -6,14 +6,13 @@ BoxAgent 将“可复现的任务运行记录”和“进程诊断日志”分�
 
 ```text
 <BOXAGENT_DATA_DIR>/
-├── runs/
-│   ├── latest.json
-│   ├── latest-run -> YYYY-MM-DD/HHMMSS-<task_id>/
-│   ├── index.jsonl
-│   ├── by-session/<session_id>/       # Finder 中的当前会话视图
-│   │   └── YYYY-MM-DD-HHMMSS-<task_id> -> ../../YYYY-MM-DD/HHMMSS-<task_id>/
-│   └── YYYY-MM-DD/
-│       └── HHMMSS-<task_id>/
+├── sessions/
+│   ├── index.json
+│   ├── .migrated-v1                 # 旧安装迁移完成标记；新安装不需要
+│   └── <session_id>/
+│       ├── state.json               # 元数据、Runtime 绑定和游标
+│       ├── session.v1.jsonl         # 正式事实、wire 账本、Checkpoint、任务引用
+│       └── tasks/<task_id>/
 │           ├── manifest.json
 │           ├── context.json
 │           ├── request.json
@@ -21,10 +20,10 @@ BoxAgent 将“可复现的任务运行记录”和“进程诊断日志”分�
 │           ├── events.jsonl
 │           ├── result.json
 │           └── step-*.{txt,jpg}
-├── conversations/sessions/<session_id>/
-│   ├── events.jsonl
-│   ├── context.jsonl
-│   └── runtime-bindings.json
+├── attachments/v1/objects/          # 新任务截图按内容哈希存储，轨迹保存引用
+├── conversations/                  # 未迁移安装使用；迁移保留源目录
+├── conversations-unified-rollback/ # 回滚时导出的最新兼容投影
+├── runs/                           # 兼容布局任务 + by-session/<id>/ Finder 索引
 └── logs/
     ├── errors.jsonl            # 所有进程的 warning 及以上；排障先看这里
     ├── desktop.jsonl           # 桌宠宿主进程诊断（info 及以上）
@@ -42,10 +41,7 @@ BoxAgent 将“可复现的任务运行记录”和“进程诊断日志”分�
 
 诊断日志的格式、轮转和排障方法见 [INFRA-03 统一日志](<需求/INFRA-03-统一日志.md>)。
 
-菜单中的“打开当前会话最近运行…”只会定位当前 Product Session
-的最新任务；“打开当前会话运行记录…”会打开 `by-session/<session_id>/`
-生成的只读索引视图。新会话尚未执行任务时，该目录为空，不会退回上一会话的
-`latest-run`。“打开诊断日志…”仍打开全局进程日志目录。
+伙伴控制台「任务与运行记录」只列当前 Product Session 的任务，支持打开指定运行、最近运行与会话索引。Finder 索引位于 `runs/by-session/<session_id>/`，兼容统一任务和旧任务；迁移副本按 task ID 去重。新会话尚未执行任务时索引为空，不会退回上一会话。「设置 → 诊断日志」打开全局日志目录。原菜单只保留控制台、新建会话与退出。
 
 ## 单次任务如何验收
 
@@ -68,7 +64,7 @@ Qwen 的实际非音频 WebSocket 请求记录在 `logs/runtime/qwen/events.json
 
 音频分片不会写入日志。
 
-按 Session 拆分后的“模型可见上下文”另记在 `conversations/sessions/<ses_id>/context.v1.jsonl`（Context Ledger），Engine 通过 `context_snapshot` / `context_entry` 提供构成、回合时延和原文。格式与指标定义见 [REQ-01 前台上下文可观测](<需求/REQ-01-上下文可观测.md>)。
+按 Session 的“模型可见上下文”记录在统一 `session.v1.jsonl` 中的 Context Ledger 事件；未迁移安装仍使用 `conversations/sessions/<ses_id>/context.v1.jsonl`。Engine 通过 `context_snapshot` / `context_entry` 提供构成、回合时延和原文。当前 Query 参考包合并记忆、决策和环境，下一 Query 删除旧包并记录 provider 回执；正式消息保留。格式与指标定义见 [REQ-01](<需求/REQ-01-上下文可观测.md>) 和 [参考生命周期](<需求/REQ-02-03-Query参考包生命周期.md>)。
 
 ## 记忆图可视化
 
@@ -79,4 +75,4 @@ Engine IPC 完成。旧 AppKit 记忆窗口和独立 `assets/memory-graph/` WebK
 
 ## 兼容旧目录
 
-旧版本可能把任务写在 `<BOXAGENT_DATA_DIR>/tasks/` 或 `<log-dir>/tasks/`。这些目录不会自动搬迁或删除，Skill 沉淀读取器仍会兼容查找；新任务统一进入 `runs/YYYY-MM-DD/HHMMSS-<task_id>/`。
+新安装直接用 `sessions/`；已有 `conversations/index.json` 的安装需退出 Engine 后显式迁移，迁移复制并验证任务文件，源目录保留。未迁移/回滚时新任务仍用 `runs/YYYY-MM-DD/HHMMSS-<task_id>/`；Skill 读取器兼容更早的 `tasks/`、`logs/tasks/`。迁移与回滚命令见 [安装文档](setup.md#旧会话迁移与回滚)。回滚读取最新正式历史投影，不撤销电脑动作或删除长期记忆。

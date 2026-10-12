@@ -65,10 +65,10 @@ flowchart LR
 ### 1. 准备环境
 
 - macOS / Apple Silicon
-- Git LFS、Node.js 与 pnpm（用于下载 3D 资源和构建播放器）
+- Git LFS、Node.js 与 pnpm（用于 3D 播放器和 Electron 控制台）
 - Python 3.12、[uv](https://docs.astral.sh/uv/) 与 PortAudio
 - 北京地域 DashScope API Key 与百炼 Workspace ID
-- DeepSeek API Key 与 TypeSafe.ai API Key
+- DeepSeek API Key；TypeSafe.ai API Key 仅在显式选择该决策服务时需要
 - AOQ macOS SDK、Jev-Mem Worker 与本地 MLX 视觉模型
 - Codex App Server、`codex-code-mode-host` 与 Computer Use 组件
 
@@ -80,7 +80,7 @@ flowchart LR
 zsh scripts/set-key.zsh
 ```
 
-该脚本会依次读取 DashScope API Key、百炼 Workspace ID、DeepSeek API Key 与 TypeSafe.ai API Key，并生成仅本机可读的 `.env.local`。
+该脚本读取 DashScope API Key、百炼 Workspace ID、DeepSeek API Key，并可选读取 TypeSafe.ai API Key，生成仅本机可读的 `.env.local`。默认决策模型使用阿里云百炼，与 Qwen 共用 DashScope Key 和 Workspace。
 
 ### 3. 安装运行组件
 
@@ -88,7 +88,7 @@ zsh scripts/set-key.zsh
 ./scripts/install.sh
 ```
 
-安装前还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。安装入口按锁文件同步依赖，将环境、模型和缓存放在 `.runtime/`，最后检查安装与配置；以后可用 `./scripts/install.sh --check` 单独复查。
+安装前还需要准备同版本的 Codex App Server、`codex-code-mode-host` 与 Computer Use 组件，具体路径见 [本机环境准备](docs/setup.md)。安装入口按锁文件同步依赖，将环境、模型和缓存放在 `.runtime/`，构建 3D 播放器与伙伴控制台，最后检查安装与配置；以后可用 `./scripts/install.sh --check` 单独复查。
 
 ### 4. 启动
 
@@ -117,7 +117,7 @@ zsh scripts/set-key.zsh
 | --- | --- | --- |
 | Qwen Realtime | AOQ 提供全双工语音、回声消除与降噪；WebSocket 仅作诊断降级 | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
 | 桌面任务 | DeepSeek 负责规划，Codex Runtime 提供工具循环与 Computer Use | `DEEPSEEK_API_KEY`、`BOXAGENT_CODEX_BIN` |
-| Jev-Mem | 使用 JEV Decision Model 完成记忆准入与检索决策 | `TYPESAFE_API_KEY`、`BOXAGENT_JEV_MEM_BACKEND=jev` |
+| 决策模型 / Jev-Mem | 默认阿里云 `decision-model-preview`，用于记忆准入/检索和当前 Query 的意图参考 | `BOXAGENT_DECISION_PROVIDER=auto`、DashScope Key / Workspace、`BOXAGENT_JEV_MEM_BACKEND=jev`；意图参考可用 `BOXAGENT_INTENT_REFERENCE=0` 关闭 |
 | 本地屏幕总结 | 启动时关闭，可从控制台设置开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
 | 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |
 | 用户 Skill | 默认保存在本地运行目录并热同步 Runtime | `BOXAGENT_SKILLS_DIR` |
@@ -132,7 +132,7 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 日志可能包含任务目标、应用界面文字和工具参数，不应直接上传或公开分享。
 - 当前版本默认自动允许 Computer Use 工具请求；使用 `--require-approval` 可恢复逐次确认。
 - 不可逆操作仍依赖任务策略和最终状态核验；当前版本不是完整操作系统沙箱。
-- 启用真实 Jev-Mem backend 时，相关文本会发送给 TypeSafe.ai；Qwen、任务模型与 Profile 模型也会接收各自完成请求所需的上下文。
+- 启用真实 Jev-Mem backend 时，相关文本会发送给所选决策服务（默认阿里云，亦可选 TypeSafe.ai）；Qwen、任务模型与 Profile 模型也会接收各自完成请求所需的上下文。
 - 屏幕总结截图仅在本地推理期间临时存在，当前不会自动进入长期记忆。
 
 请只在你信任的机器和测试账号中运行开发版。详细的数据落盘与审计说明见 [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md)。
@@ -158,7 +158,7 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 脚本型 Skill 沙箱、ZIP / Git 导入与 Skill 市场
 - 持续委托、活动时间线和长期运行可靠性
 
-当前能力的验证边界见 [POC 验收记录](docs/poc-verification.md)。
+本分支交付、迁移与最新验证边界见 [分支交付与 PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md)；早期能力验证见 [POC 验收记录](docs/poc-verification.md)。
 
 ## 项目结构
 
@@ -190,7 +190,7 @@ uv run --script scripts/pet.py --check
 uv run --script scripts/pet.py --check-ui
 
 # 测试套件
-uv run --with pytest python -m pytest -q
+uv run --python 3.12 --with pytest --with 'pillow>=11,<13' --with 'websockets>=15,<17' --with 'pyaudio>=0.2.14' python -m pytest -q
 
 # 控制台构建与前端测试
 pnpm --dir web/panel install
@@ -213,6 +213,7 @@ pnpm --dir web/panel start
 | 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
 | 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
 | 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |
+| 需求状态与本次交付 | [需求路线图](docs/需求/README.md) · [PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md) |
 | 3D 形象与共享资产 | [VRM 桌宠](docs/vrm.md) |
 | Computer Use | [Python Computer Use](docs/python-codex-computer-use.md) |
 | 语音链路 | [Qwen 全双工实验](docs/qwen-full-duplex-summary.md) |

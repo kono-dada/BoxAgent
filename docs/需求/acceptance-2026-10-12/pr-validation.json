@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-12",
+  "branch": "codex/panel-visual",
+  "base_main": "00c1f09",
+  "python": {
+    "version": "3.12.12",
+    "passed": 338,
+    "skipped": 4,
+    "subtests_passed": 3,
+    "isolated_candidate_tree": true,
+    "skip_reason": "requires independent Jev-Mem interpreter with typesafe_sdk",
+    "jev_mem_supplement_passed": 4
+  },
+  "pyright": {
+    "version": "1.1.414",
+    "errors": 0,
+    "scope": "local untracked gradual config and existing unstaged typing changes; not a full-repository PR claim"
+  },
+  "panel": {
+    "build": "passed",
+    "unit_tests_passed": 8,
+    "pnpm": "10.33.2",
+    "electron": "38.8.6",
+    "locked_install_and_electron_postinstall": "passed",
+    "feature_fixture": "passed",
+    "preferences_fixture_checks": 25,
+    "pet_scale_fixture": "passed"
+  },
+  "vrm": {
+    "build": "passed",
+    "unit_tests_passed": 36
+  },
+  "native_after_main_merge": {
+    "bubble_checks": 61,
+    "webkit_size_checks": 136,
+    "size_skips": [
+      "native window screenshot unavailable",
+      "continuous frame sampling unavailable during desktop scheduling"
+    ]
+  },
+  "new_regressions": [
+    "unified task list visibility and ownership",
+    "migration-copy deduplication",
+    "rollback precedence without original legacy source",
+    "task output falls back to legacy after rollback"
+  ],
+  "credentials_fixture": [
+    "optional TypeSafe",
+    "0600 local file",
+    "existing file preserved"
+  ],
+  "limits": [
+    "Python 3.12.9 locked installation not rerun",
+    "no clean-machine full install/system permissions validation",
+    "no repeated paid AOQ/Codex/model calls during PR cleanup",
+    "no long-duration companionship quality claim",
+    "graph bundle approximately 692 kB"
+  ],
+  "user_uncommitted_changes_excluded": [
+    "ExecutionService typing changes",
+    "AGENTS.md",
+    "pyrightconfig.json",
+    "README local pyright command"
+  ]
+}

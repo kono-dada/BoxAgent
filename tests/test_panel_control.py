@@ -85,6 +85,18 @@ class PanelControlTests(unittest.TestCase):
         self.control.pump()
         self.assertIn('旧名字',self.soul.read_text())
 
+    def test_unified_run_is_listed_and_opened_with_session_ownership(self):
+        directory = self.root / 'sessions/ses_one/tasks/abc123abc123'
+        directory.mkdir(parents=True)
+        (directory / 'manifest.json').write_text(json.dumps({
+            'session_id': 'ses_one', 'task_id': 'abc123abc123', 'started_at': 1}))
+        rows = self.control.dispatch('desktop_runs', {'session_id': 'ses_one'})['items']
+        self.assertEqual([row['id'] for row in rows], [str(directory)])
+        self.control.dispatch('desktop_open_run', {'session_id': 'ses_one', 'id': str(directory)})
+        self.control.owner._openDirectory.assert_called_once_with(directory)
+        with self.assertRaises(ValueError):
+            self.control.dispatch('desktop_open_run', {'session_id': 'ses_two', 'id': str(directory)})
+
     def test_unknown_method_reports_error_to_waiting_transport(self):
         future=concurrent.futures.Future()
         self.control.pending.put(('arbitrary_command',{},future))

@@ -49,8 +49,16 @@ class Settings:
 
     @property
     def runs_dir(self) -> Path:
-        """Canonical, user-auditable task-run root independent from process logs."""
+        """Legacy task-run root independent from process logs."""
         return self.data_dir / "runs"
+
+    @property
+    def uses_unified_sessions(self) -> bool:
+        """Rollback takes precedence, including installs with no legacy source."""
+        root = self.data_dir / "sessions"
+        return not (root / ".rollback-v1").exists() and (
+            (root / ".migrated-v1").exists()
+            or not (self.data_dir / "conversations/index.json").exists())
 
     def task_run_dir(self, task_id: str, *, now=None) -> Path:
         moment = now or datetime.now().astimezone()

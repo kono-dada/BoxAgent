@@ -12,22 +12,32 @@ class SessionRunRecords:
         self.root = Path(root).resolve()
 
     def directories(self, session_id: str) -> list[Path]:
-        if not self._valid_session_id(session_id) or not self.root.is_dir():
+        if not self._valid_session_id(session_id):
             return []
-        matches = []
+        matches: dict[str, Path] = {}
         patterns = (
             "????-??-??/??????-*/manifest.json",
             f"sessions/{session_id}/????-??-??/??????-*/manifest.json",
         )
-        for pattern in patterns:
-            for manifest in self.root.glob(pattern):
-                try:
-                    value = json.loads(manifest.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError, TypeError):
-                    continue
-                if value.get("session_id") == session_id:
-                    matches.append(manifest.parent.resolve())
-        return sorted(set(matches), key=self._sort_key)
+        manifests = [p for pattern in patterns for p in self.root.glob(pattern)]
+        data = self.root.parent
+        unified_manifests = list((data / "sessions" / session_id / "tasks").glob("*/manifest.json"))
+        # Both layouts remain auditable after rollback; prefer its current copy.
+        if (data / "sessions/.rollback-v1").exists():
+            manifests = unified_manifests + manifests
+        else:
+            manifests.extend(unified_manifests)
+        for manifest in manifests:
+            if not manifest.resolve().is_relative_to(data):
+                continue
+            try:
+                value = json.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(value, dict) and value.get("session_id") == session_id:
+                identity = str(value.get("task_id") or manifest.parent)
+                matches[identity] = manifest.parent.resolve()
+        return sorted(set(matches.values()), key=self._sort_key)
 
     def latest(self, session_id: str) -> Path | None:
         directories = self.directories(session_id)

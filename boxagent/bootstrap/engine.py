@@ -135,7 +135,8 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         model_profile=selected.profile,
         permission_check=can_auto_approve_computer_use,
     )
-    unified = bool(session_id and (app_settings.data_dir / "sessions" / session_id / "state.json").exists())
+    unified = bool(app_settings.uses_unified_sessions and session_id
+                   and (app_settings.data_dir / "sessions" / session_id / "state.json").exists())
     if unified and tool_gateway_factory is ComputerUseToolGateway:
         from boxagent.infrastructure.persistence.attachments import AttachmentStore
         attachments = AttachmentStore(app_settings.data_dir / "attachments/v1/objects")
@@ -152,7 +153,7 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         provider=selected.provider,
         model=selected.model,
         output=(app_settings.data_dir / "sessions" / session_id / "tasks" / task_id
-                if session_id and (app_settings.data_dir / "sessions" / session_id / "state.json").exists()
+                if unified
                 else app_settings.task_run_dir(task_id)),
         runtime_factory=selected.factory,
         session_factory=session_factory,
@@ -201,8 +202,7 @@ def create_application(publish, *, task_provider=None, task_model=None,
     from boxagent.infrastructure.persistence.unified_session import (
         UnifiedContextLedger, UnifiedSessionRepository,
     )
-    use_unified = ((app_settings.data_dir / "sessions/.migrated-v1").exists()
-                   or not (app_settings.data_dir / "conversations/index.json").exists())
+    use_unified = app_settings.uses_unified_sessions
     session_events = None
     if use_unified:
         session_events = SessionEventStore(app_settings.data_dir / "sessions")

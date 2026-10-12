@@ -9,7 +9,7 @@ cd "$BOXAGENT_ROOT"
 case "${1:-}" in
     --check) exec "$script_dir/run-pet.sh" --check-install ;;
     --help)
-        printf '%s\n' '用法：./scripts/install.sh [--check]' '不带参数：安装锁定的依赖、模型、AOQ 和 3D 资源。' '--check：只检查本机安装和凭据是否齐备，不调用云端或操作应用。'
+        printf '%s\n' '用法：./scripts/install.sh [--check]' '不带参数：安装锁定的依赖、模型、AOQ、3D 资源和伙伴控制台。' '--check：只检查本机安装和凭据是否齐备，不调用云端或操作应用。'
         exit 0 ;;
     '') ;;
     *) printf '未知参数：%s\n' "$1" >&2; exit 2 ;;
@@ -39,4 +39,6 @@ if [ ! -d "$aoq_frameworks/AoqClientSdk.framework" ] || [ ! -d "$aoq_frameworks/
 fi
 zsh "$script_dir/download-qwen-mlx.zsh"
 bash "$script_dir/setup_vrm.sh"
+pnpm --dir web/panel install --frozen-lockfile --store-dir "$BOXAGENT_PNPM_STORE"
+pnpm --dir web/panel build
 exec "$script_dir/run-pet.sh" --check-install

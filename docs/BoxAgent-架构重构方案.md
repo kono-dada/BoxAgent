@@ -393,18 +393,21 @@ sequenceDiagram
 
 | 路径 | 内容 | 性质 |
 | --- | --- | --- |
-| `conversations/index.json` | Session 顺序与当前活跃 Session | 产品状态 |
-| `conversations/sessions/<session_id>/events.jsonl` | Product Event Log | 不可重建来源 |
-| `conversations/sessions/<session_id>/context.jsonl` | Checkpoint 与 Segment | 可重建压缩视图 |
-| `conversations/sessions/<session_id>/runtime-bindings.json` | Runtime Thread 绑定与 Cursor | 可恢复绑定 |
+| `sessions/index.json` | Session 顺序与当前活跃 Session | 产品状态 |
+| `sessions/<session_id>/session.v1.jsonl` | 正式消息、Context Ledger、Checkpoint 与任务关联事件 | 不可重建来源；归档可变为 `.jsonl.gz` |
+| `sessions/<session_id>/state.json` | 会话元数据、Runtime 绑定与同步 Cursor | 持久产品状态 |
+| `sessions/<session_id>/tasks/<task_id>/` | 请求、上下文、步骤与结果 | 任务审计产物 |
+| `attachments/v1/objects/` | SHA-256 寻址的任务截图 | 轨迹存引用，读取校验 |
 | `memory/jev-mem/` | Jev-Mem 图、向量、关键词索引与审计 | 长期记忆 Store |
 | `memory/jobs/ingestion.jsonl` | 自动记忆写入任务状态 | 投递状态 |
 | `memory/projections/profile.json` | User Profile | 可重建投影 |
 | `notifications/outbox.json` | 未送达和已送达通知 | 持久投递状态 |
-| `runs/<date>/<time-task_id>/` | 单次任务请求、上下文、步骤与结果 | 可审计运行记录 |
+| `conversations/`、`runs/<date>/<time-task_id>/` | 未迁移安装的兼容布局 | 迁移后源数据保留 |
 | `skills/` | 用户 Skill | 用户配置 |
 | `logs/errors.jsonl`、`logs/<进程>.jsonl`、`logs/crash/` | 统一诊断日志（INFRA-03） | 诊断数据，可轮转、可删除 |
 | `logs/` 其余文件 | Runtime wire trace、Memory、Context 与子进程原始输出 | 诊断数据 |
+
+新安装直接使用统一布局；已有 `conversations/index.json` 时继续兼容布局，需停止 Engine 后显式运行迁移脚本。`.migrated-v1` 表示完成切换；`.rollback-v1` 优先切回 `conversations-unified-rollback/` 的最新正式历史投影和 `runs/`。原始数据和长期记忆保留，回滚不撤销电脑动作。命令见 [安装与升级](setup.md#旧会话迁移与回滚)，详细流格式见 [统一会话设计](需求/INFRA-01-02-统一会话目录与事件流.md)。
 
 1. JSONL 追加时执行 `flush + fsync`。
 2. JSON 文件使用临时文件与 `os.replace` 原子替换。

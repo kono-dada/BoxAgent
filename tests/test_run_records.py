@@ -39,6 +39,23 @@ class SessionRunRecordsTests(unittest.TestCase):
             self.assertEqual(list(view.iterdir()), [])
             self.assertIsNone(records.latest("ses_new"))
 
+    def test_unified_runs_work_without_legacy_root_and_deduplicate_migration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory)
+            unified = data / "sessions/ses_current/tasks/abc123abc123"
+            unified.mkdir(parents=True)
+            manifest = {"session_id": "ses_current", "task_id": "abc123abc123", "started_at": 10}
+            (unified / "manifest.json").write_text(json.dumps(manifest))
+            records = SessionRunRecords(data / "runs")
+            self.assertEqual(records.latest("ses_current"), unified.resolve())
+            legacy = self._run(data / "runs", "2026-10-12", "120000-abc123abc123", "ses_current", 10)
+            (legacy / "manifest.json").write_text(json.dumps(manifest))
+            self.assertEqual(records.directories("ses_current"), [unified.resolve()])
+            view = records.materialize_view("ses_current")
+            self.assertEqual([p.resolve() for p in view.iterdir()], [unified.resolve()])
+            (data / "sessions/.rollback-v1").touch()
+            self.assertEqual(records.directories("ses_current"), [legacy])
+
     @staticmethod
     def _run(root, date, name, session_id, started_at):
         target = root / date / name

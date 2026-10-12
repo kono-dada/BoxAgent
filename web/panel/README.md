@@ -3,11 +3,12 @@
 先启动桌宠 `uv run --script scripts/pet.py`，再在仓库根目录运行：
 
 ```bash
-pnpm --dir web/panel install
+pnpm --dir web/panel install --frozen-lockfile
 pnpm --dir web/panel start
 ```
 
 `start` 先执行 TypeScript 检查与 Vite 构建，再由 Electron 载入 `dist/index.html`。
+完整 `scripts/install.sh` 已包含控制台依赖和构建；菜单启动缺少依赖时在小窗提示安装。
 记忆、上下文、角色、Skill、对话和控制页使用 React 18 + TypeScript；关系图使用 vis-network 9.1.9。
 共用外壳、时间线和日志仍是原生 JavaScript，样式为自定义 CSS。
 
