@@ -19,7 +19,7 @@ from boxagent.interfaces.macos.hotkey import Hotkey
 from boxagent.interfaces.macos.menu import install_menus
 from boxagent.interfaces.macos.state import ACTIVE_TASK_STATES, mode_text, transcript_sections
 from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, LatestMessageButton, RoundedSurface,
-                                   SendButton, TranscriptView, accent_color, button, label, symbol_button)
+                                   SendButton, TranscriptView, VoiceToggleButton, accent_color, button, label, symbol_button)
 from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
 
 logger = logging.getLogger(__name__)
@@ -168,11 +168,11 @@ class Desktop(NSObject):
         self.composer.addSubview_(self.input)
         self.composer.addSubview_(self.send_button)
 
-        self.mic_button = button("语音", ((16, 12), (88, 28)), self, "toggleMic:")
+        self.mic_button = VoiceToggleButton.buttonWithTitle_target_action_("开启语音", self, "toggleMic:")
+        self.mic_button.setFrame_(((18, 10), (134, 30)))
         self.mic_button.setBordered_(False)
-        self.mic_button.setImagePosition_(AK.NSImageLeading)
-        self.mic_button.setToolTip_("开启或关闭语音 · Control + Option + 空格")
-        self.shortcut_label = label("⌃⌥ 空格", ((112, 17), (82, 18)), 11, AK.NSColor.tertiaryLabelColor())
+        self.mic_button.setRefusesFirstResponder_(True)
+        self.shortcut_label = label("全双工 · ⌃⌥空格", ((164, 15), (126, 18)), 10, AK.NSColor.secondaryLabelColor())
         self.cancel_button = button("停止", ((300, 12), (74, 28)), self, "cancelTask:")
         self.cancel_button.setBordered_(False)
         self.allow_button = button("允许操作", ((197, 12), (108, 28)), self, "allow:")
@@ -590,11 +590,18 @@ class Desktop(NSObject):
         active = self.state.task in ACTIVE_TASK_STATES
         self.mode_label.setStringValue_(mode_text(self.state) or "在这里陪你")
         self.mode_label.setToolTip_(mode_text(self.state) or "在这里陪你")
-        self.mic_button.setContentTintColor_(accent_color() if self.state.voice != "off" else AK.NSColor.secondaryLabelColor())
-        self.mic_button.setTitle_("结束语音" if self.state.voice != "off" else "语音")
-        self.mic_button.setImage_(AK.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
-            "mic.fill" if self.state.voice != "off" else "mic", "语音"))
+        self.mic_button.voice_state = self.state.voice
+        self.mic_button.setTitle_({"off": "开启语音", "connecting": "连接中…", "stopping": "关闭中…"}.get(
+            self.state.voice, "结束语音"))
+        voice_hint = "开启全双工语音，可以直接说话，也可以在伙伴回复时打断" if self.state.voice == "off" else (
+            "正在连接全双工语音" if self.state.voice == "connecting" else
+            "正在关闭全双工语音" if self.state.voice == "stopping" else "全双工语音已开启，点击结束语音")
+        self.mic_button.setToolTip_(f"{voice_hint} · Control + Option + 空格")
+        self.mic_button.setAccessibilityLabel_(voice_hint)
+        self.mic_button.setAccessibilityValue_("已开启" if self.state.voice == "ready" else
+                                              "已关闭" if self.state.voice == "off" else self.mic_button.title())
         self.mic_button.setEnabled_(self.state.voice not in {"connecting", "stopping"})
+        self.mic_button.setNeedsDisplay_(True)
         approval = bool(self.state.approval)
         self.cancel_button.setHidden_(approval or not active)
         self.shortcut_label.setHidden_(approval)

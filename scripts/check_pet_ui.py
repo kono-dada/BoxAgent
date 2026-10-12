@@ -146,6 +146,21 @@ def main():
         check(desktop.cancel_button.isHidden(), "空闲时隐藏停止按钮")
         check(desktop.latest_button.isHidden(), "短对话隐藏回到最新按钮")
         check(desktop.panel_button.toolTip() == "打开伙伴控制台", "小窗提供控制台快捷入口")
+        check(desktop.mic_button.title() == "开启语音" and "全双工" in desktop.mic_button.toolTip(),
+              "关闭语音时明确提供开启全双工语音入口")
+        check(desktop.mic_button.frame().size.width >= 134 and not desktop.shortcut_label.isHidden()
+              and "全双工" in desktop.shortcut_label.stringValue(), "语音按钮旁明确显示全双工与快捷键")
+        check(desktop.mic_button.frame().origin.x + desktop.mic_button.frame().size.width + 8
+              <= desktop.shortcut_label.frame().origin.x, "语音入口与提示保留间距")
+        check(desktop.mic_button.refusesFirstResponder(), "语音开关不抢占文字输入焦点")
+        for voice, title in [("connecting", "连接中…"), ("ready", "结束语音"), ("stopping", "关闭中…")]:
+            desktop.state.voice = voice
+            desktop.updateLabels()
+            check(desktop.mic_button.title() == title
+                  and desktop.mic_button.isEnabled() == (voice == "ready"), f"语音{voice}状态与可点击状态一致")
+            capture(f"voice-{voice}")
+        desktop.state.voice = "off"
+        desktop.updateLabels()
         check(desktop.mode_label.frame().origin.y < desktop.title_label.frame().origin.y,
               "角色名称与状态分行")
         check(desktop.transcript_scroll.frame().origin.y >= desktop.composer.frame().origin.y + desktop.composer.frame().size.height + 10,

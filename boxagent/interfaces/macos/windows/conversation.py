@@ -89,6 +89,51 @@ class LatestMessageButton(AK.NSButton):
         objc.super(LatestMessageButton, self).drawRect_(rect)
 
 
+class VoiceToggleButton(AK.NSButton):
+    """A visible voice action with an explicit on/off switch."""
+
+    voice_state = objc.ivar()
+
+    def drawRect_(self, _rect: object) -> None:
+        dark = is_dark(self)
+        enabled = self.isEnabled()
+        active = self.voice_state in {"ready", "stopping"}
+        bounds = AK.NSInsetRect(self.bounds(), .5, .5)
+        background = accent_color() if active else AK.NSColor.colorWithSRGBRed_green_blue_alpha_(
+            *((.20, .27, .23, 1) if dark else (.91, .95, .92, 1)))
+        path = AK.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(bounds, 9, 9)
+        background.setFill()
+        path.fill()
+        AK.NSColor.colorWithSRGBRed_green_blue_alpha_(.48, .62, .53, .8 if enabled else .35).setStroke()
+        path.setLineWidth_(1)
+        path.stroke()
+        foreground = AK.NSColor.whiteColor() if active else (
+            AK.NSColor.colorWithSRGBRed_green_blue_alpha_(.72, .85, .77, 1) if dark else accent_color())
+        if not enabled:
+            foreground = foreground.colorWithAlphaComponent_(.6)
+        image = AK.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+            "mic.fill" if active else "mic", "全双工语音")
+        config = AK.NSImageSymbolConfiguration.configurationWithPointSize_weight_(12, AK.NSFontWeightMedium)
+        image = image.imageWithSymbolConfiguration_(config)
+        image = image.imageWithTintColor_(foreground)
+        image.drawInRect_fromRect_operation_fraction_respectFlipped_hints_(
+            ((11, 8), (14, 14)), AK.NSZeroRect, AK.NSCompositingOperationSourceOver, 1, True, None)
+        title = AK.NSAttributedString.alloc().initWithString_attributes_(self.title(), {
+            AK.NSFontAttributeName: AK.NSFont.systemFontOfSize_weight_(11, AK.NSFontWeightMedium),
+            AK.NSForegroundColorAttributeName: foreground,
+        })
+        title.drawAtPoint_((31, (self.bounds().size.height - title.size().height) / 2))
+        track = AK.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+            ((99, 8), (25, 14)), 7, 7)
+        foreground.colorWithAlphaComponent_(.25).setFill()
+        track.fill()
+        foreground.setFill()
+        AK.NSBezierPath.bezierPathWithOvalInRect_(((112 if active else 101, 10), (10, 10))).fill()
+
+    def viewDidChangeEffectiveAppearance(self) -> None:
+        self.setNeedsDisplay_(True)
+
+
 class TranscriptView(FlippedView):
     """Measure real text layout and retain full selectable text in every card."""
 
