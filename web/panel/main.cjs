@@ -5,6 +5,8 @@ const { EngineClient } = require("./engine-client.cjs");
 const { ServiceClient } = require("./desktop/service-client.cjs");
 const { DesktopHost } = require("./desktop/host.cjs");
 const root = path.resolve(__dirname, "../..");
+app.setName("BoxAgent");
+const productIcon = path.join(__dirname, "public/brand/boxagent-icon.png");
 const data = path.resolve(
   process.env.BOXAGENT_DATA_DIR || path.join(root, ".runtime/pet"),
 );
@@ -76,7 +78,8 @@ function showPanel() {
     height: 820,
     minWidth: 740,
     minHeight: 560,
-    title: "伙伴 · 控制台",
+    title: "BoxAgent · 伙伴控制台",
+    icon: productIcon,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 15 },
     backgroundColor: "#ffffff",
@@ -152,9 +155,22 @@ app.on("second-instance", (_event, _argv, _cwd, info) => {
 });
 app.whenReady().then(async () => {
   if (!smoke && !app.hasSingleInstanceLock()) return;
+  app.dock?.setIcon(productIcon);
   if (companionMode) app.dock?.hide();
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
+      {
+        label: "BoxAgent",
+        submenu: [
+          { label: "关于 BoxAgent", role: "about" },
+          { type: "separator" },
+          { role: "hide" },
+          { role: "hideOthers" },
+          { role: "unhide" },
+          { type: "separator" },
+          { label: "退出 BoxAgent", role: "quit" },
+        ],
+      },
       {
         label: "编辑",
         submenu: [

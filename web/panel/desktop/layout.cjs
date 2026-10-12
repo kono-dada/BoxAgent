@@ -29,9 +29,9 @@ function validBounds(report, viewport) {
     : null;
 }
 function bubbleFrame(anchor, area, offset, requestedHeight = 270) {
-  const width = Math.min(392, area.width - 16),
+  const width = Math.min(440, area.width - 16),
     height = Math.min(
-      Math.max(228, Math.min(480, requestedHeight)),
+      Math.max(228, Math.min(600, requestedHeight)),
       area.height - 32,
     );
   return clampFrame(

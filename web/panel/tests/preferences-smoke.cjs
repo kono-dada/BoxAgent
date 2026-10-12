@@ -41,7 +41,7 @@ app.whenReady().then(async()=>{
   await check(`document.getElementById('page-title').textContent==='Interface' && document.querySelector('.navigation [data-view="memory"]').textContent.trim()==='Memory' && document.querySelector('[data-language="en"]').getAttribute('aria-pressed')==='true'`,'language updates shell and React controls');
   await check(`document.querySelector('.session-title').textContent==='用户原文：工作计划'`,'session content remains verbatim');
   await pick('[data-theme-option="dark"]');
-  await check(`document.documentElement.dataset.theme==='dark' && getComputedStyle(document.querySelector('.feature-card')).backgroundColor==='rgb(21, 28, 24)'`,'dark palette reaches content cards');
+  await check(`document.documentElement.dataset.theme==='dark' && getComputedStyle(document.querySelector('.feature-card')).backgroundColor==='rgb(23, 23, 23)'`,'neutral dark palette reaches content cards');
   await capture('interface-dark-en');
   window.setContentSize(760,680);await new Promise(r=>setTimeout(r,100));
   await check(`document.getElementById('page').scrollWidth<=document.getElementById('page').clientWidth && document.body.scrollWidth<=innerWidth`,'English preference controls fit narrow window');
@@ -57,13 +57,22 @@ app.whenReady().then(async()=>{
   await pick('[data-theme-option="dark"]');
   for(const view of ['conversation','memory','context','timeline','skills','runs']) {
    await nav(view);await check(`document.getElementById('page').scrollWidth<=document.getElementById('page').clientWidth`,'English dark '+view+' fits');
+   if(view==='conversation'){
+    await capture('conversation-dark-en');
+    window.setContentSize(760,680);await new Promise(r=>setTimeout(r,100));
+    await check(`document.getElementById('page').scrollWidth<=document.getElementById('page').clientWidth && [...document.querySelectorAll('.conversation-toolbar button')].every(b=>b.getBoundingClientRect().right<=innerWidth)`,'English conversation toolbar fits narrow window');
+    await capture('conversation-narrow-dark-en');window.setContentSize(1200,820);
+   }
    await check(`!/[\\u4e00-\\u9fff]/.test([...document.querySelectorAll('#content button, #content h2, #content dt, .console-legend')].map(n=>n.textContent.replace(/用户原文：能力/g,'')).join(''))`,'English labels '+view);
-   if(view==='memory'){await new Promise(r=>setTimeout(r,800));await check(`document.querySelector('.memory-canvas canvas')!==null && getComputedStyle(document.querySelector('.graph-surface')).backgroundColor==='rgb(25, 35, 31)'`,'dark memory canvas and surface render');await capture('memory-dark-en');}
+   if(view==='memory'){await new Promise(r=>setTimeout(r,800));await check(`document.querySelector('.memory-canvas canvas')!==null && getComputedStyle(document.querySelector('.graph-surface')).backgroundColor==='rgb(28, 28, 28)'`,'neutral dark memory canvas and surface render');await capture('memory-dark-en');}
    if(view==='context'){await check(`document.querySelector('.context-browser select').selectedOptions[0].textContent==='Current context'`,'context request labels translated');await capture('context-dark-en');}
   }
   await nav('settings');await nav('persona');await check(`document.querySelector('[aria-label="Companion name"]').value==='用户原文：名字'`,'persona draft remains verbatim');
   await nav('interface');await pick('[data-language="zh-CN"]');await check(`document.getElementById('page-title').textContent==='界面偏好'`,'switch back to Chinese');
   await capture('interface-dark-zh');
+  await nav('conversation');await capture('conversation-dark-zh');
+  await nav('settings');await nav('interface');await pick('[data-theme-option="light"]');
+  await nav('conversation');await capture('conversation-light-zh');
   await fs.writeFile(path.join(out,'report.json'),JSON.stringify({checks},null,2));console.log(JSON.stringify({checks}));app.quit();
  }catch(error){console.error(error);app.exit(1);}
 });

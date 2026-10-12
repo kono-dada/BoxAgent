@@ -25,10 +25,10 @@ export function Sidebar({
       <div className="window-drag" aria-hidden="true" />
       <div className="brand">
         <span className="brand-mark">
-          <Icon name="spark" />
+          <img src="brand/boxagent-128.png" width="34" height="34" alt="" />
         </span>
         <div>
-          <strong>{t('伙伴')}</strong>
+          <strong>BoxAgent</strong>
           <span>{t('陪伴与管理')}</span>
         </div>
       </div>

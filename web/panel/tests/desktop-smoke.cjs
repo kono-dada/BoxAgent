@@ -183,7 +183,9 @@ server.listen(path.join(data, "engine.sock"), () => {
       const initial = await js(bubble, "boxagent.request('desktop_snapshot')");
       assert(initial.appearance_ready);
       assert(pet.getBounds().width < 252, "crop removes transparent area");
-      assert(bubble.getBounds().height <= 480, "long history stays compact");
+      assert(bubble.getBounds().height <= 600, "long history stays bounded");
+      assert.equal(bubble.getBounds().width, 440);
+      assert.equal(app.getName(), "BoxAgent");
       assert.equal(
         BrowserWindow.getAllWindows().length,
         2,
@@ -191,6 +193,24 @@ server.listen(path.join(data, "engine.sock"), () => {
       );
       await js(bubble, "boxagent.request('desktop_toggle_bubble')");
       await wait(() => bubble.isVisible(), "bubble visible");
+      const fixedFrame = bubble.getBounds();
+      for (const x of [12, 40, 20]) {
+        await js(
+          pet,
+          `boxagent.desktopAction('pet-report',{type:'bounds',viewport:[252,182],bounds:{x:${x},y:18,width:170,height:150}})`,
+        );
+        await new Promise((r) => setTimeout(r, 70));
+        assert.equal(
+          bubble.getBounds().x,
+          fixedFrame.x,
+          "avatar animation keeps chat x",
+        );
+        assert.equal(
+          bubble.getBounds().y,
+          fixedFrame.y,
+          "avatar animation keeps chat y",
+        );
+      }
       await wait(
         () =>
           js(
@@ -205,6 +225,18 @@ server.listen(path.join(data, "engine.sock"), () => {
           "Boolean(document.querySelector('.companion-markdown strong'))",
         ),
       );
+      bubble.webContents.send('engine:diagnostic', 'Engine 已断开');
+      await wait(() => js(bubble, "document.querySelector('.companion-feedback')?.textContent.includes('Engine 已断开')"), 'disconnect feedback');
+      emit('engine.ready');
+      await wait(() => js(bubble, "!document.querySelector('.companion-feedback')"), 'recovered connection clears stale error');
+      bubble.webContents.send('engine:diagnostic', '操作验收失败');
+      await wait(() => js(bubble, "document.querySelector('.companion-feedback')?.textContent.includes('操作验收失败')"), 'operation failure visible');
+      emit('engine.ready');
+      assert(await js(bubble, "document.querySelector('.companion-feedback')?.textContent.includes('操作验收失败')"), 'recovery preserves unrelated operation error');
+      bubble.webContents.send('engine:diagnostic', 'Engine 已断开');
+      await wait(() => js(bubble, "document.querySelector('.companion-feedback')?.textContent.includes('Engine 已断开')"), 'disconnect feedback again');
+      emit('engine.ready');
+      await wait(() => js(bubble, "!document.querySelector('.companion-feedback')"), 'connection recovered again');
       await js(
         bubble,
         "document.querySelector('.companion-history').scrollTop=0",
@@ -213,6 +245,21 @@ server.listen(path.join(data, "engine.sock"), () => {
         () =>
           js(bubble, "Boolean(document.querySelector('.companion-latest'))"),
         "latest control",
+      );
+      await new Promise((r) => setTimeout(r, 150));
+      assert(
+        await js(
+          bubble,
+          "document.querySelector('.companion-latest').getBoundingClientRect().top >= document.querySelector('.companion-history').getBoundingClientRect().bottom",
+        ),
+        "latest control does not cover messages",
+      );
+      fs.mkdirSync(path.join(root, "artifacts/electron-desktop"), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(root, "artifacts/electron-desktop/history-reading.png"),
+        (await bubble.webContents.capturePage()).toPNG(),
       );
       await js(bubble, "document.querySelector('.companion-latest').click()");
       assert(
@@ -299,10 +346,19 @@ server.listen(path.join(data, "engine.sock"), () => {
           ),
         "shared preferences",
       );
+      assert.equal(await js(panel, "getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()"), '#171717', 'console neutral dark background');
+      assert.equal(await js(bubble, "getComputedStyle(document.querySelector('.companion-shell')).getPropertyValue('--canvas').trim()"), '#192231', 'mini chat retains its existing dark palette');
       fs.mkdirSync(path.join(root, "artifacts/electron-desktop"), {
         recursive: true,
       });
       await new Promise((r) => setTimeout(r, 250));
+      assert(
+        await js(
+          bubble,
+          "document.querySelector('.companion-history').clientHeight >= 240",
+        ),
+        "long history has reading space",
+      );
       assert(
         await js(
           bubble,
@@ -405,7 +461,7 @@ server.listen(path.join(data, "engine.sock"), () => {
         "new session excludes old history",
       );
       await js(bubble, "boxagent.desktopAction('dismiss-feedback')");
-      await wait(() => bubble.getBounds().height < 310, "empty chat shrinks");
+      await wait(() => bubble.getBounds().height < 340, "empty chat shrinks");
       assert(
         await js(
           bubble,
@@ -417,7 +473,7 @@ server.listen(path.join(data, "engine.sock"), () => {
         path.join(root, "artifacts/electron-desktop/layout.json"),
         JSON.stringify({
           compact: bubble.getBounds().height,
-          maximum: 480,
+          maximum: 600,
           width: bubble.getBounds().width,
         }),
       );

@@ -20,6 +20,9 @@ def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monke
     for name in ("index", "pet", "companion"):
         (panel / f"dist/{name}.html").write_text("fixture")
     settings = replace(load_settings(), root=tmp_path, data_dir=tmp_path / "data")
+    from subprocess import CompletedProcess
+    monkeypatch.setattr("boxagent.bootstrap.electron_launch.subprocess.run",
+                        lambda *args, **kwargs: CompletedProcess(args, 0, str(executable)))
     assert run_electron(settings, ["--pet", "a path with spaces"]) == 0
     args, forwarded, data = json.loads(record.read_text())
     assert args == [str(panel), "--desktop"]
@@ -35,5 +38,5 @@ def test_missing_build_reports_installation(tmp_path: Path):
 
 def test_start_command_does_not_rebuild_but_dev_does():
     scripts = json.loads((Path(__file__).resolve().parents[1] / "web/panel/package.json").read_text())["scripts"]
-    assert scripts["start"] == "electron ."
+    assert scripts["start"] == "node scripts/launch.cjs"
     assert "build" in scripts["dev"]

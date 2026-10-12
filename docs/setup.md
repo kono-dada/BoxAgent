@@ -28,6 +28,8 @@ BoxAgent 的源码安装面向 Apple Silicon macOS。以下规范对应当前安
 
 保留已在使用的 `uv-cache`、记忆环境和运行组件路径，避免迁移破坏现有进程。虚拟环境的激活文件和命令入口含绝对路径；更换仓库位置后应重新安装，不能直接搬运环境。
 
+`启动桌宠.command` 准备并复用 `.runtime/desktop/BoxAgent.app`，系统显示名称与图标为 BoxAgent；独立控制台 `pnpm --dir web/panel start` 共用该本机 bundle。它基于依赖内 Electron.app 复制后设置产品身份与 ad-hoc 签名，源运行时/图标不变则不重复构建，依赖文件不被改写。仍通过启动脚本注入 Python 和产品数据目录；此 bundle 不是独立发行包。
+
 ## 桌宠宿主与语音
 
 准备 Xcode Command Line Tools、uv、Node.js、pnpm、PortAudio、pkg-config、Git LFS 与 jq。使用 Homebrew 的机器可执行：

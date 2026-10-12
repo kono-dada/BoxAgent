@@ -18,7 +18,7 @@ if [ "$(uname -s)" != Darwin ] || [ "$(uname -m)" != arm64 ]; then
     printf '%s\n' '安装入口目前仅支持 Apple Silicon macOS。' >&2
     exit 1
 fi
-for install_tool in uv pnpm git curl jq shasum codesign pkg-config; do
+for install_tool in uv node pnpm git curl jq shasum codesign pkg-config; do
     if ! command -v "$install_tool" >/dev/null 2>&1; then
         printf '缺少工具：%s；请先按 docs/setup.md 准备系统依赖。\n' "$install_tool" >&2
         exit 1
@@ -41,4 +41,5 @@ zsh "$script_dir/download-qwen-mlx.zsh"
 bash "$script_dir/setup_vrm.sh"
 pnpm --dir web/panel install --frozen-lockfile --store-dir "$BOXAGENT_PNPM_STORE"
 pnpm --dir web/panel build
+node web/panel/scripts/launch.cjs --prepare
 exec "$script_dir/run-pet.sh" --check-install

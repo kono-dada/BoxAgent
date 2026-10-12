@@ -20,7 +20,7 @@ const previewTheme = new URLSearchParams(location.search).get('previewTheme');
 function applyPreviewTheme(theme) {
   if (!['light', 'dark'].includes(theme)) return;
   document.documentElement.style.colorScheme = theme;
-  document.documentElement.style.background = theme === 'dark' ? '#151c18' : '#ffffff';
+  document.documentElement.style.background = theme === 'dark' ? '#171717' : '#ffffff';
   document.body.style.background = 'transparent';
 }
 if (previewTheme) {

@@ -15,13 +15,13 @@ app.whenReady().then(async()=>{
   await nav('settings');await nav('interface');await js(`document.querySelector('[data-theme-option="dark"]').click()`);await nav('appearance');
   await wait(async()=>{const f=window.webContents.mainFrame.frames.find(f=>f.url.startsWith('http://127.0.0.1'));return f && f.executeJavaScript(`Boolean(window.pet?.debug().ready && window.pet.debug().frames>0)`);});
   let frame=window.webContents.mainFrame.frames.find(f=>f.url.startsWith('http://127.0.0.1'));
-  assert.equal(await frame.executeJavaScript(`getComputedStyle(document.documentElement).backgroundColor`),'rgb(21, 28, 24)');checks.push('real VRM preview has matching dark background');
+  assert.equal(await frame.executeJavaScript(`getComputedStyle(document.documentElement).backgroundColor`),'rgb(23, 23, 23)');checks.push('real VRM preview has matching dark background');
   await fs.writeFile(path.join(out,'avatar-dark.png'),(await window.webContents.capturePage()).toPNG());
   await nav('interface');await js(`document.querySelector('[data-theme-option="system"]').click()`);await nav('appearance');
   await wait(async()=>{frame=window.webContents.mainFrame.frames.find(f=>f.url.startsWith('http://127.0.0.1'));return frame && frame.executeJavaScript(`Boolean(window.pet?.debug().ready)`);});
   assert.equal(await frame.executeJavaScript(`getComputedStyle(document.documentElement).backgroundColor`),'rgb(255, 255, 255)');checks.push('system light preview initialized');
   const url=frame.url;nativeTheme.themeSource='dark';
-  await wait(()=>frame.executeJavaScript(`getComputedStyle(document.documentElement).backgroundColor==='rgb(21, 28, 24)'`));assert.equal(frame.url,url);checks.push('preview follows system theme without reloading model');
+  await wait(()=>frame.executeJavaScript(`getComputedStyle(document.documentElement).backgroundColor==='rgb(23, 23, 23)'`));assert.equal(frame.url,url);checks.push('preview follows system theme without reloading model');
   const transparent=await frame.executeJavaScript(`(()=>{const canvas=document.querySelector('canvas');const pixel=canvas.getContext('webgl2').readPixels;return window.pet.debug().ready;})()`);assert(transparent);checks.push('VRM remains ready after theme update');
   console.log(JSON.stringify({checks}));await fs.writeFile(path.join(out,'avatar-theme-report.json'),JSON.stringify({checks},null,2));client.close();app.quit();
  }catch(error){console.error(error);client.close();app.exit(1);}

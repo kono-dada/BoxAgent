@@ -63,6 +63,7 @@ function Companion() {
   useEffect(() => {
     const state = (value: RuntimeState) => {
       setOnline(true);
+      action.clearConnectionError();
       if (value.session_id && value.session_id !== session.current) {
         drafts.current[session.current] = liveDraft.current;
         session.current = value.session_id;
@@ -165,12 +166,12 @@ function Companion() {
             );
           }, 0);
         const bodyHeight = Math.min(
-          Math.max(64, body.getBoundingClientRect().height + 24),
-          runtime.approval ? 140 : 210,
+          Math.max(64, body.getBoundingClientRect().height + 40),
+          runtime.approval ? 260 : 380,
         );
         bridge.desktopAction(
           "resize-bubble",
-          Math.ceil(fixed + bodyHeight + 18),
+          Math.ceil(fixed + bodyHeight + 18 + (away ? 36 : 0)),
         );
         if (follow.current) scroller.scrollTop = scroller.scrollHeight;
       }, 70);
@@ -193,6 +194,7 @@ function Companion() {
     creating,
     desktop.feedback,
     action.status,
+    away,
   ]);
 
   useLayoutEffect(() => {
@@ -321,7 +323,9 @@ function Companion() {
           ×
         </button>
       </header>
-      <div className="companion-history-wrap">
+      <div
+        className={`companion-history-wrap ${away ? "reading-history" : ""}`}
+      >
         <div
           className="companion-history"
           ref={scroll}

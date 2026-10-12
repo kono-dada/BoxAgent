@@ -83,7 +83,7 @@ class DesktopHost {
     this.snapshot = await this.service.request("desktop_snapshot");
     this.bubble = this.createWindow(
       {
-        width: 392,
+        width: 440,
         height: 270,
         hasShadow: false,
         acceptFirstMouse: true,
@@ -103,11 +103,12 @@ class DesktopHost {
       if (this.engineReady) void this.recoverNotifications();
     });
 
-    const icon = nativeImage.createFromDataURL(
-      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAABGUlEQVR4nKWTOwrCQBCGn0GwsrEQ8CgiKBbwCEJswE60sxIbC/EkXsDCAygewxpLCzGVSRwD2QzGJPiHZeb7d2amQJKu6y5wzT4JeCIiIEmSLkF9xRQlYZomlmXBtVrgJt7tvFEYhh2EqqpqgHLsPwphFEZRAv2Qt/kCSgYaqfhbhLVw3lxiqoLn+r59eqmw25ygwt8CDUJ85GgemqbtK+FgIThOTnBRIJZwRpTYMsYvDUVRlBhJmvdQjVrYsSiis9L0Yuxga4PfKhTH45LgNpJFDB77WGHSNdIQKTzkXDfyNSB4BLjiYZTlABXGFUXEubdm6JfYyWVZRtM0BBdhPVMotNaAJ4HVZTffStV1zc1ftJKmBU7UZY+sbFNDUIfvUPD2NbGPxOGFAAAAAElFTkSuQmCC",
+    const icon = nativeImage.createFromPath(
+      path.join(__dirname, "../public/brand/trayTemplate.png"),
     );
+    icon.setTemplateImage(true);
     this.tray = new Tray(icon);
-    this.tray.setToolTip(`${this.snapshot.name} · ⌃⌥空格切换麦克风`);
+    this.tray.setToolTip(`BoxAgent · ${this.snapshot.name} · ⌃⌥空格切换麦克风`);
     this.menu = Menu.buildFromTemplate([
       { label: "伙伴控制台…", click: this.showPanel },
       {
@@ -271,7 +272,6 @@ class DesktopHost {
         height: Math.round(pet.crop.height),
       });
       this.sendPet(pet);
-      if (pet === this.current) this.positionBubble();
     } else if (message.type === "ready" && pet === this.pending) {
       try {
         const snapshot = await this.service.request("desktop_commit_avatar", {
@@ -351,24 +351,36 @@ class DesktopHost {
     ];
     this.sendPet(pet);
   }
-  positionBubble() {
+  positionBubble(preserveTop = false) {
     if (!this.bubble || !this.current) return;
+    const frame = bubbleFrame(
+      { ...this.current.origin, ...this.current.viewport },
+      this.area,
+      this.offset,
+      this.bubbleHeight,
+    );
+    // Animation crop is not a placement anchor; content growth keeps the header still.
+    if (preserveTop) {
+      const previous = this.bubble.getBounds();
+      frame.x = previous.x;
+      frame.y = previous.y;
+    }
     this.bubble.setBounds(
-      bubbleFrame(
-        this.current.window.getBounds(),
-        this.area,
-        this.offset,
-        this.bubbleHeight,
-      ),
+      clampFrame(frame, {
+        x: this.area.x + 8,
+        y: this.area.y + 8,
+        width: this.area.width - 16,
+        height: this.area.height - 16,
+      }),
     );
   }
   resizeBubble(sender, height) {
     if (this.bubble?.webContents.id !== sender.id || !Number.isFinite(height))
       return;
-    const requested = Math.round(Math.max(228, Math.min(480, height)));
+    const requested = Math.round(Math.max(228, Math.min(600, height)));
     if (Math.abs(requested - this.bubbleHeight) < 2) return;
     this.bubbleHeight = requested;
-    this.positionBubble();
+    this.positionBubble(this.bubbleOpen);
   }
   showBubble() {
     if (!this.bubble) return;
@@ -452,8 +464,10 @@ class DesktopHost {
         this.positionBubble();
       } else {
         const defaultFrame = bubbleFrame(
-          this.current.window.getBounds(),
+          { ...this.current.origin, ...this.current.viewport },
           this.area,
+          null,
+          this.bubbleHeight,
         );
         const actual = window.getBounds();
         this.offset = {
@@ -475,6 +489,10 @@ class DesktopHost {
     fs.renameSync(file + ".tmp", file);
   }
   stateChanged(state, event) {
+    if (/Engine (?:未连接|已断开)|^connect (?:ENOENT|ECONNREFUSED)/.test(this.snapshot.feedback || "")) {
+      this.snapshot.feedback = "";
+      this.sendDesktop();
+    }
     this.state = { ...this.state, ...state };
     if (this.current) this.sendPet(this.current);
     if (event?.type === "engine.ready") {

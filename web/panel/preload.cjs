@@ -7,8 +7,14 @@ function subscribe(channel, callback) {
   };
 }
 contextBridge.exposeInMainWorld("boxagent", {
-  request: (method, params) =>
-    ipcRenderer.invoke("engine:request", method, params),
+  request: async (method, params) => {
+    try {
+      return await ipcRenderer.invoke("engine:request", method, params);
+    } catch (error) {
+      // Electron's transport prefix is not a useful product error message.
+      throw new Error(String(error.message || error).replace(/^Error invoking remote method '[^']+': (?:Error: )?/, ""));
+    }
+  },
   errors: () => ipcRenderer.invoke("engine:errors"),
   onState: (callback) => subscribe("engine:state", callback),
   onDiagnostic: (callback) => subscribe("engine:diagnostic", callback),

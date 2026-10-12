@@ -8,6 +8,7 @@ export interface ActionState {
   status: string;
   act<T = RecordData>(method: string, params?: RecordData): Promise<T>;
   setStatus(value: string): void;
+  clearConnectionError(): void;
 }
 export interface PageProps<T> extends ActionState {
   data: T;
@@ -33,7 +34,10 @@ export function useAction(bridge: Bridge): ActionState {
       setBusy(false);
     }
   }
-  return { busy, status, act, setStatus };
+  function clearConnectionError() {
+    setStatus((current) => /Engine (?:未连接|已断开|连接超时)|connect (?:ENOENT|ECONNREFUSED|ECONNRESET)/.test(current) ? '' : current);
+  }
+  return { busy, status, act, setStatus, clearConnectionError };
 }
 // Event handlers use this only after useAction has surfaced the error to the user.
 export function run(operation: Promise<unknown>): void {

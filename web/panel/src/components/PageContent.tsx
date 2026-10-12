@@ -1,4 +1,5 @@
 import { t } from '../i18n';
+import { useEffect } from 'react';
 import { ContextConsole } from '../ContextConsole';
 import { MemoryExplorer } from '../MemoryExplorer';
 import { Conversation } from '../pages/ConversationPage';
@@ -34,6 +35,7 @@ export function PageContent({
 }) {
   const action = useAction(bridge),
     shared = { ...action, bridge, query, runtime, refresh };
+  useEffect(() => bridge.onState(() => action.clearConnectionError()), [bridge]);
   const { view, data } = page;
   if (view === 'context')
     return data.status === 'ready' ? (

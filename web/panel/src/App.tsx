@@ -105,6 +105,7 @@ export function App({ bridge }: { bridge: PanelBridge }) {
   useEffect(() => {
     const stopState = bridge.onState((state) => {
       setOnline(true);
+      setDiagnostic('');
       setRuntime((current) => ({ ...current, ...state }));
     });
     const stopDiagnostic = bridge.onDiagnostic((message) => {
@@ -113,7 +114,7 @@ export function App({ bridge }: { bridge: PanelBridge }) {
         setDiagnostic('');
         void refresh();
       } else {
-        setOnline(false);
+        if (message === 'Engine 已断开' || message.startsWith('connect ')) setOnline(false);
         setDiagnostic(message);
       }
     });
@@ -130,7 +131,7 @@ export function App({ bridge }: { bridge: PanelBridge }) {
     return () => document.removeEventListener('panel-preferences', listener);
   }, []);
   useEffect(() => {
-    document.title = t('伙伴 · 控制台');
+    document.title = `BoxAgent · ${t('伙伴控制台')}`;
     document.body.dataset.view = route.view;
   });
   useEffect(() => {

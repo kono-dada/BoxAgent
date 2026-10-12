@@ -16,6 +16,11 @@ def run_electron(settings: Settings, arguments: list[str]) -> int:
     if not executable.is_file() or not all((panel / "dist" / name).is_file()
                                           for name in ("index.html", "companion.html", "pet.html")):
         raise RuntimeError("请先运行 ./scripts/install.sh 安装并构建 Electron 桌宠。")
+    prepared = subprocess.run(["node", str(panel / "scripts/launch.cjs"), "--prepare"],
+                              cwd=settings.root, check=True, capture_output=True, text=True)
+    executable = Path(prepared.stdout.strip())
+    if not executable.is_file():
+        raise RuntimeError("BoxAgent 桌面运行环境准备失败，请重新运行安装入口。")
     child = subprocess.Popen([str(executable), str(panel), "--desktop"], cwd=settings.root,
         env={**os.environ, "BOXAGENT_DATA_DIR": str(settings.data_dir),
              "BOXAGENT_DESKTOP_PYTHON": sys.executable,

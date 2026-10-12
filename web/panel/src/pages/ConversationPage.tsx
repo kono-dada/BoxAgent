@@ -3,6 +3,7 @@ import { locale } from '../preferences';
 import { useEffect, useState } from 'react';
 import { run, runtimeLabel, type PageProps } from '../hooks/useAction';
 import type { Session, ProductMessage, SessionMessages } from '../types';
+import { Icon } from '../components/ui';
 export function Conversation({
   data,
   bridge,
@@ -59,25 +60,37 @@ export function Conversation({
   }
   return (
     <>
-      <div className="feature-actions">
-        <span className="badge">{current ? t('当前对话') : t('正在查看历史会话')}</span>
-        {!current && (
-          <button className="button primary" disabled={busy} onClick={() => run(activate())}>
-            {t('设为当前对话')}
+      <div className="conversation-toolbar">
+        <div className="conversation-toolbar-session">
+          <span className={`conversation-status${current ? ' is-current' : ''}`}>
+            <span className="status-dot" aria-hidden="true" />
+            {current ? t('当前对话') : t('正在查看历史会话')}
+          </span>
+          {!current && (
+            <button className="button primary" disabled={busy} onClick={() => run(activate())}>
+              <Icon name="arrow" />
+              {t('设为当前对话')}
+            </button>
+          )}
+        </div>
+        <div className="conversation-toolbar-actions">
+          <button className={`button${current ? ' primary' : ''}`} aria-expanded={creating} aria-controls="conversation-create" onClick={() => setCreating(!creating)}>
+            <Icon name="plus" />
+            {t('新建会话')}
           </button>
-        )}
-        <button className="button" onClick={() => setCreating(!creating)}>
-          {t('新建会话')}
-        </button>
-        <button className="button" disabled={busy || !current} onClick={() => run(act('toggle_voice'))}>
-          {runtime.voice === 'off' ? t('开启麦克风') : t('关闭麦克风')}
-        </button>
-        <button className="button" disabled={busy || !current} onClick={() => run(act('desktop_toggle_bubble'))}>
-          {t('显示 / 收起桌面小窗')}
-        </button>
+          <button className="button conversation-tool" aria-pressed={runtime.voice !== 'off'} disabled={busy || !current} onClick={() => run(act('toggle_voice'))}>
+            <Icon name={runtime.voice === 'off' ? 'mic' : 'mic-off'} />
+            {runtime.voice === 'off' ? t('开启麦克风') : t('关闭麦克风')}
+          </button>
+          <button className="button conversation-tool" title={t('显示 / 收起桌面小窗')} aria-label={t('显示 / 收起桌面小窗')} disabled={busy || !current} onClick={() => run(act('desktop_toggle_bubble'))}>
+            <Icon name="window" />
+            {t('桌面对话小窗')}
+          </button>
+        </div>
       </div>
       {creating && (
         <form
+          id="conversation-create"
           className="feature-inline"
           onSubmit={(e) => {
             e.preventDefault();
