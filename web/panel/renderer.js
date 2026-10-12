@@ -78,8 +78,8 @@ function updateHeader() {
 }
 function connection(online, message) {
   $('connection').dataset.state = online ? 'online' : 'offline';
-  $('status').textContent = online ? 'Engine 已连接' : 'Engine 未连接';
-  $('connection').title = message || '';
+  $('status').textContent = online ? '已连接' : '未连接';
+  $('connection').title = message || (online ? '本机 Engine 已连接' : '本机 Engine 未连接');
 }
 function updateState(state) {
   currentState = { ...currentState, ...state };

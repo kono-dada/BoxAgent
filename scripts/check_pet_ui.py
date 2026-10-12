@@ -54,6 +54,9 @@ class PreviewMemory:
              "type": "SEMANTIC", "subtype": "PART_OF"},
         ]
 
+    async def health(self):
+        return {"status": "ready"}
+
     async def inspect(self, *, query="", selected_id=None, node_limit=100, edge_limit=200):
         if selected_id:
             edges = [edge for edge in self.edges
@@ -154,8 +157,21 @@ def main():
         check(not desktop.context_bubble.isVisible(), "启动时不显示屏幕总结")
         desktop.toggleBubble_(None)
         check(desktop.bubble.isVisible(), "手动打开聊天面板")
-        check(desktop.bubble.frame().size.height <= 180, "空闲面板不超过 180pt")
+        check(desktop.bubble.frame().size.height <= 204, "空闲面板不超过 204pt")
         check(desktop.cancel_button.isHidden(), "空闲时隐藏停止按钮")
+        check(desktop.panel_button.toolTip() == "打开伙伴控制台", "小窗提供控制台快捷入口")
+        check(desktop.mode_label.frame().origin.y < desktop.title_label.frame().origin.y,
+              "角色名称与状态分行")
+        check(desktop.transcript_scroll.frame().origin.y >= desktop.composer.frame().origin.y + desktop.composer.frame().size.height + 10,
+              "消息区和输入区保留间距")
+        before = desktop.bubble.frame().origin
+        pet_before = desktop.pet.frame().origin
+        desktop.bubble_offset = (before.x - pet_before.x - 20, before.y - pet_before.y)
+        desktop.positionBubble()
+        shifted = desktop.bubble.frame().origin
+        check(abs(shifted.x - (before.x - 20)) < 1, "记住用户调整后的小窗相对位置")
+        desktop.bubble_offset = None
+        desktop.positionBubble()
         check(not desktop.send_button.isEnabled(), "空白输入不能提交")
         capture("idle")
         desktop.bubble.makeKeyWindow()
@@ -192,14 +208,34 @@ def main():
         desktop.input_feedback = ""
         desktop.updateLabels()
         capture("approval")
-        desktop.state = Snapshot(task="succeeded", task_text="这是用于检查滚动的长结果。" * 90)
+        desktop.state = Snapshot(task="succeeded", assistant_text="这是用于检查滚动的长结果。" * 90)
         desktop.updateLabels()
-        check(desktop.bubble.frame().size.height <= 328, "长结果限制面板高度")
+        check(desktop.bubble.frame().size.height <= 416, "长结果限制面板高度")
         check(desktop.transcript.frame().size.height > desktop.transcript_scroll.frame().size.height,
               "长结果完整保留并支持滚动")
         capture("long-result")
+        desktop.follow_latest_message = True
+        desktop.conversation_events = [
+            {"type":"message.final", "role":"user", "content":"今天工作有点累，想听点轻松的音乐。", "interaction_id":"ui-history"},
+            {"type":"message.final", "role":"assistant", "content":"辛苦了。我们放慢一点，你想听钢琴还是爵士？", "interaction_id":"ui-history"},
+        ]
+        desktop.state = Snapshot(voice="ready", user_text="钢琴吧", assistant_text="好，让今晚轻松一点。", speaking=True)
+        desktop.input_feedback = ""
+        desktop.updateLabels()
+        check(len(desktop.transcript.subviews()) == 4, "正式历史与当前回复使用独立消息卡片")
+        check(desktop.transcript.subviews()[0].kind == "user" and desktop.transcript.subviews()[1].kind == "assistant", "用户与伙伴消息区分颜色和对齐")
+        check("回复中" in desktop.mode_label.stringValue(), "语音回复状态独立可见")
+        capture("conversation")
+        check(abs(desktop.transcript_scroll.contentView().bounds().origin.y - max(0, desktop.transcript.frame().size.height - desktop.transcript_scroll.contentView().bounds().size.height)) < 1, "首次恢复历史定位最新消息")
+        desktop.transcript_scroll.contentView().scrollToPoint_((0, 0))
+        earlier_card = desktop.transcript.subviews()[0]
+        desktop.state.assistant_text += " 我去看看你喜欢的那一首。"
+        desktop.updateLabels()
+        check(desktop.transcript_scroll.contentView().bounds().origin.y == 0, "阅读历史时流式更新不强制跳到底部")
+        check(earlier_card in list(desktop.transcript.subviews()), "流式回复复用未变化的历史卡片")
+        desktop.conversation_events = []
         app.setAppearance_(AK.NSAppearance.appearanceNamed_(AK.NSAppearanceNameDarkAqua))
-        desktop.state = Snapshot(task="succeeded", task_text="界面检查完成，没有操作其他应用。")
+        desktop.state = Snapshot(task="succeeded", assistant_text="界面检查完成，没有操作其他应用。")
         desktop.updateLabels()
         later(dark)
 

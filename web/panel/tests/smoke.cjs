@@ -35,6 +35,7 @@ async function runSmoke(window) {
   await ready();
   check(await js(`document.body.dataset.view === 'conversation'`), 'panel opens on conversation');
   check(await js(`JSON.stringify([...document.querySelectorAll('.navigation [data-view]')].map(el=>el.dataset.view)) === JSON.stringify(['conversation','memory','skills','runs','context','timeline'])`), 'main navigation groups daily features and observation pages');
+  check(await js(`(()=>{const settings=document.getElementById('settings-button').getBoundingClientRect(),status=document.getElementById('connection').getBoundingClientRect();return settings.right+8<=status.left && Math.abs((settings.top+settings.bottom)/2-(status.top+status.bottom)/2)<2})()`),'settings and connection status share one uncluttered footer row');
   const online = await js(`document.getElementById('connection').dataset.state === 'online'`);
   if (!online) {
     check(await js(`Boolean(document.querySelector('.empty-state'))`), 'disconnected state has recovery action');

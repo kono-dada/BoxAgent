@@ -21,7 +21,7 @@ from boxagent.interfaces.macos.menu import install_menus
 from boxagent.interfaces.macos.run_records import SessionRunRecords
 from boxagent.interfaces.macos.state import ACTIVE_TASK_STATES, mode_text, transcript_sections
 from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, RoundedSurface,
-                                   SendButton, button, label, symbol_button)
+                                   SendButton, TranscriptView, accent_color, button, label, symbol_button)
 from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ class Desktop(NSObject):
         self.persona_settings = None
         self.state = Snapshot()
         self.bubble_open = False
+        self.bubble_offset: tuple[float, float] | None = None
         self.last_revision = -1
         self.closing = False
         self.submission = None
@@ -63,6 +64,7 @@ class Desktop(NSObject):
         self.history_request = None
         self.history_request_session = ""
         self.history_refresh_pending = False
+        self.follow_latest_message = True
         self.context_until = 0
         self.context_reveal_at = 0
         return self
@@ -114,34 +116,32 @@ class Desktop(NSObject):
         panel.setReleasedWhenClosed_(False)
 
     @objc.python_method
-    def makeBubble(self):
-        self.bubble = ConversationPanel.alloc().initWithContentRect_styleMask_backing_defer_(((0, 0), (360, 178)),
+    def makeBubble(self) -> None:
+        self.bubble = ConversationPanel.alloc().initWithContentRect_styleMask_backing_defer_(((0, 0), (392, 200)),
             AK.NSWindowStyleMaskBorderless | AK.NSWindowStyleMaskNonactivatingPanel, AK.NSBackingStoreBuffered, False)
         self.preparePanel(self.bubble)
         self.bubble.setBecomesKeyOnlyIfNeeded_(True)
         self.bubble.setTitle_(self.agent_name)
-        view = RoundedSurface.alloc().initWithFrame_(((0, 0), (360, 178)))
+        view = RoundedSurface.alloc().initWithFrame_(((0, 0), (392, 200)))
         view.kind = "panel"
+        view.owner = self
+        self.bubble.setHasShadow_(True)
         self.bubble.setContentView_(view)
         self.bubble_view = view
-        self.title_label = label(self.agent_name, ((18, 138), (112, 24)), 15)
+        self.title_label = label(self.agent_name, ((18, 160), (276, 24)), 15)
+        self.title_label.setMaximumNumberOfLines_(1)
+        self.title_label.setLineBreakMode_(AK.NSLineBreakByTruncatingTail)
         self.title_label.setFont_(AK.NSFont.systemFontOfSize_weight_(15, AK.NSFontWeightSemibold))
-        self.mode_label = label("", ((139, 140), (166, 20)), 11, AK.NSColor.secondaryLabelColor())
-        self.mode_label.setAlignment_(AK.NSTextAlignmentRight)
-        self.close_button = symbol_button("xmark", "收起对话", ((316, 138), (28, 28)), self, "toggleBubble:")
+        self.mode_label = label("", ((18, 140), (310, 18)), 11, AK.NSColor.secondaryLabelColor())
+        self.mode_label.setMaximumNumberOfLines_(1)
+        self.mode_label.setLineBreakMode_(AK.NSLineBreakByTruncatingTail)
+        self.close_button = symbol_button("xmark", "收起对话", ((346, 158), (28, 28)), self, "toggleBubble:")
         self.close_button.setContentTintColor_(AK.NSColor.secondaryLabelColor())
 
-        self.transcript = AK.NSTextView.alloc().initWithFrame_(((0, 0), (328, 24)))
-        self.transcript.setEditable_(False)
-        self.transcript.setSelectable_(True)
-        self.transcript.setDrawsBackground_(False)
-        self.transcript.setTextContainerInset_((0, 0))
-        self.transcript.textContainer().setLineFragmentPadding_(0)
-        self.transcript.setVerticallyResizable_(True)
-        self.transcript.setHorizontallyResizable_(False)
-        self.transcript.setAutoresizingMask_(AK.NSViewWidthSizable)
-        self.transcript.textContainer().setWidthTracksTextView_(True)
-        self.transcript_scroll = AK.NSScrollView.alloc().initWithFrame_(((16, 104), (328, 24)))
+        self.panel_button = symbol_button("sidebar.left", "打开伙伴控制台", ((310, 158), (28, 28)), self, "openPanel:")
+        self.panel_button.setContentTintColor_(AK.NSColor.secondaryLabelColor())
+        self.transcript = TranscriptView.alloc().initWithFrame_(((0, 0), (356, 24)))
+        self.transcript_scroll = AK.NSScrollView.alloc().initWithFrame_(((18, 108), (356, 24)))
         self.transcript_scroll.setDrawsBackground_(False)
         self.transcript_scroll.setBorderType_(AK.NSNoBorder)
         self.transcript_scroll.setHasVerticalScroller_(True)
@@ -149,9 +149,9 @@ class Desktop(NSObject):
         self.transcript_scroll.setScrollerStyle_(AK.NSScrollerStyleOverlay)
         self.transcript_scroll.setDocumentView_(self.transcript)
 
-        self.composer = RoundedSurface.alloc().initWithFrame_(((16, 50), (328, 42)))
+        self.composer = RoundedSurface.alloc().initWithFrame_(((18, 50), (356, 46)))
         self.composer.kind = "input"
-        self.input = AK.NSTextField.alloc().initWithFrame_(((12, 10), (263, 22)))
+        self.input = AK.NSTextField.alloc().initWithFrame_(((14, 12), (282, 22)))
         self.input.setFont_(AK.NSFont.systemFontOfSize_(13))
         self.input.setBordered_(False)
         self.input.setDrawsBackground_(False)
@@ -164,20 +164,20 @@ class Desktop(NSObject):
         self.input.cell().setUsesSingleLineMode_(True)
         self.input.cell().setScrollable_(True)
         self.input.cell().setSendsActionOnEndEditing_(False)
-        self.send_button = symbol_button("arrow.up", "发送 · 回车", ((286, 6), (30, 30)), self, "submitText:", SendButton)
+        self.send_button = symbol_button("arrow.up", "发送 · 回车", ((312, 7), (32, 32)), self, "submitText:", SendButton)
         self.composer.addSubview_(self.input)
         self.composer.addSubview_(self.send_button)
 
-        self.mic_button = button("语音", ((12, 10), (78, 28)), self, "toggleMic:")
+        self.mic_button = button("语音", ((16, 12), (88, 28)), self, "toggleMic:")
         self.mic_button.setBordered_(False)
         self.mic_button.setImagePosition_(AK.NSImageLeading)
         self.mic_button.setToolTip_("开启或关闭语音 · Control + Option + 空格")
-        self.shortcut_label = label("⌃⌥ 空格", ((94, 15), (80, 18)), 11, AK.NSColor.tertiaryLabelColor())
-        self.cancel_button = button("停止", ((272, 10), (74, 28)), self, "cancelTask:")
+        self.shortcut_label = label("⌃⌥ 空格", ((112, 17), (82, 18)), 11, AK.NSColor.tertiaryLabelColor())
+        self.cancel_button = button("停止", ((300, 12), (74, 28)), self, "cancelTask:")
         self.cancel_button.setBordered_(False)
-        self.allow_button = button("允许操作", ((179, 10), (100, 28)), self, "allow:")
-        self.deny_button = button("拒绝", ((279, 10), (67, 28)), self, "deny:")
-        for item in (self.title_label, self.mode_label, self.close_button, self.transcript_scroll,
+        self.allow_button = button("允许操作", ((197, 12), (108, 28)), self, "allow:")
+        self.deny_button = button("拒绝", ((305, 12), (69, 28)), self, "deny:")
+        for item in (self.title_label, self.mode_label, self.close_button, self.panel_button, self.transcript_scroll,
                      self.composer, self.mic_button, self.shortcut_label, self.cancel_button,
                      self.allow_button, self.deny_button):
             view.addSubview_(item)
@@ -389,7 +389,7 @@ class Desktop(NSObject):
         self.backend.submit(self.backend.application.toggle_context())
 
     @objc.python_method
-    def positionBubble(self):
+    def positionBubble(self) -> None:
         frame = self.pet.frame()
         screen = (self.pet.screen() or AK.NSScreen.mainScreen()).visibleFrame()
         width, height = self.bubble.frame().size
@@ -397,6 +397,10 @@ class Desktop(NSObject):
         y = frame.origin.y + frame.size.height - 10
         if y + height > screen.origin.y + screen.size.height:
             y = max(screen.origin.y + 8, frame.origin.y - height + 10)
+        if self.bubble_offset is not None:
+            dx, dy = self.bubble_offset
+            x = max(screen.origin.x + 8, min(frame.origin.x + dx, screen.origin.x + screen.size.width - width - 8))
+            y = max(screen.origin.y + 8, min(frame.origin.y + dy, screen.origin.y + screen.size.height - height - 8))
         self.bubble.setFrameOrigin_((x, y))
 
     @objc.python_method
@@ -482,6 +486,8 @@ class Desktop(NSObject):
             try:
                 events = self.history_request.result()
                 if self.history_request_session == self.state.session_id:
+                    if events and not self.conversation_events:
+                        self.follow_latest_message = True
                     self.conversation_events = events
             except Exception:
                 logger.warning("conversation history refresh failed", exc_info=True)
@@ -603,10 +609,12 @@ class Desktop(NSObject):
             self.appearance_error = None
 
     @objc.python_method
-    def updateLabels(self):
+    def updateLabels(self) -> None:
         self.context_menu_item.setTitle_("关闭屏幕总结" if self.state.context_enabled else "开启屏幕总结")
         active = self.state.task in ACTIVE_TASK_STATES
-        self.mode_label.setStringValue_(mode_text(self.state))
+        self.mode_label.setStringValue_(mode_text(self.state) or "在这里陪你")
+        self.mode_label.setToolTip_(mode_text(self.state) or "在这里陪你")
+        self.mic_button.setContentTintColor_(accent_color() if self.state.voice != "off" else AK.NSColor.secondaryLabelColor())
         self.mic_button.setTitle_("结束语音" if self.state.voice != "off" else "语音")
         self.mic_button.setImage_(AK.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
             "mic.fill" if self.state.voice != "off" else "mic", "语音"))
@@ -642,7 +650,7 @@ class Desktop(NSObject):
             return False
 
     @objc.python_method
-    def updateTranscript(self):
+    def updateTranscript(self) -> None:
         sections = transcript_sections(
             self.state, self.input_feedback, history=self.conversation_events,
             assistant_name=self.agent_name,
@@ -651,34 +659,24 @@ class Desktop(NSObject):
         if signature == self.content_signature:
             return
         self.content_signature = signature
-        content = NSMutableAttributedString.alloc().initWithString_("")
-        def append(text, size, color, spacing=0):
-            paragraph = AK.NSMutableParagraphStyle.alloc().init()
-            paragraph.setParagraphSpacing_(spacing)
-            paragraph.setLineSpacing_(3)
-            content.appendAttributedString_(NSAttributedString.alloc().initWithString_attributes_(text, {
-                AK.NSFontAttributeName: AK.NSFont.systemFontOfSize_(size),
-                AK.NSForegroundColorAttributeName: color, AK.NSParagraphStyleAttributeName: paragraph}))
-        for index, (role, text) in enumerate(sections):
-            append(role + "\n", 10, AK.NSColor.secondaryLabelColor(), 3)
-            append(text + ("\n" if index < len(sections) - 1 else ""), 13, AK.NSColor.labelColor(), 10)
-        if not sections:
-            append("有什么需要我帮忙？", 13, AK.NSColor.secondaryLabelColor())
-        self.transcript.textStorage().setAttributedString_(content)
-        self.transcript.textContainer().setContainerSize_((328, 1000000))
-        manager = self.transcript.layoutManager()
-        manager.ensureLayoutForTextContainer_(self.transcript.textContainer())
-        text_height = max(22, manager.usedRectForTextContainer_(self.transcript.textContainer()).size.height + 4)
-        visible_height = min(172, text_height)
-        height = visible_height + 156
-        self.bubble.setContentSize_((360, height))
-        self.bubble_view.setFrame_(((0, 0), (360, height)))
+        clip = self.transcript_scroll.contentView()
+        previous_y = clip.bounds().origin.y
+        previous_height = self.transcript.frame().size.height
+        at_bottom = self.follow_latest_message or previous_y + clip.bounds().size.height >= previous_height - 24
+        self.follow_latest_message = False
+        text_height = self.transcript.render(sections, 356)
+        visible_height = min(240, text_height)
+        height = visible_height + 176
+        self.bubble.setContentSize_((392, height))
+        self.bubble_view.setFrame_(((0, 0), (392, height)))
         self.title_label.setFrameOrigin_((18, height - 40))
-        self.mode_label.setFrameOrigin_((139, height - 38))
-        self.close_button.setFrameOrigin_((316, height - 40))
-        self.transcript_scroll.setFrame_(((16, 104), (328, visible_height)))
-        self.transcript.setFrameSize_((328, text_height))
-        self.transcript.scrollRangeToVisible_((content.length(), 0))
+        self.mode_label.setFrameOrigin_((18, height - 59))
+        self.close_button.setFrameOrigin_((346, height - 42))
+        self.panel_button.setFrameOrigin_((310, height - 42))
+        self.transcript_scroll.setFrame_(((18, 108), (356, visible_height)))
+        self.transcript_scroll.contentView().scrollToPoint_((0,
+            max(0, text_height - visible_height) if at_bottom else min(previous_y, max(0, text_height - visible_height))))
+        self.transcript_scroll.reflectScrolledClipView_(clip)
         self.positionBubble()
 
     @objc.python_method
