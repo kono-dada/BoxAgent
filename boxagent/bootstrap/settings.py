@@ -44,7 +44,7 @@ class Settings:
     perception_model: Path
     soul_file: Path
     engine_watch: bool
-    intent_reference_enabled: bool = False
+    intent_reference_enabled: bool = True
 
     @property
     def runs_dir(self) -> Path:
@@ -211,6 +211,6 @@ def load_settings(*, log_dir=None) -> Settings:
             "BOXAGENT_PERCEPTION_MODEL", ROOT / "models/qwen3.5-0.8b-mlx")),
         soul_file=resolve_soul_file(data),
         engine_watch=read_bool("BOXAGENT_ENGINE_WATCH", default=(ROOT / ".git").exists()),
-        intent_reference_enabled=read_optional_setting("BOXAGENT_INTENT_REFERENCE").strip().lower()
-                                 not in {"", "0", "false", "no", "off"},
+        intent_reference_enabled=(read_optional_setting("BOXAGENT_INTENT_REFERENCE") or "1").strip().lower()
+                                 not in {"0", "false", "no", "off"},
     )
