@@ -72,10 +72,10 @@ Qwen 的实际非音频 WebSocket 请求记录在 `logs/runtime/qwen/events.json
 
 ## 记忆图可视化
 
-记忆看板仍是原生 AppKit 窗口，中间的关系图改由本地 `WKWebView + vis-network 9.1.9`
-渲染。HTML 和 JavaScript 位于 `assets/memory-graph/`，不启动 HTTP 服务，不访问 CDN。
-图中支持力导向布局、平行曲线边、关系类型筛选、Hover、缩放、平移、拖动节点和双击聚焦。
-点击节点仍通过 WebKit Message Handler 回到原生详情面板；删除、搜索和记忆 API 边界未变。
+记忆图已迁入 `web/panel` 的 React + vis-network 页面，支持关系图/列表、类型分层、
+平行曲线边、关系筛选、缩放、拖动、双击聚焦和邻居探索。节点详情、删除与图查询通过
+Engine IPC 完成。旧 AppKit 记忆窗口和独立 `assets/memory-graph/` WebKit 资源已删除。
+控制台设置提供中英文及浅色、深色、跟随系统，图标签和画布外观同步变化；记忆正文保持原文。
 
 ## 兼容旧目录
 

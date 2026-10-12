@@ -77,6 +77,18 @@ class SendButton(AK.NSButton):
         objc.super(SendButton, self).drawRect_(rect)
 
 
+class LatestMessageButton(AK.NSButton):
+    def drawRect_(self, rect: object) -> None:
+        bounds = AK.NSInsetRect(self.bounds(), 1, 1)
+        path = AK.NSBezierPath.bezierPathWithOvalInRect_(bounds)
+        accent_color().setFill()
+        path.fill()
+        AK.NSColor.separatorColor().setStroke()
+        path.setLineWidth_(.5)
+        path.stroke()
+        objc.super(LatestMessageButton, self).drawRect_(rect)
+
+
 class TranscriptView(FlippedView):
     """Measure real text layout and retain full selectable text in every card."""
 

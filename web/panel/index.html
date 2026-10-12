@@ -25,39 +25,39 @@
     <symbol id="i-task" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M9 5V3h6v2M8 11h8M8 15h5"/></symbol>
   </svg>
   <div class="workspace">
-    <aside class="sidebar" aria-label="会话管理导航">
+    <aside class="sidebar" aria-label="会话管理导航" data-i18n-aria-label="会话管理导航">
       <div class="window-drag" aria-hidden="true"></div>
-      <div class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-spark"/></svg></span><div><strong>伙伴</strong><span>陪伴与管理</span></div></div>
-      <nav class="navigation" aria-label="主要功能">
-        <button data-view="conversation" aria-current="page"><svg class="icon"><use href="#i-chat"/></svg><span>对话与会话</span></button>
-        <button data-view="memory"><svg class="icon"><use href="#i-memory"/></svg><span>长期记忆</span></button>
-        <button data-view="skills"><svg class="icon"><use href="#i-task"/></svg><span>Skill 管理</span></button>
-        <button data-view="runs"><svg class="icon"><use href="#i-timeline"/></svg><span>任务与运行记录</span></button>
-        <span class="navigation-label">观察</span>
-        <button data-view="context"><svg class="icon"><use href="#i-context"/></svg><span>有效上下文</span></button>
-        <button data-view="timeline"><svg class="icon"><use href="#i-timeline"/></svg><span>事件时间线</span></button>
+      <div class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-spark"/></svg></span><div><strong data-i18n="伙伴">伙伴</strong><span data-i18n="陪伴与管理">陪伴与管理</span></div></div>
+      <nav class="navigation" aria-label="主要功能" data-i18n-aria-label="主要功能">
+        <button data-view="conversation" aria-current="page"><svg class="icon"><use href="#i-chat"/></svg><span data-i18n="对话与会话">对话与会话</span></button>
+        <button data-view="memory"><svg class="icon"><use href="#i-memory"/></svg><span data-i18n="长期记忆">长期记忆</span></button>
+        <button data-view="skills"><svg class="icon"><use href="#i-task"/></svg><span data-i18n="Skill 管理">Skill 管理</span></button>
+        <button data-view="runs"><svg class="icon"><use href="#i-timeline"/></svg><span data-i18n="任务与运行记录">任务与运行记录</span></button>
+        <span class="navigation-label" data-i18n="观察">观察</span>
+        <button data-view="context"><svg class="icon"><use href="#i-context"/></svg><span data-i18n="有效上下文">有效上下文</span></button>
+        <button data-view="timeline"><svg class="icon"><use href="#i-timeline"/></svg><span data-i18n="事件时间线">事件时间线</span></button>
       </nav>
-      <div class="session-heading"><h2>产品会话</h2><span id="session-count">—</span></div>
-      <div id="sessions" class="session-list" aria-label="会话列表"></div>
-      <footer class="sidebar-footer"><button id="settings-button" class="settings-button" data-view="settings" aria-controls="settings-tabs" aria-expanded="false"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button><span id="connection" data-state="connecting"><span class="status-dot"></span><span id="status" role="status">连接中</span></span></footer>
+      <div class="session-heading"><h2 data-i18n="产品会话">产品会话</h2><span id="session-count">—</span></div>
+      <div id="sessions" class="session-list" aria-label="会话列表" data-i18n-aria-label="会话列表"></div>
+      <footer class="sidebar-footer"><button id="settings-button" class="settings-button" data-view="settings" aria-controls="settings-tabs" aria-expanded="false"><svg class="icon"><use href="#i-settings"/></svg><span data-i18n="设置">设置</span></button><span id="connection" data-state="connecting"><span class="status-dot"></span><span id="status" role="status" data-i18n="连接中">连接中</span></span></footer>
     </aside>
     <main class="page" id="page">
-      <div class="page-topbar"><span id="scope">产品会话</span><span id="runtime-status">Engine</span></div>
+      <div class="page-topbar"><span id="scope" data-i18n="产品会话">产品会话</span><span id="runtime-status">Engine</span></div>
       <div class="page-inner">
-        <header class="page-header"><div><p class="eyebrow" id="eyebrow">CONVERSATION</p><h1 id="page-title">对话与会话</h1><p class="page-description" id="description">继续相处，也可以从一个新话题开始。</p></div><button id="refresh" class="button" title="刷新当前数据"><svg class="icon"><use href="#i-refresh"/></svg><span>刷新</span></button></header>
-        <nav id="settings-tabs" class="settings-tabs" aria-label="设置分类" hidden>
-          <button data-view="settings">概览</button><button data-view="appearance">3D 形象</button><button data-view="persona">角色设定</button><button data-view="controls">语音与桌面</button><button data-view="errors">诊断日志</button>
-          <button id="settings-back" class="settings-back">返回主页面</button>
+        <header class="page-header"><div><p class="eyebrow" id="eyebrow">CONVERSATION</p><h1 id="page-title" data-i18n="对话与会话">对话与会话</h1><p class="page-description" id="description">继续相处，也可以从一个新话题开始。</p></div><button id="refresh" class="button" title="刷新当前数据" data-i18n-title="刷新当前数据"><svg class="icon"><use href="#i-refresh"/></svg><span data-i18n="刷新">刷新</span></button></header>
+        <nav id="settings-tabs" class="settings-tabs" aria-label="设置分类" data-i18n-aria-label="设置分类" hidden>
+          <button data-view="settings" data-i18n="概览">概览</button><button data-view="interface" data-i18n="界面偏好">界面偏好</button><button data-view="appearance" data-i18n="3D 形象">3D 形象</button><button data-view="persona" data-i18n="角色设定">角色设定</button><button data-view="controls" data-i18n="语音与桌面">语音与桌面</button><button data-view="errors" data-i18n="诊断日志">诊断日志</button>
+          <button id="settings-back" class="settings-back" data-i18n="返回主页面">返回主页面</button>
         </nav>
         <div id="summary" class="summary" role="status" aria-live="polite">正在读取会话…</div>
-        <div class="content-tools"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="search" type="search" placeholder="查找当前页内容" aria-label="查找当前页内容" autocomplete="off"></label><span id="result-count" class="metadata"></span></div>
+        <div class="content-tools"><label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="search" type="search" placeholder="查找当前页内容" data-i18n-placeholder="查找当前页内容" aria-label="查找当前页内容" data-i18n-aria-label="查找当前页内容" autocomplete="off"></label><span id="result-count" class="metadata"></span></div>
         <div id="content" aria-busy="true"></div>
         <p class="page-footnote" id="footnote"></p>
       </div>
     </main>
   </div>
   <dialog id="detail" aria-labelledby="detail-title">
-    <div class="detail-header"><div><p class="eyebrow">DETAIL</p><h2 id="detail-title">记录详情</h2></div><button id="close" class="icon-button" aria-label="关闭详情"><svg class="icon"><use href="#i-close"/></svg></button></div>
+    <div class="detail-header"><div><p class="eyebrow">DETAIL</p><h2 id="detail-title" data-i18n="记录详情">记录详情</h2></div><button id="close" class="icon-button" aria-label="关闭详情" data-i18n-aria-label="关闭详情"><svg class="icon"><use href="#i-close"/></svg></button></div>
     <p id="detail-meta" class="metadata"></p><pre id="full"></pre>
   </dialog>
   <script type="module" src="renderer.js"></script>

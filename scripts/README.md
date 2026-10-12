@@ -18,7 +18,6 @@
 | `setup_vrm.sh` | 下载 Git LFS 中的模型和共享动作，使用 pnpm 安装并构建播放器 |
 | `check_vrm_ui.py` | `pet.py --check-vrm-ui`，验证真实 VRM 渲染、3D 换装、失败保留和资源释放；语音与任务使用替身 |
 | `check_pet_ui.py` | `pet.py --check-ui`，仅测试窗口、合成文字、记忆图和替身；结果在 `.runtime/pet/ui-check/` |
-| `check_memory_graph_ui.py` | `pet.py --check-memory-graph-ui`，锁屏下用离屏 WKWebView 验证本地图加载、Canvas 像素、布局、筛选和原生消息桥；不使用 CU 或屏幕录制权限 |
 | `check_window_summary.py` | `pet.py --check-context`，读取真实前台窗口，运行本地模型 |
 | `experiments/window_summary_eval.py` | FIX-01 离线对比，默认生成 12 张合成界面；`--images` 可指定本机截图。与生产 worker 共用提示词和配置，结果及样本哈希写入 `.runtime/window-summary-eval/` |
 | `migrate_sessions_v1.py` | 持 Engine 锁与 Session 锁复制、校验旧会话和任务；要求 Engine 退出；`--rollback` 导出全部正式历史再切换，原数据保留 |

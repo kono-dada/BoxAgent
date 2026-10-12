@@ -109,7 +109,9 @@ Final User Message 直接交给 Jev-Mem，不再调用 Codex 候选提取器，�
 
 桌宠启动时会后台预热记忆 Worker。首次启动仍需加载本地 embedding 模型，可能明显慢于后续请求。Final User Message 一经 Session Store 持久化就创建 durable ingestion job，Jev-Mem 完成是否保存、类型判断、关系构造和索引；Assistant 消息、屏幕摘要、原始音频和未经验证的桌面操作中间状态不会进入自动写入链路。显式“记住”带 `explicit` 标记并强制进入 Jev-Mem，但仍经过本地 Secret Filter。
 
-启动桌宠后，可从 macOS 右上角 `◉` 菜单或桌宠右键菜单打开“记忆看板…”。看板通过同一个 Worker 读取 Jev-Mem 的脱敏、限量图快照；不开放本机端口，也不直接读取 `graph.json`。删除使用 Jev-Mem 的精确节点 ID，并在界面显示原生确认框。
+启动桌宠后，从菜单栏星光图标或桌宠右键菜单打开「伙伴控制台…」，在长期记忆页查看图、列表和节点关系。React / Electron 页面通过本机 `engine.sock` 调用同一个 Worker 的脱敏、限量图快照，不直接读取 `graph.json`。删除使用精确节点 ID，并在控制台确认。旧 AppKit 记忆、Skill、角色管理窗口已移除。
+
+控制台依赖安装与启动：`pnpm --dir web/panel install`、`pnpm --dir web/panel start`。如设置 `BOXAGENT_DATA_DIR`，控制台与桌宠须使用同一目录。设置 → 界面偏好提供中英文及浅色 / 深色 / 跟随系统。架构与通道详见 [前后端连接](BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
 
 持久化文件保留在本机，但启用真实后端时，Jev-Mem 会把决策所需的记忆文本和查询发送给 TypeSafe.ai JEV Decision Model；语音回忆命中的精简内容会通过 Function Calling 结果返回当前千问 Realtime 会话。不应将敏感信息写入当前记忆实现，也不应将这一路径描述为纯本地处理。
 

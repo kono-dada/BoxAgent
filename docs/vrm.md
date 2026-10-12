@@ -104,3 +104,7 @@ BOXAGENT_VRM_CONTROLS_ONLY=1 BOXAGENT_VRM_PET_DIR=assets/vrm/models/zome \
 动作目前尚未与 Unity 运行结果逐帧对照，AnimationMixer 的混合不是完整 Mecanim 实现。视觉参数直接参考同为 Three.js 的 Web 版，但保留桌宠的透明窗口与固定取景，没有加入 Web 版岛屿和相机跟随。原版完整表情动画层尚未移植，眨眼与口型仍由 BoxAgent 的适配层驱动；清单中存在一个表情资源，不代表其对应的 Unity 状态已经接入。
 
 团队仓库通过 LFS 保存 Zome 与共享动作包。资源来源、模型元数据与原始许可见 `assets/vrm/licenses/`，各素材原有授权条件保持不变。
+
+## 控制台角色预览主题
+
+控制台复用同一播放器，以 `previewTheme=light|dark` 指定预览背景，并通过父窗口主题消息同步变化；深色预览使用控制台同色底，模型无需重载。未带预览参数的原生桌宠保持透明背景。预览页面只处理明暗枚举，不处理业务命令；形象应用仍走 `desktop.sock`。

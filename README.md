@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 | 统一会话上下文 | 文字、语音、Qwen 与任务 Runtime 共享同一个持久 Product Session |
 | 长期记忆 | Jev-Mem 自动判断值得保存的信息，支持画像、叙事记忆和主动召回 |
 | Skill 系统 | 管理内置与用户 Skill，也可以从真实任务轨迹生成并安装 Skill 草稿 |
-| 原生桌宠界面 | 提供 3D 角色、任务状态、记忆图谱和 Skill 管理入口 |
+| 桌宠与伙伴控制台 | AppKit 提供 3D 桌宠与对话小窗；React / Electron 控制台管理会话、记忆、上下文、Skill 与设置 |
 
 例如，你可以对它说：
 
@@ -55,6 +55,8 @@ flowchart LR
 - Harness 负责编译当前时间、Session 历史、相关记忆、Skill 与安全策略。
 - 后台结果先写入持久 Outbox，再通过语音、桌宠未读状态或系统通知送达。
 - Final User Message 落盘后异步进入 Jev-Mem，不阻塞当轮回复。
+
+桌面界面由原生宿主和独立伙伴控制台共同提供。控制台用 React / TypeScript / Vite 构建，运行在 Electron 中，通过本机 IPC 调用 Python Engine 和 macOS Host；详细连接方式见 [前后端连接](docs/BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
 
 更完整的数据流和模块边界见 [架构重构方案](docs/BoxAgent-架构重构方案.md)、[Conversation Context 设计](docs/BoxAgent-Phase3-Conversation-Context-设计.md) 与 [Memory 设计](docs/BoxAgent-Phase4-Memory-设计.md)。
 
@@ -99,14 +101,16 @@ uv run --script scripts/pet.py
 
 也可以双击 `启动桌宠.command`。首次启动需要下载 Python 依赖，并可能请求麦克风、屏幕录制与辅助功能权限。
 
-启动时只显示 3D 桌宠，默认形象为 Zome。聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从菜单开启，开启后默认每 15 秒检查前台窗口。
+启动时只显示 3D 桌宠，默认形象为 Zome。聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从伙伴控制台的「设置 → 语音与桌面」开启，开启后默认每 15 秒检查前台窗口。
 
 ### 5. 开始使用
 
 - `Control + Option + Space`：开启或关闭麦克风
 - 点击桌宠：展开或收起对话
 - 拖动桌宠：移动位置
-- 右键桌宠或点击菜单栏 `◉`：打开角色、记忆、Skill、形象和屏幕总结等入口
+- 右键桌宠或点击菜单栏星光图标：打开伙伴控制台、新建会话或退出 BoxAgent
+- 伙伴控制台左下角「设置」：界面语言（中文 / English）、浅色 / 深色 / 跟随系统、3D 形象、角色、语音与桌面、诊断
+- 对话小窗上滑查看历史时，点击右下角箭头回到最新消息
 - “取消任务”或“停止任务”：停止当前后台任务的后续操作
 
 ## 配置
@@ -116,7 +120,7 @@ uv run --script scripts/pet.py
 | Qwen Realtime | AOQ 提供全双工语音、回声消除与降噪；WebSocket 仅作诊断降级 | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
 | 桌面任务 | DeepSeek 负责规划，Codex Runtime 提供工具循环与 Computer Use | `DEEPSEEK_API_KEY`、`BOXAGENT_CODEX_BIN` |
 | Jev-Mem | 使用 JEV Decision Model 完成记忆准入与检索决策 | `TYPESAFE_API_KEY`、`BOXAGENT_JEV_MEM_BACKEND=jev` |
-| 本地屏幕总结 | 启动时关闭，可从菜单开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
+| 本地屏幕总结 | 启动时关闭，可从控制台设置开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
 | 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |
 | 用户 Skill | 默认保存在本地运行目录并热同步 Runtime | `BOXAGENT_SKILLS_DIR` |
 
@@ -143,7 +147,8 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 异步 Computer Use、取消、终态核验与持久通知 Outbox
 - 持久 Product Session、Runtime 恢复 Checkpoint 与跨 Runtime 上下文
 - Jev-Mem 自动写入、Profile、Narrative、L2 direct recall 与 L3 deep recall
-- 原生记忆图谱、Skill 管理、对话式 Skill 创建与安装
+- React / Electron 伙伴控制台：记忆图、上下文请求控制台、会话、Skill、任务与设置；中英文和浅色 / 深色 / 系统主题
+- 原生对话小窗、对话式 Skill 创建与安装；旧 AppKit 记忆 / Skill / 角色管理窗口已由控制台替代
 - 仅支持 3D VRM 形象、本地导入与运行中换装；共享模型和动作通过 Git LFS 管理
 - 本地 MLX 前台窗口总结
 
@@ -169,7 +174,10 @@ boxagent/
 │   ├── harness/       # 上下文、策略与 Runtime 编排
 │   └── runtime/       # Runtime 合同与模型 Profile
 ├── infrastructure/   # Qwen、Codex、Jev-Mem、持久化等适配器
-└── interfaces/        # macOS 原生 UI 与 Engine IPC
+└── interfaces/        # macOS 原生桌宠 / 小窗、Engine 与 Host IPC
+web/
+├── panel/             # React / TypeScript / Vite + Electron 伙伴控制台
+└── vrm/               # Three.js / three-vrm 共享角色播放器
 ```
 
 依赖方向为 `entrypoints → bootstrap → application/domain/agent ← infrastructure`。领域层不直接依赖 Qwen、Codex、Jev-Mem 或 AppKit 的具体实现。
@@ -185,6 +193,14 @@ uv run --script scripts/pet.py --check-ui
 
 # 测试套件
 uv run --with pytest python -m pytest -q
+
+# 控制台构建与前端测试
+pnpm --dir web/panel install
+pnpm --dir web/panel build
+pnpm --dir web/panel test
+
+# 打开控制台（需先启动桌宠，或独立 Engine）
+pnpm --dir web/panel start
 ```
 
 真实语音、Computer Use 和屏幕总结测试可能产生模型用量、读取屏幕或改变应用状态。运行前请先阅读 [脚本用途与副作用](scripts/README.md)。
@@ -194,7 +210,8 @@ uv run --with pytest python -m pytest -q
 | 主题 | 文档 |
 | --- | --- |
 | 安装与配置 | [本机环境准备](docs/setup.md) |
-| 当前架构 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
+| 当前架构与前后端连接 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
+| 伙伴控制台与界面偏好 | [Panel README](web/panel/README.md) |
 | 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
 | 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
 | 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |

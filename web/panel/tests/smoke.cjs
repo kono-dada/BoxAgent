@@ -16,7 +16,7 @@ async function runSmoke(window) {
     throw new Error('Panel did not finish loading');
   }
   async function navigate(view) {
-    if (['appearance','persona','controls','errors'].includes(view)) {
+    if (['appearance','persona','controls','errors','interface'].includes(view)) {
       if (await js(`document.getElementById('settings-tabs').hidden`)) {
         await js(`document.getElementById('settings-button').click()`); await ready();
       }
@@ -41,7 +41,7 @@ async function runSmoke(window) {
     check(await js(`Boolean(document.querySelector('.empty-state'))`), 'disconnected state has recovery action');
     await capture('disconnected');
     await navigate('settings');
-    check(await js(`document.querySelectorAll('.settings-category').length === 4`), 'settings categories remain available offline');
+    check(await js(`document.querySelectorAll('.settings-category').length === 5`), 'settings categories remain available offline');
     await capture('settings-offline');
   } else {
     await navigate('context');
@@ -207,7 +207,7 @@ async function runSmoke(window) {
     await js(`document.getElementById('page').scrollTop=150`);
     const settingsReturnScroll=await js(`document.getElementById('page').scrollTop`);
     await navigate('settings');
-    check(await js(`document.querySelectorAll('.settings-category').length===4 && document.getElementById('settings-button').getAttribute('aria-expanded')==='true'`),'settings overview exposes all four categories');
+    check(await js(`document.querySelectorAll('.settings-category').length===5 && document.getElementById('settings-button').getAttribute('aria-expanded')==='true'`),'settings overview exposes all five categories');
     await capture('settings');
     window.setContentSize(760,680); await new Promise(resolve=>setTimeout(resolve,150));
     check(await js(`document.getElementById('page').scrollWidth <= document.getElementById('page').clientWidth && document.body.scrollWidth <= innerWidth`),'settings fits narrow window');

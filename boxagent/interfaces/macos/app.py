@@ -9,8 +9,7 @@ from pathlib import Path
 
 import AppKit as AK
 import objc
-from Foundation import (NSObject, NSTimer, NSAttributedString,
-                        NSMutableAttributedString, NSUserNotification,
+from Foundation import (NSObject, NSTimer, NSNotificationCenter, NSUserNotification,
                         NSUserNotificationCenter,
                         NSUserNotificationDefaultSoundName, NSURL)
 
@@ -18,9 +17,8 @@ from boxagent.core.states import Snapshot
 from boxagent.agent.harness.persona import update_persona_name
 from boxagent.interfaces.macos.hotkey import Hotkey
 from boxagent.interfaces.macos.menu import install_menus
-from boxagent.interfaces.macos.run_records import SessionRunRecords
 from boxagent.interfaces.macos.state import ACTIVE_TASK_STATES, mode_text, transcript_sections
-from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, RoundedSurface,
+from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, LatestMessageButton, RoundedSurface,
                                    SendButton, TranscriptView, accent_color, button, label, symbol_button)
 from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
 
@@ -30,8 +28,7 @@ logger = logging.getLogger(__name__)
 class Desktop(NSObject):
     @objc.python_method
     def configure(self, backend, appearance, catalog=None, *, data_dir=None,
-                  appearance_factory=None, memory_dashboard_factory=None,
-                  skill_manager_factory=None, persona_settings_factory=None,
+                  appearance_factory=None,
                   persona=None,
                   persona_loader=None, soul_file=None,
                   editable_soul_file=None, on_terminated=None):
@@ -39,17 +36,11 @@ class Desktop(NSObject):
         self.data_dir = data_dir or backend.log_dir
         self.pet_catalog = catalog
         self.appearance_factory = appearance_factory
-        self.memory_dashboard_factory = memory_dashboard_factory
-        self.skill_manager_factory = skill_manager_factory
-        self.persona_settings_factory = persona_settings_factory
         self.persona_loader = persona_loader
         self.soul_file = soul_file
         self.editable_soul_file = editable_soul_file or soul_file
         self.on_terminated = on_terminated
         self.agent_name = getattr(persona, "name", None) or "伙伴"
-        self.memory_dashboard = None
-        self.skill_manager = None
-        self.persona_settings = None
         self.state = Snapshot()
         self.bubble_open = False
         self.bubble_offset: tuple[float, float] | None = None
@@ -99,7 +90,7 @@ class Desktop(NSObject):
         self.pet.setIgnoresMouseEvents_(getattr(self.appearance, "ready", True) is False)
         self.hotkey = Hotkey(lambda: self.toggleMic_(None))
         if not self.hotkey.registered:
-            self.state.error = "快捷键已被占用，请使用菜单或麦克风按钮"
+            self.state.error = "快捷键已被占用，请使用控制台或小窗的麦克风按钮"
         self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1 / 30, self, "tick:", None, True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "app.pid").write_text(str(os.getpid()))
@@ -148,6 +139,15 @@ class Desktop(NSObject):
         self.transcript_scroll.setAutohidesScrollers_(True)
         self.transcript_scroll.setScrollerStyle_(AK.NSScrollerStyleOverlay)
         self.transcript_scroll.setDocumentView_(self.transcript)
+        self.latest_button = symbol_button("arrow.down", "回到最新消息", ((334, 116), (32, 32)),
+                                           self, "scrollToLatest:", LatestMessageButton)
+        self.latest_button.setContentTintColor_(AK.NSColor.whiteColor())
+        self.latest_button.setRefusesFirstResponder_(True)
+        self.latest_button.setHidden_(True)
+        clip = self.transcript_scroll.contentView()
+        clip.setPostsBoundsChangedNotifications_(True)
+        NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+            self, "transcriptScrolled:", AK.NSViewBoundsDidChangeNotification, clip)
 
         self.composer = RoundedSurface.alloc().initWithFrame_(((18, 50), (356, 46)))
         self.composer.kind = "input"
@@ -178,24 +178,31 @@ class Desktop(NSObject):
         self.allow_button = button("允许操作", ((197, 12), (108, 28)), self, "allow:")
         self.deny_button = button("拒绝", ((305, 12), (69, 28)), self, "deny:")
         for item in (self.title_label, self.mode_label, self.close_button, self.panel_button, self.transcript_scroll,
-                     self.composer, self.mic_button, self.shortcut_label, self.cancel_button,
+                     self.latest_button, self.composer, self.mic_button, self.shortcut_label, self.cancel_button,
                      self.allow_button, self.deny_button):
             view.addSubview_(item)
         self.allow_button.setHidden_(True)
         self.deny_button.setHidden_(True)
 
     @objc.python_method
-    def makeMenu(self):
-        self.menu, self.context_menu_item, self.status_item = install_menus(self)
+    def makeMenu(self) -> None:
+        self.menu, self.status_item = install_menus(self)
 
-    def showMemoryDashboard_(self, _sender):
-        if self.memory_dashboard_factory is None:
-            self.state.error = "记忆看板未配置"
-            self.updateLabels()
-            return
-        if self.memory_dashboard is None:
-            self.memory_dashboard = self.memory_dashboard_factory(self)
-        self.memory_dashboard.show()
+    def transcriptScrolled_(self, _notification: object) -> None:
+        self.updateLatestButton()
+
+    @objc.python_method
+    def updateLatestButton(self) -> None:
+        bounds = self.transcript_scroll.contentView().bounds()
+        gap = self.transcript.frame().size.height - bounds.origin.y - bounds.size.height
+        self.latest_button.setHidden_(gap <= 24)
+
+    def scrollToLatest_(self, _sender: object) -> None:
+        clip = self.transcript_scroll.contentView()
+        bottom = max(0, self.transcript.frame().size.height - clip.bounds().size.height)
+        clip.scrollToPoint_((0, bottom))
+        self.transcript_scroll.reflectScrolledClipView_(clip)
+        self.updateLatestButton()
 
     def openPanel_(self, _sender: object) -> None:
         import shutil
@@ -210,25 +217,6 @@ class Desktop(NSObject):
                          env={**os.environ, "BOXAGENT_DATA_DIR": str(self.data_dir)},
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def showSkillManager_(self, _sender):
-        if self.skill_manager_factory is None:
-            self.state.error = "Skill 管理未配置"
-            self.updateLabels()
-            return
-        if self.skill_manager is None:
-            self.skill_manager = self.skill_manager_factory(self)
-        self.skill_manager.show()
-
-    def openRunRecords_(self, _sender):
-        records = SessionRunRecords(self.data_dir / "runs")
-        self._openDirectory(records.materialize_view(self.state.session_id))
-
-    def openLatestRun_(self, _sender):
-        records = SessionRunRecords(self.data_dir / "runs")
-        latest = records.latest(self.state.session_id)
-        self._openDirectory(
-            latest or records.materialize_view(self.state.session_id))
-
     def openDiagnosticLogs_(self, _sender):
         self._openDirectory(self.backend.log_dir)
 
@@ -237,17 +225,6 @@ class Desktop(NSObject):
         path.mkdir(parents=True, exist_ok=True)
         AK.NSWorkspace.sharedWorkspace().openURL_(
             NSURL.fileURLWithPath_(str(path)))
-
-    def editSoul_(self, _sender):
-        if (self.persona_settings_factory is None
-                or self.editable_soul_file is None or self.soul_file is None):
-            self.state.error = "角色设定文件未配置"
-            self.updateLabels()
-            return
-        if self.persona_settings is None:
-            self.persona_settings = self.persona_settings_factory(
-                self, self.soul_file, self.editable_soul_file)
-        self.persona_settings.show()
 
     @objc.python_method
     def reloadPersona(self):
@@ -603,14 +580,13 @@ class Desktop(NSObject):
         error = getattr(self.appearance, "error", None)
         if error and error != self.appearance_error:
             self.appearance_error = error
-            self.input_feedback = f"3D 形象加载失败：{error}。请从菜单重新选择形象。"
+            self.input_feedback = f"3D 形象加载失败：{error}。请到伙伴控制台的设置中重新选择形象。"
             self.showBubble()
         elif ready:
             self.appearance_error = None
 
     @objc.python_method
     def updateLabels(self) -> None:
-        self.context_menu_item.setTitle_("关闭屏幕总结" if self.state.context_enabled else "开启屏幕总结")
         active = self.state.task in ACTIVE_TASK_STATES
         self.mode_label.setStringValue_(mode_text(self.state) or "在这里陪你")
         self.mode_label.setToolTip_(mode_text(self.state) or "在这里陪你")
@@ -630,7 +606,8 @@ class Desktop(NSObject):
         self.send_button.setContentTintColor_(AK.NSColor.whiteColor() if enabled else AK.NSColor.tertiaryLabelColor())
         self.send_button.setNeedsDisplay_(True)
         self.updateTranscript()
-        self.status_item.button().setTitle_("●" if self.state.voice != "off" else "◉")
+        self.status_item.button().setImage_(AK.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+            "mic.fill" if self.state.voice != "off" else "sparkles", "语音已开启" if self.state.voice != "off" else "伙伴控制台"))
         self.last_revision = self.state.revision
         (self.data_dir / "ui.json").write_text(json.dumps({**self.state.payload(), "pet_window": self.pet.windowNumber(),
             "bubble_window": self.bubble.windowNumber(), "pid": os.getpid()}, ensure_ascii=False), encoding="utf-8")
@@ -677,6 +654,7 @@ class Desktop(NSObject):
         self.transcript_scroll.contentView().scrollToPoint_((0,
             max(0, text_height - visible_height) if at_bottom else min(previous_y, max(0, text_height - visible_height))))
         self.transcript_scroll.reflectScrolledClipView_(clip)
+        self.updateLatestButton()
         self.positionBubble()
 
     @objc.python_method
@@ -699,6 +677,8 @@ class Desktop(NSObject):
             self.closing = True
             self.hotkey.close()
             self.timer.invalidate()
+            NSNotificationCenter.defaultCenter().removeObserver_name_object_(
+                self, AK.NSViewBoundsDidChangeNotification, self.transcript_scroll.contentView())
             if getattr(self, "panel_control", None) is not None:
                 self.panel_control.close()
             for appearance in (self.appearance, getattr(self, "pending_appearance", None)):

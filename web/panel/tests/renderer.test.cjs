@@ -9,11 +9,11 @@ function renderer() {
   const handlers = {};
   const node = { addEventListener() {}, dataset: {}, style: {} };
   const context = vm.createContext({
-    document: { getElementById: () => node, querySelectorAll: () => [], addEventListener() {} },
+    document: { title:'', getElementById: () => node, querySelectorAll: () => [], addEventListener() {} },
     boxagent: { onState() {}, onDiagnostic() {}, request: async () => new Promise(() => {}) },
-    console, Intl, Date, setTimeout
+    console, Intl, Date, setTimeout, t: value => value, locale: () => 'zh-CN', startPreferences() {}
   });
-  vm.runInContext(fs.readFileSync(require.resolve('../renderer.js'), 'utf8').replace(/^import .*;\n/, ''), context);
+  vm.runInContext(fs.readFileSync(require.resolve('../renderer.js'), 'utf8').replace(/^import .*;\n/gm, ''), context);
   handlers.event = row => JSON.parse(vm.runInContext(`JSON.stringify(normalizeEvent(${JSON.stringify(row)}))`, context));
   return handlers;
 }

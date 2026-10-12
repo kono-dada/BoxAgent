@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const model = {};
 const compiled = ts.transpileModule(fs.readFileSync(require.resolve('../src/context-model.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-vm.runInNewContext(compiled, { exports: model });
+vm.runInNewContext(compiled, { exports: model, require: () => ({t: (text, ...values) => text.replace(/\{(\d+)\}/g, (_, index) => values[index])}) });
 const framesOf = (state, timeline) => JSON.parse(JSON.stringify(model.buildFrames(state, timeline)));
 const entry = (seq, category, tokens) => ({ seq, category, tokens, label: category, preview: 'content' });
 const request = (seq, entries, added, removed) => ({ seq, time: 1000 + seq, entries, added, removed });

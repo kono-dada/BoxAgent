@@ -1,16 +1,18 @@
+import { t } from './i18n';
+import { locale } from './preferences';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Network, DataSet } from 'vis-network/standalone';
 import type { Bridge, MemoryEdge, MemoryGraph, OpenDetail } from './types';
 const nodeStyles: Record<string, { color: string; shape: string; label: string }> = {
-  EVENT: { color: '#6295ce', shape: 'dot', label: '事件' }, EPISODE: { color: '#a48ace', shape: 'diamond', label: '片段' },
-  NARRATIVE: { color: '#d3a06d', shape: 'box', label: '叙事' }, ENTITY: { color: '#64ab94', shape: 'hexagon', label: '实体' },
-  SESSION: { color: '#91a6ba', shape: 'triangle', label: '会话' }
+  EVENT: { color: '#6295ce', shape: 'dot', get label() { return t("事件"); } }, EPISODE: { color: '#a48ace', shape: 'diamond', get label() { return t("片段"); } },
+  NARRATIVE: { color: '#d3a06d', shape: 'box', get label() { return t("叙事"); } }, ENTITY: { color: '#64ab94', shape: 'hexagon', get label() { return t("实体"); } },
+  SESSION: { color: '#91a6ba', shape: 'triangle', get label() { return t("会话"); } }
 };
 const relations: Record<string, { color: string; label: string }> = {
-  TEMPORAL: { color: '#779cce', label: '时间' }, SEMANTIC: { color: '#68aa9a', label: '语义' },
-  CAUSAL: { color: '#d29a73', label: '因果' }, ENTITY: { color: '#a694cc', label: '实体' }
+  TEMPORAL: { color: '#779cce', get label() { return t("时间"); } }, SEMANTIC: { color: '#68aa9a', get label() { return t("语义"); } },
+  CAUSAL: { color: '#d29a73', get label() { return t("因果"); } }, ENTITY: { color: '#a694cc', get label() { return t("实体"); } }
 };
-const subtypes: Record<string, string> = { RELATED_TO: '相关', LEADS_TO: '导致', PRECEDES: '先于', SUCCEEDS: '后于', TEMPORALLY_CLOSE: '时间接近' };
+const subtypes: Record<string, string> = { get RELATED_TO() { return t("相关"); }, get LEADS_TO() { return t("导致"); }, get PRECEDES() { return t("先于"); }, get SUCCEEDS() { return t("后于"); }, get TEMPORALLY_CLOSE() { return t("时间接近"); } };
 const clean = (value: string) => value.replace(/\s+/g, ' ').trim();
 export function mergeGraph(base: MemoryGraph, patch: MemoryGraph): MemoryGraph {
   const nodes = new Map(base.nodes.map(node => [node.id, node])), edges = new Map(base.edges.map(edge => [edge.id, edge]));
@@ -18,6 +20,7 @@ export function mergeGraph(base: MemoryGraph, patch: MemoryGraph): MemoryGraph {
   return { ...base, nodes: [...nodes.values()], edges: [...edges.values()] };
 }
 export function MemoryExplorer({ initial, bridge, query, show }: { initial: MemoryGraph; bridge: Bridge; query: string; show: OpenDetail }) {
+  const language = locale();
   const [graph, setGraph] = useState(initial), [selected, setSelected] = useState<string | null>(null), [mode, setMode] = useState<'graph' | 'list'>('graph');
   const [enabled, setEnabled] = useState(new Set<string>()), [types, setTypes] = useState(new Set<string>()), [scope, setScope] = useState<'all' | 'neighbors'>('all');
   const [layout, setLayout] = useState<'force' | 'structure'>('force'), [expanding, setExpanding] = useState(false), [error, setError] = useState(''), [physics, setPhysics] = useState(false);
@@ -48,8 +51,8 @@ export function MemoryExplorer({ initial, bridge, query, show }: { initial: Memo
     const instance = new Network(canvas.current, { nodes: [], edges: [] }, {
       layout: { randomSeed: 17 },
       physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -70, centralGravity: .012, springLength: 170, avoidOverlap: .7, damping: .6 }, stabilization: { iterations: 220 } },
-      nodes: { size: 23, borderWidth: 2, font: { size: 12, color: '#344055', face: '-apple-system', strokeWidth: 4, strokeColor: '#f9fbfd' } },
-      edges: { width: 1.5, arrows: { to: { enabled: true, scaleFactor: .5 } }, font: { size: 10, color: '#65758b', strokeWidth: 5, strokeColor: '#f9fbfd' }, smooth: { enabled: true, type: 'dynamic', roundness: .2 } },
+      nodes: { size: 23, borderWidth: 2, font: { size: 12, color: getComputedStyle(document.documentElement).getPropertyValue('--text'), face: '-apple-system', strokeWidth: 4, strokeColor: getComputedStyle(document.documentElement).getPropertyValue('--graph-surface') } },
+      edges: { width: 1.5, arrows: { to: { enabled: true, scaleFactor: .5 } }, font: { size: 10, color: getComputedStyle(document.documentElement).getPropertyValue('--secondary'), strokeWidth: 5, strokeColor: getComputedStyle(document.documentElement).getPropertyValue('--graph-surface') }, smooth: { enabled: true, type: 'dynamic', roundness: .2 } },
       interaction: { hover: true, dragNodes: true, dragView: true, zoomView: true, keyboard: { enabled: true, bindToWindow: false }, selectConnectedEdges: false }
     });
     network.current = instance;
@@ -59,6 +62,14 @@ export function MemoryExplorer({ initial, bridge, query, show }: { initial: Memo
     const observer = new ResizeObserver(() => { instance.redraw(); }); observer.observe(canvas.current);
     return () => { observer.disconnect(); instance.destroy(); network.current = null; };
   }, [mode]);
+  useEffect(() => {
+    const update = () => {
+      const styles = getComputedStyle(document.documentElement);
+      network.current?.setOptions({ nodes: { font: { color: styles.getPropertyValue('--text'), strokeColor: styles.getPropertyValue('--graph-surface') } }, edges: { font: { color: styles.getPropertyValue('--secondary'), strokeColor: styles.getPropertyValue('--graph-surface') } } });
+    };
+    document.addEventListener('panel-theme', update); document.addEventListener('panel-preferences', update);
+    return () => { document.removeEventListener('panel-theme', update); document.removeEventListener('panel-preferences', update); };
+  }, []);
   useEffect(() => {
     const instance = network.current;
     if (!instance) return;
@@ -87,7 +98,7 @@ export function MemoryExplorer({ initial, bridge, query, show }: { initial: Memo
       instance.startSimulation(); timer = setTimeout(() => { instance.stopSimulation(); instance.setOptions({ physics: { enabled: physicsValue.current } }); instance.fit({ animation: false }); }, 650);
     } else { timer = setTimeout(() => instance.fit({ animation: false }), 50); }
     return () => clearTimeout(timer);
-  }, [graphKey, layout, mode, edgeLabels]);
+  }, [graphKey, layout, mode, edgeLabels, language]);
   useEffect(() => { if (network.current) { if (selected && visible.nodes.some(row => row.id === selected)) network.current.selectNodes([selected]); else network.current.unselectAll(); } }, [selected, visible]);
   useEffect(() => { network.current?.setOptions({ physics: { enabled: physics && layout === 'force' } }); }, [physics, layout]);
   async function expand() {
@@ -105,22 +116,22 @@ export function MemoryExplorer({ initial, bridge, query, show }: { initial: Memo
   }
   function toggle(set: Set<string>, value: string, update: (value: Set<string>) => void) { const next = new Set(set); next.has(value) ? next.delete(value) : next.add(value); update(next); }
   return <div className="memory-explorer">
-    <div className="explorer-heading"><div><strong>{graph.statistics?.node_count ?? graph.nodes.length}</strong><span>个节点</span><strong>{graph.statistics?.edge_count ?? graph.edges.length}</strong><span>条关系</span><small>当前载入 {graph.nodes.length} 个节点 / {graph.edges.length} 条关系</small></div><div className="segmented"><button aria-pressed={mode === 'graph'} onClick={() => setMode('graph')}>关系图</button><button aria-pressed={mode === 'list'} onClick={() => setMode('list')}>列表</button></div></div>
+    <div className="explorer-heading"><div><strong>{graph.statistics?.node_count ?? graph.nodes.length}</strong><span>{t("个节点")}</span><strong>{graph.statistics?.edge_count ?? graph.edges.length}</strong><span>{t("条关系")}</span><small>{t('当前载入 {0} 个节点 / {1} 条关系', graph.nodes.length, graph.edges.length)}</small></div><div className="segmented"><button aria-pressed={mode === 'graph'} onClick={() => setMode('graph')}>{t("关系图")}</button><button aria-pressed={mode === 'list'} onClick={() => setMode('list')}>{t("列表")}</button></div></div>
     <div className="explorer-grid"><section className="graph-surface">
-      <div className="graph-toolbar"><div className="segmented"><button aria-pressed={layout === 'force'} onClick={() => setLayout('force')}>自由布局</button><button aria-pressed={layout === 'structure'} onClick={() => setLayout('structure')}>类型分层</button></div><button className="button" onClick={() => network.current?.fit({ animation: { duration: 220, easingFunction: 'easeInOutQuad' } })}>居中</button><button className="button" onClick={() => { setPhysics(!physics); }} aria-pressed={physics}>{physics ? '暂停布局' : '动态布局'}</button></div>
-      <div className="graph-filters">{availableTypes.map(type => <button key={type} aria-pressed={types.has(type)} onClick={() => toggle(types, type, setTypes)}><i style={{ background: nodeStyles[type]?.color || '#a3aebc' }}/>{nodeStyles[type]?.label || type}</button>)}<span className="filter-divider"/>{relationshipTypes.map(type => <button key={type} data-relation={type} aria-pressed={enabled.has(type)} onClick={() => toggle(enabled, type, setEnabled)}>{relations[type]?.label || type}</button>)}<span className="filter-divider"/><button aria-pressed={edgeLabels} onClick={() => setEdgeLabels(!edgeLabels)}>关系标签</button></div>
-      {mode === 'graph' ? <div key="canvas" className="memory-canvas" ref={canvas} role="region" aria-label="记忆关系图，可拖动节点、滚轮缩放" tabIndex={0}/> : <div key="list" className="memory-node-list">{visible.nodes.map(row => <button className={`memory-node-row ${selected === row.id ? 'active' : ''}`} key={row.id} onClick={() => { setSelected(row.id); setError(''); }}><span className="badge">{nodeStyles[row.type]?.label || row.type}</span><span>{row.content || row.id}</span></button>)}</div>}
-      {!visible.nodes.length && <div className="graph-no-results">{graph.nodes.length ? '没有匹配的节点，试试调整筛选。' : '记忆库还没有节点。'}</div>}
-      <div className="graph-footer"><span>{visible.nodes.length} 个可见节点 · {visible.edges.length} 条可见关系</span><span>拖拽节点 · 滚轮缩放 · 双击聚焦</span></div>
+      <div className="graph-toolbar"><div className="segmented"><button aria-pressed={layout === 'force'} onClick={() => setLayout('force')}>{t("自由布局")}</button><button aria-pressed={layout === 'structure'} onClick={() => setLayout('structure')}>{t("类型分层")}</button></div><button className="button" onClick={() => network.current?.fit({ animation: { duration: 220, easingFunction: 'easeInOutQuad' } })}>{t("居中")}</button><button className="button" onClick={() => { setPhysics(!physics); }} aria-pressed={physics}>{physics ? t("暂停布局") : t("动态布局")}</button></div>
+      <div className="graph-filters">{availableTypes.map(type => <button key={type} aria-pressed={types.has(type)} onClick={() => toggle(types, type, setTypes)}><i style={{ background: nodeStyles[type]?.color || '#a3aebc' }}/>{nodeStyles[type]?.label || type}</button>)}<span className="filter-divider"/>{relationshipTypes.map(type => <button key={type} data-relation={type} aria-pressed={enabled.has(type)} onClick={() => toggle(enabled, type, setEnabled)}>{relations[type]?.label || type}</button>)}<span className="filter-divider"/><button aria-pressed={edgeLabels} onClick={() => setEdgeLabels(!edgeLabels)}>{t("关系标签")}</button></div>
+      {mode === 'graph' ? <div key="canvas" className="memory-canvas" ref={canvas} role="region" aria-label={t("记忆关系图，可拖动节点、滚轮缩放")} tabIndex={0}/> : <div key="list" className="memory-node-list">{visible.nodes.map(row => <button className={`memory-node-row ${selected === row.id ? 'active' : ''}`} key={row.id} onClick={() => { setSelected(row.id); setError(''); }}><span className="badge">{nodeStyles[row.type]?.label || row.type}</span><span>{row.content || row.id}</span></button>)}</div>}
+      {!visible.nodes.length && <div className="graph-no-results">{graph.nodes.length ? t("没有匹配的节点，试试调整筛选。") : t("记忆库还没有节点。")}</div>}
+      <div className="graph-footer"><span>{t('{0} 个可见节点 · {1} 条可见关系', visible.nodes.length, visible.edges.length)}</span><span>{t("拖拽节点 · 滚轮缩放 · 双击聚焦")}</span></div>
     </section><section className="graph-inspector">
-      <header><h2>{node ? '节点与关系' : '探索记忆结构'}</h2>{node && <button className="text-button" onClick={() => { setSelected(null); setScope('all'); }}>清除</button>}</header>
-      {node ? <><span className="badge">{nodeStyles[node.type]?.label || node.type}</span><p className="inspector-content">{node.content || '没有文本内容'}</p><dl className="node-fields"><div><dt>节点 ID</dt><dd>{node.id}</dd></div><div><dt>来源</dt><dd>{node.source || '未记录'}</dd></div><div><dt>记录时间</dt><dd>{node.timestamp ? new Date(node.timestamp).toLocaleString('zh-CN') : '未记录'}</dd></div></dl>
-        <div className="node-actions"><button className="button" onClick={() => void expand()} disabled={expanding}>{expanding ? '正在载入…' : '展开邻居'}</button><button className="button" aria-pressed={scope === 'neighbors'} onClick={() => setScope(scope === 'neighbors' ? 'all' : 'neighbors')}>{scope === 'neighbors' ? '查看全部' : '只看邻居'}</button></div>
+      <header><h2>{node ? t("节点与关系") : t("探索记忆结构")}</h2>{node && <button className="text-button" onClick={() => { setSelected(null); setScope('all'); }}>{t("清除")}</button>}</header>
+      {node ? <><span className="badge">{nodeStyles[node.type]?.label || node.type}</span><p className="inspector-content">{node.content || t("没有文本内容")}</p><dl className="node-fields"><div><dt>{t("节点 ID")}</dt><dd>{node.id}</dd></div><div><dt>{t("来源")}</dt><dd>{node.source || t("未记录")}</dd></div><div><dt>{t("记录时间")}</dt><dd>{node.timestamp ? new Date(node.timestamp).toLocaleString(locale()) : t("未记录")}</dd></div></dl>
+        <div className="node-actions"><button className="button" onClick={() => void expand()} disabled={expanding}>{expanding ? t("正在载入…") : t("展开邻居")}</button><button className="button" aria-pressed={scope === 'neighbors'} onClick={() => setScope(scope === 'neighbors' ? 'all' : 'neighbors')}>{scope === 'neighbors' ? t("查看全部") : t("只看邻居")}</button></div>
         {error && <p role="alert" className="console-warning">{error}</p>}
-        <h3>已载入关系 <span>{neighbors.length}</span></h3>{neighbors.length ? <div className="neighbor-list">{neighbors.map(edge => { const id = edge.source === node.id ? edge.target : edge.source, other = graph.nodes.find(row => row.id === id); return <button key={edge.id} onClick={() => { setSelected(id); setError(''); network.current?.focus(id, { scale: 1.1, animation: { duration: 220, easingFunction: 'easeInOutQuad' } }); }}><span className="neighbor-relation">{edge.source === node.id ? '→' : '←'} {relations[edge.type]?.label || edge.type} / {subtypes[edge.subtype || ''] || edge.subtype || edge.type}</span><span>{other?.content || id}</span></button>; })}</div> : <p className="metadata">当前载入范围没有关联。展开邻居可查询此节点的直接关系。</p>}
-        <button className="text-button" onClick={event => show(node, '记忆原始记录', node.id, event.currentTarget)}>查看完整字段 →</button>
-        <button className="text-button danger" disabled={expanding} onClick={() => { if (!confirm('删除此记忆节点及其关系？此操作无法撤销。')) return; setExpanding(true); void bridge.request('delete_memory_node', {memory_id:node.id}).then(() => { if (!alive.current) return; setGraph(current => ({...current, nodes:current.nodes.filter(row=>row.id!==node.id), edges:current.edges.filter(edge=>edge.source!==node.id&&edge.target!==node.id), statistics:undefined})); setSelected(null); setScope('all'); }).catch(reason=>{if(alive.current)setError(reason.message);}).finally(()=>{if(alive.current)setExpanding(false);}); }}>删除此记忆</button>
-      </> : <><div className="inspector-placeholder">◎</div><p>点击图中的节点，查看正文、来源与关联。</p><p className="metadata">也可以切换列表，用键盘选中节点。关系方向和类型来自记忆库的实际记录。</p><div className="structure-key">{Object.entries(nodeStyles).map(([type, style]) => <span key={type}><i style={{ background: style.color }}/>{style.label}<small>{type}</small></span>)}</div></>}
+        <h3>{t("已载入关系")}<span>{neighbors.length}</span></h3>{neighbors.length ? <div className="neighbor-list">{neighbors.map(edge => { const id = edge.source === node.id ? edge.target : edge.source, other = graph.nodes.find(row => row.id === id); return <button key={edge.id} onClick={() => { setSelected(id); setError(''); network.current?.focus(id, { scale: 1.1, animation: { duration: 220, easingFunction: 'easeInOutQuad' } }); }}><span className="neighbor-relation">{edge.source === node.id ? '→' : '←'} {relations[edge.type]?.label || edge.type} / {subtypes[edge.subtype || ''] || edge.subtype || edge.type}</span><span>{other?.content || id}</span></button>; })}</div> : <p className="metadata">{t("当前载入范围没有关联。展开邻居可查询此节点的直接关系。")}</p>}
+        <button className="text-button" onClick={event => show(node, t("记忆原始记录"), node.id, event.currentTarget)}>{t("查看完整字段 →")}</button>
+        <button className="text-button danger" disabled={expanding} onClick={() => { if (!confirm(t("删除此记忆节点及其关系？此操作无法撤销。"))) return; setExpanding(true); void bridge.request('delete_memory_node', {memory_id:node.id}).then(() => { if (!alive.current) return; setGraph(current => ({...current, nodes:current.nodes.filter(row=>row.id!==node.id), edges:current.edges.filter(edge=>edge.source!==node.id&&edge.target!==node.id), statistics:undefined})); setSelected(null); setScope('all'); }).catch(reason=>{if(alive.current)setError(reason.message);}).finally(()=>{if(alive.current)setExpanding(false);}); }}>{t("删除此记忆")}</button>
+      </> : <><div className="inspector-placeholder">◎</div><p>{t("点击图中的节点，查看正文、来源与关联。")}</p><p className="metadata">{t("也可以切换列表，用键盘选中节点。关系方向和类型来自记忆库的实际记录。")}</p><div className="structure-key">{Object.entries(nodeStyles).map(([type, style]) => <span key={type}><i style={{ background: style.color }}/>{style.label}<small>{type}</small></span>)}</div></>}
     </section></div>
   </div>;
 }
