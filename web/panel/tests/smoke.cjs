@@ -246,6 +246,34 @@ async function runSmoke(window) {
       check(await js(`document.getElementById('page').scrollWidth <= document.getElementById('page').clientWidth && document.body.scrollWidth <= innerWidth`), `${view} fits narrow window`);
       window.setContentSize(1200,820);
     }
+    window.setContentSize(1920,1080);
+    for (const view of ['appearance','settings','memory','context','persona','skills','runs','controls','conversation']) {
+      await navigate(view);
+      await new Promise(resolve=>setTimeout(resolve,180));
+      check(await js(`(()=>{const page=document.getElementById('page'),inner=document.querySelector('.page-inner'),style=getComputedStyle(inner);return (inner.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight))/page.clientWidth>.85 && page.scrollWidth<=page.clientWidth})()`), `${view} uses available wide-window content width without overflow`);
+      if(view==='appearance') {
+        for(let i=0;i<120;i++) {const frame=window.webContents.mainFrame.frames.find(frame=>frame.url.startsWith('http://127.0.0.1'));if(frame && await frame.executeJavaScript(`Boolean(window.pet?.debug().ready)`))break;await new Promise(resolve=>setTimeout(resolve,100));}
+        report.wideAvatar = await js(`({viewport:innerHeight,footnoteBottom:document.querySelector('.page-footnote').getBoundingClientRect().bottom,previewHeight:document.querySelector('.avatar-stage iframe').clientHeight})`);
+        check(await js(`(()=>{const layout=document.querySelector('.avatar-layout').getBoundingClientRect(),stage=document.querySelector('.avatar-stage').getBoundingClientRect(),frame=document.querySelector('.avatar-stage iframe');return stage.width/layout.width>.65 && frame.clientHeight>400})()`),'wide avatar preview grows while catalog stays compact');
+        await capture('appearance-wide');
+      }
+      if(view==='conversation') check(await js(`document.querySelector('.feature-page').clientWidth<=1040 && [...document.querySelectorAll('.chat-message')].every(el=>el.clientWidth<=720)`),'wide conversation preserves readable message widths');
+    }
+    await navigate('appearance');
+    await new Promise(resolve=>{
+      window.once('enter-full-screen',resolve);
+      window.setFullScreen(true);
+      setTimeout(resolve,2500);
+    });
+    await new Promise(resolve=>setTimeout(resolve,400));
+    check(window.isFullScreen(),'panel enters native full-screen mode');
+    check(await js(`(()=>{const page=document.getElementById('page'),layout=document.querySelector('.avatar-layout');return layout.clientWidth/page.clientWidth>.85 && page.scrollWidth<=page.clientWidth})()`),'native full-screen avatar fills main workspace');
+    report.fullscreen = await js(`({viewport:innerHeight,footnoteBottom:document.querySelector('.page-footnote').getBoundingClientRect().bottom,previewHeight:document.querySelector('.avatar-stage iframe').clientHeight,contentWidth:document.querySelector('.avatar-layout').clientWidth})`);
+    check(await js(`document.querySelector('.page-footnote').getBoundingClientRect().bottom<=innerHeight`),'full-screen avatar keeps bottom explanation visible');
+    for(let i=0;i<120;i++) {const frame=window.webContents.mainFrame.frames.find(frame=>frame.url.startsWith('http://127.0.0.1'));if(frame && await frame.executeJavaScript(`Boolean(window.pet?.debug().ready)`))break;await new Promise(resolve=>setTimeout(resolve,100));}
+    await new Promise(resolve=>setTimeout(resolve,800));
+    await capture('appearance-fullscreen');
+    window.setFullScreen(false);
   }
   await fs.writeFile(path.join(directory, 'report.json'), JSON.stringify(report, null, 2));
   await fs.writeFile('/tmp/boxagent-panel-smoke.json', JSON.stringify(report, null, 2));
