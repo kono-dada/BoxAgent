@@ -51,14 +51,14 @@ zsh scripts/set-key.zsh
 ./scripts/install.sh --check
 ```
 
-检查覆盖固定依赖版本、模型文件摘要、Framework、播放器、控制台构建与 Electron 可执行文件、运行组件签名与所选决策服务凭据是否存在；不验证密钥有效性、云端连通性、系统权限或可见 UI。缺少项目时返回非零状态。安装和检查通过后启动：
+检查覆盖固定依赖版本、模型文件摘要、Framework、播放器、控制台构建与 Electron 可执行文件、运行组件签名与所选决策服务凭据是否存在；不验证密钥有效性、云端连通性、系统权限或可见 UI。缺少项目时返回非零状态。安装和检查通过后启动（Electron 统一桌宠、小窗和控制台）：
 
 ```sh
 ./scripts/run-pet.sh
 ```
 
 源码 checkout 默认将 Agent 后端运行在独立 Engine 进程，并监视后端 Python 文件。
-后端变更会触发 Engine 重启，AppKit 窗口和菜单栏进程保持不变。正在执行的任务、语音和
+后端变更会触发 Engine 重启，Electron 窗口和菜单栏保持不变。正在执行的任务、语音和
 审批会被中断；JSONL Product Session、Jev-Mem 长期记忆和本地配置仍可在新 Engine 中恢复。修改原生 UI 或 IPC
 客户端时必须重启整个应用。通过 `BOXAGENT_ENGINE_WATCH=0` 可禁用后端源码监听。
 
@@ -104,7 +104,7 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 ./scripts/run-pet.sh --context-interval 15
 ```
 
-用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 AppKit 依赖装进视觉环境。
+用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 macOS 系统依赖装进视觉环境。
 
 ## 电脑操作执行器
 

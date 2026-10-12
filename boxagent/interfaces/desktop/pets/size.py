@@ -2,18 +2,20 @@
 
 import json
 import math
+from pathlib import Path
+from typing import TypeGuard
 
 
 PET_MIN_SCALE = 0.5
 PET_MAX_SCALE = 6.0
 
 
-def valid_pet_scale(scale):
+def valid_pet_scale(scale: object) -> TypeGuard[int | float]:
     """接受范围内的连续比例，拒绝布尔值与非有限数。"""
-    return type(scale) in (int, float) and PET_MIN_SCALE <= scale <= PET_MAX_SCALE
+    return isinstance(scale, (int, float)) and not isinstance(scale, bool) and PET_MIN_SCALE <= scale <= PET_MAX_SCALE
 
 
-def load_pet_scale(data_dir):
+def load_pet_scale(data_dir: Path) -> float:
     """旧安装或损坏的设置使用原始大小。"""
     try:
         settings = json.loads((data_dir / "appearance.json").read_text())
@@ -25,7 +27,7 @@ def load_pet_scale(data_dir):
     return 1.0
 
 
-def save_pet_scale(data_dir, scale):
+def save_pet_scale(data_dir: Path, scale: float) -> None:
     """替换完整设置文件，避免中途退出留下半份内容。"""
     data_dir.mkdir(parents=True, exist_ok=True)
     target = data_dir / "appearance.json"

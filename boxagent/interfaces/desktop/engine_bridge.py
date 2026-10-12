@@ -1,113 +1,20 @@
-"""Keep AppKit alive while a restartable Engine process owns backend services."""
+"""Supervise the restartable Engine for the Electron local service."""
 
 import asyncio
 import concurrent.futures
 import json
 import logging
 import os
-import queue
 import threading
 import time
 import traceback
+from pathlib import Path
 
 from boxagent.core.errors import redact
 from boxagent.core.logs import asyncio_exception_handler
-from boxagent.core.states import Snapshot
 from boxagent.interfaces.engine import EngineClient, EngineDisconnected, EngineSupervisor
 
 logger = logging.getLogger(__name__)
-
-
-class EngineApplicationProxy:
-    def __init__(self, bridge):
-        self.bridge = bridge
-        self.state = Snapshot()
-
-    async def toggle_context(self):
-        return await self.bridge.request("toggle_context")
-
-    async def toggle_voice(self):
-        return await self.bridge.request("toggle_voice")
-
-    async def submit_text(self, goal):
-        return await self.bridge.request("submit_text", {"goal": goal})
-
-    async def list_sessions(self, *, include_archived=False):
-        return await self.bridge.request(
-            "list_sessions", {"include_archived": include_archived})
-
-    async def create_session(self, title="新会话"):
-        return await self.bridge.request("create_session", {"title": title})
-
-    async def activate_session(self, session_id):
-        return await self.bridge.request(
-            "activate_session", {"session_id": session_id})
-
-    async def archive_session(self, session_id):
-        return await self.bridge.request(
-            "archive_session", {"session_id": session_id})
-
-    async def session_events(self, session_id, *, after_sequence=0, limit=None):
-        params = {"session_id": session_id, "after_sequence": after_sequence}
-        if limit is not None:
-            params["limit"] = limit
-        return await self.bridge.request("session_events", params)
-
-    async def cancel_task(self):
-        return await self.bridge.request("cancel_task")
-
-    async def answer_approval(self, allowed):
-        return await self.bridge.request("answer_approval", {"allowed": allowed})
-
-    async def remember_memory(self, content, *, source="explicit"):
-        return await self.bridge.request("remember_memory", {"content": content, "source": source})
-
-    async def recall_memory(self, query, *, top_k=5):
-        return await self.bridge.request("recall_memory", {"query": query, "top_k": top_k})
-
-    async def forget_memory(self, memory_ids):
-        return await self.bridge.request("forget_memory", {"memory_ids": memory_ids})
-
-    async def context_snapshot(self, session_id=""):
-        return await self.bridge.request("context_snapshot", {"session_id": session_id})
-
-    async def context_entry(self, session_id, seq):
-        return await self.bridge.request(
-            "context_entry", {"session_id": session_id, "seq": seq})
-
-    async def memory_snapshot(self, **arguments):
-        return await self.bridge.request("memory_snapshot", arguments)
-
-    async def delete_memory_node(self, memory_id):
-        return await self.bridge.request("delete_memory_node", {"memory_id": memory_id})
-
-    async def list_skills(self):
-        return await self.bridge.request("list_skills")
-
-    async def create_skill(self, **params):
-        return await self.bridge.request("create_skill", params)
-
-    async def update_skill(self, **params):
-        return await self.bridge.request("update_skill", params)
-
-    async def set_skill_enabled(self, skill_id, enabled):
-        return await self.bridge.request(
-            "set_skill_enabled", {"skill_id": skill_id, "enabled": enabled})
-
-    async def delete_skill(self, skill_id):
-        return await self.bridge.request("delete_skill", {"skill_id": skill_id})
-
-    async def list_notifications(self, *, pending_only=True):
-        return await self.bridge.request(
-            "list_notifications", {"pending_only": pending_only})
-
-    async def acknowledge_notification(self, notification_id, channel="ui",
-                                       receipt="presented"):
-        return await self.bridge.request("acknowledge_notification", {
-            "notification_id": notification_id,
-            "channel": channel,
-            "receipt": receipt,
-        })
 
 
 class EngineBridge:
@@ -117,13 +24,13 @@ class EngineBridge:
         "interfaces/engine/protocol.py", "interfaces/engine/server.py",
     )
 
-    def __init__(self, *, root, data_dir, log_dir, task_provider, task_model=None,
-                 auto_approve=True, context_interval=0, context_size=960, watch=True,
-                 soul_file=None):
+    def __init__(self, *, root: Path, data_dir: Path, log_dir: Path,
+                 task_provider: str, task_model: str | None = None,
+                 auto_approve: bool = True, context_interval: float = 0,
+                 context_size: int = 960, watch: bool = True,
+                 soul_file: Path | None = None) -> None:
         self.root, self.data_dir, self.log_dir = root, data_dir, log_dir
-        self.events = queue.SimpleQueue()
         self.loop = asyncio.new_event_loop()
-        self.application = EngineApplicationProxy(self)
         self.socket_path = data_dir / "engine.sock"
         self.supervisor = EngineSupervisor(
             root=root,
@@ -172,7 +79,6 @@ class EngineBridge:
             await self.client.connect()
         health = await self.client.request("health")
         self.engine_pid = health.get("pid")
-        await self._recover_notifications()
         self.publish({"type": "backend.connected", "occurred_at": time.time(),
                       "pid": self.engine_pid, "adopted": adopted})
         self.background_tasks.append(asyncio.create_task(self._monitor(), name="boxagent-engine-monitor"))
@@ -198,12 +104,6 @@ class EngineBridge:
     def publish(self, event):
         if not event:
             return
-        if state := event.get("state"):
-            try:
-                self.application.state = Snapshot(**state)
-            except TypeError:
-                pass
-        self.events.put(event)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         with (self.log_dir / "events.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(redact(event), ensure_ascii=False) + "\n")
@@ -266,6 +166,8 @@ class EngineBridge:
                 await self._restart("process_exited")
 
     async def _restart(self, reason):
+        if self.restart_lock is None:
+            raise RuntimeError("Engine has not started")
         async with self.restart_lock:
             if self.closing:
                 return
@@ -290,7 +192,6 @@ class EngineBridge:
                 await self.client.connect()
                 health = await self.client.request("health")
                 self.engine_pid = health.get("pid")
-                await self._recover_notifications()
             except Exception as exc:
                 logger.error("engine restart failed", exc_info=True)
                 self.publish({"type": "backend.error", "occurred_at": time.time(),
@@ -298,20 +199,6 @@ class EngineBridge:
                 return
             self.publish({"type": "backend.reconnected", "occurred_at": time.time(),
                           "pid": self.engine_pid})
-
-    async def _recover_notifications(self):
-        for item in await self.client.request(
-                "list_notifications", {"pending_only": True}):
-            self.publish({
-                "type": "notification.system_requested",
-                "occurred_at": time.time(),
-                "notification": item,
-                "state": {**self.application.state.payload(),
-                          "notification_id": item["notification_id"],
-                          "notification_text": item["summary"],
-                          "notification_unread": True,
-                          "revision": self.application.state.revision + 1},
-            })
 
     async def _close(self):
         self.closing = True
@@ -324,9 +211,17 @@ class EngineBridge:
             except Exception:
                 logger.warning("engine did not acknowledge shutdown", exc_info=True)
         await self.client.close()
+        process = self.supervisor.process
+        if process is not None and process.returncode is None:
+            try:
+                await asyncio.wait_for(process.wait(), 2)
+            except TimeoutError:
+                logger.warning("Engine did not exit after shutdown; terminating")
         await self.supervisor.stop()
 
-    def close(self):
+    def close(self) -> None:
+        if not self.startup.done():
+            self.startup.cancel()
         try:
             asyncio.run_coroutine_threadsafe(self._close(), self.loop).result(timeout=12)
         except Exception:

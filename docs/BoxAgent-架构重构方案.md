@@ -2,13 +2,13 @@
 
 ## 1. 总体结论
 
-BoxAgent 是由 **macOS Host**、**Agent Engine** 与按需打开的 **Electron 伙伴控制台** 组成的本地桌面 Agent 系统。控制台前端与 Python 业务后端分离，通过本机 IPC 调用能力。
+BoxAgent 的全部产品窗口由 **Electron Host** 管理；**Python 本机服务**管理形象资源与 Engine 生命周期，**Agent Engine** 管理业务与模型。前端通过受限 IPC 使用同一 Product Session。
 
-1. macOS Host 负责用户界面与操作系统集成。
-   1. 持有 AppKit 窗口、菜单栏、桌宠形象和系统通知。
-   2. 监督 Agent Engine 进程，并在开发模式下支持后端热重启。
-   3. 不直接创建模型、记忆或 Computer Use 实现。
-   4. 提供 `desktop.sock`，让控制台调用形象、角色、原生小窗、Finder 与退出操作。
+1. Electron Host 负责界面与操作系统窗口集成。
+   1. 管理透明 VRM 桌宠、React 对话小窗、React 控制台、菜单栏、快捷键与系统通知。
+   2. 通过 `engine.sock` 共享一个 EngineClient，将状态推送给三个窗口。
+   3. 持有 Python `desktop_service` 子进程，通过 stdio JSONL 调用资源和设置服务。
+   4. 控制台按需创建，关闭控制台保留桌宠、小窗和 Engine；退出应用关闭所有资源。
 2. Agent Engine 负责业务能力与模型运行时。
    1. 持有 Product Session、Qwen Realtime、桌面任务、Jev-Mem、Skill 和本地感知服务。
    2. 通过 Unix Domain Socket 与 Host 通信。
@@ -30,7 +30,7 @@ $$
 
 | 结论 | 当前实现 |
 | --- | --- |
-| UI 与后端隔离 | AppKit Host、Electron 控制台与 Python Engine 独立运行；控制台不直接持有模型服务 |
+| UI 与后端隔离 | Electron Host、Python 本机服务与 Python Engine 独立运行；renderer 不持有模型服务 |
 | 会话唯一来源 | append-only JSONL Product Session Event Log |
 | 长期记忆唯一 Store | Jev-Mem |
 | 后台任务执行 | 串行队列，避免多个任务同时争抢桌面 |
@@ -43,7 +43,7 @@ $$
 
 | 术语 | 定义 |
 | --- | --- |
-| Host | macOS 原生宿主进程，负责 UI、系统权限入口与 Engine 监督 |
+| Host | Electron 主进程，负责三个窗口、菜单、快捷键与本机 API 路由 |
 | Engine | 独立 Python 后端进程，负责应用服务、领域逻辑、Runtime 和持久化 |
 | Panel | React / TypeScript / Vite 界面，运行于 Electron；通过受限 preload 桥调用本机 Engine / Host |
 | Runtime | 执行模型交互循环的适配器；当前包括 Qwen Realtime 与 Codex Task Runtime |
@@ -62,15 +62,16 @@ $$
 
 ```mermaid
 flowchart TB
-    subgraph HOST[macOS Host Process]
-        UI[AppKit UI]
-        MENU[菜单 / 快捷键 / 系统通知]
+    subgraph SERVICE[Python 本机服务]
+        ASSET[形象资源 / 设置]
         BRIDGE[Engine Bridge]
         SUP[Engine Supervisor]
     end
 
-    subgraph PANEL[Electron 伙伴控制台]
-        REACT[React / TypeScript 界面]
+    subgraph PANEL[Electron Host]
+        REACT[React 小窗 / 控制台]
+        PET[透明 VRM 桌宠]
+        MENU[菜单 / 快捷键 / 系统通知]
         PRELOAD[受限 preload 桥]
         MAIN[Electron Main / EngineClient]
         REACT <-->|Electron IPC| PRELOAD
@@ -105,12 +106,13 @@ flowchart TB
         end
     end
 
-    UI <--> BRIDGE
-    MENU --> BRIDGE
+    MENU --> MAIN
+    PET <--> MAIN
+    MAIN <-->|stdio JSONL| ASSET
+    ASSET --> BRIDGE
     BRIDGE <--> |Unix Socket JSONL| APP
     SUP --> ENGINE
     MAIN <-->|engine.sock JSONL RPC| APP
-    MAIN <-->|desktop.sock JSONL RPC| UI
 
     APP --> DOMAIN
     INTERACTION --> QWEN
@@ -126,18 +128,14 @@ flowchart TB
 
 ### 4.1 启动顺序
 
-1. `boxagent.entrypoints.desktop` 启动 Host。
-   1. 读取 `Settings`。
-   2. 获取单实例文件锁。
-   3. 创建 AppKit Application。
-2. `bootstrap.desktop.create_desktop_host()` 装配 Host。
-   1. 创建桌宠形象与窗口。
-   2. 创建 `EngineBridge`。
-   3. 创建原生桌宠、对话小窗和屏幕摘要窗口；记忆、Skill、角色与形象管理迁入独立控制台。
-3. `EngineSupervisor` 启动 Engine 子进程。
+1. `boxagent.entrypoints.desktop` 读取 Settings 和启动参数，通过 `bootstrap.electron_launch` 启动已构建的 Electron。
+2. Electron 按数据目录获取单实例锁，启动 `entrypoints.desktop_service`。
+   1. `bootstrap.electron` 创建资源服务与 EngineBridge，不导入 AppKit 界面。
+   2. 创建透明桌宠和默认隐藏的小窗；控制台第一次打开时创建。
+   3. 候选形象 ready 后才替换窗口并提交选择；失败保留旧形象。
+3. EngineBridge 复用已有 Engine，或通过 EngineSupervisor 启动新进程。
    1. Engine 入口为 `boxagent.entrypoints.engine`。
-   2. 通信 Socket 位于 Product Data 目录。
-   3. Socket 文件权限设置为 `0600`。
+   2. 通信 Socket 位于 Product Data 目录，权限 `0600`。
 4. `bootstrap.engine.create_application()` 装配 Engine。
    1. 创建 Session Store、Notification Outbox 与 Skill Repository。
    2. 创建 Codex Runtime Host、Qwen Voice Factory 与本地感知 Worker。
@@ -153,13 +151,15 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     participant User
-    participant Host as macOS Host
+    participant Host as Electron Host
+    participant Service as Python 本机服务
     participant Sup as Engine Supervisor
     participant Engine as Agent Engine
     participant App as BoxAgentApplication
 
     User->>Host: 启动应用
-    Host->>Sup: start()
+    Host->>Service: spawn / stdio
+    Service->>Sup: start()
     Sup->>Engine: 创建子进程
     Engine->>App: create_application()
     App->>App: 恢复 Session / Outbox
@@ -172,9 +172,9 @@ sequenceDiagram
 
 | 资源 | 唯一 Owner | 关闭责任 |
 | --- | --- | --- |
-| AppKit 桌宠 / 对话小窗 | macOS Host | Desktop Delegate |
-| React 控制台与 IPC 客户端 | Electron | 关闭窗口后断开客户端；关闭面板不退出桌宠 / Engine |
-| 桌面控制 Socket | `PanelControl` / macOS Host | 关闭客户端队列、预览 AssetServer 并删除 Socket |
+| 桌宠 / 小窗 / 控制台 / 菜单 | Electron DesktopHost | 收起小窗保留 renderer；关闭控制台不退出桌宠；退出应用销毁全部窗口 |
+| Engine IPC 客户端 | Electron Main | 应用退出时关闭共享 socket；Engine 重启时重连 |
+| Python 本机服务 / VRM HTTP | Electron / DesktopService | 关闭 stdin 触发 Engine 与 HTTP 清理，超时后 TERM / KILL |
 | Engine 子进程 | `EngineSupervisor` | 发送 shutdown，超时后终止进程 |
 | Unix Socket Server | `EngineServer` | 停止接收、关闭客户端、删除 Socket |
 | Qwen 连接与音频设备 | `InteractionService` | 完成输入、关闭连接和音频资源 |
@@ -198,7 +198,7 @@ sequenceDiagram
 
 ### 4.4 伙伴控制台与前后端连接
 
-当前是本机桌面前后端分离：`web/panel` 负责界面与展示状态，Python Engine 负责会话、对话、记忆、Skill、任务及模型服务。原生 macOS Host 负责窗口、桌宠、形象应用与操作系统集成。旧 AppKit 记忆、Skill、角色设置窗口及独立 WebKit 记忆图已删除，后台能力保留。
+当前是本机桌面前后端分离：`web/panel` 负责界面与展示状态，Python Engine 负责会话、对话、记忆、Skill、任务及模型服务。Electron Host 负责全部窗口和操作系统集成，Python DesktopService 提供非 UI 的资源、角色文件、运行目录与 Engine 监督。旧 AppKit 窗口、WebKit UI、desktop.sock 和主线程队列已删除。
 
 控制台使用单一 React root。`App` 管理导航、会话与加载生命周期；`data.ts` 集中页面 IPC 读取，`pages/` 保存各功能页，`components/` 和 `hooks/` 复用展示与操作反馈。状态事件作为 props 更新；切页丢弃旧请求结果，页面卸载时释放订阅和定时器。
 
@@ -225,7 +225,8 @@ sequenceDiagram
 | --- | --- | --- |
 | `window.boxagent.request(method, params)` | 界面调用能力 | `web/panel/preload.cjs`，通过 `ipcRenderer.invoke` 进入主进程 |
 | `engine.sock` | 会话、发消息、语音、记忆、Skill、上下文、时间线、任务授权 / 停止 | `web/panel/main.cjs` → `EngineClient` → `interfaces/engine/server.py` → `BoxAgentApplication` |
-| `desktop.sock` | 3D 形象预览 / 应用、桌宠大小与持久化、角色保存、小窗、Finder、退出 | Electron Main → `interfaces/macos/panel_control.py`；socket 线程收发，AppKit 主线程执行 |
+| stdio JSONL | 形象资源 / 两阶段选择、大小偏好、角色保存与运行目录验证 | Electron ServiceClient → `entrypoints/desktop_service.py` → `interfaces/desktop/service.py` |
+| `desktop:action` / `desktop:state` | 窗口拖动、展开 / 收起、模型状态与菜单 | Electron DesktopHost；不经过 Python UI |
 | `engine:state` / `onState` | Engine 主动推送运行状态 | Socket event → Electron Main → preload → 页面；不是只靠请求刷新 |
 | `boxagent.errors()` | 最近诊断记录 | Electron Main 只读取固定 `logs/errors.jsonl` 尾部；渲染器不直接访问文件系统 |
 | 本机回环 HTTP AssetServer | VRM 模型、动作与播放器静态资源 | `127.0.0.1`、随机路径令牌与精确文件白名单；此 HTTP 仅提供预览资源，业务操作仍走 Socket |
@@ -242,11 +243,11 @@ Electron 渲染器启用 `contextIsolation` 和 `sandbox`、关闭 Node integrat
 
 语言与浅色 / 深色 / 跟随系统属于界面偏好，保存在 Electron 页面本地存储，不写 Product Session，也不改变角色 SOUL 或模型上下文。预览 iframe 是独立页面，通过初始主题参数与受限主题消息同步明暗；桌宠播放器保持透明背景。深色基础色当前沿用低饱和绿色，与伙伴主色一致；属于视觉选择，不改变架构。
 
-控制台构建、启动与验证命令见 [`web/panel/README.md`](../web/panel/README.md)。只启动 Engine 时，会话、记忆、Skill 与上下文仍可用；需要 AppKit 的形象、角色与小窗操作提示启动桌宠。关闭控制台仅断开面板客户端；选择退出 BoxAgent 会由 Host 关闭 Engine。
+控制台构建、启动与验证命令见 [`web/panel/README.md`](../web/panel/README.md)。只启动 Engine 时，会话、记忆、Skill 与上下文仍可用；独立控制台模式只连接 Engine，桌面专属功能提示启动完整桌宠。完整桌宠模式关闭控制台保留共享连接；退出 BoxAgent 关闭本机服务，由它关闭 Engine。
 
 ## 5. 代码分层
 
-原生 macOS 界面放在 `interfaces/macos/surfaces/`：`pet.py` 定义桌宠窗口与拖动视图，`conversation.py` 定义对话小窗、消息卡片与控件。`surfaces` 指本机界面载体，避免将目录名 `windows` 误读成 Windows 平台；平台边界仍由 `interfaces/macos/` 表达。
+界面代码位于 `web/panel/src/`，窗口管理位于 `web/panel/desktop/`。Python `interfaces/desktop/` 只保留本机资源和监督服务，macOS 的截屏与音频依赖仍属于 Infrastructure；此迁移尚未实现 Windows 后端。
 
 ### 5.1 目录职责
 
@@ -261,7 +262,7 @@ boxagent/
 ├── infrastructure/     # 模型、存储、音频、感知等 Adapter
 ├── interfaces/
 │   ├── engine/         # Unix Socket API、Client、Server、Supervisor
-│   └── macos/          # AppKit 桌宠 / 对话小窗、菜单、Host IPC 和系统通知
+│   └── desktop/        # 无界面的资源、角色、运行目录和 Engine 监督
 ├── bootstrap/          # Desktop、Engine、Memory 的生产装配点，以及进程级日志配置
 └── entrypoints/        # 可执行进程入口
 ```

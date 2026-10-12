@@ -107,7 +107,9 @@ export function Appearance({ data, bridge, busy, act, query, setStatus }: PagePr
             run(
               act<AvatarSnapshot>('desktop_select_avatar', { id: picked }).then((value) => {
                 setSnapshot(value);
-                setStatus(value.switching ? t('形象正在预加载，成功后应用。') : value.feedback || t('形象已应用'));
+                setStatus(value.switching ? t('形象正在预加载，成功后应用。') : t(value.feedback || '形象已应用'));
+              }).catch((reason) => {
+                setStatus(t(reason instanceof Error ? reason.message : String(reason)));
               }),
             )
           }
@@ -115,8 +117,8 @@ export function Appearance({ data, bridge, busy, act, query, setStatus }: PagePr
           {t('应用到桌宠')}
         </button>
         <PetScale snapshot={snapshot} bridge={bridge} setSnapshot={setSnapshot} setStatus={setStatus} />
-        {snapshot.appearance_error && <p role="alert">{snapshot.appearance_error}</p>}
-        {snapshot.feedback && <p className="metadata">{snapshot.feedback}</p>}
+        {snapshot.appearance_error && <p role="alert">{t(snapshot.appearance_error)}</p>}
+        {snapshot.feedback && snapshot.feedback !== snapshot.appearance_error && <p className="metadata">{t(snapshot.feedback)}</p>}
       </section>
     </div>
   );

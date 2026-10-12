@@ -72,12 +72,21 @@ export interface MemoryEdge {
 export interface MemoryGraph {
   nodes: MemoryNode[];
   edges: MemoryEdge[];
-  statistics?: { node_count: number; edge_count: number; matched_count?: number };
+  statistics?: {
+    node_count: number;
+    edge_count: number;
+    matched_count?: number;
+  };
 }
 export interface Bridge {
   request<T = unknown>(method: string, params?: RecordData): Promise<T>;
 }
-export type OpenDetail = (value: unknown, title: string, meta?: string, trigger?: HTMLElement) => void;
+export type OpenDetail = (
+  value: unknown,
+  title: string,
+  meta?: string,
+  trigger?: HTMLElement,
+) => void;
 
 export interface Session {
   session_id: string;
@@ -88,6 +97,9 @@ export interface Session {
 export interface ProductMessage {
   type: string;
   sequence: number;
+  interaction_id?: string;
+  task_id?: string;
+  status?: string;
   event_id?: string;
   role?: string;
   content?: string;
@@ -100,6 +112,21 @@ export interface SessionMessages {
 }
 export interface RuntimeState {
   session_id?: string;
+  session_title?: string;
+  speaking?: boolean;
+  user_speaking?: boolean;
+  user_text?: string;
+  assistant_text?: string;
+  task_id?: string;
+  task_started_at?: number;
+  task_ended_at?: number;
+  task_activity_at?: number;
+  notification_id?: string;
+  notification_text?: string;
+  notification_unread?: boolean;
+  revision?: number;
+  context_app?: string;
+  context_at?: number;
   voice?: string;
   task?: string;
   task_text?: string;
@@ -153,10 +180,32 @@ export interface RunData {
 export interface PanelBridge extends Bridge {
   errors(): Promise<RecordData[]>;
   onState(callback: (state: RuntimeState) => void): () => void;
+  onEvent(
+    callback: (event: { type: string; state?: RuntimeState }) => void,
+  ): () => void;
+  onDesktop(
+    callback: (
+      state: AvatarSnapshot & { name?: string; bubble_open?: boolean },
+    ) => void,
+  ): () => void;
+  onPet(callback: (state: PetFrame) => void): () => void;
+  onInteract(
+    callback: (value: { kind: string; velocity: number[] }) => void,
+  ): () => void;
+  onNewSession(callback: () => void): () => void;
+  desktopAction(action: string, params?: unknown): void;
   onDiagnostic(callback: (message: string) => void): () => void;
 }
 declare global {
   interface Window {
     boxagent: PanelBridge;
   }
+}
+
+export interface PetFrame {
+  url: string;
+  viewport: { width: number; height: number };
+  crop: { x: number; y: number; width: number; height: number };
+  state: string;
+  pointer: number[];
 }

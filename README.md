@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 | 统一会话上下文 | 文字、语音、Qwen 与任务 Runtime 共享同一个持久 Product Session |
 | 长期记忆 | Jev-Mem 自动判断值得保存的信息，支持画像、叙事记忆和主动召回 |
 | Skill 系统 | 管理内置与用户 Skill，也可以从真实任务轨迹生成并安装 Skill 草稿 |
-| 桌宠与伙伴控制台 | AppKit 提供 3D 桌宠与对话小窗；React / Electron 控制台管理会话、记忆、上下文、Skill 与设置 |
+| 桌宠与伙伴控制台 | Electron 统一管理 3D 桌宠、React 对话小窗、任务展示和伙伴控制台 |
 
 例如，你可以对它说：
 
@@ -56,7 +56,7 @@ flowchart LR
 - 后台结果先写入持久 Outbox，再通过语音、桌宠未读状态或系统通知送达。
 - Final User Message 落盘后异步进入 Jev-Mem，不阻塞当轮回复。
 
-桌面界面由原生宿主和独立伙伴控制台共同提供。控制台用 React / TypeScript / Vite 构建，运行在 Electron 中，通过本机 IPC 调用 Python Engine 和 macOS Host；详细连接方式见 [前后端连接](docs/BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
+桌面界面统一由 Electron 管理，React / TypeScript / Vite 提供对话小窗和控制台，Three.js / three-vrm 提供透明桌宠。界面通过受限 IPC 调用 Python Engine；形象资源与 Engine 生命周期由无界面的 Python 本机服务管理。详细连接方式见 [前后端连接](docs/BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。
 
 更完整的数据流和模块边界见 [架构重构方案](docs/BoxAgent-架构重构方案.md)、[Conversation Context 设计](docs/BoxAgent-Phase3-Conversation-Context-设计.md) 与 [Memory 设计](docs/BoxAgent-Phase4-Memory-设计.md)。
 
@@ -146,7 +146,7 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 持久 Product Session、Runtime 恢复 Checkpoint 与跨 Runtime 上下文
 - Jev-Mem 自动写入、Profile、Narrative、L2 direct recall 与 L3 deep recall
 - React / Electron 伙伴控制台：记忆图、上下文请求控制台、会话、Skill、任务与设置；中英文和浅色 / 深色 / 系统主题
-- 原生对话小窗、对话式 Skill 创建与安装；旧 AppKit 记忆 / Skill / 角色管理窗口已由控制台替代
+- React 对话小窗：Markdown、历史回到底部、任务授权 / 停止；旧 AppKit 窗口与 WebKit UI 已移除
 - 仅支持 3D VRM 形象、本地导入与运行中换装；共享模型和动作通过 Git LFS 管理
 - 本地 MLX 前台窗口总结
 
@@ -172,9 +172,9 @@ boxagent/
 │   ├── harness/       # 上下文、策略与 Runtime 编排
 │   └── runtime/       # Runtime 合同与模型 Profile
 ├── infrastructure/   # Qwen、Codex、Jev-Mem、持久化等适配器
-└── interfaces/        # macOS 原生桌宠 / 小窗、Engine 与 Host IPC
+└── interfaces/        # Engine API、桌面资源与进程监督
 web/
-├── panel/             # React / TypeScript / Vite + Electron 伙伴控制台
+├── panel/             # React / TypeScript / Vite + Electron 桌宠、小窗和控制台
 └── vrm/               # Three.js / three-vrm 共享角色播放器
 ```
 
