@@ -36,7 +36,7 @@ app.whenReady().then(() => {
     } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   });
   window.on('closed', () => { disposed = true; clearTimeout(reconnect); client.removeAllListeners(); client.close(); window = null; });
-  window.loadFile(path.join(__dirname, 'index.html')); client.connect();
+  window.loadFile(path.join(__dirname, 'dist/index.html')); client.connect();
   if (process.argv.includes('--smoke')) {
     window.webContents.once('did-finish-load', async () => {
       try { await require('./tests/smoke.cjs').runSmoke(window); app.quit(); }

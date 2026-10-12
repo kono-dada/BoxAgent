@@ -32,3 +32,11 @@ UI-P1 的数据接入已完成。后续已实现管理面板视觉与交互第�
 - [9 月 28 日浅色主题验收记录](/Users/bytedance/MiraJelly/docs/testing/reports/2026-09-28-light-theme-finalization-report.md)记载实际 Electron 检查；本次未复跑。检查时未发现 5173/1734 预览端口监听。
 - 查看了 [9 月 4 日设置截图](/Users/bytedance/MiraJelly/docs/design-qa/computer-use-general-2026-09-04.png)和 [记忆探索截图](/Users/bytedance/MiraJelly/docs/design-explorations/main-app-recording/evidence/memory-current-desktop.png)。两者属于历史材料，不能作为当前浅色应用实况。
 - 参考的部分设计参数文件注明来自其他应用包。采用布局、层级与交互原则，在 BoxAgent 内编写自己的样式与组件；不搬运整套资产或字体文件。
+
+## 用户追加的图与控制台目标
+
+第一版卡片与分类列表不足以满足探索需求。已追加 React/TypeScript 记忆关系图和上下文控制台，见 [追加验收](<2026-10-12-记忆图与上下文控制台验收.md>)。
+
+本地 MiraJelly 的 `app/package.json` 核实为 React 18、TypeScript 5.7、electron-vite 2、Tailwind 3、自定义 CSS、Lucide 和 Motion；BoxAgent 此前只有 Electron + 原生 JS/CSS，本轮只将复杂两页迁入 React。
+
+读取 [dsh-context](https://github.com/bowenliang123/dsh-context) 0.69.1 的 README、控制台源码与仓库截图，其结构是顶部统计、当前构成、请求趋势、联动上下文浏览器。BoxAgent 采用该信息组织模式并编写自己的组件，按已有账本展示输入和生命周期；未移植其宿主插件、计费或上下文修改能力。

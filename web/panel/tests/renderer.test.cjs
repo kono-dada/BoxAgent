@@ -13,7 +13,7 @@ function renderer() {
     boxagent: { onState() {}, onDiagnostic() {}, request: async () => new Promise(() => {}) },
     console, Intl, Date, setTimeout
   });
-  vm.runInContext(fs.readFileSync(require.resolve('../renderer.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(require.resolve('../renderer.js'), 'utf8').replace(/^import .*;\n/, ''), context);
   handlers.event = row => JSON.parse(vm.runInContext(`JSON.stringify(normalizeEvent(${JSON.stringify(row)}))`, context));
   return handlers;
 }
