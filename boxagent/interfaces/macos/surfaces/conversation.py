@@ -6,7 +6,7 @@ from typing import TypeAlias
 import AppKit as AK
 import objc
 
-from boxagent.interfaces.macos.windows.pet import PetPanel
+from boxagent.interfaces.macos.surfaces.pet import PetPanel
 
 Frame: TypeAlias = tuple[tuple[float, float], tuple[float, float]]
 

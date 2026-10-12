@@ -602,7 +602,7 @@ Onboarding 不修改 Phase 3 的 Context 模型。
 | 工作包 | 主要范围 | 不应修改 |
 |---|---|---|
 | Startup Core | `application/startup/`、状态模型和测试 | Persona、Context 拼装 |
-| macOS Onboarding UI | `interfaces/macos/windows/onboarding.py` | Provider 具体实现 |
+| macOS Onboarding UI（规划） | `interfaces/macos/surfaces/onboarding.py` | Provider 具体实现 |
 | Config & Keychain | `infrastructure/configuration/` | Conversation JSONL |
 | Engine Capability | Engine protocol、Provider Probe | AppKit 页面 |
 | Persona | SOUL、角色面板和角色体验 | BootCoordinator、Context Store |

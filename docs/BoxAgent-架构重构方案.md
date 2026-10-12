@@ -244,6 +244,8 @@ Electron 渲染器启用 `contextIsolation` 和 `sandbox`、关闭 Node integrat
 
 ## 5. 代码分层
 
+原生 macOS 界面放在 `interfaces/macos/surfaces/`：`pet.py` 定义桌宠窗口与拖动视图，`conversation.py` 定义对话小窗、消息卡片与控件。`surfaces` 指本机界面载体，避免将目录名 `windows` 误读成 Windows 平台；平台边界仍由 `interfaces/macos/` 表达。
+
 ### 5.1 目录职责
 
 ```text

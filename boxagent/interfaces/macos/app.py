@@ -18,9 +18,9 @@ from boxagent.agent.harness.persona import update_persona_name
 from boxagent.interfaces.macos.hotkey import Hotkey
 from boxagent.interfaces.macos.menu import install_menus
 from boxagent.interfaces.macos.state import ACTIVE_TASK_STATES, mode_text, transcript_sections
-from boxagent.interfaces.macos.windows.conversation import (ConversationPanel, FlippedView, LatestMessageButton, RoundedSurface,
+from boxagent.interfaces.macos.surfaces.conversation import (ConversationPanel, FlippedView, LatestMessageButton, RoundedSurface,
                                    SendButton, TranscriptView, VoiceToggleButton, accent_color, button, label, symbol_button)
-from boxagent.interfaces.macos.windows.pet import DragView, PetPanel
+from boxagent.interfaces.macos.surfaces.pet import DragView, PetPanel
 
 logger = logging.getLogger(__name__)
 
