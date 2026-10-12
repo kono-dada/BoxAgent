@@ -2,6 +2,12 @@ import { mountComplexPage, disposeComplexPage } from './src/mount';
 
 const $ = id => document.getElementById(id);
 const pages = {
+  conversation: { title:'对话与会话', eyebrow:'CONVERSATION', description:'继续相处，也可以从一个新话题开始。', search:'查找消息', footnote:'左侧选择查看的会话；发送前须将它设为当前对话。' },
+  appearance: { title:'3D 形象', eyebrow:'AVATAR', description:'选择陪在桌面上的伙伴，预览它的表情与动作。', search:'查找形象', footnote:'预览不会替换桌宠；应用后加载成功才保存选择。' },
+  persona: { title:'角色设定', eyebrow:'PERSONA', description:'名字、性格、语气和你们相处的方式。', search:'', footnote:'保存到原来的 SOUL.md；后台在安全时机同步。' },
+  skills: { title:'Skill 管理', eyebrow:'SKILLS', description:'管理伙伴可以使用的能力与方法。', search:'查找 Skill', footnote:'内置 Skill 可启停，用户 Skill 可新建、编辑和删除。' },
+  runs: { title:'任务与运行记录', eyebrow:'RUNS', description:'查看后台任务状态、授权和每次执行的产物。', search:'查找运行记录', footnote:'按左侧选中会话读取运行记录，打开按钮使用原生 Finder。' },
+  controls: { title:'运行控制', eyebrow:'CONTROLS', description:'语音、屏幕总结与桌宠窗口都在这里。', search:'', footnote:'退出伙伴会关闭桌宠和 Engine；面板可单独关闭。' },
   context: { title: '有效上下文', eyebrow: 'CONTEXT', description: '看看这个会话向模型提供了哪些信息。', search: '查找条目摘要或分类', footnote: '展示宿主记录的有效输入。Token 为估算；服务端截断与 KV 缓存命中不可由本页判断。' },
   timeline: { title: '事件时间线', eyebrow: 'TIMELINE', description: '把对话、参考与任务，放回它们发生的时刻。', search: '查找最近 150 条事件', footnote: '展示选中产品会话的最近 150 条记录，按时间排列；点击事件查看完整字段。' },
   memory: { title: '长期记忆', eyebrow: 'MEMORY', description: '从一次相处，到一个相互关联的记忆世界。', search: '查找已载入的记忆', footnote: '初始载入最近 100 个节点和最多 500 条关系。展开邻居读取选中节点的直接关联；筛选仅作用于已载入图。' },
@@ -49,7 +55,7 @@ function matches(...values) {
   const query = $('search').value.trim().toLocaleLowerCase();
   return !query || values.some(value => String(value ?? '').toLocaleLowerCase().includes(query));
 }
-function key() { return `${view}:${['memory', 'errors'].includes(view) ? 'global' : selected}`; }
+function key() { return `${view}:${['memory', 'errors', 'appearance', 'persona', 'skills', 'controls'].includes(view) ? 'global' : selected}`; }
 function saveView() { viewState.set(key(), { scroll: $('page').scrollTop, search: $('search').value }); }
 function updateHeader() {
   document.body.dataset.view = view;
@@ -57,7 +63,8 @@ function updateHeader() {
   $('page-title').textContent = info.title; $('eyebrow').textContent = info.eyebrow;
   $('description').textContent = info.description; $('search').placeholder = info.search;
   $('footnote').textContent = info.footnote;
-  $('scope').textContent = ['memory', 'errors'].includes(view) ? '本机 / 全局记录' : sessions.find(row => row.session_id === selected)?.title || '产品会话';
+  document.querySelector('.content-tools').hidden = ['persona','controls'].includes(view);
+  $('scope').textContent = ['memory', 'errors', 'appearance', 'persona', 'skills', 'controls'].includes(view) ? '本机 / 全局记录' : sessions.find(row => row.session_id === selected)?.title || '产品会话';
   document.querySelectorAll('[data-view]').forEach(node => {
     if (node.dataset.view === view) node.setAttribute('aria-current', 'page'); else node.removeAttribute('aria-current');
   });
@@ -69,6 +76,7 @@ function connection(online, message) {
 }
 function updateState(state) {
   currentState = { ...currentState, ...state };
+  document.dispatchEvent(new CustomEvent('panel-state', {detail:currentState}));
   $('runtime-status').textContent = `语音 ${runtimeLabels[currentState.voice] || currentState.voice || '—'} · 任务 ${runtimeLabels[currentState.task] || currentState.task || '—'}`;
 }
 function empty(title, message, name = view, retry = false) {
@@ -147,10 +155,10 @@ function renderErrors(data) {
 }
 function render() {
   if (pageData === null) return;
-  if (view === 'memory' || (view === 'context' && pageData.status === 'ready')) {
+  if (view === 'memory' || (view === 'context' && pageData.status === 'ready') || ['conversation','appearance','persona','skills','runs','controls'].includes(view)) {
     $('result-count').textContent = '';
-    $('summary').textContent = view === 'memory' ? '记忆关系与结构 · 选择节点探索关联' : `${pageData.model || 'Qwen'} · 宿主记录的请求控制台`;
-    mountComplexPage($('content'), view, pageData, boxagent, $('search').value.trim(), show);
+    $('summary').textContent = view === 'memory' ? '记忆关系与结构 · 选择节点探索关联' : view === 'context' ? `${pageData.model || 'Qwen'} · 宿主记录的请求控制台` : '';
+    mountComplexPage($('content'), view, pageData, boxagent, $('search').value.trim(), show, currentState, async (sessionId) => { if(sessionId) selected=sessionId; await refresh(); });
     return;
   }
   disposeComplexPage();
@@ -170,10 +178,16 @@ async function load({ restore = false } = {}) {
     let result;
     if (view === 'errors') result = await boxagent.errors();
     else if (view === 'memory') result = await boxagent.request('memory_snapshot', { node_limit: 100, edge_limit: 500 });
+    else if (view === 'appearance') result = await boxagent.request('desktop_avatars');
+    else if (view === 'persona') result = await boxagent.request('desktop_persona');
+    else if (view === 'skills') result = await boxagent.request('list_skills');
+    else if (view === 'controls') { try { result = await boxagent.request('desktop_snapshot'); } catch(error) { result = {unavailable:error.message}; } }
     else if (!selected) {
       $('content').replaceChildren(); $('summary').textContent = '尚未选择产品会话';
       empty('从一次对话开始', '有会话后，可以在左侧选择并查看它的上下文与时间线。', 'chat'); return;
-    } else if (view === 'context') {
+    } else if (view === 'conversation') result = {session_id:selected, sessions, events:await boxagent.request('session_events',{session_id:selected,limit:240})};
+    else if (view === 'runs') result = {session_id:selected,...await boxagent.request('desktop_runs',{session_id:selected})};
+    else if (view === 'context') {
       const [snapshot, timeline] = await Promise.all([boxagent.request('context_snapshot', { session_id: selected }), boxagent.request('session_timeline', { session_id: selected, limit: 500 })]);
       result = { ...snapshot, timeline };
     } else result = await boxagent.request('session_timeline', { session_id: selected, limit: 150 });
@@ -183,7 +197,7 @@ async function load({ restore = false } = {}) {
   } catch (error) {
     if (mine !== revision) return;
     $('content').replaceChildren(); $('summary').textContent = '暂时无法读取';
-    empty('数据暂时不可用', error.message, 'info', true);
+    empty(['appearance','persona','runs'].includes(view) ? '需要连接桌宠' : '数据暂时不可用', ['appearance','persona','runs'].includes(view) ? '请启动桌宠后刷新；3D 形象和角色设置由桌面宿主负责。' : error.message, 'info', true);
   } finally { if (mine === revision) $('content').setAttribute('aria-busy', 'false'); }
 }
 function renderSessions() {
@@ -214,7 +228,7 @@ async function refresh() {
       if (!sessions.some(row => row.session_id === selected)) selected = sessions.find(row => row.session_id === currentState.session_id)?.session_id || sessions[0]?.session_id || '';
       renderSessions();
     }
-    if (sessionsResult.status === 'rejected' && !['errors', 'memory'].includes(view)) {
+    if (sessionsResult.status === 'rejected' && !['errors', 'memory', 'appearance', 'persona', 'controls'].includes(view)) {
       updateHeader(); pageData = null; $('content').replaceChildren(); $('content').setAttribute('aria-busy', 'false');
       $('summary').textContent = '等待连接到本机 Engine';
       empty('连接后，继续查看伙伴的记录', '先启动桌宠或 Engine。面板会自动重连，也可以点击刷新。', 'context', true);

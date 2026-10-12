@@ -10,7 +10,7 @@ async function runSmoke(window) {
   window.webContents.setBackgroundThrottling(false);
   async function ready() {
     for (let attempt = 0; attempt < 160; attempt++) {
-      if (await js(`document.getElementById('content').getAttribute('aria-busy') === 'false' && !document.getElementById('refresh').disabled && (document.querySelector('.context-console, .memory-explorer, .empty-state, .timeline-event, .log-row') !== null)`)) return;
+      if (await js(`document.getElementById('content').getAttribute('aria-busy') === 'false' && !document.getElementById('refresh').disabled && (document.querySelector('.context-console, .memory-explorer, .feature-page, .empty-state, .timeline-event, .log-row') !== null)`)) return;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     throw new Error('Panel did not finish loading');
@@ -185,6 +185,34 @@ async function runSmoke(window) {
       check(await js(`document.getElementById('page').scrollWidth <= document.getElementById('page').clientWidth && document.body.scrollWidth <= innerWidth`), `${view} fits narrow window without horizontal overflow`);
     }
     await capture('narrow'); window.setContentSize(1200, 820);
+    for(const view of ['conversation','appearance','persona','skills','runs','controls']) {
+      await js(`document.querySelector('[data-view="${view}"]').click()`); await ready();
+      check(await js(`Boolean(document.querySelector('.feature-page'))`), `${view} full menu feature is available in panel`);
+      if(view==='appearance') {
+        for(let i=0;i<120;i++) { const frame=window.webContents.mainFrame.frames.find(frame=>frame.url.startsWith('http://127.0.0.1')); if(frame && await frame.executeJavaScript(`Boolean(window.pet?.debug().ready)`)) break; await new Promise(resolve=>setTimeout(resolve,200)); }
+        const frame=window.webContents.mainFrame.frames.find(frame=>frame.url.startsWith('http://127.0.0.1'));
+        check(frame && await frame.executeJavaScript(`window.pet.debug().ready && window.pet.debug().frames > 0`),'3D avatar renders real VRM in embedded preview');
+        await js(`document.querySelector('.avatar-layout .primary').click()`);
+        await new Promise(resolve=>setTimeout(resolve,400));
+        await js(`void document.activeElement.blur()`);
+        let applied=false;
+        for(let i=0;i<160;i++) { const snapshot=await js(`boxagent.request('desktop_snapshot')`); if(!snapshot.switching&&snapshot.appearance_ready){applied=true;break;}await new Promise(resolve=>setTimeout(resolve,200)); }
+        check(applied, 'avatar apply finishes real native preload and replacement');
+        await capture('appearance');
+      } else if(view==='controls') {
+        const before=await js(`boxagent.request('desktop_snapshot')`);
+        await js(`[...document.querySelectorAll('.control-settings button')].find(b=>b.textContent==='显示 / 收起').click()`);
+        await new Promise(resolve=>setTimeout(resolve,200));
+        const after=await js(`boxagent.request('desktop_snapshot')`);
+        check(before.bubble_open!==after.bubble_open,'panel action toggles actual desktop conversation window');
+        await js(`[...document.querySelectorAll('.control-settings button')].find(b=>b.textContent==='显示 / 收起').click()`);
+        await capture(view);
+      } else await capture(view);
+      window.setContentSize(760,680);
+      await new Promise(resolve=>setTimeout(resolve,150));
+      check(await js(`document.getElementById('page').scrollWidth <= document.getElementById('page').clientWidth && document.body.scrollWidth <= innerWidth`), `${view} fits narrow window`);
+      window.setContentSize(1200,820);
+    }
   }
   await fs.writeFile(path.join(directory, 'report.json'), JSON.stringify(report, null, 2));
   await fs.writeFile('/tmp/boxagent-panel-smoke.json', JSON.stringify(report, null, 2));

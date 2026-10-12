@@ -101,6 +101,8 @@ class Desktop(NSObject):
         self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1 / 30, self, "tick:", None, True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "app.pid").write_text(str(os.getpid()))
+        from boxagent.interfaces.macos.panel_control import PanelControl
+        self.panel_control = PanelControl(self, self.data_dir / "desktop.sock")
 
     @objc.python_method
     def preparePanel(self, panel):
@@ -194,6 +196,19 @@ class Desktop(NSObject):
         if self.memory_dashboard is None:
             self.memory_dashboard = self.memory_dashboard_factory(self)
         self.memory_dashboard.show()
+
+    def openPanel_(self, _sender: object) -> None:
+        import shutil
+        import subprocess
+        command = shutil.which("pnpm")
+        if command is None:
+            self.input_feedback = "请先安装 pnpm，再打开伙伴控制台。"
+            self.showBubble()
+            return
+        root = Path(__file__).resolve().parents[3]
+        subprocess.Popen([command, "--dir", str(root / "web/panel"), "start"],
+                         env={**os.environ, "BOXAGENT_DATA_DIR": str(self.data_dir)},
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def showSkillManager_(self, _sender):
         if self.skill_manager_factory is None:
@@ -460,6 +475,8 @@ class Desktop(NSObject):
         self.updateLabels()
 
     def tick_(self, _timer):
+        if getattr(self, "panel_control", None) is not None:
+            self.panel_control.pump()
         changed = False
         if self.history_request and self.history_request.done():
             try:
@@ -684,6 +701,8 @@ class Desktop(NSObject):
             self.closing = True
             self.hotkey.close()
             self.timer.invalidate()
+            if getattr(self, "panel_control", None) is not None:
+                self.panel_control.close()
             for appearance in (self.appearance, getattr(self, "pending_appearance", None)):
                 if hasattr(appearance, "close"):
                     appearance.close()

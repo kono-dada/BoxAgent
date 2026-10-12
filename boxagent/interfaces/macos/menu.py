@@ -23,6 +23,7 @@ def install_menus(owner):
     menu = AK.NSMenu.alloc().initWithTitle_("BoxAgent")
     context_item = None
     for title, selector in [
+        ("伙伴控制台…", "openPanel:"),
         ("显示／收起对话", "toggleBubble:"),
         ("新建会话…", "createSession:"),
         ("开启／关闭麦克风  ⌃⌥空格", "toggleMic:"),
@@ -57,7 +58,7 @@ def install_menus(owner):
     if local_menu.numberOfItems():
         item = AK.NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("3D 形象", None, "")
         item.setSubmenu_(local_menu)
-        menu.insertItem_atIndex_(item, 4)
+        menu.insertItem_atIndex_(item, 5)
     status_item = AK.NSStatusBar.systemStatusBar().statusItemWithLength_(
         AK.NSVariableStatusItemLength)
     status_item.button().setTitle_("◉")

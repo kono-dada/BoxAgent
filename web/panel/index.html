@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
-  <title>伙伴 · 会话管理</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-src http://127.0.0.1:*">
+  <title>伙伴 · 控制台</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,8 +26,14 @@
   <div class="workspace">
     <aside class="sidebar" aria-label="会话管理导航">
       <div class="window-drag" aria-hidden="true"></div>
-      <div class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-spark"/></svg></span><div><strong>伙伴</strong><span>会话与记忆</span></div></div>
+      <div class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-spark"/></svg></span><div><strong>伙伴</strong><span>陪伴与管理</span></div></div>
       <nav class="navigation" aria-label="页面">
+        <button data-view="conversation"><svg class="icon"><use href="#i-chat"/></svg><span>对话与会话</span></button>
+        <button data-view="appearance"><svg class="icon"><use href="#i-spark"/></svg><span>3D 形象</span></button>
+        <button data-view="persona"><svg class="icon"><use href="#i-chat"/></svg><span>角色设定</span></button>
+        <button data-view="skills"><svg class="icon"><use href="#i-task"/></svg><span>Skill 管理</span></button>
+        <button data-view="runs"><svg class="icon"><use href="#i-timeline"/></svg><span>任务与运行记录</span></button>
+        <button data-view="controls"><svg class="icon"><use href="#i-info"/></svg><span>运行控制</span></button>
         <button data-view="context" aria-current="page"><svg class="icon"><use href="#i-context"/></svg><span>有效上下文</span></button>
         <button data-view="timeline"><svg class="icon"><use href="#i-timeline"/></svg><span>事件时间线</span></button>
         <button data-view="memory"><svg class="icon"><use href="#i-memory"/></svg><span>长期记忆</span></button>
@@ -35,7 +41,7 @@
       </nav>
       <div class="session-heading"><h2>产品会话</h2><span id="session-count">—</span></div>
       <div id="sessions" class="session-list" aria-label="会话列表"></div>
-      <footer class="sidebar-footer"><span id="connection" data-state="connecting"><span class="status-dot"></span><span id="status" role="status">正在连接</span></span><span class="local-caption">本机 · 只读查看</span></footer>
+      <footer class="sidebar-footer"><span id="connection" data-state="connecting"><span class="status-dot"></span><span id="status" role="status">正在连接</span></span><span class="local-caption">本机 · 伙伴控制台</span></footer>
     </aside>
     <main class="page" id="page">
       <div class="page-topbar"><span id="scope">产品会话</span><span id="runtime-status">Engine</span></div>
