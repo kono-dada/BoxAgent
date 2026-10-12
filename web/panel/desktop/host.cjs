@@ -14,6 +14,7 @@ const {
   clampFrame,
   petSize,
   validBounds,
+  scalePetCrop,
   bubbleFrame,
   presentation,
 } = require("./layout.cjs");
@@ -257,6 +258,8 @@ class DesktopHost {
     );
     if (!pet || !message || typeof message !== "object") return;
     if (message.type === "bounds") {
+      // 只采用模型加载后的首帧；后续动作和诊断截图不能改变窗口。
+      if (pet.initialCrop) return;
       const bounds = validBounds(message, pet.viewport);
       if (!bounds || this.drag?.pet) return;
       pet.crop = {
@@ -265,6 +268,7 @@ class DesktopHost {
         width: bounds.width,
         height: bounds.height,
       };
+      pet.initialCrop = { crop: { ...pet.crop }, viewport: { ...pet.viewport } };
       pet.window.setBounds({
         x: Math.round(pet.origin.x + pet.crop.x),
         y: Math.round(pet.origin.y + pet.crop.y),
@@ -604,9 +608,16 @@ class DesktopHost {
         pet.origin.x += (pet.viewport.width - size.width) / 2;
         pet.origin.y += pet.viewport.height - size.height;
         pet.viewport = size;
-        pet.crop = { x: 0, y: 0, ...size };
+        pet.crop = pet.initialCrop
+          ? scalePetCrop(pet.initialCrop, size)
+          : { x: 0, y: 0, ...size };
         pet.origin = clampFrame({ ...pet.origin, ...size }, this.area);
-        pet.window.setBounds(pet.origin);
+        pet.window.setBounds({
+          x: Math.round(pet.origin.x + pet.crop.x),
+          y: Math.round(pet.origin.y + pet.crop.y),
+          width: pet.crop.width,
+          height: pet.crop.height,
+        });
         this.sendPet(pet);
         this.savePosition();
         this.positionBubble();

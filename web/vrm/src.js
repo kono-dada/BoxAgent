@@ -5,7 +5,7 @@ import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { MotionBank } from './motion-bank.js';
 import { AvatarAnimator } from './avatar-animator.js';
 import { SpringPhysics } from './spring-physics.js';
-import { visibleBounds, BoundsEnvelope } from './visible-bounds.js';
+import { visibleBounds } from './visible-bounds.js';
 
 const report = (type, detail = {}) => {
   const value = { type, ...detail };
@@ -42,18 +42,11 @@ const warnings = [];
 const boundsCanvas = document.createElement('canvas');
 const boundsContext = boundsCanvas.getContext('2d', {willReadFrequently:true});
 let lastBounds = '';
-const boundsEnvelope = new BoundsEnvelope();
-let lastBoundsCheck = -Infinity, fastBoundsUntil = 0, boundsMotion = '';
 let boundsChecks = 0, boundsReports = 0, boundsMilliseconds = 0;
-function reportBounds(force = false) {
+// 加载首帧和显式诊断时才测量边界，日常动画不扫描像素、不调整窗口。
+function reportBounds() {
   const now = performance.now();
-  if (boundsMotion !== animator?.current) {
-    boundsMotion = animator?.current; fastBoundsUntil = now + 400;
-  }
-  // 平稳动作每秒采样十次，拖动或动作过渡期间最多每秒三十次。
-  const interval = animator?.behavior.dragging || now < fastBoundsUntil ? 1000 / 30 : 100;
-  if (!force && now - lastBoundsCheck < interval - .7) return;
-  lastBoundsCheck = now; boundsChecks++;
+  boundsChecks++;
   const ratio = Math.min(1, 256 / Math.max(innerWidth, innerHeight));
   const w = Math.ceil(innerWidth * ratio), h = Math.ceil(innerHeight * ratio);
   if (boundsCanvas.width !== w || boundsCanvas.height !== h) {
@@ -61,16 +54,14 @@ function reportBounds(force = false) {
   }
   boundsContext.clearRect(0, 0, w, h);
   boundsContext.drawImage(renderer.domElement, 0, 0, w, h);
-  const measured = visibleBounds(boundsContext.getImageData(0, 0, w, h).data, w, h, innerWidth, innerHeight);
+  const bounds = visibleBounds(boundsContext.getImageData(0, 0, w, h).data, w, h, innerWidth, innerHeight);
   boundsMilliseconds += performance.now() - now;
-  if (!measured) return;
-  const bounds = boundsEnvelope.fit(measured, [innerWidth, innerHeight], now);
+  if (!bounds) return;
   const detail = {bounds, viewport:[innerWidth, innerHeight]};
   const signature = JSON.stringify(detail);
   if (signature !== lastBounds) { lastBounds = signature; boundsReports++; report('bounds', detail); }
 }
 function resize() {
-  lastBoundsCheck = -Infinity;
   renderer.setSize(innerWidth, innerHeight);
   const half = Math.max(height * 0.72, width * 0.56 * innerHeight / innerWidth);
   camera.left = -half * innerWidth / innerHeight; camera.right = -camera.left;
@@ -97,11 +88,11 @@ function frame(now) {
   const delta = Math.min((now - (last || now)) / 1000, 0.08);
   last = now;
   if (!animator) return;
-  update(delta); renderer.render(scene, camera); reportBounds(); frames++;
+  update(delta); renderer.render(scene, camera); frames++;
 }
 function snapshot() {
   renderer.render(scene, camera);
-  reportBounds(true);
+  reportBounds();
   return { image: renderer.domElement.toDataURL('image/png'), behavior: animator.debug() };
 }
 window.pet = {
@@ -117,7 +108,6 @@ window.pet = {
   present(value) { state = value.state; animator?.behavior.present(value); },
   interact(value) {
     animator?.behavior.interact(value); physics?.interact(value);
-    if (value.kind !== 'drag-move') fastBoundsUntil = performance.now() + 400;
   },
   debug() { return { ready: Boolean(animator), state, frames, warnings, elapsed,
     visibility: document.visibilityState, seconds: (performance.now() - started) / 1000,
@@ -153,7 +143,7 @@ window.pet = {
     return snapshot();
   },
   resume() { suspended = false; last = performance.now(); },
-  screenshot() { renderer.render(scene, camera); reportBounds(true); return renderer.domElement.toDataURL('image/png'); },
+  screenshot() { renderer.render(scene, camera); reportBounds(); return renderer.domElement.toDataURL('image/png'); },
   dispose() {
     disposed = true; physics?.dispose(); animator?.dispose();
     if (vrm) VRMUtils.deepDispose(vrm.scene);
