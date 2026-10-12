@@ -311,3 +311,29 @@ body[data-view="context"] .content-tools, body[data-view="memory"] .content-tool
 .chat-composer > div { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 [hidden] { display: none !important; }
 @media(max-width:1000px) { .avatar-layout, .skill-layout { grid-template-columns: 1fr; } .navigation { max-height: 42vh; } }
+/* Primary navigation for use and exploration; fixed footer for settings. */
+.navigation-label { font-size: 10px; color: var(--muted); padding: 16px 12px 5px; letter-spacing: .08em; }
+.sidebar-footer { flex-shrink: 0; padding-top: 10px; }
+.settings-button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; border-radius: 7px; text-align: left; background: transparent; padding: 8px 10px; margin-bottom: 12px; font-size: 12px; color: var(--secondary); }
+.settings-button:hover { background: var(--hover); }
+.settings-button[aria-current] { background: var(--selected); color: var(--accent); }
+.settings-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 0 0 16px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+.settings-tabs button { background: transparent; border: 0; border-radius: 6px; padding: 6px 10px; font-size: 11px; color: var(--secondary); }
+.settings-tabs button:hover { background: var(--surface); }
+.settings-tabs button[aria-current] { background: var(--selected); color: var(--accent); }
+.settings-tabs .settings-back { margin-left: auto; color: var(--muted); }
+.settings-intro { display: flex; gap: 14px; align-items: flex-start; padding: 24px; border-radius: 10px; background: #f5f8f5; margin-bottom: 22px; }
+.settings-intro > .icon { width: 30px; height: 30px; margin-top: 3px; color: var(--accent); }
+.settings-intro strong { font-size: 15px; font-weight: 550; }
+.settings-intro p { margin: 7px 0 0; font-size: 12px; color: var(--secondary); }
+.settings-category-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; margin-bottom: 22px; }
+.settings-category { display: flex; gap: 13px; align-items: flex-start; min-width: 0; background: white; border: 1px solid var(--line); border-radius: 9px; text-align: left; padding: 20px; }
+.settings-category:hover { background: var(--surface); border-color: #ccd7cf; }
+.settings-category > .icon { color: var(--accent); margin-top: 3px; width: 21px; height: 21px; }
+.settings-category > div { flex: 1; min-width: 0; }
+.settings-category strong { font-size: 13px; font-weight: 550; }
+.settings-category p { margin: 6px 0 12px; font-size: 11px; color: var(--secondary); }
+.settings-category small { font-size: 10px; color: var(--muted); }
+.settings-category > span { color: var(--muted); font-size: 22px; line-height: 1; }
+body[data-view="settings"] .summary:empty, body[data-view="appearance"] .summary:empty, body[data-view="persona"] .summary:empty, body[data-view="controls"] .summary:empty { display: none; }
+@media(max-width:850px) { .settings-category-grid { grid-template-columns: 1fr; } .settings-tabs .settings-back { margin-left: 0; } }

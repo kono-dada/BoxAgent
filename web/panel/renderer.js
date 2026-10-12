@@ -1,13 +1,16 @@
 import { mountComplexPage, disposeComplexPage } from './src/mount';
 
 const $ = id => document.getElementById(id);
+const settingViews = new Set(['settings', 'appearance', 'persona', 'controls', 'errors']);
+let previousMainView = 'conversation';
 const pages = {
+  settings: { title:'设置', eyebrow:'SETTINGS', description:'调整伙伴的形象、性格和运行方式。', search:'', footnote:'设置改变伙伴的配置；对话、记忆与任务记录仍在主导航中。' },
   conversation: { title:'对话与会话', eyebrow:'CONVERSATION', description:'继续相处，也可以从一个新话题开始。', search:'查找消息', footnote:'左侧选择查看的会话；发送前须将它设为当前对话。' },
   appearance: { title:'3D 形象', eyebrow:'AVATAR', description:'选择陪在桌面上的伙伴，预览它的表情与动作。', search:'查找形象', footnote:'预览不会替换桌宠；应用后加载成功才保存选择。' },
   persona: { title:'角色设定', eyebrow:'PERSONA', description:'名字、性格、语气和你们相处的方式。', search:'', footnote:'保存到原来的 SOUL.md；后台在安全时机同步。' },
   skills: { title:'Skill 管理', eyebrow:'SKILLS', description:'管理伙伴可以使用的能力与方法。', search:'查找 Skill', footnote:'内置 Skill 可启停，用户 Skill 可新建、编辑和删除。' },
   runs: { title:'任务与运行记录', eyebrow:'RUNS', description:'查看后台任务状态、授权和每次执行的产物。', search:'查找运行记录', footnote:'按左侧选中会话读取运行记录，打开按钮使用原生 Finder。' },
-  controls: { title:'运行控制', eyebrow:'CONTROLS', description:'语音、屏幕总结与桌宠窗口都在这里。', search:'', footnote:'退出伙伴会关闭桌宠和 Engine；面板可单独关闭。' },
+  controls: { title:'语音与桌面', eyebrow:'SETTINGS / CONTROLS', description:'管理麦克风、屏幕总结与桌面小窗。', search:'', footnote:'退出伙伴会关闭桌宠和 Engine；面板可单独关闭。' },
   context: { title: '有效上下文', eyebrow: 'CONTEXT', description: '看看这个会话向模型提供了哪些信息。', search: '查找条目摘要或分类', footnote: '展示宿主记录的有效输入。Token 为估算；服务端截断与 KV 缓存命中不可由本页判断。' },
   timeline: { title: '事件时间线', eyebrow: 'TIMELINE', description: '把对话、参考与任务，放回它们发生的时刻。', search: '查找最近 150 条事件', footnote: '展示选中产品会话的最近 150 条记录，按时间排列；点击事件查看完整字段。' },
   memory: { title: '长期记忆', eyebrow: 'MEMORY', description: '从一次相处，到一个相互关联的记忆世界。', search: '查找已载入的记忆', footnote: '初始载入最近 100 个节点和最多 500 条关系。展开邻居读取选中节点的直接关联；筛选仅作用于已载入图。' },
@@ -16,7 +19,7 @@ const pages = {
 const categoryLabels = { instructions: '系统指令', persona: '角色设定', tools: '工具定义', profile: '用户画像', checkpoint: '上下文检查点', history: '恢复历史', environment: '环境包', memory: '记忆包', reference: '本轮参考包', user: '用户消息', assistant: '助手回复', tool_call: '工具调用', tool_result: '工具结果', notification: '任务通知', system_other: '其他系统消息' };
 const eventLabels = { 'turn/start': '回合开始', 'turn/end': '回合结束', 'user/message': '你说', 'assistant/message': '伙伴回复', 'task/start': '任务开始', 'task/started': '任务开始', 'task/end': '任务结束', 'task/completed': '任务完成', 'task/status': '任务状态', 'task/result': '任务结果', 'context/rebuild': '上下文恢复', 'context/item': '上下文条目', 'context/bound': '参考包绑定', 'context/expired': '参考包到期', 'context/deleted': '参考包删除回执', 'context/response/requested': '请求生成回复', 'context/response/created': '开始生成回复', 'context/turn/start': '模型回合开始', 'context/turn/prepare': '回合前准备', 'migration/source': '历史迁移', 'tool/call': '调用工具', 'tool/result': '工具返回', 'task.accepted': '任务已接收', 'task.started': '任务开始', 'task.completed': '任务完成', 'task.failed': '任务失败', 'task.cancelled': '任务已停止', 'task.progress': '任务进展', 'task.heartbeat': '任务运行中', 'task.approval': '等待授权', 'task.approval_resolved': '授权已处理', 'task.cancelling': '正在停止任务', 'compaction/created': '上下文检查点' };
 const runtimeLabels = { idle: '空闲', ready: '就绪', connected: '已连接', connecting: '连接中', disconnected: '未连接', listening: '聆听中', speaking: '回复中', running: '执行中', thinking: '思考中', failed: '失败', completed: '完成', off: '关闭', stopped: '已停止', error: '异常', accepted: '已接收', awaiting_approval: '等待授权', cancelling: '停止中', cancelled: '已停止' };
-let selected = '', view = 'context', sessions = [], revision = 0, refreshRevision = 0;
+let selected = '', view = 'conversation', sessions = [], revision = 0, refreshRevision = 0;
 let pageData = null, currentState = {}, detailRevision = 0, detailTrigger = null;
 const viewState = new Map();
 
@@ -55,18 +58,22 @@ function matches(...values) {
   const query = $('search').value.trim().toLocaleLowerCase();
   return !query || values.some(value => String(value ?? '').toLocaleLowerCase().includes(query));
 }
-function key() { return `${view}:${['memory', 'errors', 'appearance', 'persona', 'skills', 'controls'].includes(view) ? 'global' : selected}`; }
+function key() { return `${view}:${['memory', 'errors', 'appearance', 'persona', 'skills', 'controls', 'settings'].includes(view) ? 'global' : selected}`; }
 function saveView() { viewState.set(key(), { scroll: $('page').scrollTop, search: $('search').value }); }
 function updateHeader() {
   document.body.dataset.view = view;
   const info = pages[view];
+  $('settings-tabs').hidden = !settingViews.has(view);
+  $('settings-button').setAttribute('aria-expanded', String(settingViews.has(view)));
+  $('settings-back').textContent = `返回${pages[previousMainView].title}`;
   $('page-title').textContent = info.title; $('eyebrow').textContent = info.eyebrow;
   $('description').textContent = info.description; $('search').placeholder = info.search;
   $('footnote').textContent = info.footnote;
-  document.querySelector('.content-tools').hidden = ['persona','controls'].includes(view);
-  $('scope').textContent = ['memory', 'errors', 'appearance', 'persona', 'skills', 'controls'].includes(view) ? '本机 / 全局记录' : sessions.find(row => row.session_id === selected)?.title || '产品会话';
+  document.querySelector('.content-tools').hidden = ['settings','persona','controls'].includes(view);
+  $('scope').textContent = ['memory', 'errors', 'appearance', 'persona', 'skills', 'controls', 'settings'].includes(view) ? '本机 / 全局记录' : sessions.find(row => row.session_id === selected)?.title || '产品会话';
   document.querySelectorAll('[data-view]').forEach(node => {
-    if (node.dataset.view === view) node.setAttribute('aria-current', 'page'); else node.removeAttribute('aria-current');
+    const active = node.id === 'settings-button' ? settingViews.has(view) : node.dataset.view === view;
+    if (active) node.setAttribute('aria-current', node.id === 'settings-button' ? 'true' : 'page'); else node.removeAttribute('aria-current');
   });
 }
 function connection(online, message) {
@@ -155,7 +162,7 @@ function renderErrors(data) {
 }
 function render() {
   if (pageData === null) return;
-  if (view === 'memory' || (view === 'context' && pageData.status === 'ready') || ['conversation','appearance','persona','skills','runs','controls'].includes(view)) {
+  if (view === 'memory' || (view === 'context' && pageData.status === 'ready') || ['conversation','appearance','persona','skills','runs','controls','settings'].includes(view)) {
     $('result-count').textContent = '';
     $('summary').textContent = view === 'memory' ? '记忆关系与结构 · 选择节点探索关联' : view === 'context' ? `${pageData.model || 'Qwen'} · 宿主记录的请求控制台` : '';
     mountComplexPage($('content'), view, pageData, boxagent, $('search').value.trim(), show, currentState, async (sessionId) => { if(sessionId) selected=sessionId; await refresh(); });
@@ -176,7 +183,8 @@ async function load({ restore = false } = {}) {
   const mine = ++revision; updateHeader(); loading();
   try {
     let result;
-    if (view === 'errors') result = await boxagent.errors();
+    if (view === 'settings') result = {};
+    else if (view === 'errors') result = await boxagent.errors();
     else if (view === 'memory') result = await boxagent.request('memory_snapshot', { node_limit: 100, edge_limit: 500 });
     else if (view === 'appearance') result = await boxagent.request('desktop_avatars');
     else if (view === 'persona') result = await boxagent.request('desktop_persona');
@@ -228,8 +236,8 @@ async function refresh() {
       if (!sessions.some(row => row.session_id === selected)) selected = sessions.find(row => row.session_id === currentState.session_id)?.session_id || sessions[0]?.session_id || '';
       renderSessions();
     }
-    if (sessionsResult.status === 'rejected' && !['errors', 'memory', 'appearance', 'persona', 'controls'].includes(view)) {
-      updateHeader(); pageData = null; $('content').replaceChildren(); $('content').setAttribute('aria-busy', 'false');
+    if (sessionsResult.status === 'rejected' && !['errors', 'memory', 'appearance', 'persona', 'controls', 'settings'].includes(view)) {
+      updateHeader(); disposeComplexPage(); pageData = null; $('content').replaceChildren(); $('content').setAttribute('aria-busy', 'false');
       $('summary').textContent = '等待连接到本机 Engine';
       empty('连接后，继续查看伙伴的记录', '先启动桌宠或 Engine。面板会自动重连，也可以点击刷新。', 'context', true);
       return;
@@ -242,11 +250,18 @@ $('close').onclick = () => $('detail').close();
 $('detail').addEventListener('close', () => { detailRevision += 1; if (detailTrigger?.isConnected) detailTrigger.focus({ preventScroll: true }); });
 $('detail').addEventListener('click', event => { if (event.target === $('detail')) { const box = $('detail').getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) $('detail').close(); } });
 $('search').addEventListener('input', () => { render(); $('page').scrollTop = 0; });
-document.querySelectorAll('[data-view]').forEach(node => { node.onclick = () => {
-  if (view === node.dataset.view) return;
-  saveView(); view = node.dataset.view; $('search').value = viewState.get(key())?.search || '';
+function navigate(next) {
+  if (!pages[next] || view === next) return;
+  saveView();
+  if (!settingViews.has(view)) previousMainView = view;
+  view = next; $('search').value = viewState.get(key())?.search || '';
   $('page').scrollTop = 0; load({ restore: true });
-}; });
+}
+document.addEventListener('click', event => {
+  const target = event.target.closest?.('[data-view]');
+  if (target) navigate(target.dataset.view);
+});
+$('settings-back').onclick = () => navigate(previousMainView);
 boxagent.onState(state => { connection(true); updateState(state); });
 boxagent.onDiagnostic(message => {
   if (message === 'Engine 已连接') { connection(true); refresh(); }

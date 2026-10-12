@@ -1,4 +1,4 @@
-// Exercise the actual Electron renderer and its read-only Engine connection.
+// Exercise actual Electron navigation and the Engine/desktop connection.
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -15,6 +15,15 @@ async function runSmoke(window) {
     }
     throw new Error('Panel did not finish loading');
   }
+  async function navigate(view) {
+    if (['appearance','persona','controls','errors'].includes(view)) {
+      if (await js(`document.getElementById('settings-tabs').hidden`)) {
+        await js(`document.getElementById('settings-button').click()`); await ready();
+      }
+      await js(`(document.querySelector('#content [data-view="${view}"]') || document.querySelector('#settings-tabs [data-view="${view}"]')).click()`);
+    } else await js(`document.querySelector('${view === 'settings' ? '#settings-button' : '.navigation [data-view="' + view + '"]'}').click()`);
+    await ready();
+  }
   async function capture(name) {
     window.show(); window.focus();
     await js(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
@@ -24,11 +33,17 @@ async function runSmoke(window) {
   const report = { checks: [], pages: {} };
   const check = (condition, label) => { assert.ok(condition, label); report.checks.push(label); };
   await ready();
+  check(await js(`document.body.dataset.view === 'conversation'`), 'panel opens on conversation');
+  check(await js(`JSON.stringify([...document.querySelectorAll('.navigation [data-view]')].map(el=>el.dataset.view)) === JSON.stringify(['conversation','memory','skills','runs','context','timeline'])`), 'main navigation groups daily features and observation pages');
   const online = await js(`document.getElementById('connection').dataset.state === 'online'`);
   if (!online) {
     check(await js(`Boolean(document.querySelector('.empty-state'))`), 'disconnected state has recovery action');
     await capture('disconnected');
+    await navigate('settings');
+    check(await js(`document.querySelectorAll('.settings-category').length === 4`), 'settings categories remain available offline');
+    await capture('settings-offline');
   } else {
+    await navigate('context');
     const candidates = await js(`(async () => {
       const rows = await boxagent.request('list_sessions', {include_archived: true});
       for (const row of rows) {
@@ -73,7 +88,7 @@ async function runSmoke(window) {
       await new Promise(resolve => setTimeout(resolve, 150));
     }
     for (const view of ['timeline', 'memory', 'errors', 'context']) {
-      await js(`document.querySelector('[data-view="${view}"]').click()`); await ready();
+      await navigate(view);
       const state = await js(`({title: document.getElementById('page-title').textContent,
         summary: document.getElementById('summary').textContent,
         selected: document.querySelector('[aria-current="page"]').dataset.view,
@@ -181,13 +196,30 @@ async function runSmoke(window) {
     check(await js(`document.getElementById('page').scrollTop === ${scrollBefore}`), 'page scroll restored after navigation');
     window.setContentSize(760, 680);
     for (const view of ['timeline', 'memory', 'errors', 'context']) {
-      await js(`document.querySelector('[data-view="${view}"]').click()`); await ready();
+      await navigate(view);
       check(await js(`document.getElementById('page').scrollWidth <= document.getElementById('page').clientWidth && document.body.scrollWidth <= innerWidth`), `${view} fits narrow window without horizontal overflow`);
     }
     await capture('narrow'); window.setContentSize(1200, 820);
+    await navigate('timeline');
+    await js(`document.getElementById('search').value='任务'; document.getElementById('search').dispatchEvent(new Event('input'))`);
+    await new Promise(resolve=>setTimeout(resolve,150));
+    await js(`document.getElementById('page').scrollTop=150`);
+    const settingsReturnScroll=await js(`document.getElementById('page').scrollTop`);
+    await navigate('settings');
+    check(await js(`document.querySelectorAll('.settings-category').length===4 && document.getElementById('settings-button').getAttribute('aria-expanded')==='true'`),'settings overview exposes all four categories');
+    await capture('settings');
+    window.setContentSize(760,680); await new Promise(resolve=>setTimeout(resolve,150));
+    check(await js(`document.getElementById('page').scrollWidth <= document.getElementById('page').clientWidth && document.body.scrollWidth <= innerWidth`),'settings fits narrow window');
+    check(await js(`(()=>{const box=document.getElementById('settings-button').getBoundingClientRect();return box.bottom<=innerHeight && box.top>innerHeight-150})()`),'settings entry stays visible at bottom left in narrow window');
+    await capture('settings-narrow'); window.setContentSize(1200,820);
+    await js(`document.getElementById('settings-back').click()`); await ready();
+    check(await js(`document.body.dataset.view==='timeline' && document.getElementById('settings-tabs').hidden && !document.getElementById('settings-button').hasAttribute('aria-current') && document.getElementById('search').value==='任务' && document.getElementById('page').scrollTop===${settingsReturnScroll}`),'settings back restores previous page, search and scroll');
+    await js(`document.getElementById('search').value=''; document.getElementById('search').dispatchEvent(new Event('input'))`);
+
     for(const view of ['conversation','appearance','persona','skills','runs','controls']) {
-      await js(`document.querySelector('[data-view="${view}"]').click()`); await ready();
+      await navigate(view);
       check(await js(`Boolean(document.querySelector('.feature-page'))`), `${view} full menu feature is available in panel`);
+      if(['appearance','persona','controls'].includes(view)) check(await js(`!document.getElementById('settings-tabs').hidden && document.getElementById('settings-button').getAttribute('aria-current')==='true'`), `${view} is reachable through visible settings navigation`);
       if(view==='appearance') {
         for(let i=0;i<120;i++) { const frame=window.webContents.mainFrame.frames.find(frame=>frame.url.startsWith('http://127.0.0.1')); if(frame && await frame.executeJavaScript(`Boolean(window.pet?.debug().ready)`)) break; await new Promise(resolve=>setTimeout(resolve,200)); }
         const frame=window.webContents.mainFrame.frames.find(frame=>frame.url.startsWith('http://127.0.0.1'));

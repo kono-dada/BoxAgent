@@ -41,7 +41,11 @@ app.whenReady().then(async()=>{
  });
  const js=s=>window.webContents.executeJavaScript(s);
  const wait=async(condition)=>{for(let i=0;i<100;i++){if(await js(condition))return;await new Promise(r=>setTimeout(r,50));}throw new Error(condition);};
- const nav=async view=>{await js(`document.querySelector('[data-view="${view}"]').click()`);await wait(`document.querySelector('.feature-page') && document.getElementById('content').getAttribute('aria-busy')==='false'`);};
+ const nav=async view=>{
+  if(['persona','controls'].includes(view) && await js(`document.getElementById('settings-tabs').hidden`)) {await js(`document.getElementById('settings-button').click()`);await wait(`document.querySelector('.settings-overview')`);}
+  await js(`document.querySelector('${['persona','controls'].includes(view)?'#settings-tabs':'.navigation'} [data-view="${view}"]').click()`);
+  await wait(`document.querySelector('.feature-page') && document.getElementById('content').getAttribute('aria-busy')==='false'`);
+ };
  const click=async text=>{await js(`[...document.querySelectorAll('#content button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}).click()`);await new Promise(r=>setTimeout(r,120));};
  const fill=async(label,value,kind='input')=>{await js(`(()=>{const el=document.querySelector('[aria-label="${label}"]');Object.getOwnPropertyDescriptor(${kind==='textarea'?'HTMLTextAreaElement':'HTMLInputElement'}.prototype,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event('input',{bubbles:true}));})()`);await new Promise(r=>setTimeout(r,60));};
  try{
@@ -53,11 +57,13 @@ app.whenReady().then(async()=>{
   await fill('Skill name','更新能力');await click('保存');assert.equal(skills[1].name,'更新能力');
   await js(`document.querySelector('[aria-label="启用此 Skill"]').click()`);await new Promise(r=>setTimeout(r,150));assert.equal(skills[1].enabled,false);
   await click('删除');assert.equal(skills.length,1);
-  await nav('conversation');await fill('对话消息','隔离消息','textarea');await click('发送');assert.equal(events[0].content,'隔离消息');
+  await nav('conversation');await click('开启麦克风');assert.equal(state.voice,'ready');await click('关闭麦克风');assert.equal(state.voice,'off');await fill('对话消息','隔离消息','textarea');await click('发送');assert.equal(events[0].content,'隔离消息');
   await click('新建会话');await fill('新会话名称','新验收');await click('创建并开始');assert(calls.some(c=>c.method==='create_session'&&c.params.title==='新验收'));
   await nav('runs');await click('允许操作');assert(calls.some(c=>c.method==='answer_approval'&&c.params.allowed===true));await click('停止后台任务');assert.equal(state.task,'cancelled');
   await click('打开最近运行');await click('打开会话运行目录');assert(calls.some(c=>c.method==='desktop_open_run'&&c.params.latest));
   await nav('controls');await click('显示 / 收起');await click('开启麦克风');assert.equal(state.voice,'ready');await click('关闭麦克风');assert.equal(state.voice,'off');await click('开启屏幕总结');assert(state.context_enabled);await click('关闭屏幕总结');assert(!state.context_enabled);await click('打开目录');await click('退出 BoxAgent');assert(calls.some(c=>c.method==='desktop_quit'));
-  console.log('Isolated feature renderer: persona, skill CRUD/toggle, messages/sessions, approval/cancel, native folders, mic/context/bubble/quit passed');app.quit();
+  await js(`document.getElementById('settings-back').click()`);await wait(`document.body.dataset.view==='runs' && document.querySelector('.run-list')`);
+  assert(await js(`document.getElementById('settings-tabs').hidden && Boolean(document.querySelector('.approval-card'))===false`));
+  console.log('Isolated feature renderer: settings navigation/back, conversation mic shortcuts, persona, skill CRUD/toggle, messages/sessions, approval/cancel, native folders, mic/context/bubble/quit passed');app.quit();
  }catch(error){console.error(error);app.exit(1);}
 });

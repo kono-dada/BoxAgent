@@ -9,7 +9,7 @@ function renderer() {
   const handlers = {};
   const node = { addEventListener() {}, dataset: {}, style: {} };
   const context = vm.createContext({
-    document: { getElementById: () => node, querySelectorAll: () => [] },
+    document: { getElementById: () => node, querySelectorAll: () => [], addEventListener() {} },
     boxagent: { onState() {}, onDiagnostic() {}, request: async () => new Promise(() => {}) },
     console, Intl, Date, setTimeout
   });
