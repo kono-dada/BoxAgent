@@ -200,6 +200,8 @@ sequenceDiagram
 
 当前是本机桌面前后端分离：`web/panel` 负责界面与展示状态，Python Engine 负责会话、对话、记忆、Skill、任务及模型服务。原生 macOS Host 负责窗口、桌宠、形象应用与操作系统集成。旧 AppKit 记忆、Skill、角色设置窗口及独立 WebKit 记忆图已删除，后台能力保留。
 
+控制台使用单一 React root。`App` 管理导航、会话与加载生命周期；`data.ts` 集中页面 IPC 读取，`pages/` 保存各功能页，`components/` 和 `hooks/` 复用展示与操作反馈。状态事件作为 props 更新；切页丢弃旧请求结果，页面卸载时释放订阅和定时器。
+
 传统网页通常通过 HTTP API 请求服务。控制台也通过 API 调用后端，但传输使用本地 Unix Socket JSONL RPC，渲染器通过 Electron IPC 进入主进程。一次请求不新建模型会话；Product Session、Qwen 连续连接与 Codex 线程由 Engine 管理。
 
 ```mermaid

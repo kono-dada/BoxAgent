@@ -11,8 +11,18 @@ pnpm --dir web/panel start
 `start` 直接由 Electron 载入已构建的 `dist/index.html`。菜单直接启动本机 Electron 可执行文件，不经过 pnpm 或重新构建；已打开时由单实例机制唤起原窗口。关闭窗口仍退出控制台进程，下次打开保留 Electron 冷启动开销。
 修改前端源码后执行 `pnpm --dir web/panel dev`，先检查/构建再打开；或者手动 `build` 后 `start`。菜单启动日志保存在 `<数据目录>/logs/panel.log`（自定义诊断目录时随 `--log-dir`）。
 完整 `scripts/install.sh` 已包含控制台依赖和构建；菜单启动缺少依赖时在小窗提示安装。
-记忆、上下文、角色、Skill、对话和控制页使用 React 18 + TypeScript；关系图使用 vis-network 9.1.9。
-共用外壳、时间线和日志仍是原生 JavaScript，样式为自定义 CSS。
+整个渲染器使用 React 18 + TypeScript，统一由 `src/main.tsx` 挂载；关系图使用 vis-network 9.1.9，样式为自定义 CSS。
+
+## 前端代码组织
+
+- `src/App.tsx`：导航、选中会话、页面加载与连接状态；保存各页搜索和滚动位置。
+- `src/data.ts` / `src/types.ts`：按页面集中读取 IPC 数据，明确页面和桥接的数据契约。
+- `src/pages/`：对话、形象、角色、Skill、运行记录、设置、时间线与诊断；上下文和记忆图继续使用独立组件。
+- `src/components/`：侧栏、页面分发、详情弹窗、空态及展示工具。
+- `src/hooks/useAction.ts`：异步操作的忙碌状态和成功/失败反馈。
+- `src/pages.ts` / `src/event-model.ts`：导航元数据和新旧事件格式归一化。
+
+页面切换卸载旧页并丢弃迟到结果；搜索与界面偏好变化只重绘，保留当前页草稿。Engine 状态直接作为 props 更新；preload 的状态/诊断订阅返回解绑函数。原 `renderer.js`、二次挂载桥和功能页聚合文件已移除。
 
 - 有效上下文：统计、分类构成、请求总量/增量趋势，以及联动的上下文浏览器。悬停预览、点击固定请求；分类和条目可展开，读取完整内容。
 - 长期记忆：真实节点与有向关系图、自由/类型分层布局、拖动/缩放/双击聚焦、节点与关系筛选、标签开关、邻居展开、只看邻居与列表。右侧展示节点字段和可跳转的直接关系。
@@ -61,6 +71,8 @@ pnpm --dir web/panel exec electron . --smoke
 
 ```bash
 pnpm --dir web/panel exec electron tests/feature-smoke.cjs
+pnpm --dir web/panel exec electron tests/lifecycle-smoke.cjs
+pnpm --dir web/panel exec electron tests/avatar-bridge-smoke.cjs
 ```
 
 完整菜单映射与验证见 [菜单功能迁移验收](../../docs/需求/2026-10-12-菜单功能迁移验收.md)。

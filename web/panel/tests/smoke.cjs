@@ -24,6 +24,13 @@ async function runSmoke(window) {
     } else await js(`document.querySelector('${view === 'settings' ? '#settings-button' : '.navigation [data-view="' + view + '"]'}').click()`);
     await ready();
   }
+  async function search(value) {
+    await js(`(() => {
+      const field = document.getElementById('search');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, ${JSON.stringify(value)});
+      field.dispatchEvent(new Event('input', {bubbles:true}));
+    })()`);
+  }
   async function capture(name) {
     window.show(); window.focus();
     await js(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
@@ -82,10 +89,10 @@ async function runSmoke(window) {
         await js(`document.querySelector('.context-browser select').value = 'live'; document.querySelector('.context-browser select').dispatchEvent(new Event('change', {bubbles:true}))`);
         await new Promise(resolve => setTimeout(resolve, 150));
       }
-      await js(`document.getElementById('search').value = '__no_match__'; document.getElementById('search').dispatchEvent(new Event('input'))`);
+      await search('__no_match__');
       await new Promise(resolve => setTimeout(resolve, 150));
       check(await js(`document.querySelectorAll('.browser-category').length === 0`), 'context search filters entries');
-      await js(`document.getElementById('search').value = ''; document.getElementById('search').dispatchEvent(new Event('input'))`);
+      await search('');
       await new Promise(resolve => setTimeout(resolve, 150));
     }
     for (const view of ['timeline', 'memory', 'errors', 'context']) {
@@ -169,9 +176,9 @@ async function runSmoke(window) {
     await js(`document.querySelectorAll('.graph-toolbar .segmented button')[1].click()`); await new Promise(resolve=>setTimeout(resolve,200));
     check(await js(`Boolean(document.querySelector('.memory-canvas canvas')) && document.querySelectorAll('.graph-toolbar .segmented button')[1].getAttribute('aria-pressed') === 'true'`), 'type hierarchy layout remains usable');
     await js(`document.querySelectorAll('.graph-toolbar .segmented button')[0].click()`); await new Promise(resolve=>setTimeout(resolve,750));
-    await js(`document.getElementById('search').value='__no_match__'; document.getElementById('search').dispatchEvent(new Event('input'))`); await new Promise(resolve=>setTimeout(resolve,150));
+    await search('__no_match__'); await new Promise(resolve=>setTimeout(resolve,150));
     check(await js(`document.querySelector('.graph-footer').textContent.includes('0 个可见节点')`), 'memory search filters graph nodes');
-    await js(`document.getElementById('search').value=''; document.getElementById('search').dispatchEvent(new Event('input'))`);
+    await search('');
     await js(`(() => {
       for (const view of ['timeline', 'memory', 'context', 'errors', 'timeline']) document.querySelector('[data-view="' + view + '"]').click();
     })()`); await ready();
@@ -202,7 +209,7 @@ async function runSmoke(window) {
     }
     await capture('narrow'); window.setContentSize(1200, 820);
     await navigate('timeline');
-    await js(`document.getElementById('search').value='任务'; document.getElementById('search').dispatchEvent(new Event('input'))`);
+    await search('任务');
     await new Promise(resolve=>setTimeout(resolve,150));
     await js(`document.getElementById('page').scrollTop=150`);
     const settingsReturnScroll=await js(`document.getElementById('page').scrollTop`);
@@ -215,7 +222,7 @@ async function runSmoke(window) {
     await capture('settings-narrow'); window.setContentSize(1200,820);
     await js(`document.getElementById('settings-back').click()`); await ready();
     check(await js(`document.body.dataset.view==='timeline' && document.getElementById('settings-tabs').hidden && !document.getElementById('settings-button').hasAttribute('aria-current') && document.getElementById('search').value==='任务' && document.getElementById('page').scrollTop===${settingsReturnScroll}`),'settings back restores previous page, search and scroll');
-    await js(`document.getElementById('search').value=''; document.getElementById('search').dispatchEvent(new Event('input'))`);
+    await search('');
 
     for(const view of ['conversation','appearance','persona','skills','runs','controls']) {
       await navigate(view);
