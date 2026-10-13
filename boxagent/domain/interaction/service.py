@@ -274,6 +274,11 @@ class InteractionService:
                 return
             if origin != "user":
                 return
+            query_id = payload.get("query_id")
+            if query_id:
+                if self.interaction is not None and self.interaction.interaction_id == query_id:
+                    self.response_interactions[response_id] = self.interaction
+                return
             if self.interaction is not None:
                 self.response_interactions[response_id] = self.interaction
             elif response_id not in self.pending_user_responses:
@@ -366,6 +371,8 @@ class InteractionService:
 
     async def _handle_tool(self, name, arguments, metadata=None):
         interaction = self._response_interaction(metadata or {})
+        if name == "run_task" and interaction is None:
+            return {"status": "failed", "message": "此请求已被打断或结束，未启动任务"}
         try:
             return await self.handle_tool(name, arguments, interaction=interaction)
         finally:

@@ -659,6 +659,22 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
                 QwenRealtimeSession._implies_background_delegation(transcript),
                 transcript)
 
+    async def test_interleaved_responses_do_not_share_transcript_fallback(self):
+        calls = []
+        async def tool(*args):
+            calls.append(args)
+            return {"status": "accepted"}
+        voice = QwenRealtimeSession(tool, lambda *_args, **_kw: None)
+        await voice.receive({"type": "response.created", "response": {"id": "empty"}})
+        await voice.receive({"type": "response.created", "response": {"id": "promise"}})
+        await voice.receive({"type": "response.text.delta", "response_id": "promise", "delta": "我这就去打开计算器。"})
+        await voice.receive({"type": "response.done", "response": {"id": "empty"}})
+        await asyncio.sleep(0)
+        self.assertEqual(calls, [])
+        await voice.receive({"type": "response.done", "response": {"id": "promise"}})
+        await asyncio.gather(*tuple(voice.deliveries))
+        self.assertEqual(len(calls), 1)
+
     async def test_response_output_recovers_missing_incremental_function_call(self):
         calls = []
 
@@ -715,6 +731,22 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         release.set()
         await asyncio.gather(*tuple(voice.deliveries))
 
+    async def test_late_provider_call_does_not_repeat_a_repaired_delegation(self):
+        calls = []
+        async def tool(*args):
+            calls.append(args)
+            return {"status": "accepted"}
+        voice = QwenRealtimeSession(tool, lambda *_args, **_kw: None)
+        await voice.receive({"type": "response.created", "response": {"id": "r1"}})
+        await voice.receive({"type": "response.text.done", "response_id": "r1",
+                             "text": "我这就去打开科学计算器。"})
+        await voice._finalize_response("r1", source="audio_done")
+        await asyncio.gather(*tuple(voice.deliveries))
+        await voice.receive({"type": "response.function_call_arguments.done", "response_id": "r1",
+                             "call_id": "late-call", "name": "run_task", "arguments": "{}"})
+        await asyncio.sleep(0)
+        self.assertEqual(len(calls), 1)
+
     async def test_audio_done_closes_response_when_provider_done_is_missing(self):
         records = []
 
@@ -751,7 +783,8 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
             "real-call", "remember_memory", {"status": "succeeded"}))
         worker = asyncio.create_task(voice.deliver_results())
         await asyncio.sleep(.15)
-        self.assertFalse(voice.ws.sent)
+        self.assertEqual(len(voice.ws.sent), 1)  # Acknowledge before speaking.
+        self.assertEqual(json.loads(voice.ws.sent[0])["item"]["type"], "function_call_output")
         voice.user_speaking = False
         await asyncio.sleep(.15)
         self.assertEqual(len(voice.ws.sent), 2)
