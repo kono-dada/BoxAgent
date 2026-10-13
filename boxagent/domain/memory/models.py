@@ -1,9 +1,16 @@
 """Domain records for Jev-Mem-first memory orchestration."""
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 MEMORY_SCHEMA_VERSION = 2
+
+
+class MemoryIngestionCounts(TypedDict):
+    observation_count: int
+    admitted: int
+    rejected: int
+    reason: NotRequired[str]
 
 
 @dataclass(frozen=True)

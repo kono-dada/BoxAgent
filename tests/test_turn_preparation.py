@@ -4,11 +4,16 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 from boxagent.application.turn_preparation import TurnPreparer
+from boxagent.core.events import StateEvents
+from boxagent.domain.conversation import ConversationService
+from boxagent.domain.interaction.service import InteractionService
 from boxagent.domain.context.models import project_context
 from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
 from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
+from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 
 
@@ -18,7 +23,103 @@ class Memory:
 
 
 class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_host_control_does_not_infer_tasks_from_companion_prose(self):
+    async def test_pending_response_is_bound_before_the_next_request(self):
+        session = QwenRealtimeSession(None, lambda *_args, **_kw: None, host_turn_control=True)
+        class Socket:
+            def __init__(self):
+                self.sent = []
+            async def send(self, raw):
+                self.sent.append(json.loads(raw))
+            async def close(self):
+                pass
+        session.ws = Socket()
+        session.begin_query("speed")
+        first = asyncio.create_task(session._create_response({"kind": "user", "query_id": "speed"}))
+        await asyncio.sleep(0)
+        first.cancel()  # User starts another utterance before the provider ack.
+        await asyncio.gather(first, return_exceptions=True)
+        session.begin_query("model-question")
+        second = asyncio.create_task(session._create_response({"kind": "user", "query_id": "model-question"}))
+        await asyncio.sleep(.01)
+        self.assertEqual(sum(row["type"] == "response.create" for row in session.ws.sent), 1)
+        await session.receive({"type": "response.created", "response": {"id": "late-speed"}})
+        await asyncio.sleep(.01)
+        self.assertIn("late-speed", session.cancelled_responses)
+        self.assertEqual(sum(row["type"] == "response.create" for row in session.ws.sent), 2)
+        await session.receive({"type": "response.created", "response": {"id": "model-reply"}})
+        await second
+        self.assertEqual(session.response_context["model-reply"]["query_id"], "model-question")
+        await session._finalize_response("late-speed", source="provider")
+        self.assertTrue(session.input_turn_pending)
+
+    async def test_notification_waits_for_new_query_and_promise_dispatches_original_goal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            conversation = ConversationService(JsonlSessionStore(Path(directory)))
+            await conversation.start()
+            handled = []
+            async def tool(name, arguments, *, interaction=None):
+                handled.append((name, interaction.user_event.content))
+                return {"status": "accepted", "task_id": "science"}
+            interaction = InteractionService(StateEvents(lambda *_: None), None, tool,
+                                             conversation=conversation)
+            session = QwenRealtimeSession(interaction._handle_tool, lambda *_args, **_kw: None,
+                                          host_turn_control=True,
+                                          conversation_event=interaction._conversation_event)
+            class Socket:
+                def __init__(self):
+                    self.sent = []
+                async def send(self, raw):
+                    row = json.loads(raw)
+                    self.sent.append(row)
+                    if row["type"] == "response.create":
+                        await session.receive({"type": "response.created", "response": {
+                            "id": "response-" + str(len(self.sent))}})
+                async def close(self):
+                    pass
+            session.ws = Socket()
+            await interaction._conversation_event("user_final", {
+                "transcript": "打开科学计算器，计算二的五次方加根号四十二"})
+            query_id = interaction.interaction.interaction_id
+            session.begin_query(query_id)
+            await session.notifications.put({"notification_id": "old-failure", "outcome": "failed",
+                                             "summary": "旧任务无法解析"})
+            notices = asyncio.create_task(session.deliver_notifications())
+            await asyncio.sleep(.02)
+            self.assertEqual(session.ws.sent, [])
+            # A waiting notification must not retain the delivery lock.
+            await asyncio.wait_for(session.respond_to_query("", query_id=query_id), .2)
+            response_id = session.response_id
+            await session.receive({"type": "response.audio_transcript.done", "response_id": response_id,
+                                   "transcript": "我这就去打开科学计算器，把 2 的 5 次方加上根号 42 算出来。"})
+            await session.receive({"type": "response.done", "response": {"id": response_id}})
+            await asyncio.gather(*tuple(session.deliveries))
+            self.assertEqual(handled, [("run_task", "打开科学计算器，计算二的五次方加根号四十二")])
+            await asyncio.sleep(.12)
+            self.assertTrue(any("旧任务无法解析" in json.dumps(row, ensure_ascii=False)
+                                for row in session.ws.sent))
+            notices.cancel()
+            await asyncio.gather(notices, return_exceptions=True)
+            events = await conversation.events((await conversation.active_session()).session_id)
+            self.assertFalse(any(row.type == "interaction.finalized" and row.status == "succeeded"
+                                 for row in events))
+
+    async def test_stale_response_cannot_bind_to_a_new_interaction_or_dispatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            conversation = ConversationService(JsonlSessionStore(Path(directory)))
+            await conversation.start()
+            tool = AsyncMock()
+            interaction = InteractionService(StateEvents(lambda *_: None), None, tool, conversation=conversation)
+            await interaction._conversation_event("user_final", {"transcript": "快吗"})
+            old_id = interaction.interaction.interaction_id
+            await interaction._conversation_event("user_final", {"transcript": "打开科学计算器"})
+            await interaction._conversation_event("response_created", {
+                "response_id": "late", "origin": "user", "query_id": old_id})
+            result = await interaction._handle_tool("run_task", "{}", {"response_id": "late"})
+            self.assertEqual(result["status"], "failed")
+            tool.assert_not_awaited()
+            self.assertEqual(interaction.interaction.user_event.content, "打开科学计算器")
+
+    async def test_host_control_does_not_dispatch_an_unbound_promise(self):
         calls = []
         async def tool(*args):
             calls.append(args)
@@ -64,7 +165,7 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(.01)
         delivery.cancel()
         await asyncio.gather(delivery, return_exceptions=True)
-        self.assertEqual([e["type"] for e in session.ws.sent], ["conversation.item.create"])
+        self.assertEqual(session.ws.sent, [])
 
     async def test_deadline_drops_late_result_and_does_not_queue_another(self):
         ready = asyncio.Event()
@@ -113,6 +214,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                             "item": {**event["item"], "id": "actual-" + str(len(self.sent))}})
                     elif event["type"] == "conversation.item.delete":
                         await session.receive({"type": "conversation.item.deleted", "item_id": event["item_id"]})
+                    elif event["type"] == "response.create":
+                        await session.receive({"type": "response.created", "response": {
+                            "id": "reply-" + str(len(self.sent))}})
                 async def close(self):
                     pass
             session.ws = Socket()

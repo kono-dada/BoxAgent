@@ -52,9 +52,10 @@ class MemoryService:
             raise MemoryUnavailable("长期记忆未启用")
         return self.backend
 
-    async def observe_user_message(self, content, *, session_id,
-                                   interaction_id, source_event_id,
-                                   occurred_at=None, channel="text"):
+    async def observe_user_message(self, content: str, *, session_id: str,
+                                   interaction_id: str, source_event_id: str,
+                                   occurred_at: float | None = None,
+                                   channel: str = "text") -> dict:
         """Send one committed Final User Message to Jev-Mem without rewriting it."""
         content = require_text(content, name="content", limit=MEMORY_TEXT_LIMIT)
         if contains_secret(content):
@@ -73,7 +74,7 @@ class MemoryService:
                 occurred_at, timezone.utc).isoformat()
         result = await self._require_backend().remember([observation])
         if result.get("admitted") and self.profile_projector is not None:
-            for node in result.get("created", []):
+            for node in [*result.get("created", []), *result.get("reused", [])]:
                 await self.profile_projector.observe(node)
         await self._refresh_projection()
         return result
@@ -98,7 +99,7 @@ class MemoryService:
             },
         }])
         if result.get("admitted") and self.profile_projector is not None:
-            for node in result.get("created", []):
+            for node in [*result.get("created", []), *result.get("reused", [])]:
                 await self.profile_projector.observe(node)
         await self._refresh_projection()
         admitted = int(result.get("admitted") or 0)

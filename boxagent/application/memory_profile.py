@@ -7,7 +7,10 @@ import os
 import re
 import time
 import urllib.request
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+
+from boxagent.domain.memory.contracts import MemoryUnavailable, ProfileConstructor
 
 logger = logging.getLogger(__name__)
 
@@ -108,26 +111,25 @@ class JsonProfileStore:
 
 
 class DeepSeekProfileConstructor:
-    """Generate a bounded JSON Patch; use deterministic rules when offline."""
+    """Generate a bounded JSON Patch only from a successful model response."""
 
-    def __init__(self, *, api_key="", base_url="https://api.deepseek.com",
-                 model="deepseek-flash", timeout=12):
+    def __init__(self, *, api_key: str = "", base_url: str = "https://api.deepseek.com",
+                 model: str = "deepseek-flash", timeout: float = 12) -> None:
         self.api_key = str(api_key or "")
         self.base_url = str(base_url).rstrip("/")
         self.model = model
         self.timeout = timeout
 
-    async def propose(self, observation, current_fields):
-        if self.api_key:
-            try:
-                return await asyncio.to_thread(
-                    self._request, observation, current_fields)
-            except Exception:
-                logger.warning("profile proposal failed; using local fallback",
-                               exc_info=True)
-        return self._fallback(observation)
+    async def propose(self, observation: str, current_fields: dict) -> list[dict]:
+        if not self.api_key:
+            raise MemoryUnavailable("用户画像生成需要模型密钥，未更新画像")
+        try:
+            return await asyncio.to_thread(self._request, observation, current_fields)
+        except Exception as exc:
+            logger.warning("profile proposal failed; profile unchanged", exc_info=True)
+            raise MemoryUnavailable("用户画像生成失败，未更新画像") from exc
 
-    def _request(self, observation, current_fields):
+    def _request(self, observation: str, current_fields: dict) -> list[dict]:
         prompt = {
             "observation": observation,
             "current_profile_fields": current_fields,
@@ -158,27 +160,15 @@ class DeepSeekProfileConstructor:
         if content.startswith("```"):
             content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content)
         result = json.loads(content)
-        patches = result.get("patches", [])
-        return patches if isinstance(patches, list) else []
-
-    @staticmethod
-    def _fallback(text):
-        patches = []
-        if match := re.search(r"(?:我叫|叫我)([\u4e00-\u9fffA-Za-z0-9_-]{1,20})", text):
-            patches.append({"op": "replace", "path": "identity.preferred_name",
-                            "value": match.group(1), "confidence": 0.95})
-        if any(word in text for word in ("简洁回答", "回答简短", "说简洁点", "别太长")):
-            patches.append({"op": "replace",
-                            "path": "preferences.communication.answer_style",
-                            "value": "简洁", "confidence": 0.95})
-        if match := re.search(r"我(?:不吃|不喜欢吃|讨厌吃)([^，。；\s]{1,16})", text):
-            patches.append({"op": "add", "path": "preferences.food.avoid",
-                            "value": [match.group(1)], "confidence": 0.95})
+        patches = result.get("patches") if isinstance(result, dict) else None
+        if not isinstance(patches, list) or any(not isinstance(patch, dict) for patch in patches):
+            raise ValueError("profile response must contain a patches list of objects")
         return patches
 
 
 class ProfileProjector:
-    def __init__(self, store, constructor, *, on_delta=None):
+    def __init__(self, store: JsonProfileStore, constructor: ProfileConstructor, *,
+                 on_delta: Callable[[dict], Awaitable[None] | None] | None = None) -> None:
         self.store = store
         self.constructor = constructor
         self.on_delta = on_delta

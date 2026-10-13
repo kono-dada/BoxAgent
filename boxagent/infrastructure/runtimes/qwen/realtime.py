@@ -101,6 +101,8 @@ INSTRUCTIONS = (
     "用一句简短口语通知用户，不添加未提供的结果，也不要再次调用run_task。"
     "每次一般回答一到两句话，不要大段自我介绍。"
     "陪伴时先理解用户当前情绪和需要；普通闲聊自然回应，不把每句话变成任务。"
+    "用户询问速度、模型选择或讨论刚才的执行方式时，先直接回答；语音转写不清时问清楚，"
+    "不要把这些讨论当作重新操作电脑的命令。"
     "沿用已有对话、偏好和约定；用户现在的纠正优先，记忆缺失时坦诚说明，不编造共同经历。"
     "不要制造内疚、索要排他关系或催促用户继续聊天；尊重休息和不想说话的时刻。"
     "用户说准备睡觉时简短道晚安；除非明确要求，不启动电脑操作或打扰式提醒。"
@@ -140,6 +142,7 @@ class QwenRealtimeSession:
         self.ws = self.audio = None
         self.ready = asyncio.Event()
         self.seen_calls = set()
+        self.delegated_responses: set[str] = set()
         self.response_calls = {}
         self.finished_responses = set()
         self.response_finalizers = {}
@@ -157,6 +160,8 @@ class QwenRealtimeSession:
         # response from the previous turn, so one mutable "next origin" slot is
         # insufficient. Preserve request order until the provider assigns IDs.
         self.response_origins = deque()
+        self.response_request_lock = asyncio.Lock()
+        self.response_ack: asyncio.Future[str] | None = None
         self.response_context = {}
         self.call_queries = {}
         self.notification_responses = {}
@@ -321,7 +326,7 @@ class QwenRealtimeSession:
         if kind not in {"response.audio.delta", "response.audio_transcript.delta",
                         "response.text.delta",
                         "conversation.item.input_audio_transcription.delta"}:
-            self.trace(kind, **{key: value for key, value in event.items() if key in {"call_id", "name", "arguments", "transcript", "error", "item_id", "item"}})
+            self.trace(kind, **{key: value for key, value in event.items() if key in {"response_id", "call_id", "name", "arguments", "transcript", "error", "item_id", "item"}})
         if kind == "conversation.item.created":
             item = event.get("item") or {}
             text = "".join(str(p.get("text") or "") for p in item.get("content") or [] if isinstance(p, dict))
@@ -345,11 +350,22 @@ class QwenRealtimeSession:
             origin = self.response_origins.popleft() if self.response_origins else None
             if self.response_id:
                 self.response_context[self.response_id] = dict(origin or {"kind": "user"})
+            stale = (self.host_turn_control and origin is not None
+                     and origin.get("kind") == "user"
+                     and origin.get("query_id") != self.current_query_id)
+            if stale and self.response_id:
+                self.cancelled_responses.add(self.response_id)
+                await self.send({"type": "response.cancel"})
+                self.trace("response.stale_cancelled", response_id=self.response_id,
+                           query_id=origin.get("query_id"), current_query_id=self.current_query_id)
+            if self.response_ack is not None and not self.response_ack.done() and self.response_id:
+                self.response_ack.set_result(self.response_id)
             if (origin or {}).get("kind") == "notification" and self.response_id:
                 self.notification_responses[self.response_id] = origin["notification_id"]
             await self._record("response_created", response_id=self.response_id,
                                origin=(origin or {}).get("kind", "user"),
                                call_id=(origin or {}).get("call_id"),
+                               query_id=(origin or {}).get("query_id"),
                                notification_id=(origin or {}).get("notification_id"))
         elif kind == "input_audio_buffer.speech_started":
             if self.host_turn_control:
@@ -407,7 +423,10 @@ class QwenRealtimeSession:
                 self.audio.append(event["delta"])
         elif kind in {"response.audio_transcript.delta", "response.text.delta"}:
             if event.get("response_id") not in self.cancelled_responses:
-                self.text += event.get("delta", "")
+                response_id = event.get("response_id") or self.response_id
+                self.response_transcripts[response_id] = (
+                    self.response_transcripts.get(response_id, "") + event.get("delta", ""))
+                self.text = self.response_transcripts[response_id]
                 if event.get("response_id") not in self.notification_responses:
                     self.emit("voice.assistant_text", assistant_text=self.text)
         elif kind in {"response.audio_transcript.done", "response.text.done"}:
@@ -477,8 +496,19 @@ class QwenRealtimeSession:
         if arguments is None:
             arguments = (call.get("function") or {}).get("arguments", "{}")
         response_id = call.get("response_id") or self.response_id
+        origin = self.response_context.get(response_id, {})
+        if (response_id in self.cancelled_responses
+                or (self.host_turn_control and origin.get("kind") == "user"
+                    and origin.get("query_id") and origin["query_id"] != self.current_query_id)):
+            self.trace("tool.stale_call_suppressed", call_id=call_id, response_id=response_id)
+            return False
         if not call_id or not name or call_id in self.seen_calls:
             return False
+        if name == "run_task" and response_id:
+            if response_id in self.delegated_responses:
+                self.trace("tool.duplicate_delegation_suppressed", call_id=call_id, response_id=response_id)
+                return False
+            self.delegated_responses.add(response_id)
         normalized = {
             "call_id": call_id,
             "name": name,
@@ -533,26 +563,27 @@ class QwenRealtimeSession:
         cancelled = response_id in self.cancelled_responses
         notification_id = self.notification_responses.pop(response_id, None)
         origin = self.response_context.pop(response_id, {"kind": "user"})
-        if origin.get("kind") == "user" and self.input_turn_pending:
-            self.input_turn_pending = False
-            self.input_turn_settled.set()
         if notification_id and cancelled:
             self.pending_notifications.discard(notification_id)
             self._dispatch_notification_event(
                 "delivery_interrupted", notification_id=notification_id,
                 error="notification_response_cancelled")
-        transcript = self.response_transcripts.pop(response_id, "") or self.text
+        transcript = self.response_transcripts.pop(response_id, "")
         if not cancelled and response_id not in self.final_transcripts and transcript.strip():
             self.final_transcripts.add(response_id)
             await self._record("assistant_final", transcript=transcript,
                                response_id=response_id)
         implicit_delegation = (
             not cancelled
-            and not self.host_turn_control
             and origin.get("kind") == "user"
+            and (not self.host_turn_control or (
+                bool(origin.get("query_id")) and origin.get("query_id") == self.current_query_id))
             and not has_tool_calls
+            and response_id not in self.delegated_responses
             and self._implies_background_delegation(transcript)
         )
+        if implicit_delegation:
+            self.delegated_responses.add(response_id)
         await self._record(
             "response_done", response_id=response_id,
             cancelled=cancelled,
@@ -566,6 +597,10 @@ class QwenRealtimeSession:
                 self.run_implicit_delegation(response_id, transcript))
             self.deliveries.add(task)
             task.add_done_callback(self.deliveries.discard)
+        if (origin.get("kind") == "user" and self.input_turn_pending
+                and (not self.host_turn_control or origin.get("query_id") == self.current_query_id)):
+            self.input_turn_pending = False
+            self.input_turn_settled.set()
 
     async def run_implicit_delegation(self, response_id, transcript):
         """Repair a provider turn that promised execution but omitted run_task.
@@ -637,6 +672,7 @@ class QwenRealtimeSession:
             "这就执行", "我来操作", "我去操作", "这就操作", "交给我",
             "我再试一次", "我再试试", "我重新试一下", "我重新试试",
             "我再帮你操作一次", "这就重试",
+            "我重新来",
         )):
             return True
         # Catch concrete desktop commitments without making broad phrases such
@@ -650,6 +686,9 @@ class QwenRealtimeSession:
             commitment = re.search(
                 rf"我(?:现在|马上|立刻|这就|继续)(?:来|去)?把"
                 rf"[^。！？?!]{{0,24}}(?:{action})", text)
+        if not commitment:
+            commitment = re.search(
+                rf"我(?:现在|马上|立刻|这就)(?:来|去)?(?:{action})", text)
         return bool(commitment)
 
     async def _prepare_voice_query(self, transcript, item_id):
@@ -707,6 +746,8 @@ class QwenRealtimeSession:
         # Mark the new input before host preparation; an old tool result must
         # not resume speaking during the 400 ms preparation window.
         self.current_query_id = query_id
+        self.input_turn_pending = True
+        self.input_turn_settled.clear()
 
     async def respond_to_query(self, packet, *, query_id):
         async with self.delivery_lock:
@@ -791,31 +832,13 @@ class QwenRealtimeSession:
             item = await self.notifications.get()
             notification_id = item["notification_id"]
             try:
-                async with self.delivery_lock:
-                    while (self.user_speaking or self.response_active or self.playing
-                           or time.monotonic() - self.last_user_activity < 1.0):
-                        await asyncio.sleep(0.1)
-                    message = (
-                        "[可信任务结果]\n"
-                        f"状态：{item.get('outcome', 'completed')}\n"
-                        f"结果：{item.get('summary', '')}\n"
-                        "这是后台刚刚完成的任务结果，不是新的操作请求。"
-                        "请只用一句简短自然的话把上述结果通知用户，不要再次调用run_task。"
-                    )
-                    if self.host_turn_control:
-                        await self.expire_reference()
-                    await self.send({"type": "conversation.item.create", "item": {
-                        # Realtime providers do not consistently use a newly
-                        # appended system item as the immediate response turn.
-                        # A synthetic user turn reliably grounds response.create;
-                        # Product Session persistence still excludes this
-                        # internal notification via response origin tracking.
-                        "type": "message", "role": "user",
-                        "content": [{"type": "input_text", "text": message}],
-                    }})
-                    await self._create_response({
-                        "kind": "notification",
-                        "notification_id": notification_id})
+                while True:
+                    await self._wait_for_idle_delivery()
+                    async with self.delivery_lock:
+                        if self._delivery_busy():
+                            continue
+                        if await self._deliver_notification(item):
+                            break
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -824,21 +847,51 @@ class QwenRealtimeSession:
                     "delivery_interrupted", notification_id=notification_id,
                     error=str(exc) or "notification_delivery_failed")
 
+    def _delivery_busy(self) -> bool:
+        return (self.user_speaking or self.input_turn_pending or self.response_active or self.playing
+                or bool(self.response_origins) or time.monotonic() - self.last_user_activity < 1.0)
+
+    async def _wait_for_idle_delivery(self) -> None:
+        # Do not hold delivery_lock while waiting: the user turn needs it to
+        # install its reference and request the response that settles input.
+        while self._delivery_busy():
+            await asyncio.sleep(.1)
+
+    async def _deliver_notification(self, item: dict) -> bool:
+        notification_id = item["notification_id"]
+        message = (
+            "[可信任务结果]\n"
+            f"状态：{item.get('outcome', 'completed')}\n"
+            f"结果：{item.get('summary', '')}\n"
+            "这是后台刚刚完成的任务结果，不是新的操作请求。"
+            "请只用一句简短自然的话把上述结果通知用户，不要再次调用run_task。"
+        )
+        if self.host_turn_control:
+            await self.expire_reference()
+            if self._delivery_busy():
+                return False
+        await self.send({"type": "conversation.item.create", "item": {
+            # Internal notification responses never become Product user turns.
+            "type": "message", "role": "user",
+            "content": [{"type": "input_text", "text": message}],
+        }})
+        await self._create_response({"kind": "notification", "notification_id": notification_id})
+        return True
+
     async def deliver_results(self):
         while True:
             call_id, name, result = await self.results.get()
             async with self.delivery_lock:
-                while (self.user_speaking or self.response_active or self.playing
-                       or time.monotonic() - self.last_user_activity < 1.0):
-                    await asyncio.sleep(0.1)
-                await self.send({"type": "conversation.item.create", "item": {
-                    "type": "function_call_output", "call_id": call_id,
-                    "output": json.dumps(result, ensure_ascii=False)}})
                 originating_query = self.call_queries.pop(call_id, "")
                 if self.host_turn_control and originating_query and originating_query != self.current_query_id:
                     self.trace("tool.stale_followup_suppressed", call_id=call_id,
                                query_id=originating_query, current_query_id=self.current_query_id)
                     continue
+                # Acknowledge real calls promptly, before the provider retires
+                # their IDs. Only the spoken followup waits for an idle turn.
+                await self.send({"type": "conversation.item.create", "item": {
+                    "type": "function_call_output", "call_id": call_id,
+                    "output": json.dumps(result, ensure_ascii=False)}})
                 # run_task is asynchronous. Its originating response already
                 # told the user that execution started, and the terminal
                 # result is delivered through the notification channel. Asking
@@ -853,9 +906,49 @@ class QwenRealtimeSession:
                 origin = {"kind": "tool_result", "call_id": call_id}
                 if originating_query:
                     origin["query_id"] = originating_query
-                await self._create_response(origin)
+            while True:
+                await self._wait_for_idle_delivery()
+                async with self.delivery_lock:
+                    if self._delivery_busy():
+                        continue
+                    if (self.host_turn_control and originating_query
+                            and originating_query != self.current_query_id):
+                        self.trace("tool.stale_followup_suppressed", call_id=call_id,
+                                   query_id=originating_query, current_query_id=self.current_query_id)
+                        break
+                    await self._create_response(origin)
+                    break
 
     async def _create_response(self, origin):
+        if self.host_turn_control:
+            # Some AOQ requests receive their response.created late. Never send
+            # the next request while its origin is still awaiting a provider ID.
+            async with self.response_request_lock:
+                if self.response_ack is not None:
+                    try:
+                        await asyncio.wait_for(asyncio.shield(self.response_ack), 8)
+                    except TimeoutError:
+                        await self.stop()
+                        raise
+                ack = asyncio.get_running_loop().create_future()
+                self.response_ack = ack
+                try:
+                    await self._send_response_request(origin)
+                    await asyncio.wait_for(asyncio.shield(ack), 8)
+                except asyncio.CancelledError:
+                    # The user may interrupt while response.created is pending.
+                    # Keep that acknowledgement for the next request to await.
+                    raise
+                except Exception:
+                    await self.stop()
+                    raise
+                finally:
+                    if ack.done():
+                        self.response_ack = None
+            return
+        await self._send_response_request(origin)
+
+    async def _send_response_request(self, origin: dict) -> None:
         self.response_origins.append(dict(origin))
         self.response_active = True
         try:

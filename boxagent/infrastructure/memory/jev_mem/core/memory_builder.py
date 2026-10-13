@@ -17,11 +17,20 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from .trg_memory import TemporalResonanceGraphMemory, Link, LinkType
-from .graph_db import SessionNode, NodeType, LinkSubType
+from .graph_db import EventNode, SessionNode, NodeType, LinkSubType
 from .episode_segmenter import EpisodeSegmenter, Episode
 from .temporal_parser import TemporalParser
 
 logger = logging.getLogger(__name__)
+
+
+class MemoryWriteUnavailable(RuntimeError):
+    """A required write decision failed; no unchecked memory may be inserted."""
+
+
+class MemoryAdmissionUnavailable(MemoryWriteUnavailable):
+    """An automatic observation must wait for a successful admission decision."""
+
 
 class MemoryBuilder:
     """
@@ -89,7 +98,7 @@ class MemoryBuilder:
                 model=llm_model,
                 api_key=api_key
             )
-        elif llm_enabled:
+        elif llm_enabled and not self.jev_config.write_enabled:
             logger.warning(
                 "\n" + "="*60 +
                 "\nWARNING: OPENAI_API_KEY not set!" +
@@ -116,7 +125,8 @@ class MemoryBuilder:
         self.session_nodes = {}
         self.session_event_map = {}
 
-    def build(self, interaction, timestamp=None, metadata=None):
+    def build(self, interaction: str, timestamp: datetime | None = None,
+              metadata: dict | None = None) -> EventNode | None:
         """Explicit Jev-Mem write path; returns the canonical EventNode or None.
 
         Optional admission -> typing -> bounded candidates -> relations -> insertion.
@@ -125,16 +135,15 @@ class MemoryBuilder:
         from collections import Counter
         from dataclasses import asdict
         import numpy as np
-        from .graph_db import EventNode
         from .jev_mem_policies import find_candidates
 
         if not isinstance(interaction, str) or not interaction.strip():
             raise ValueError("interaction must be non-empty text")
         metadata = dict(metadata or {})
+        explicit = bool(metadata.get("explicit"))
         if not self.jev_config.write_enabled:
             return self._build_magma(interaction, timestamp, metadata)
         admission_data = score = None
-        explicit = bool(metadata.get("explicit"))
         if self.jev_config.admission_enabled and not explicit:
             duplicate = any(n.attributes.get("raw_content") == interaction for n in self.trg.graph_db.nodes.values())
             from itertools import islice
@@ -144,17 +153,23 @@ class MemoryBuilder:
                       if self.trg.graph_db.get_node(key).node_type == NodeType.EVENT]
             assessment = self.write_policy.assess_observation(interaction, duplicate, recent)
             if assessment is None:
-                return self._build_magma(interaction, timestamp, metadata, fallback=True)
+                self.jev.audit.emit("memory_admission_unavailable",
+                                    source_event_id=metadata.get("source_event_id"))
+                raise MemoryAdmissionUnavailable("自动记忆准入判断暂不可用，未写入记忆")
             admission, memory_type = assessment
             admission_data = asdict(admission)
             score = admission.score(self.jev_config.admission_weights)
             if score < self.jev_config.admission_threshold:
-                self.jev.audit.emit("memory_rejected", admission=admission_data, admission_score=score)
+                self.jev.audit.emit("memory_rejected", admission=admission_data,
+                                    admission_score=score,
+                                    source_event_id=metadata.get("source_event_id"))
                 return None
         else:
             memory_type = self.write_policy.memory_type(interaction)
             if memory_type is None:
-                return self._build_magma(interaction, timestamp, metadata, fallback=True)
+                self.jev.audit.emit("memory_write_unavailable", operation="memory_type",
+                                    source_event_id=metadata.get("source_event_id"))
+                raise MemoryWriteUnavailable("记忆类型判断暂不可用，未写入记忆")
             if explicit:
                 admission_data = {
                     "should_store": 1.0, "future_utility": 1.0,
@@ -178,7 +193,9 @@ class MemoryBuilder:
         candidates = find_candidates(self.trg, node, self.jev_config.candidate_top_k)
         relations = self.write_policy.relations(node, candidates)
         if relations is None:
-            return self._build_magma(interaction, timestamp, metadata, fallback=True)
+            self.jev.audit.emit("memory_write_unavailable", operation="relations",
+                                source_event_id=metadata.get("source_event_id"))
+            raise MemoryWriteUnavailable("记忆关系判断暂不可用，未写入记忆")
         temporal_count = self._store_jev_node(node, relations)
         self.index_event(node.node_id, interaction, node.attributes)
         self._jev_writes += 1
@@ -224,10 +241,8 @@ class MemoryBuilder:
         self.trg.stats['links_created'] += len(relations) + temporal_count
         return temporal_count
 
-    def _build_magma(self, interaction, timestamp, metadata, fallback=False):
-        if fallback:
-            metadata["jev_mem"] = {"controller": "magma_fallback"}
-            self.jev.audit.emit("write_fallback", controller="magma")
+    def _build_magma(self, interaction, timestamp, metadata):
+        """Legacy build/checkpoint representation, never a failed-decision fallback."""
         node_id = self.trg.add_event(interaction, timestamp=timestamp, metadata=metadata)
         self.index_event(node_id, interaction, metadata)
         return self.trg.graph_db.get_node(node_id)

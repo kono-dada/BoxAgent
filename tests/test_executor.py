@@ -12,11 +12,13 @@ from boxagent.infrastructure.runtimes.codex.app_server import (
     resolve_codex_runtime,
 )
 from boxagent.infrastructure.runtimes.codex.session import CodexRuntimeHost
+from boxagent.infrastructure.runtimes.codex.runtime import CodexAgentRuntime
 from boxagent.core.errors import TaskFailure, redact
 from boxagent.agent.harness.executor import TaskExecutor
 from boxagent.agent.harness.policies.tools import ComputerUseToolGateway, model_content
 from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
-from boxagent.agent.runtime.models import ModelProfile, RuntimeMessage
+from boxagent.agent.runtime.models import ModelProfile, RuntimeMessage, RuntimeRequest
+from boxagent.agent.harness.policies.result import RESULT_SCHEMA, validate_task_result
 from boxagent.domain.environment import EnvironmentContext
 
 
@@ -50,6 +52,32 @@ class FakeSession:
 
 
 class ExecutorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_plain_clarification_is_reformatted_without_replaying_actions(self):
+        session = Mock()
+        session.run_codex_turn = AsyncMock(return_value="Z V 是指哪个模型？请说清楚。")
+        session.run_isolated_structured_turn = AsyncMock(return_value=json.dumps({
+            "outcome": "blocked", "summary": "Z V 是指哪个模型？请说清楚。", "evidence_steps": []}))
+        runtime = CodexAgentRuntime(session, model="fixture")
+        request = RuntimeRequest("如果用 Z V 呢", "policy", RESULT_SCHEMA)
+        call_tool = AsyncMock()
+        text = await runtime.execute(request, [], call_tool,
+                                     lambda value: validate_task_result(value, {}, []), lambda _: None)
+        self.assertEqual(json.loads(text)["outcome"], "blocked")
+        session.run_codex_turn.assert_awaited_once()
+        session.run_isolated_structured_turn.assert_awaited_once()
+        call_tool.assert_not_awaited()
+
+    async def test_result_reformat_cannot_turn_unproven_prose_into_success(self):
+        session = Mock()
+        session.run_codex_turn = AsyncMock(return_value="已经完成")
+        session.run_isolated_structured_turn = AsyncMock(return_value=json.dumps({
+            "outcome": "completed", "summary": "已经完成", "evidence_steps": []}))
+        runtime = CodexAgentRuntime(session, model="fixture")
+        with self.assertRaises(TaskFailure) as failure:
+            await runtime.execute(RuntimeRequest("打开计算器", "policy", RESULT_SCHEMA), [], AsyncMock(),
+                                  lambda value: validate_task_result(value, {}, []), lambda _: None)
+        self.assertEqual(failure.exception.code, "missing_evidence")
+
     async def asyncSetUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.executor = TaskExecutor(
