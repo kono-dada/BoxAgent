@@ -10,6 +10,7 @@ import traceback
 from pathlib import Path
 
 from boxagent.agent.runtime.models import ModelProfile
+from boxagent.agent.runtime.contracts import ToolObservationSink
 from boxagent.infrastructure.runtimes.codex.computer_use import (
     resolve_computer_use_client,
     resolve_computer_use_home,
@@ -45,9 +46,13 @@ class CodexAppServer:
     def __init__(self, *, output, on_tool_call, approve, current_app, report, log,
                  auto_approve=True, runtime_resolver=None,
                  workspace=PROJECT_ROOT, model_profile: ModelProfile | None = None,
-                 permission_check=None, codex_home=None, skill_service=None):
+                 permission_check=None, codex_home=None, skill_service=None,
+                 on_tool_observed: ToolObservationSink | None = None):
         self.output = Path(output)
         self.on_tool_call = on_tool_call
+        self.on_tool_observed = on_tool_observed
+        self.native_tool_calls: dict[str, dict] = {}
+        self.observed_native_calls: set[str] = set()
         self.approve = approve
         self.current_app = current_app
         self.report = report
@@ -87,9 +92,12 @@ class CodexAppServer:
                 and params.get("requestedSchema", {}).get("properties") == {})
 
     def bind_task(self, *, on_tool_call, approve, current_app, report, log,
-                  auto_approve=True):
+                  auto_approve=True, on_tool_observed: ToolObservationSink | None = None):
         """Route callbacks for the one task currently leasing this process."""
         self.on_tool_call = on_tool_call
+        self.on_tool_observed = on_tool_observed
+        self.native_tool_calls.clear()
+        self.observed_native_calls.clear()
         self.approve = approve
         self.current_app = current_app
         self.report = report
@@ -155,10 +163,11 @@ class CodexAppServer:
         return arguments
 
     async def send(self, message):
-        if not self.process or self.process.returncode is not None:
+        process = self.process
+        if process is None or process.returncode is not None or process.stdin is None:
             raise RuntimeError("任务执行器已断开")
-        self.process.stdin.write((json.dumps(message) + "\n").encode())
-        await self.process.stdin.drain()
+        process.stdin.write((json.dumps(message) + "\n").encode())
+        await process.stdin.drain()
 
     async def rpc(self, method, params, timeout=120):
         self.sequence += 1
@@ -183,7 +192,10 @@ class CodexAppServer:
     async def read(self):
         error = RuntimeError("Codex 执行器连接已结束")
         try:
-            while line := await self.process.stdout.readline():
+            process = self.process
+            if process is None or process.stdout is None:
+                raise error
+            while line := await process.stdout.readline():
                 message = json.loads(line)
                 method = message.get("method")
                 if method in {"error", "turn/completed", "item/started", "item/completed"}:
@@ -200,6 +212,8 @@ class CodexAppServer:
                 elif method == "skills/changed":
                     self.skills_changed = True
                     self.log("skills_changed")
+                if method in {"item/started", "item/completed"}:
+                    await self.observe_native_tool_event(method, message.get("params", {}))
                 if method and "id" in message:
                     task = asyncio.create_task(self.callback(message))
                     self.callbacks.add(task)
@@ -230,6 +244,41 @@ class CodexAppServer:
             for future in futures:
                 if not future.done():
                     future.set_exception(error)
+
+    async def observe_native_tool_event(self, method: str, params: dict) -> None:
+        """Persist actual native results before accepting the turn's final report."""
+        item = params.get("item") or {}
+        if (params.get("turnId") != self.turn_id or not self.turn_id
+                or item.get("type") != "mcpToolCall" or item.get("server") != "boxagent_cua"
+                or self.on_tool_observed is None):
+            return
+        call_id = item.get("id")
+        operation = item.get("tool")
+        allowed = {tool.get("name") for tool in self.tools}
+        if not isinstance(call_id, str) or f"desktop_{operation}" not in allowed:
+            return
+        if method == "item/started":
+            if call_id not in self.observed_native_calls:
+                self.native_tool_calls[call_id] = item
+            return
+        started = self.native_tool_calls.pop(call_id, None)
+        if started is None or call_id in self.observed_native_calls:
+            return
+        if started.get("tool") != operation or item.get("status") not in {"completed", "failed"}:
+            return
+        arguments = started.get("arguments")
+        result = item.get("result")
+        if not isinstance(arguments, dict):
+            return
+        if not isinstance(result, dict) or not isinstance(result.get("content"), list):
+            if item.get("status") != "failed":
+                return
+            result = {"content": [{"type": "text", "text": str(item.get("error") or "原生工具调用失败")}]}
+        response = {**result, "isError": item.get("status") != "completed" or bool(result.get("isError"))}
+        await self.on_tool_observed(str(operation), arguments, response)
+        self.observed_native_calls.add(call_id)
+        self.log("native_tool_observed", call_id=call_id, operation=operation,
+                 success=not response["isError"])
 
     async def callback(self, message):
         method, params = message["method"], message.get("params", {})

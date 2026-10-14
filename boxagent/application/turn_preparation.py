@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import json
-import math
+import logging
 import time
 from collections.abc import Callable, Coroutine
 from typing import Any, Protocol
 
+from boxagent.domain.interaction.delegation import DecisionAdvice, probability
+
+logger = logging.getLogger(__name__)
+
 
 class IntentEstimator(Protocol):
-    async def estimate(self, query: str) -> dict[str, Any]: ...
+    async def estimate(self, query: str, *, context: str = "") -> dict[str, Any]: ...
+    async def review_delegation(self, query: str, reply: str, *, context: str = "") -> dict[str, Any]: ...
 
 
 class QueryMemory(Protocol):
@@ -22,44 +27,59 @@ class TurnPreparer:
     def __init__(self, memory: QueryMemory, *, intent: IntentEstimator | None = None,
                  environment: Callable[[], str] | None = None,
                  screen: Callable[[], str] | None = None, budget: float = .4,
+                 decision_timeout: float = 5.0,
                  character_budget: int = 1600) -> None:
         self.memory = memory
         self.intent = intent
         self.environment = environment
         self.screen = screen
         self.budget = budget
+        self.decision_timeout = decision_timeout
         self.character_budget = character_budget
         self.inflight: dict[str, asyncio.Task[Any]] = {}
+        self.pending: set[asyncio.Task[Any]] = set()
 
     async def prepare(self, query: str, *, session_id: str,
-                      query_id: str) -> tuple[str, dict[str, Any]]:
+                      query_id: str, context: str = "") -> tuple[str, dict[str, Any]]:
         started = time.perf_counter()
         statuses: dict[str, Any] = {}
         tasks: dict[str, asyncio.Task[Any]] = {}
-        ambiguous = len(query.strip()) < 3 or query.strip("。！？!? ") in {
-            "继续", "可以", "安装", "好", "好的", "嗯", "行", "不要", "取消"}
-
         def launch(name: str, factory: Callable[[], Coroutine[Any, Any, Any]]) -> None:
             previous = self.inflight.get(name)
-            if previous is not None and not previous.done():
+            if name != "jev" and previous is not None and not previous.done():
                 statuses[name] = {"status": "busy"}
                 return
             task = asyncio.create_task(factory(), name="prepare-" + name)
             # Late results are observed but never delivered to another query.
             task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+            self.pending.add(task)
+            task.add_done_callback(self.pending.discard)
             tasks[name] = self.inflight[name] = task
 
         launch("memory", lambda: self.memory.context_packet(query, session_id=session_id, top_k=3))
         intent_source, environment_source, screen_source = self.intent, self.environment, self.screen
-        if intent_source is not None and not ambiguous:
-            launch("jev", lambda: intent_source.estimate(query))
+        if intent_source is not None:
+            launch("jev", lambda: self._decision(intent_source.estimate(query, context=context)))
         else:
-            statuses["jev"] = {"status": "ambiguous" if ambiguous else "disabled"}
+            statuses["jev"] = {"status": "disabled"}
         if environment_source is not None:
             launch("environment", lambda: asyncio.to_thread(environment_source))
         if screen_source is not None:
             launch("screen", lambda: asyncio.to_thread(screen_source))
-        done, _ = await asyncio.wait(set(tasks.values()), timeout=self.budget) if tasks else (set(), set())
+        # Capture optional references at their own deadline. Waiting longer for
+        # the mandatory current decision must not admit stale/late recalls.
+        optional = {task for name, task in tasks.items() if name != "jev"}
+        try:
+            done, _ = await asyncio.wait(optional, timeout=self.budget) if optional else (set(), set())
+            decision = tasks.get("jev")
+            if decision is not None:
+                await asyncio.gather(decision, return_exceptions=True)
+                done.add(decision)
+        except asyncio.CancelledError:
+            for task in tasks.values():
+                task.cancel()
+            await asyncio.gather(*tasks.values(), return_exceptions=True)
+            raise
         values: dict[str, Any] = {}
         for name, task in tasks.items():
             if task not in done:
@@ -69,16 +89,29 @@ class TurnPreparer:
                 value = task.result()
                 values[name] = value
                 statuses[name] = {"status": "ready" if value else "empty"}
+            except TimeoutError:
+                statuses[name] = {"status": "timeout"}
             except Exception as exc:
                 statuses[name] = {"status": "failed:" + type(exc).__name__}
         reference: dict[str, Any] = {"query_id": query_id}
-        intent = values.get("jev") or {}
-        p = intent.get("p_action")
-        if isinstance(p, (float, int)) and not isinstance(p, bool) and math.isfinite(p) and 0 <= p <= 1:
-            band = "高" if p >= .15 else "中" if p >= .05 else "低"
-            statuses["jev"] = {"status": "ready", "p_action": p, "band": band}
-            reference["intent"] = {"p_action": round(p, 4), "band": band,
+        advice = DecisionAdvice.from_payload(values.get("jev"))
+        if advice is not None:
+            p = advice.p_action
+            statuses["jev"] = {"status": "ready", "p_action": p}
+            reference["intent"] = {"p_action": round(p, 4),
                                    "note": "仅供参考，由你判断是否调用 run_task"}
+            for field in ("p_status", "p_conversation"):
+                value = getattr(advice, field)
+                if value is not None:
+                    statuses["jev"][field] = value
+                    reference["intent"][field] = round(value, 4)
+        elif intent_source is not None:
+            if "jev" in values:
+                statuses["jev"] = {"status": "invalid_result"}
+            reference["intent"] = {
+                "status": statuses["jev"]["status"],
+                "note": "本轮未取得有效决策概率；这不代表操作意图高或低，不得沿用上一轮意见。",
+            }
         # Each source has its own cap so a large recall cannot hide current facts.
         for name, cap in (("environment", 240), ("screen", 320), ("memory", 750)):
             value = values.get(name)
@@ -108,11 +141,29 @@ class TurnPreparer:
         statuses["chars"] = len(packet)
         return packet, statuses
 
+    async def _decision(self, request: Coroutine[Any, Any, dict[str, Any]]) -> dict[str, Any]:
+        async with asyncio.timeout(self.decision_timeout):
+            return await request
+
+    async def review_delegation(self, query: str, reply: str, *, context: str = "") -> bool:
+        """Only repair a semantically verified commitment; never route by score alone."""
+        if self.intent is None:
+            return False
+        try:
+            result = await self._decision(self.intent.review_delegation(query, reply, context=context))
+        except Exception as exc:
+            logger.warning("delegation review unavailable: %s", type(exc).__name__, exc_info=True)
+            return False
+        p = probability(result.get("p_delegation"))
+        return p is not None and p >= .8
+
     async def close(self) -> None:
-        tasks = list(self.inflight.values())
+        tasks = list(self.pending)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        self.pending.clear()
+        self.inflight.clear()
 
     async def start(self) -> None:
         return None

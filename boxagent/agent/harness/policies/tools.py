@@ -18,7 +18,10 @@ TOOL_LABELS = {
 
 
 def model_content(response: dict, step: int, goal: str = "") -> list[dict]:
-    content = [{"type": "inputText", "text": f"观察步骤 {step}；以下是实际工具返回。"}]
+    content = [{"type": "inputText", "text": (
+        f"本任务观察步骤编号：{step}。以下是这一次工具调用的实际返回。"
+        f"引用本次返回作为完成依据时，evidence_steps 使用 {step}。"
+        "界面内的元素编号只用于定位控件，不是观察步骤；历史任务编号也不能作为本任务依据。") }]
     for item in response.get("content", []):
         if item.get("type") == "text":
             content.append({"type": "inputText", "text": item["text"]})
@@ -126,3 +129,32 @@ class ComputerUseToolGateway:
             path = self.output / f"step-{step}-{index}.{suffix}"
             path.write_bytes(base64.b64decode(item["data"]))
             observation["screenshot"] = str(path)
+
+    async def observe_native_tool(self, operation: str, arguments: dict, response: dict) -> None:
+        """Record a completed native call without executing it a second time."""
+        async with self.lock:
+            name = f"desktop_{operation}"
+            if name not in self.tool_specs:
+                raise ValueError("原生工具未在当前执行会话中注册")
+            self.actions += 1
+            step = self.actions
+            self.active_app = str(arguments.get("app") or "")
+            text = "\n".join(item["text"] for item in response.get("content", [])
+                             if item.get("type") == "text")
+            failed = bool(response.get("isError", False))
+            observation = {"step": step, "tool": operation, "app": self.active_app,
+                           "success": not failed, "source": "native_mcp"}
+            self.observations[step] = observation
+            self.log("action", step=step, operation=operation, arguments=arguments,
+                     source="native_mcp")
+            self.log("tool_result", step=step, operation=operation, text=text, error=failed,
+                     source="native_mcp")
+            redacted_text = redact(text)
+            if not isinstance(redacted_text, str):
+                raise TypeError("观察文本脱敏结果必须是字符串")
+            (self.output / f"step-{step}.txt").write_text(redacted_text, encoding="utf-8")
+            if failed:
+                self.tool_errors.append({"step": step, "tool": operation, "error": text})
+            else:
+                self._save_images(step, response, observation)
+            self.report("model", "操作返回错误，正在判断下一步" if failed else "正在判断下一步")

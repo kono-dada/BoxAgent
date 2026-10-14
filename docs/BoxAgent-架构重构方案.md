@@ -94,6 +94,7 @@ flowchart TB
         subgraph AGENT[Agent Layer]
             HARNESS[Harness]
             PORTS[Runtime Contracts]
+            PREP[TurnPreparer]
         end
 
         subgraph INFRA[Infrastructure]
@@ -101,6 +102,7 @@ flowchart TB
             CODEX[Codex App Server]
             CU[Computer Use]
             JEV[Jev-Mem Worker]
+            DECISION[Decision-only Worker]
             VLM[MLX Vision Worker]
             JSONL[(Local JSON / JSONL)]
         end
@@ -116,6 +118,7 @@ flowchart TB
 
     APP --> DOMAIN
     INTERACTION --> QWEN
+    INTERACTION --> PREP --> DECISION
     EXEC --> HARNESS --> PORTS --> CODEX --> CU
     MEMORY --> JEV
     CONV --> JSONL
@@ -123,6 +126,8 @@ flowchart TB
     SKILL --> JSONL
     PERCEPTION --> VLM
 ```
+
+回合前准备由应用层 `TurnPreparer` 协调，决策 Worker 与记忆写入 Worker 分离。决策在回复前独立等待，可选记忆和屏幕按短预算获取；领域层 `InteractionService` 持有绑定当前 Query 的概率意见和执行承诺复核，Qwen 传输层只报告响应及工具事件，不用中文句式判断任务。后台结果整理通过 Runtime 契约读取当前任务的真实观察，最终证据校验仍由 Harness 负责。具体期限、阈值与验收限制见 [需求 README](<需求/README.md>) 和 [FIX-03](<需求/FIX-03-语音任务派发与通知串线.md>)。
 
 ## 4. 进程与生命周期
 

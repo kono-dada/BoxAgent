@@ -14,8 +14,11 @@ class IntentReference:
         self.worker = worker
         self.prewarm: asyncio.Task[dict[str, Any]] | None = None
 
-    async def estimate(self, query: str) -> dict[str, Any]:
-        return await self.worker._request("intent", query=query)
+    async def estimate(self, query: str, *, context: str = "") -> dict[str, Any]:
+        return await self.worker._request("intent", query=query, context=context)
+
+    async def review_delegation(self, query: str, reply: str, *, context: str = "") -> dict[str, Any]:
+        return await self.worker._request("delegation", query=query, reply=reply, context=context)
 
     async def start(self) -> None:
         self.prewarm = asyncio.create_task(self.worker._request("health"))

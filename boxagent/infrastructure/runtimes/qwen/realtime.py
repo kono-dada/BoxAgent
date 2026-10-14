@@ -4,9 +4,9 @@ import asyncio
 import base64
 import contextlib
 import json
-import re
 import time
 from collections import deque
+from collections.abc import Awaitable, Callable
 
 import websockets
 
@@ -56,6 +56,7 @@ def tool(name, description, properties=None, required=None):
 
 TOOLS = [
     tool("run_task", "将当前这条用户原始请求委托给后台通用桌面操作 Agent。"
+         "仅用于用户要求执行操作；聊天、问号、澄清或查询已有任务进度不得调用。"
          "宿主会从当前 Interaction 读取原文，不要重述、改写或补充目标参数。"
          "后台会自行观察界面、规划并执行，可能需要几十秒到几分钟；"
          "调用前先简短语音回应，返回前不能假称完成。"),
@@ -82,6 +83,8 @@ INSTRUCTIONS = (
     "你是常驻在用户 Mac 桌面的个人伙伴，用简短自然的中文和用户对话。"
     "你的姓名、自我介绍、性格和语气必须以后续用户角色设定为准，不要自称产品名、系统名或模型名。"
     "用户要求操作电脑或应用时调用 run_task；不要重述或改写目标，后台执行器会读取当前用户消息原文。"
+    "单独的问号、普通闲聊和澄清先自然回应；询问已有任务进度用 task_status，不要创建新任务。"
+    "run_task 返回 not_delegated 表示未创建任务，按反馈聊天或澄清，不得说任务失败或已经开始操作。"
     "把操作请求直接交给后台，根据工具实际反馈判断可执行性。"
     "后台自己发现应用、读界面、执行和判断结果；前台不要替它编造固定点击流程。"
     "关键交互：调用前先简短说你开始处理、用户可以继续聊天，并且必须在同一个 response 中实际调用 run_task。"
@@ -115,7 +118,8 @@ class QwenRealtimeSession:
                  conversation_event=None, notification_event=None,
                  conversation_history=(), instructions=INSTRUCTIONS,
                  environment_context=None, conversation_checkpoint="",
-                 stable_memory_context="", product_session_id="", host_turn_control=False):
+                 stable_memory_context="", product_session_id="", host_turn_control=False,
+                 delegation_review: Callable[[str, str], Awaitable[bool]] | None = None):
         self.handle_tool, self.emit = handle_tool, emit
         self.model, self.microphone, self.playback = model, microphone, playback
         self.key = key
@@ -124,6 +128,7 @@ class QwenRealtimeSession:
         self.product_session_id = str(product_session_id or "")
         self.trace = lambda event, **data: raw_trace(
             event, product_session_id=self.product_session_id, **data)
+        self.delegation_review = delegation_review
         self.conversation_event = conversation_event
         self.notification_event = notification_event
         self.conversation_history = tuple(conversation_history)
@@ -307,9 +312,12 @@ class QwenRealtimeSession:
 
     async def send_mic(self):
         await self.ready.wait()
+        audio = self.audio
+        if audio is None:
+            raise RuntimeError("麦克风尚未准备好")
         try:
             while not self.closed:
-                chunk = await asyncio.to_thread(self.audio.read)
+                chunk = await asyncio.to_thread(audio.read)
                 await self.feed_audio(chunk)
         except asyncio.CancelledError:
             raise
@@ -357,11 +365,11 @@ class QwenRealtimeSession:
                 self.cancelled_responses.add(self.response_id)
                 await self.send({"type": "response.cancel"})
                 self.trace("response.stale_cancelled", response_id=self.response_id,
-                           query_id=origin.get("query_id"), current_query_id=self.current_query_id)
+                           query_id=(origin or {}).get("query_id"), current_query_id=self.current_query_id)
             if self.response_ack is not None and not self.response_ack.done() and self.response_id:
                 self.response_ack.set_result(self.response_id)
             if (origin or {}).get("kind") == "notification" and self.response_id:
-                self.notification_responses[self.response_id] = origin["notification_id"]
+                self.notification_responses[self.response_id] = (origin or {})["notification_id"]
             await self._record("response_created", response_id=self.response_id,
                                origin=(origin or {}).get("kind", "user"),
                                call_id=(origin or {}).get("call_id"),
@@ -379,7 +387,7 @@ class QwenRealtimeSession:
             # An AOQ session emits silent playback frames while its native
             # device is warming up. Do not interrupt the player merely because
             # the first user turn started; only clear real in-flight output.
-            if self.response_active or self.playing:
+            if (self.response_active or self.playing) and self.audio is not None:
                 self.audio.clear()
             self.emit("voice.listening", user_speaking=True, speaking=False,
                       user_text="")
@@ -420,7 +428,8 @@ class QwenRealtimeSession:
             if not self.user_speaking and event.get("response_id") not in self.cancelled_responses:
                 if notification_id := self.notification_responses.get(event.get("response_id")):
                     self.playing_notification_id = notification_id
-                self.audio.append(event["delta"])
+                if self.audio is not None:
+                    self.audio.append(event["delta"])
         elif kind in {"response.audio_transcript.delta", "response.text.delta"}:
             if event.get("response_id") not in self.cancelled_responses:
                 response_id = event.get("response_id") or self.response_id
@@ -580,53 +589,67 @@ class QwenRealtimeSession:
                 bool(origin.get("query_id")) and origin.get("query_id") == self.current_query_id))
             and not has_tool_calls
             and response_id not in self.delegated_responses
-            and self._implies_background_delegation(transcript)
+            and bool(transcript.strip())
+            and self.delegation_review is not None
         )
-        if implicit_delegation:
-            self.delegated_responses.add(response_id)
         await self._record(
             "response_done", response_id=response_id,
             cancelled=cancelled,
-            has_tool_calls=has_tool_calls or implicit_delegation,
-            implicit_delegation=implicit_delegation)
+            has_tool_calls=has_tool_calls,
+            delegation_review_pending=implicit_delegation)
         if source != "provider":
             self.trace("response.synthetic_done", response_id=response_id,
                        source=source)
         if implicit_delegation:
             task = asyncio.create_task(
-                self.run_implicit_delegation(response_id, transcript))
+                self.run_implicit_delegation(response_id, transcript, query_id=origin.get("query_id", "")))
             self.deliveries.add(task)
             task.add_done_callback(self.deliveries.discard)
-        if (origin.get("kind") == "user" and self.input_turn_pending
+        if (not implicit_delegation and origin.get("kind") == "user" and self.input_turn_pending
                 and (not self.host_turn_control or origin.get("query_id") == self.current_query_id)):
             self.input_turn_pending = False
             self.input_turn_settled.set()
 
-    async def run_implicit_delegation(self, response_id, transcript):
-        """Repair a provider turn that promised execution but omitted run_task.
+    async def run_implicit_delegation(self, response_id, transcript, *, query_id=""):
+        """Review a tool-free reply semantically, then repair at most once.
 
-        Qwen has already made the routing decision in natural language. The
-        host therefore delegates the authoritative Product Interaction without
-        synthesizing or rewriting a goal. There is no provider function call to
-        answer, so the acceptance result is traced rather than injected as an
-        unmatched function_call_output item.
+        No routing is inferred from natural-language patterns in the transport.
+        The domain reviewer owns the current Query, advice and conversation.
         """
         try:
+            approved = (await self.delegation_review(response_id, transcript)
+                        if self.delegation_review is not None else False)
+            if response_id in self.delegated_responses:
+                return  # A real late provider call already claimed this turn.
+            if not approved:
+                await self._record("response_done", response_id=response_id,
+                                   cancelled=False, has_tool_calls=False)
+                return
+            if self.host_turn_control and query_id != self.current_query_id:
+                return
+            self.delegated_responses.add(response_id)
             result = await self.handle_tool(
                 "run_task", "{}",
                 {"response_id": response_id,
                  "call_id": f"implicit-run-task:{response_id}"})
+            self.trace("tool.implicit_run_task", response_id=response_id,
+                       transcript=transcript, result=result)
+            if result.get("status") == "not_delegated":
+                await self._record("response_done", response_id=response_id,
+                                   cancelled=False, has_tool_calls=False)
+            elif result.get("status") not in {"accepted", "queued"}:
+                self.emit("voice.error", error=result.get("message", "后台任务未能启动，请重试"))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            result = {"status": "failed", "message": str(exc)}
-        self.trace(
-            "tool.implicit_run_task", response_id=response_id,
-            transcript=transcript, result=result)
-        if result.get("status") not in {"accepted", "queued"}:
-            self.emit(
-                "voice.error",
-                error=result.get("message", "后台任务未能启动，请重试"))
+            self.trace("tool.delegation_review_failed", response_id=response_id,
+                       error=type(exc).__name__)
+            await self._record("response_done", response_id=response_id,
+                               cancelled=False, has_tool_calls=False)
+        finally:
+            if self.input_turn_pending and (not self.host_turn_control or query_id == self.current_query_id):
+                self.input_turn_pending = False
+                self.input_turn_settled.set()
 
     def _calls_from_response_output(self, response, response_id):
         """Recover calls when a provider omits the incremental arguments event."""
@@ -648,48 +671,6 @@ class QwenRealtimeSession:
                 "response_id": response_id,
             })
         return recovered
-
-    @staticmethod
-    def _implies_background_delegation(transcript):
-        """Conservatively recognize an affirmative execution commitment."""
-        text = "".join(str(transcript or "").split())
-        if not text:
-            return False
-        # Invitations and capability statements are conversation, not an
-        # execution promise. In particular, a self-introduction commonly ends
-        # with “想让我帮你处理点什么？”.
-        if any(marker in text for marker in (
-                "想让我帮你", "要不要我帮你", "需要我帮你", "可以让我帮你",
-                "如果你愿意", "你可以让我", "有什么需要我")):
-            return False
-        if any(marker in text for marker in (
-                "不能处理", "无法处理", "不会处理", "还没开始", "尚未开始",
-                "没有开始", "不要处理", "别处理", "不能操作", "无法操作")):
-            return False
-        if any(marker in text for marker in (
-            "我开始处理", "已经开始处理", "正在处理", "我来处理", "我去处理",
-            "我帮你处理", "我继续处理", "这就处理", "马上处理", "我开始执行", "我去执行",
-            "这就执行", "我来操作", "我去操作", "这就操作", "交给我",
-            "我再试一次", "我再试试", "我重新试一下", "我重新试试",
-            "我再帮你操作一次", "这就重试",
-            "我重新来",
-        )):
-            return True
-        # Catch concrete desktop commitments without making broad phrases such
-        # as “我这就把原因告诉你” look like computer operations.
-        action = (r"打开|关闭|最小化|播放|暂停|停(?:止|掉|下|了)|收藏|发送|点击|输入|"
-                  r"切换|调整|保存|下载|安装|启动|退出|搜索|查找")
-        commitment = re.search(
-            rf"(?:我)?(?:现在|马上|立刻|这就|继续)?(?:来|去)?帮你"
-            rf"[^。！？?!]{{0,24}}(?:{action})", text)
-        if not commitment:
-            commitment = re.search(
-                rf"我(?:现在|马上|立刻|这就|继续)(?:来|去)?把"
-                rf"[^。！？?!]{{0,24}}(?:{action})", text)
-        if not commitment:
-            commitment = re.search(
-                rf"我(?:现在|马上|立刻|这就)(?:来|去)?(?:{action})", text)
-        return bool(commitment)
 
     async def _prepare_voice_query(self, transcript, item_id):
         try:
@@ -744,7 +725,7 @@ class QwenRealtimeSession:
 
     def begin_query(self, query_id: str) -> None:
         # Mark the new input before host preparation; an old tool result must
-        # not resume speaking during the 400 ms preparation window.
+        # not resume speaking while preparing the current decision and references.
         self.current_query_id = query_id
         self.input_turn_pending = True
         self.input_turn_settled.clear()
@@ -865,6 +846,7 @@ class QwenRealtimeSession:
             f"结果：{item.get('summary', '')}\n"
             "这是后台刚刚完成的任务结果，不是新的操作请求。"
             "请只用一句简短自然的话把上述结果通知用户，不要再次调用run_task。"
+            "保留用户需要的实际结果；除非用户要求技术细节，不播报 PID、bundle ID、步骤编号或操作流水账。"
         )
         if self.host_turn_control:
             await self.expire_reference()
