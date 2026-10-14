@@ -28,6 +28,7 @@ const methods = new Set([
   "toggle_context",
   "submit_text",
   "cancel_task",
+  "cancel_all_tasks",
   "answer_approval",
   "list_skills",
   "create_skill",

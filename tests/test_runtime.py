@@ -146,7 +146,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.runtime = BoxAgentApplication(self.events.append, HeldExecutor, None)
 
     async def asyncTearDown(self):
-        await self.runtime.cancel_task()
+        await self.runtime.execution_service.close()
 
     async def start_job(self):
         accepted = await self.runtime.handle_tool(
@@ -243,6 +243,12 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         first_job = self.runtime.job
         second = await self.runtime.submit_text("第二个目标")
         third = await self.runtime.submit_text("第三个目标")
+        queued_snapshot = self.runtime.state.payload()
+        self.assertEqual(queued_snapshot["task_goal"], "第一个目标")
+        self.assertEqual([item["goal"] for item in queued_snapshot["task_queue"]],
+                         ["第二个目标", "第三个目标"])
+        self.assertEqual(self.events[-1]["type"], "task.queued")
+        self.assertEqual(self.events[-1]["state"]["task_queue"], queued_snapshot["task_queue"])
         self.assertEqual((second["position"], third["position"]), (1, 2))
 
         first_executor.release.set()
@@ -259,17 +265,101 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(third_executor.goal, "第三个目标")
         await self.runtime.cancel_task()
 
-    async def test_cancel_clears_queued_tasks(self):
+    async def test_cancel_current_preserves_queue_and_returns_original_task(self):
+        first = await self.runtime.submit_text("第一个目标")
+        first_executor = self.runtime.executor
+        await first_executor.started.wait()
+        await self.runtime.submit_text("第二个目标")
+        third = await self.runtime.submit_text("第三个目标")
+
+        queued_snapshot = self.runtime.state.payload()
+        result = await self.runtime.handle_tool("cancel_task", {})
+        self.assertEqual(result["status"], "cancelled")
+        self.assertEqual(result["task_id"], first["task_id"])
+        self.assertTrue(first_executor.stopped)
+        second_executor, second_job = self.runtime.executor, self.runtime.job
+        await second_executor.started.wait()
+        self.assertEqual(second_executor.goal, "第二个目标")
+        self.assertFalse(second_executor.stopped)
+        self.assertEqual(self.runtime.state.task_goal, "第二个目标")
+        self.assertEqual([item["goal"] for item in self.runtime.state.task_queue], ["第三个目标"])
+        self.assertEqual(len(queued_snapshot["task_queue"]), 2)  # Published snapshots stay independent.
+        self.assertEqual(self.runtime.last_result["status"], "running")
+        self.assertEqual([item["task_id"] for item in self.runtime.execution_service.pending],
+                         [third["task_id"]])
+
+        second_executor.release.set()
+        await second_job
+        await self.runtime.executor.started.wait()
+        self.assertEqual(self.runtime.executor.goal, "第三个目标")
+        self.assertFalse(self.runtime.executor.stopped)
+        self.assertEqual(self.runtime.state.task_queue, [])
+
+    async def test_queue_waits_for_old_executor_interrupt_and_starts_only_once(self):
+        first = await self.runtime.submit_text("第一个目标")
+        first_executor, first_job = self.runtime.executor, self.runtime.job
+        await first_executor.started.wait()
+        await self.runtime.submit_text("第二个目标")
+        await self.runtime.submit_text("第三个目标")
+        interrupt_started, interrupt_release, terminal = (asyncio.Event() for _ in range(3))
+        notify = self.runtime.execution_service.on_terminal
+
+        async def delayed_interrupt():
+            first_executor.stopped = True
+            first_executor.release.set()
+            interrupt_started.set()
+            await interrupt_release.wait()
+
+        async def notified(**params):
+            await notify(**params)
+            terminal.set()
+
+        first_executor.cancel = delayed_interrupt
+        self.runtime.execution_service.on_terminal = notified
+        cancellation = asyncio.create_task(self.runtime.cancel_task())
+        try:
+            await asyncio.wait_for(interrupt_started.wait(), 1)
+            await asyncio.wait_for(terminal.wait(), 1)
+            # A has ended while interrupt() is still in flight. B must not
+            # start on the shared runtime, and the caller must not cancel B.
+            self.assertIs(self.runtime.executor, first_executor)
+            self.assertFalse(first_job.done())
+        finally:
+            interrupt_release.set()
+            result = await asyncio.wait_for(cancellation, 1)
+        await self.runtime.executor.started.wait()
+        self.assertEqual(result["task_id"], first["task_id"])
+        self.assertEqual(self.runtime.executor.goal, "第二个目标")
+        self.assertFalse(self.runtime.executor.stopped)
+        self.assertEqual(len(self.runtime.execution_service.pending), 1)
+
+    async def test_cancel_all_clears_queued_tasks(self):
         await self.runtime.submit_text("第一个目标")
         first_executor = self.runtime.executor
         await self.runtime.submit_text("不应执行的第二个目标")
+        await self.runtime.submit_text("不应执行的第三个目标")
 
-        result = await self.runtime.handle_tool("cancel_task", {})
+        result = await self.runtime.handle_tool("cancel_all_tasks", {})
         self.assertEqual(result["status"], "cancelled")
+        self.assertEqual(result["cancelled_queued"], 2)
         self.assertTrue(first_executor.stopped)
         self.assertEqual(len(self.runtime.execution_service.pending), 0)
+        self.assertEqual(self.runtime.state.task_queue, [])
         await asyncio.sleep(0)
         self.assertIs(self.runtime.executor, first_executor)
+
+    async def test_shutdown_finalizes_queue_without_starting_it(self):
+        first = await self.runtime.submit_text("第一个目标")
+        first_executor = self.runtime.executor
+        second = await self.runtime.submit_text("不应执行的第二个目标")
+        service = self.runtime.execution_service
+        service.on_terminal = AsyncMock()
+        await service.close()
+        self.assertIs(self.runtime.executor, first_executor)
+        self.assertFalse(service.pending)
+        self.assertTrue(first_executor.stopped)
+        self.assertEqual({call.kwargs["task_id"] for call in service.on_terminal.await_args_list},
+                         {first["task_id"], second["task_id"]})
 
     async def test_blank_text_does_not_create_executor(self):
         result = await self.runtime.submit_text("  \n ")

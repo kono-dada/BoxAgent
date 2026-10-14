@@ -273,8 +273,11 @@ class BoxAgentApplication:
     async def answer_approval(self, allowed):
         await self.execution_service.answer_approval(allowed)
 
-    async def cancel_task(self):
-        await self.execution_service.cancel()
+    async def cancel_task(self) -> dict[str, object]:
+        return await self.execution_service.cancel()
+
+    async def cancel_all_tasks(self) -> dict[str, object]:
+        return await self.execution_service.cancel_all()
 
     async def stop_voice(self):
         await self.interaction_service.stop()
@@ -497,10 +500,12 @@ class BoxAgentApplication:
                     query, interaction=interaction)
                 return accepted
             if name == "cancel_task":
-                await self.execution_service.cancel()
-                return self.execution_service.last_result
+                return await self.cancel_task()
+            if name == "cancel_all_tasks":
+                return await self.cancel_all_tasks()
             if name == "task_status":
-                return {**self.execution_service.last_result, "progress": self.state.task_text}
+                return {**self.execution_service.last_result, "progress": self.state.task_text,
+                        "task_queue": self.state.task_queue}
             if name == "remember_memory":
                 return await self.memory.remember(
                     data["content"], source="voice_explicit",

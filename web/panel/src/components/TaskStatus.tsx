@@ -27,9 +27,11 @@ export function TaskStatus({
     return () => clearInterval(timer);
   }, [active]);
   const { elapsed, quiet } = taskTiming(runtime, now);
+  const queue = runtime.task_queue || [];
   if (
     compact &&
     (!runtime.task || runtime.task === "idle") &&
+    !queue.length &&
     !runtime.approval &&
     !runtime.error
   )
@@ -45,12 +47,34 @@ export function TaskStatus({
           {runtimeLabel(runtime.task)}
         </span>
       </header>
-      <p>{runtime.task_text || t("当前没有任务")}</p>
+      {runtime.task_goal && (
+        <p className="task-goal" title={runtime.task_goal}>{runtime.task_goal}</p>
+      )}
+      <p className="task-progress" title={runtime.task_text}>{runtime.task_text || t("当前没有任务")}</p>
       {runtime.task_started_at && (
         <p className="metadata">
           {t(active ? "已运行 {0} 秒" : "用时 {0} 秒", elapsed)}
           {active && quiet >= 15 ? ` · ${t("{0} 秒未收到新进展", quiet)}` : ""}
         </p>
+      )}
+      {!!queue.length && (
+        <details className="task-queue" open={!compact}>
+          <summary aria-live="polite">
+            <strong>{t("排队中 · {0} 项", queue.length)}</strong>
+            <span className="queue-next" title={queue[0].goal}>
+              {t("下一项：{0}", queue[0].goal)}
+            </span>
+          </summary>
+          <ol aria-label={t("等待执行的任务")}>
+            {queue.map((item, index) => (
+              <li key={item.task_id}>
+                <span className="queue-position" aria-hidden="true">{index + 1}</span>
+                <span>{item.goal}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="metadata">{t("当前任务结束后，按此顺序自动执行。")}</p>
+        </details>
       )}
       {runtime.approval && (
         <div className="approval-card" role="alert">
@@ -80,7 +104,16 @@ export function TaskStatus({
             disabled={busy || runtime.task === "cancelling"}
             onClick={() => run(act("cancel_task"))}
           >
-            {t("停止后台任务")}
+            {t("停止当前任务")}
+          </button>
+        )}
+        {(active || !!queue.length) && (
+          <button
+            className="button"
+            disabled={busy || runtime.task === "cancelling"}
+            onClick={() => run(act("cancel_all_tasks"))}
+          >
+            {t("取消全部任务")}
           </button>
         )}
       </div>

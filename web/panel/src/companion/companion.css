@@ -528,8 +528,16 @@ html[data-theme="dark"]
 .task-status.compact {
   margin: 0 18px;
   padding: 8px 10px;
-  max-height: 150px;
+  max-height: 190px;
 }
+.task-status.compact h2 { margin: 0; }
+.task-status.compact p { margin: 3px 0; }
+.task-status.compact .task-goal,
+.task-status.compact .task-progress { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-status.compact .task-queue { margin: 5px 0; padding-top: 5px; }
+.task-status.compact .task-queue > summary,
+.task-status.compact .task-queue li { font-size: 11px; }
+.task-status.compact .feature-actions { margin-top: 5px; }
 .companion-new-session {
   flex-shrink: 0;
 }

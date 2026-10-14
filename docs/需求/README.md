@@ -13,6 +13,8 @@
 
 ## 1. 术语
 
+任务取消与队列：面板“停止当前任务”和语音 `cancel_task` 只停止当前任务，后续排队任务按原顺序继续；明确的“取消全部任务” / `cancel_all_tasks` 才清空队列。中断完成前不启动下一个执行器，停止结果绑定原任务 ID。小窗和控制台显示当前任务原文、排队数量与顺序；小窗默认折叠，控制台默认展开。入队、启动下一项、清空队列均发布真实状态，重连后从快照恢复显示；语音 `task_status` 也返回队列。并发回归见 `tests/test_runtime.py`，IPC 回归见 `tests/test_engine.py`；实现规则见 [架构方案 §4.3](../BoxAgent-架构重构方案.md#43-并发规则)。
+
 | 术语 | 含义 |
 |---|---|
 | Jev-Mem | BoxAgent 的长期记忆系统，代码在 `boxagent/infrastructure/memory/jev_mem/` |
