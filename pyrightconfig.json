@@ -1,0 +1,15 @@
+{
+  "include": [
+    "boxagent/agent/runtime",
+    "boxagent/core/states.py",
+    "boxagent/domain/context/contracts.py",
+    "boxagent/domain/environment",
+    "boxagent/domain/execution",
+    "boxagent/domain/skill"
+  ],
+  "exclude": [
+    "boxagent/infrastructure/memory/jev_mem"
+  ],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic"
+}

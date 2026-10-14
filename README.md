@@ -199,6 +199,9 @@ pnpm --dir web/panel test
 
 # 打开控制台（需先启动桌宠，或独立 Engine）
 pnpm --dir web/panel start
+
+# 渐进式静态类型检查（范围见 pyrightconfig.json）
+uvx --from pyright==1.1.414 pyright
 ```
 
 真实语音、Computer Use 和屏幕总结测试可能产生模型用量、读取屏幕或改变应用状态。运行前请先阅读 [脚本用途与副作用](scripts/README.md)。
