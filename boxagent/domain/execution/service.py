@@ -4,19 +4,23 @@ import asyncio
 import re
 import time
 from collections import deque
+from collections.abc import Callable
 
 from boxagent.core.errors import TaskFailure
 from boxagent.core.ids import new_task_id
+from boxagent.core.states import Executor
 
 
 class ExecutionService:
-    def __init__(self, events, executor_factory, *, conversation=None,
+    def __init__(self, events, executor_factory: Callable[..., Executor], *,
+                 conversation=None,
                  on_terminal=None):
         self.events = events
         self.executor_factory = executor_factory
         self.conversation = conversation
         self.on_terminal = on_terminal
-        self.job = self.executor = None
+        self.job = None
+        self.executor: Executor | None = None
         self.interaction = None
         self.approval_future = None
         self.approved_requests = set()
@@ -93,7 +97,10 @@ class ExecutionService:
         self.events.emit("task.started", task="running")
         monitor = asyncio.create_task(self._monitor())
         try:
-            result = await self.executor.run(goal, self.progress, self.approve)
+            executor = self.executor
+            if executor is None:
+                raise RuntimeError("任务执行器尚未创建")
+            result = await executor.run(goal, self.progress, self.approve)
             if self.state.task == "cancelling":
                 raise asyncio.CancelledError
             status = "succeeded" if result["outcome"] == "completed" else result["outcome"]
@@ -103,7 +110,7 @@ class ExecutionService:
             self.events.emit("task." + status, task=status, task_text=result["summary"],
                              assistant_text=result["summary"], approval="",
                              task_ended_at=time.time())
-            if interaction:
+            if interaction and self.conversation:
                 await self.conversation.finish_interaction(
                     interaction, status=status, assistant_content=result["summary"],
                     task_id=task_id,
@@ -121,7 +128,7 @@ class ExecutionService:
                              task_text="任务已停止；已发生的操作不会撤销",
                              assistant_text="任务已停止；已发生的操作不会撤销",
                              approval="", task_ended_at=time.time())
-            if interaction:
+            if interaction and self.conversation:
                 await self.conversation.finish_interaction(
                     interaction, status="cancelled",
                     assistant_content=self.last_result["message"],
@@ -139,7 +146,7 @@ class ExecutionService:
             terminal_result = dict(self.last_result)
             self.events.emit("task.failed", task="failed", task_text=message,
                              assistant_text=message, approval="", task_ended_at=time.time())
-            if interaction:
+            if interaction and self.conversation:
                 await self.conversation.finish_interaction(
                     interaction, status="failed", assistant_content=message,
                     task_id=task_id,
@@ -235,7 +242,8 @@ class ExecutionService:
         self.events.emit("task.cancelling", task="cancelling",
                          task_text="正在停止后续操作…")
         await self.answer_approval(False)
-        await self.executor.cancel()
+        if self.executor is not None:
+            await self.executor.cancel()
         self.job.cancel()
         await asyncio.gather(self.job, return_exceptions=True)
         if self.state.task == "cancelling":

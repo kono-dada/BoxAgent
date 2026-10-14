@@ -1,0 +1,29 @@
+{
+  "case_id": "FIX-03-calculator-element-index-as-evidence",
+  "source": "2026-10-13 21:11:48 Asia/Shanghai; actual task 99b81f32b249",
+  "query": "帮我打开计算器",
+  "original_reply": "计算器已经打开了，Leon。\n\n- 计算器 App 处于最前窗口（步骤1，pid 8009，键窗口为「计算器」）\n- 模式仍是科学型（步骤59，Mode: scientific）\n- 上次的算式 `2^5+√(42)` 和结果 `38.4807407` 还在窗口里（步骤4、6）\n\n顺手一提，上次算的还留着。要清掉重算，还是就这么开着？\n\n{\"outcome\": \"completed\", \"summary\": \"计算器已打开并处于最前窗口，模式为科学型，保留了上次算式 2^5+√(42)=38.4807407。\", \"evidence_steps\": [1, 4, 6, 59]}",
+  "observations": [
+    {
+      "step": 1,
+      "tool": "get_app_state",
+      "success": true,
+      "text": "Computer Use state (CUA App Version: 1001425)\n<app_state>\nApp=/System/Applications/Calculator.app/ (bundleID com.apple.calculator, pid 8009)\nWindow: \"计算器\", App: 计算器.\n0 标准窗口 计算器, ID: main, Secondary Actions: Raise\n\t1 分离组 main, SidebarNavigationSplitView\n\t\t2 container CalculatorKeypadView\n\t\t\t3 滚动区 Description: 上个表达式, ID: StandardResultView, Secondary Actions: 拷贝\n\t\t\t\t4 文本 ‎2‎‎5‎+‎√‎(‎42‎)\n\t\t\t5 滚动区 Description: 编辑字段, ID: StandardInputView, Secondary Actions: 拷贝\n\t\t\t\t6 文本 ‎38.4807407\n\t\t\t7 按钮 Description: 左括号, ID: OpenParenthesis\n\t\t\t8 按钮 Description: 右括号, ID: CloseParenthesis\n\t\t\t9 按钮 Description: 清除记忆, ID: MemoryClear\n\t\t\t10 按钮 Description: 与记忆相加, Help: 在记忆中加入显示值, ID: MemoryAdd\n\t\t\t11 按钮 Description: 从记忆减去, Help: 从记忆中减去显示值, ID: MemorySubtract\n\t\t\t12 按钮 Description: 读取记忆, Help: 读取储存在记忆中的值, ID: MemoryRecall\n\t\t\t13 按钮 Description: 删除, Help: 删除输入的上个数字或操作（长按全部删除）, ID: Delete\n\t\t\t14 按钮 Description: 全部清除, ID: AllClear\n\t\t\t15 按钮 Description: 百分比, ID: Percent\n\t\t\t16 按钮 Description: 除, ID: Divide\n\t\t\t17 开关按钮 Description: 第二功能, Help: 显示部分按钮的其他函数, Value: 0, ID: Shift\n\t\t\t18 按钮 Description: X的平方, Help: 计算数值的平方, ID: Square\n\t\t\t19 按钮 Description: X的立方, Help: 计算数值的立方, ID: Cube\n\t\t\t20 按钮 Description: X的Y次方, Help: 计算第一个数值的第二个数值次方, ID: Power\n\t\t\t21 按钮 Description: e的X次方, Help: 计算e的数值次方, ID: Expontential\n\t\t\t22 按钮 Description: 10的X次方, Help: 计算10的数值次方, ID: ExponentialBase10\n\t\t\t23 按钮 Description: 7, ID: Seven\n\t\t\t24 按钮 Description: 8, ID: Eight\n\t\t\t25 按钮 Description: 9, ID: Nine\n\t\t\t26 按钮 Description: 乘, ID: Multiply\n\t\t\t27 按钮 Description: 1除以x, Help: 计算数值的倒数, ID: Reciprocal\n\t\t\t28 按钮 Description: 平方根, Help: 计算数值的平方根, ID: SquareRoot\n\t\t\t29 按钮 Description: 立方根, Help: 计算数值的立方根, ID: CubeRoot\n\t\t\t30 按钮 Description: X的Y次方根, Help: 计算数值的任意次方根（x的y次方根）, ID: Root\n\t\t\t31 按钮 Description: 自然对数, Help: 计算数值的自然对数, ID: LogarithmNatural\n\t\t\t32 按钮 Description: 以10为底的对数, Help: 以10为底数，计算数值的对数, ID: LogarithmBase10\n\t\t\t33 按钮 Description: 4, ID: Four\n\t\t\t34 按钮 Description: 5, ID: Five\n\t\t\t35 按钮 Description: 6, ID: Six\n\t\t\t36 按钮 Description: 减, ID: Subtract\n\t\t\t37 按钮 Description: X的阶乘, Help: 计算数值的阶乘, ID: Factorial\n\t\t\t38 按钮 Description: 正弦, Help: 计算数值的正弦值, ID: Sine\n\t\t\t39 按钮 Description: 余弦, Help: 计算数值的余弦值, ID: Cosine\n\t\t\t40 按钮 Description: 正切, Help: 计算数值的正切值, ID: Tangent\n\t\t\t41 按钮 Description: e, Help: 输入e (2.71828…), ID: EulerNumber\n\t\t\t42 按钮 Description: 输入指数, Help: 输入数值的指数（科学记数法）, ID: TimesPowerOfTen\n\t\t\t43 按钮 Description: 1, ID: One\n\t\t\t44 按钮 Description: 2, ID: Two\n\t\t\t45 按钮 Description: 3, ID: Three\n\t\t\t46 按钮 Description: 加, ID: Add\n\t\t\t47 按钮 Description: 随机数, Help: 生成介于0和1之间的随机数值, ID: Random\n\t\t\t48 按钮 Description: 双曲正弦, Help: 计算数值的双曲正弦值, ID: HyperbolicSine\n\t\t\t49 按钮 Description: 双曲余弦, Help: 计算数值的双曲余弦值, ID: HyperbolicCosine\n\t\t\t50 按钮 Description: 双曲正切, Help: 计算数值的双曲正切值, ID: HyperbolicTangent\n\t\t\t51 按钮 Description: 圆周率, Help: 输入pi (3.14159…), ID: Pi\n\t\t\t52 按钮 Description: 弧度, Help: 将角度单位更改为弧度, ID: Radians\n\t\t\t53 按钮 Description: 更改正负号, Help: 更改数值符号, ID: Negate\n\t\t\t54 按钮 Description: 0, ID: Zero\n\t\t\t55 按钮 Description: 点, ID: Decimal\n\t\t\t56 按钮 Description: 等于, ID: Equals\n\t57 工具栏\n\t\t58 按钮 Description: 显示边栏, Secondary Actions: Increment, Decrement, Delete, Cancel\n\t\t59 按钮 Description: 模式, ID: Mode: scientific; unitConversion: false, Secondary Actions: Increment, Decrement, Delete, Cancel, 移到上一项, 从工具栏移除\n\t60 关闭按钮\n\t61 缩放按钮 (disabled)\n\t62 最小化按钮\n63 menu bar\n\t64 计算器\n\t65 编辑\n\t66 显示\n\t67 窗口\n\t68 帮助\n\n</app_state>"
+    }
+  ],
+  "reported_error": {
+    "code": "invalid_evidence",
+    "references": [
+      1,
+      4,
+      6,
+      59
+    ],
+    "actual_steps": [
+      1
+    ]
+  },
+  "expected_references": [
+    1
+  ]
+}

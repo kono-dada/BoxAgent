@@ -1,63 +1,31 @@
 """Harness policy for terminal results and their observable evidence."""
 
-import json
+from boxagent.agent.runtime.results import parse_result_object
 
 from boxagent.core.errors import TaskFailure
 
 
 RESULT_SCHEMA = {
     "type": "object", "properties": {
-        "outcome": {"type": "string", "enum": ["completed", "blocked", "failed"]},
-        "summary": {"type": "string"},
-        "evidence_steps": {"type": "array", "items": {"type": "integer"}},
+        "outcome": {"type": "string", "enum": ["completed", "needs_input", "blocked", "failed"]},
+        "summary": {"type": "string", "description":
+                    "直接展示或播报给用户的简短自然答复，说明当前目标的实际结果或具体澄清问题。"
+                    "除非用户要求技术细节，不包含进程/应用标识、步骤引用或操作流水账。"},
+        "evidence_steps": {"type": "array", "items": {"type": "integer"},
+                           "description": "单独保存内部验收依据：本任务实际观察步骤编号，不是界面元素索引。"},
     }, "required": ["outcome", "summary", "evidence_steps"], "additionalProperties": False,
 }
-
-
-def _parse_result_object(text: str) -> dict:
-    """Accept strict JSON and a final JSON object preceded by model prose.
-
-    Some OpenAI-compatible providers do not enforce App Server outputSchema and
-    may emit a short natural-language sentence before the requested object.  We
-    still require a syntactically complete object with the terminal result keys;
-    arbitrary prose or a partial object remains invalid.
-    """
-    if not isinstance(text, str):
-        raise TypeError("task result must be text")
-    stripped = text.strip()
-    try:
-        value = json.loads(stripped)
-    except ValueError:
-        value = None
-    if isinstance(value, dict):
-        return value
-
-    decoder = json.JSONDecoder()
-    candidates = []
-    for offset, character in enumerate(text):
-        if character != "{":
-            continue
-        try:
-            value, _end = decoder.raw_decode(text, offset)
-        except ValueError:
-            continue
-        if isinstance(value, dict) and {
-                "outcome", "summary", "evidence_steps"}.issubset(value):
-            candidates.append(value)
-    if candidates:
-        return candidates[-1]
-    raise ValueError("no terminal result object")
 
 
 def validate_task_result(text: str, observations: dict[int, dict],
                          tool_errors: list[dict]) -> dict:
     try:
-        result = _parse_result_object(text)
+        result = parse_result_object(text)
     except (ValueError, TypeError) as exc:
         raise TaskFailure("invalid_result", "执行结果无法解析，请检查目标应用后重试", text) from exc
     if not isinstance(result, dict):
         raise TaskFailure("invalid_result", "执行结果无法解析，请检查目标应用后重试", text)
-    if result.get("outcome") not in {"completed", "blocked", "failed"} or not isinstance(result.get("summary"), str):
+    if result.get("outcome") not in {"completed", "needs_input", "blocked", "failed"} or not isinstance(result.get("summary"), str):
         raise TaskFailure("invalid_result", "执行已结束，但返回结果无法解析", text)
     steps = result.get("evidence_steps", [])
     if not isinstance(steps, list) or any(type(step) is not int or step not in observations for step in steps):

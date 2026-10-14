@@ -1,0 +1,14 @@
+{
+  "case_id": "FIX-03-question-mark-actual-run-task",
+  "source": "2026-10-13 20:07 Asia/Shanghai, task 677a19f4123c; user text, reply and final result copied from logs; event envelopes are controlled substitutes",
+  "user_query": "？",
+  "observed_reply": "正在处理，你先忙别的。\n\n",
+  "tool": "run_task",
+  "arguments": "{}",
+  "reported_result": {
+    "outcome": "completed",
+    "summary": "Leon，只回了一个「？」，我没看懂你想问什么——是刚才计算器/音乐那边有哪里不对劲，还是想说别的？告诉我一声，我马上接着办。",
+    "evidence_steps": []
+  },
+  "expected": {"new_task_count": 0, "explicit_clarification_outcome": "needs_input", "mislabelled_completion_error": "missing_evidence"}
+}

@@ -10,6 +10,10 @@ ResultValidator = Callable[[str], dict]
 Progress = Callable[[str], None]
 
 
+class ToolObservationSink(Protocol):
+    async def __call__(self, operation: str, arguments: dict, response: dict) -> None: ...
+
+
 class AgentRuntime(Protocol):
     """Run one agentic reasoning/tool loop behind a provider-neutral port."""
 
