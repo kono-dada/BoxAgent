@@ -7,12 +7,10 @@ export function TaskStatus({
   runtime,
   busy,
   act,
-  compact = false,
 }: {
   runtime: RuntimeState;
   busy: boolean;
   act: ActionState["act"];
-  compact?: boolean;
 }) {
   const [now, setNow] = useState(Date.now() / 1000);
   const active = [
@@ -28,17 +26,9 @@ export function TaskStatus({
   }, [active]);
   const { elapsed, quiet } = taskTiming(runtime, now);
   const queue = runtime.task_queue || [];
-  if (
-    compact &&
-    (!runtime.task || runtime.task === "idle") &&
-    !queue.length &&
-    !runtime.approval &&
-    !runtime.error
-  )
-    return null;
   return (
     <section
-      className={`feature-card task-status ${compact ? "compact" : ""}`}
+      className="feature-card task-status"
       aria-label={t("当前后台任务")}
     >
       <header>
@@ -58,7 +48,7 @@ export function TaskStatus({
         </p>
       )}
       {!!queue.length && (
-        <details className="task-queue" open={!compact}>
+        <details className="task-queue" open>
           <summary aria-live="polite">
             <strong>{t("排队中 · {0} 项", queue.length)}</strong>
             <span className="queue-next" title={queue[0].goal}>

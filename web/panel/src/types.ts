@@ -144,6 +144,8 @@ export interface Avatar {
   description?: string;
 }
 export interface AvatarSnapshot {
+  tasks_expanded?: boolean;
+  tasks_pinned?: boolean;
   appearance?: string;
   appearance_ready?: boolean;
   appearance_error?: string;

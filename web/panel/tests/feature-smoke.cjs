@@ -78,14 +78,33 @@ app.whenReady().then(async()=>{
   state.task='running';state.task_goal='收藏网易云当前歌曲';state.task_queue=[{task_id:'b',goal:'打开计算器'},{task_id:'c',goal:'计算二的五次方'}];
   await bubble.loadFile(path.join(__dirname,'../dist/companion.html'));
   const small=s=>bubble.webContents.executeJavaScript(s);
-  for(let i=0;i<100 && !(await small(`Boolean(document.querySelector('.task-queue'))`));i++)await new Promise(r=>setTimeout(r,50));
-  assert.equal(await small(`document.querySelector('.task-queue').open`),false);
-  assert.equal(await small(`document.querySelector('.queue-next').textContent`),'下一项：打开计算器');
+  for(let i=0;i<100 && !(await small(`Boolean(document.querySelector('.companion-task-summary'))`));i++)await new Promise(r=>setTimeout(r,50));
+  assert.equal(await small(`Boolean(document.querySelector('.task-status'))`),false);
+  assert.equal(await small(`document.querySelector('.companion-task-summary-queue').textContent`),'· 排队 2');
+  assert.equal(await small(`document.querySelector('.companion-task-summary-progress').textContent`),'隔离任务');
   await small(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))`);
-  assert(await small(`Array.from(document.querySelectorAll('.task-status .button')).every(button=>button.getBoundingClientRect().bottom<=document.querySelector('.task-status').getBoundingClientRect().bottom)`));
   fs.writeFileSync('/tmp/boxagent-task-queue-small.png',(await bubble.webContents.capturePage()).toPNG());
-  await small(`document.querySelector('.task-queue > summary').click()`);
-  assert.equal(await small(`document.querySelectorAll('.task-queue li').length`),2);
-  console.log('Isolated feature renderer: existing controls, live FIFO queue/advance/clear, compact collapse/expand passed');app.quit();
+  assert.equal(await small(`getComputedStyle(document.querySelector('.companion-task-summary'),'::before').animationName`),'task-glow-breathe');
+  const summaryBounds=await small(`(()=>{const b=document.querySelector('.companion-task-summary').getBoundingClientRect();return {x:b.x,width:b.width};})()`);
+  const bubbleState=async patch=>{
+   Object.assign(state,patch);bubble.webContents.send('engine:state',state);
+   for(let i=0;i<100;i++){
+    if(await small(`document.querySelector('.companion-task-summary').dataset.state===${JSON.stringify(state.task)}`))return;
+    await new Promise(r=>setTimeout(r,50));
+   }
+   throw new Error('Task summary did not update');
+  };
+  await bubbleState({task:'idle',task_queue:[],approval:''});
+  assert.equal(await small(`document.querySelector('.companion-task-summary-progress').textContent`),'当前没有任务');
+  assert.equal(await small(`getComputedStyle(document.querySelector('.companion-task-summary'),'::before').content`),'none');
+  assert.equal(await small(`getComputedStyle(document.querySelector('.companion-task-summary-state > i')).animationName`),'none');
+  assert.deepEqual(await small(`(()=>{const b=document.querySelector('.companion-task-summary').getBoundingClientRect();return {x:b.x,width:b.width};})()`),summaryBounds);
+  await small(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))))`);
+  fs.writeFileSync('/tmp/boxagent-task-summary-idle.png',(await bubble.webContents.capturePage()).toPNG());
+  await bubbleState({task:'running'});
+  assert.equal(await small(`getComputedStyle(document.querySelector('.companion-task-summary'),'::before').animationName`),'task-glow-breathe');
+  await bubbleState({task:'succeeded'});
+  assert.equal(await small(`getComputedStyle(document.querySelector('.companion-task-summary'),'::before').content`),'none');
+  console.log('Isolated feature renderer: controls, live FIFO queue, persistent task summary and idle/running/completed lighting passed');app.quit();
  }catch(error){console.error(error);app.exit(1);}
 });

@@ -246,6 +246,9 @@ app.whenReady().then(async () => {
     if (!host || !windows.has(BrowserWindow.fromWebContents(event.sender)))
       return;
     if (action === "show-panel") showPanel();
+    else if (action === "show-tasks") host.showTasks();
+    else if (action === "collapse-tasks") host.collapseTasks();
+    else if (action === "pin-tasks") host.pinTasks();
     else if (action === "hide-bubble") host.hideBubble();
     else if (action === "dismiss-feedback") host.dismissFeedback();
     else if (action === "resize-bubble")
