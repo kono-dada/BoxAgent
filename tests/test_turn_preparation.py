@@ -204,6 +204,59 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 await app.close()
 
+    async def test_explicit_tool_call_repairs_recorded_close_calculator_false_negative(self):
+        """A low first-pass score must not veto a semantically verified operation."""
+        with tempfile.TemporaryDirectory() as directory:
+            running = asyncio.Event()
+            finish = asyncio.Event()
+            goals = []
+
+            class Executor:
+                async def run(self, goal, progress, approve):
+                    goals.append(goal)
+                    running.set()
+                    await finish.wait()
+                    return {"outcome": "succeeded", "summary": "计算器已关闭"}
+
+                async def cancel(self):
+                    finish.set()
+
+            intent = AsyncMock()
+            intent.review_delegation.return_value = {"p_delegation": .99}
+            preparer = TurnPreparer(Memory(), intent=intent)
+            app = BoxAgentApplication(
+                lambda _: None, lambda *_args, **_kwargs: Executor(), None,
+                conversation_service=ConversationService(JsonlSessionStore(Path(directory))),
+                turn_preparer=preparer)
+            interaction = app.interaction_service
+            voice = QwenRealtimeSession(
+                interaction._handle_tool, app.events.emit, host_turn_control=True,
+                conversation_event=interaction._conversation_event,
+                delegation_review=interaction._review_delegation)
+            try:
+                await app.start()
+                await interaction._conversation_event(
+                    "user_final", {"transcript": "关闭计算器"})
+                context = interaction.interaction
+                interaction.decisions[context.interaction_id] = DecisionAdvice(
+                    .12, .37, .96)
+                voice.current_query_id = context.interaction_id
+                voice.response_context["reply"] = {
+                    "kind": "user", "query_id": context.interaction_id}
+                interaction.response_interactions["reply"] = context
+                voice.response_transcripts["reply"] = "这就去把计算器关了。"
+                voice._dispatch_tool_call({
+                    "response_id": "reply", "call_id": "close-calculator",
+                    "name": "run_task", "arguments": "{}"})
+                await asyncio.wait_for(running.wait(), .5)
+                self.assertEqual(goals, ["关闭计算器"])
+                self.assertEqual(app.state.task, "running")
+                intent.review_delegation.assert_awaited_once()
+            finally:
+                finish.set()
+                await app.close()
+                await preparer.close()
+
     async def test_live_progress_reply_does_not_queue_chat_as_a_task(self):
         """FIX-03: replay the live failure through real Product/Execution services."""
         case = json.loads((Path(__file__).parent / "fixtures/voice_task_progress.json").read_text())

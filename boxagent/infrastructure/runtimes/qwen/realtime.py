@@ -489,10 +489,17 @@ class QwenRealtimeSession:
 
     async def run_tool(self, call):
         try:
+            metadata = {"response_id": call.get("response_id"),
+                        "call_id": call.get("call_id")}
+            reply = self.response_transcripts.get(call.get("response_id"), "")
+            if reply:
+                # The provider can emit the transcript before the executable
+                # function boundary. Preserve it so a decision disagreement
+                # can be reviewed against this exact reply.
+                metadata["reply"] = reply
             result = await self.handle_tool(
                 call.get("name"), call.get("arguments", "{}"),
-                {"response_id": call.get("response_id"),
-                 "call_id": call.get("call_id")})
+                metadata)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

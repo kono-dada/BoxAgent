@@ -223,3 +223,11 @@ UV_CACHE_DIR=/tmp/uvcache uv run --with pytest python -m pytest -q tests/test_vo
 本次提交汇总前述逐轮决策等待、领域语义补派发、原生观察接入、证据引用整理、用户摘要表达及固定回放用例；REQ-06 仍为设计文档。补齐 App Server 管道、可选上下文/Skill 服务和观察脱敏返回值的边界检查。历史各阶段“未提交”描述仅对应当时状态。
 
 提交前重新验证：pytest 372 passed、12 skipped、77 subtests passed；规定 Pyright 范围及额外覆盖的十二个修改模块均 0 errors；面板 11 项测试及 TypeScript/Vite 构建通过；`git diff --check` 通过。完整音频、多人参与与原生路径在线验收仍保留上述限制，不因提交而视为完成。
+
+## 2026-10-15 固定回归用例：明确操作被首轮决策误拦截
+
+原始输入“关闭计算器”的记录中，决策概率为 `p_action=0.12`、`p_status=0.37`、`p_conversation=0.96`。Qwen 已回复“这就去把计算器关了。”并调用 `run_task`，宿主因聊天排除意见返回 `not_delegated`，没有创建任务；小窗因此保持空闲。伙伴后续描述的“执行失败”实际发生在派发之前。
+
+当前只在明确 `run_task` 调用与首轮排除意见冲突时，使用已有语义复核检查本轮原始输入、近期正式对话和对应回复。复核通过且原交互仍有效才派发；无对应回复、复核失败或交互已被打断时保留拒绝。没有按计算器关键词绕过决策，也不会因口头承诺直接显示运行中。
+
+离线回归入口为 `tests/test_turn_preparation.py::TurnPreparationTests::test_explicit_tool_call_repairs_recorded_close_calculator_false_negative`：通过生产 Qwen/Interaction/Execution 链路重放原始低分与工具调用，检查执行目标仍为“关闭计算器”且真实任务进入 running；决策复核与执行器为替身。全量 pytest 为 377 passed、12 skipped、77 subtests passed，规定 Pyright 范围 0 errors。此回归不代表真实决策模型或完整语音操作的在线验收已完成。

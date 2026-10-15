@@ -378,17 +378,29 @@ class InteractionService:
                 self.response_interactions.pop(response_id, None)
 
     async def _handle_tool(self, name, arguments, metadata=None):
-        interaction = self._response_interaction(metadata or {})
+        metadata = metadata or {}
+        interaction = self._response_interaction(metadata)
         if name == "run_task" and interaction is None:
             return {"status": "failed", "message": "此请求已被打断或结束，未启动任务"}
         advice = self.decisions.get(interaction.interaction_id) if interaction is not None else None
         if name == "run_task" and advice is not None and advice.exclusion is not None:
-            result = {
-                "status": "not_delegated", "reason": advice.exclusion,
-                "message": ("本轮决策认为是已有任务的进度询问。请调用 task_status 后自然回答。"
-                            if advice.exclusion == "status" else
-                            "本轮决策认为是聊天或澄清，未创建新任务。请自然回应或询问用户。"),
-            }
+            # The lightweight first-pass decision is advice, not an absolute
+            # veto. If Qwen explicitly called run_task, resolve the conflict
+            # with the stricter query+reply semantic reviewer. This repairs
+            # false negatives such as “关闭计算器” while punctuation, chat and
+            # status questions remain rejected when review is absent or fails.
+            approved = await self._review_explicit_delegation(
+                interaction, str(metadata.get("reply") or ""))
+            if approved:
+                result = await self.handle_tool(
+                    name, arguments, interaction=interaction)
+            else:
+                result = {
+                    "status": "not_delegated", "reason": advice.exclusion,
+                    "message": ("本轮决策认为是已有任务的进度询问。请调用 task_status 后自然回答。"
+                                if advice.exclusion == "status" else
+                                "本轮决策认为是聊天或澄清，未创建新任务。请自然回应或询问用户。"),
+                }
         else:
             result = await self.handle_tool(name, arguments, interaction=interaction)
         if name == "run_task" and interaction is not None and result.get("status") in {"accepted", "queued"}:
@@ -396,6 +408,16 @@ class InteractionService:
         elif interaction is not None and (metadata or {}).get("call_id"):
             self.tool_interactions[(metadata or {})["call_id"]] = interaction
         return result
+
+    async def _review_explicit_delegation(self, interaction: InteractionContext,
+                                          reply: str) -> bool:
+        if self.turn_preparer is None or not reply.strip():
+            return False
+        approved = await self.turn_preparer.review_delegation(
+            interaction.user_event.content or "", reply,
+            context=self._decision_context(interaction))
+        return bool(approved and self.interaction is interaction
+                    and interaction.interaction_id not in self.closed_interactions)
 
     @staticmethod
     def _decision_context(context: InteractionContext) -> str:
