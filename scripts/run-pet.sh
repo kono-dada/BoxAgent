@@ -5,6 +5,44 @@ BOXAGENT_ROOT=$(dirname -- "$script_dir")
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
 . "$script_dir/runtime-env.sh"
 cd "$BOXAGENT_ROOT"
+
+# The desktop host reads Vite's dist directly. Rebuild only when its source
+# fingerprint changed, so a source checkout never silently launches stale UI.
+panel_dir="$BOXAGENT_ROOT/web/panel"
+panel_marker="$panel_dir/dist/.source-fingerprint"
+if [ -d "$panel_dir/src" ]; then
+    panel_fingerprint=$(
+        {
+            find "$panel_dir/src" -type f -exec cksum {} \;
+            for panel_source in \
+                "$panel_dir/index.html" \
+                "$panel_dir/companion.html" \
+                "$panel_dir/pet.html" \
+                "$panel_dir/tasks.html" \
+                "$panel_dir/style.css" \
+                "$panel_dir/package.json" \
+                "$panel_dir/tsconfig.json" \
+                "$panel_dir/vite.config.mjs"
+            do
+                [ ! -f "$panel_source" ] || cksum "$panel_source"
+            done
+        } | LC_ALL=C sort | cksum | awk '{ print $1 ":" $2 }'
+    )
+    panel_built_fingerprint=
+    [ ! -f "$panel_marker" ] || panel_built_fingerprint=$(cat "$panel_marker")
+    if [ ! -f "$panel_dir/dist/companion.html" ] ||
+        [ "$panel_fingerprint" != "$panel_built_fingerprint" ]; then
+        if ! command -v pnpm >/dev/null 2>&1; then
+            printf '%s\n' '前端源码已更新，但找不到 pnpm。请先运行 ./scripts/install.sh。' >&2
+            exit 1
+        fi
+        printf '%s\n' '检测到伙伴界面更新，正在构建…'
+        pnpm --dir "$panel_dir" run build
+        printf '%s\n' "$panel_fingerprint" > "$panel_marker"
+    fi
+fi
+unset panel_dir panel_marker panel_fingerprint panel_built_fingerprint panel_source
+
 if ! command -v uv >/dev/null 2>&1; then
     printf '%s\n' '找不到 uv，请按 docs/setup.md 安装后重试。' >&2
     exit 1

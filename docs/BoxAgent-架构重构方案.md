@@ -196,7 +196,9 @@ sequenceDiagram
 2. 桌面操作任务串行执行。
    1. 当前任务运行时，新任务进入 `ExecutionService.pending`。
    2. 当前任务终结后自动启动队首任务。
-   3. 取消操作同时取消当前任务与尚未执行的排队任务。
+   3. `cancel_task` 只停止当前任务，保留队列；当前任务停止后继续启动队首任务。`cancel_all_tasks` 才停止当前任务并取消全部排队任务。
+   4. 停止时固定原任务与执行器；中断完成前禁止启动下一个执行器。停止结果返回原任务 ID，避免把下一个任务的运行状态当成停止结果。退出应用取消全部任务。
+   5. `Snapshot.task_goal` 显示当前目标，`task_queue` 只包含等待任务的 ID 与原文，顺序来自同一 FIFO；入队、下一任务启动、全部取消均发布快照。聊天标题栏使用 Engine 快照显示任务状态、排队数量与最新进展；独立 `tasks.html` 使用相同 IPC 展开紧凑任务列表，仅在聊天收起时显示状态窄条；展开、固定和收起由 Electron DesktopHost 管理；任务列表底部直接显示停止当前、取消全部与固定操作，标题栏任务状态按钮是聊天小窗的唯一任务入口。三种小窗共用 `useWindowDrag`：左键按下后才开始手势，松开、丢失捕获及失焦均清理。DesktopHost 按手势开始时的窗口与角色原点快照整体平移，按可见组合约束屏幕边界；不把原生 `move` 或角色动画裁剪当成用户拖动。聊天高度变化时按首次加载的裁剪边距将角色停靠到小窗底部；边距随角色缩放，动画只更新裁剪，不参与窗口排布。任务信息不挤占聊天消息区，控制台展示完整卡片；重连和语音进度查询共用该状态。
 3. 记忆写入与 Checkpoint 生成异步执行。
    1. 不阻塞前台首字响应。
    2. 每个 Session 内部串行处理，避免顺序错乱。
@@ -383,7 +385,7 @@ sequenceDiagram
 
 | 类型 | 含义 | 示例 |
 | --- | --- | --- |
-| Command | 请求系统执行某件事 | `submit_text`、`cancel_task`、`create_session` |
+| Command | 请求系统执行某件事 | `submit_text`、`cancel_task`、`cancel_all_tasks`、`create_session` |
 | Product Event | 已持久发生的产品事实 | `message.final`、`interaction.finalized` |
 | UI State | 当前界面的可变投影 | `voice=ready`、`task=running`、`notification_unread=true` |
 

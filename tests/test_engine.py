@@ -51,7 +51,12 @@ class FakeApplication:
                  "limit": limit}]
 
     async def cancel_task(self):
+        self.last_result = {"status": "running", "task_id": "next"}
+        return {"status": "cancelled", "task_id": "current"}
+
+    async def cancel_all_tasks(self):
         self.last_result = {"status": "cancelled"}
+        return {"status": "cancelled", "cancelled_queued": 2}
 
     async def answer_approval(self, allowed):
         self.state.approval = "" if allowed else "denied"
@@ -152,6 +157,13 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(created["title"], "游戏")
         self.assertEqual(sessions[0]["session_id"], "ses_1")
         self.assertEqual(events[0]["sequence"], 4)
+
+    async def test_current_and_all_cancellation_have_distinct_ipc_results(self):
+        current = await self.client.request("cancel_task")
+        self.assertEqual(current, {"status": "cancelled", "task_id": "current"})
+        self.assertEqual(self.application.last_result["task_id"], "next")
+        all_tasks = await self.client.request("cancel_all_tasks")
+        self.assertEqual(all_tasks, {"status": "cancelled", "cancelled_queued": 2})
 
     async def test_context_commands_cross_process_contract(self):
         snapshot = await self.client.request(

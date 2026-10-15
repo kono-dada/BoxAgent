@@ -7,13 +7,13 @@
 ./scripts/run-pet.sh
 ```
 
-Electron 主进程管理透明桌宠、React 对话小窗和按需创建的伙伴控制台。关闭控制台保留桌宠、共享 Engine 连接和本机服务；再次打开创建控制台窗口。小窗宽 440px、空闲约 328px，随内容展开至最多 600px，长历史内部滚动；角色动作的边界裁剪不再定位小窗，内容展开时优先保持标题位置。“最新消息”入口占独立一行，不覆盖正文。背景为半透明程序化流光，语音状态调节强度；隐藏和减少动态效果时暂停。收起小窗只隐藏，不销毁消息与草稿。重复启动复用同一个 Electron 实例。
+Electron 主进程管理透明桌宠、React 对话小窗和按需创建的伙伴控制台。关闭控制台保留桌宠、共享 Engine 连接和本机服务；再次打开创建控制台窗口。小窗宽 440px、空闲约 328px，随内容展开至最多 600px，长历史内部滚动；角色动作的边界裁剪不再定位小窗，内容展开时优先保持标题位置。“最新消息”入口占独立一行，不覆盖正文。标题栏中央的任务状态块始终显示，空闲时显示“当前没有任务”且不发光；任务执行、等待授权、停止中或有排队任务时亮起呼吸灯，结束后停止呼吸。背景为半透明程序化流光，语音状态调节强度；隐藏和减少动态效果时暂停。收起小窗只隐藏，不销毁消息与草稿。重复启动复用同一个 Electron 实例。
 
 应用身份为 BoxAgent。`scripts/launch.cjs` 在 `.runtime/desktop/BoxAgent.app` 准备本机产品 bundle，设置显示名、进程名、bundle ID 和图标，保留依赖目录里的 Electron.app；源或图标变化时重建，否则直接复用。完整 `.command` 启动与独立 `pnpm start` 均使用此入口。它是源码运行环境，完整启动仍通过 `.command` 注入 Python/Engine 参数，不是可独立分发的安装包。
 
 图标源位于 `public/brand/`：白底、奶油色小猫从纸盒探头的 SVG，PNG / ICNS 用于 Dock/控制台，单色 template 图标用于菜单栏。执行 `pnpm exec electron scripts/render-icons.cjs` 可离线重新导出。MiraJelly 的命名、Dock 与 template 图标处理作为实现参考，未复制其图标。
 
-开发时 `pnpm --dir web/panel build` 检查 TypeScript 并构建三个 HTML 入口；`pnpm --dir web/panel start` 可独立打开只连接 Engine 的控制台。独立模式的桌面专属功能提示启动完整桌宠。启动不重新构建；修改后运行 build。安装脚本包含前端依赖与构建，日志在 `<数据目录>/logs/desktop-service.log`；Engine 日志尊重 `--log-dir`。
+开发时 `pnpm --dir web/panel build` 检查 TypeScript 并构建页面入口；`pnpm --dir web/panel start` 可独立打开只连接 Engine 的控制台。独立模式的桌面专属功能提示启动完整桌宠。完整 `.command` 启动会比较前端源码指纹，仅在源码变化时自动构建，避免复用旧 `dist`；无变化时直接启动。安装脚本包含前端依赖与构建，日志在 `<数据目录>/logs/desktop-service.log`；Engine 日志尊重 `--log-dir`。
 
 统一使用 React 18 + TypeScript + Vite，自定义 CSS，关系图使用 vis-network；消息使用 react-markdown + remark-gfm，禁止原始 HTML。VRM 复用 `web/vrm` 的 Three.js / three-vrm 播放器。
 
@@ -23,7 +23,8 @@ Electron 主进程管理透明桌宠、React 对话小窗和按需创建的伙�
 - `src/data.ts` / `src/types.ts`：按页面集中读取 IPC 数据，明确页面和桥接的数据契约。
 - `src/pages/`：对话、形象、角色、Skill、运行记录、设置、时间线与诊断；上下文和记忆图继续使用独立组件。
 - `src/components/`：侧栏、页面分发、详情弹窗、空态及展示工具。
-- `src/companion/`：对话小窗与透明桌宠 renderer；`components/TaskStatus.tsx` 在小窗和控制台共用。
+- `src/companion/`：对话小窗与透明桌宠 renderer，标题栏包含常驻任务状态入口。
+- `src/tasks/`：独立任务浮层，展示进展、排队与任务操作；`components/TaskStatus.tsx` 用于控制台的完整任务卡片。
 - `desktop/host.cjs`：窗口、裁剪、拖动、菜单、通知与形象加载；`service-client.cjs`：Python stdio 服务。
 - `src/hooks/useAction.ts`：异步操作的忙碌状态和成功/失败反馈。
 - `src/pages.ts` / `src/event-model.ts`：导航元数据和新旧事件格式归一化。

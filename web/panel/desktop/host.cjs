@@ -16,6 +16,9 @@ const {
   validBounds,
   bubbleFrame,
   presentation,
+  taskFrame,
+  linkedFrames,
+  clampFrames,
 } = require("./layout.cjs");
 class DesktopHost {
   constructor({
@@ -143,6 +146,8 @@ class DesktopHost {
     const value = {
       ...this.snapshot,
       bubble_open: this.bubbleOpen,
+      tasks_expanded: Boolean(this.tasksExpanded),
+      tasks_pinned: Boolean(this.tasksPinned),
       appearance_ready: Boolean(this.current?.ready),
       switching: Boolean(this.pending),
       appearance_error: this.error || "",
@@ -258,13 +263,15 @@ class DesktopHost {
     if (!pet || !message || typeof message !== "object") return;
     if (message.type === "bounds") {
       const bounds = validBounds(message, pet.viewport);
-      if (!bounds || this.drag?.pet) return;
+      if (!bounds || this.drag) return;
       pet.crop = {
         x: bounds.x,
         y: pet.viewport.height - bounds.y - bounds.height,
         width: bounds.width,
         height: bounds.height,
       };
+      // Capture layout padding once; animated crop changes must not move the chat.
+      pet.dockInsetY ??= pet.crop.y;
       pet.window.setBounds({
         x: Math.round(pet.origin.x + pet.crop.x),
         y: Math.round(pet.origin.y + pet.crop.y),
@@ -373,6 +380,8 @@ class DesktopHost {
         height: this.area.height - 16,
       }),
     );
+    if (this.tasks?.isVisible()) this.positionTasks();
+    else this.dockPetBelowBubble();
   }
   resizeBubble(sender, height) {
     if (this.bubble?.webContents.id !== sender.id || !Number.isFinite(height))
@@ -385,6 +394,7 @@ class DesktopHost {
   showBubble() {
     if (!this.bubble) return;
     this.bubbleOpen = true;
+    this.syncTasksVisibility();
     this.positionBubble();
     this.bubble.showInactive();
     this.sendDesktop();
@@ -392,23 +402,122 @@ class DesktopHost {
   hideBubble() {
     this.bubbleOpen = false;
     this.bubble?.hide();
+    if (!this.tasks && this.hasTaskStatus()) this.showTasks(false);
+    else this.syncTasksVisibility();
     this.sendDesktop();
   }
   toggleBubble() {
     this.bubbleOpen ? this.hideBubble() : this.showBubble();
   }
-  dragWindow(sender, phase) {
-    const pet = this.current?.window.webContents.id === sender.id,
-      bubble = this.bubble?.webContents.id === sender.id;
-    if (!pet && !bubble) return;
-    const point = screen.getCursorScreenPoint(),
-      window = pet ? this.current.window : this.bubble;
+  showTasks(expanded = true) {
+    const changed = Boolean(this.tasksExpanded) !== expanded;
+    this.tasksExpanded = expanded;
+    if (!this.tasks || this.tasks.isDestroyed()) {
+      this.tasks = this.createWindow({ width: 248, height: 54,
+        title: "BoxAgent · 任务", acceptFirstMouse: true }, "tasks");
+      this.tasks.webContents.on("did-finish-load", () => {
+        this.tasks.webContents.send("engine:state", this.state);
+        this.sendDesktop();
+      });
+      this.tasks.on("close", (event) => {
+        if (!this.closed) { event.preventDefault(); this.collapseTasks(); }
+      });
+      this.tasks.on("blur", () => {
+        setImmediate(() => {
+          if (!this.closed && this.tasksExpanded && !this.tasksPinned && BrowserWindow.getFocusedWindow() !== this.bubble)
+            this.collapseTasks();
+        });
+      });
+    }
+    this.syncTasksVisibility(changed);
+    this.sendDesktop();
+  }
+  hasTaskStatus() {
+    return Boolean((this.state.task && this.state.task !== "idle") || this.state.task_queue?.length);
+  }
+  syncTasksVisibility(reposition = false) {
+    if (!this.tasks || this.tasks.isDestroyed()) return;
+    if (this.tasksExpanded || (!this.bubbleOpen && this.hasTaskStatus())) {
+      if (reposition || !this.tasks.isVisible()) this.positionTasks();
+      this.tasks.showInactive();
+    } else this.tasks.hide();
+  }
+  positionTasks() {
+    const anchor = this.bubble
+      ? this.bubble.getBounds()
+      : this.current ? { ...this.current.origin, ...this.current.viewport }
+      : { x: this.area.x + this.area.width - 280, y: this.area.y + this.area.height - 210, width: 252, height: 182 };
+    const area = screen.getDisplayMatching(anchor).workArea;
+    const frame = taskFrame(anchor, area, this.tasksExpanded);
+    this.taskSide ||= anchor.x - frame.width - 12 >= area.x + 8 ? "left" : "right";
+    frame.x = this.taskSide === "left" ? anchor.x - frame.width - 12 : anchor.x + anchor.width + 12;
+    frame.y = anchor.y;
+    this.placeCompanionWindows(anchor, frame, area);
+  }
+  placeCompanionWindows(bubble, tasks, area) {
+    const frames = linkedFrames(bubble, tasks, {
+      x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16,
+    });
+    this.bubble.setBounds(frames.bubble);
+    this.tasks.setBounds(frames.tasks);
+    if (this.current) {
+      const dx = frames.bubble.x - bubble.x, dy = frames.bubble.y - bubble.y;
+      this.current.origin.x += dx;
+      this.current.origin.y += dy;
+      if (dx || dy) this.current.window.setPosition(
+        Math.round(this.current.origin.x + this.current.crop.x),
+        Math.round(this.current.origin.y + this.current.crop.y),
+      );
+      const base = bubbleFrame({ ...this.current.origin, ...this.current.viewport }, this.area, null, this.bubbleHeight);
+      this.offset = { x: frames.bubble.x - base.x, y: frames.bubble.y - base.y };
+    }
+    this.dockPetBelowBubble();
+  }
+  dockPetBelowBubble() {
+    if (!this.bubbleOpen || !this.current || this.drag) return;
+    const pet = this.current, bubble = this.bubble.getBounds();
+    const area = screen.getDisplayMatching(bubble).workArea;
+    const origin = { ...pet.origin, ...pet.viewport,
+      y: bubble.y + bubble.height + 12 - (pet.dockInsetY || 0) };
+    const tasks = this.tasks?.isVisible() ? this.tasks.getBounds() : null;
+    const frames = clampFrames([origin, bubble, ...(tasks ? [tasks] : [])],
+      { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
+    pet.origin = { x: frames[0].x, y: frames[0].y };
+    pet.window.setPosition(Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
+    this.bubble.setBounds(frames[1]);
+    if (tasks) this.tasks.setBounds(frames[2]);
+    const base = bubbleFrame({ ...pet.origin, ...pet.viewport }, this.area, null, this.bubbleHeight);
+    this.offset = { x: frames[1].x - base.x, y: frames[1].y - base.y };
+  }
+  collapseTasks() {
+    if (!this.tasks || this.tasks.isDestroyed()) return;
+    this.tasksPinned = false;
+    this.tasksExpanded = false;
+    this.syncTasksVisibility(true);
+    this.sendDesktop();
+  }
+  pinTasks() {
+    this.tasksPinned = !this.tasksPinned;
+    this.sendDesktop();
+  }
+  dragWindow(sender, message) {
+    if (!this.current || !message || typeof message !== "object") return;
+    let { phase } = message;
+    const { point, buttons } = message;
+    const windows = [this.current.window, this.bubble, this.tasks].filter(window => window && !window.isDestroyed());
+    if (!windows.some(window => window.webContents.id === sender.id)) return;
+    if (!["start", "move", "end", "cancel"].includes(phase)) return;
+    if (phase === "move" && !(Number.isInteger(buttons) && (buttons & 1))) phase = "cancel";
+    if (["start", "move"].includes(phase) && (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y))) return;
+    const pet = this.current.window.webContents.id === sender.id;
     if (phase === "start") {
+      if (!(Number.isInteger(buttons) && (buttons & 1))) return;
       this.drag = {
-        pet,
+        sender: sender.id, pet,
         start: point,
-        frame: window.getBounds(),
-        origin: this.current.origin,
+        frames: windows.map(window => ({ window, frame: window.getBounds(), visible: window.isVisible(),
+          limit: window === this.current.window ? { ...this.current.origin, ...this.current.viewport } : window.getBounds() })),
+        origin: { ...this.current.origin },
         last: point,
         time: Date.now(),
         moved: false,
@@ -416,26 +525,28 @@ class DesktopHost {
       return;
     }
     const drag = this.drag;
-    if (!drag || drag.pet !== pet) return;
-    const dx = point.x - drag.start.x,
-      dy = point.y - drag.start.y;
+    if (!drag || drag.sender !== sender.id) return;
     if (phase === "move") {
+      const dx = point.x - drag.start.x, dy = point.y - drag.start.y;
       if (Math.abs(dx) + Math.abs(dy) < 3 && !drag.moved) return;
       if (pet && !drag.moved)
-        window.webContents.send("desktop:interact", {
+        this.current.window.webContents.send("desktop:interact", {
           kind: "drag-start",
           velocity: [0, 0],
         });
       drag.moved = true;
-      window.setPosition(
-        Math.round(drag.frame.x + dx),
-        Math.round(drag.frame.y + dy),
-      );
+      const visible = drag.frames.filter(item => item.visible);
+      const area = screen.getDisplayNearestPoint(point).workArea;
+      const clamped = clampFrames(visible.map(item => ({ ...item.limit, x: item.limit.x + dx, y: item.limit.y + dy })),
+        { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
+      const moveX = clamped[0].x - visible[0].limit.x, moveY = clamped[0].y - visible[0].limit.y;
+      this.current.origin = { x: drag.origin.x + moveX, y: drag.origin.y + moveY };
+      for (const item of drag.frames) if (!item.window.isDestroyed())
+        item.window.setPosition(Math.round(item.frame.x + moveX), Math.round(item.frame.y + moveY));
       if (pet) {
-        this.current.origin = { x: drag.origin.x + dx, y: drag.origin.y + dy };
         const now = Date.now(),
           dt = Math.max(1, now - drag.time) / 1000;
-        window.webContents.send("desktop:interact", {
+        this.current.window.webContents.send("desktop:interact", {
           kind: "drag-move",
           velocity: [
             (point.x - drag.last.x) / dt,
@@ -444,32 +555,25 @@ class DesktopHost {
         });
         drag.last = point;
         drag.time = now;
-        this.positionBubble();
       }
-    } else if (phase === "end") {
+    } else {
       this.drag = null;
       if (pet) {
-        window.webContents.send("desktop:interact", {
-          kind: drag.moved ? "drag-end" : "tap",
+        this.current.window.webContents.send("desktop:interact", {
+          kind: drag.moved || phase === "cancel" ? "drag-end" : "tap",
           velocity: [0, 0],
         });
-        if (!drag.moved) this.toggleBubble();
-        const frame = clampFrame(window.getBounds(), this.area);
-        window.setBounds(frame);
-        this.current.origin = {
-          x: frame.x - this.current.crop.x,
-          y: frame.y - this.current.crop.y,
-        };
+        if (!drag.moved && phase === "end") this.toggleBubble();
+      }
+      if (drag.moved) {
         this.savePosition();
-        this.positionBubble();
-      } else {
         const defaultFrame = bubbleFrame(
           { ...this.current.origin, ...this.current.viewport },
           this.area,
           null,
           this.bubbleHeight,
         );
-        const actual = window.getBounds();
+        const actual = this.bubble.getBounds();
         this.offset = {
           x: actual.x - defaultFrame.x,
           y: actual.y - defaultFrame.y,
@@ -494,6 +598,9 @@ class DesktopHost {
       this.sendDesktop();
     }
     this.state = { ...this.state, ...state };
+    if (!this.tasks && this.hasTaskStatus() && !this.bubbleOpen) this.showTasks(false);
+    else this.syncTasksVisibility();
+    if (event?.type === "task.approval") this.showTasks(true);
     if (this.current) this.sendPet(this.current);
     if (event?.type === "engine.ready") {
       this.engineReady = true;
@@ -503,7 +610,6 @@ class DesktopHost {
       [
         "front.user_text",
         "front.assistant_text",
-        "task.approval",
         "task.succeeded",
         "task.failed",
         "task.blocked",
@@ -601,6 +707,7 @@ class DesktopHost {
       const pet = this.current;
       if (pet) {
         const size = petSize(result.scale, this.area);
+        if (pet.dockInsetY !== undefined) pet.dockInsetY *= size.height / pet.viewport.height;
         pet.origin.x += (pet.viewport.width - size.width) / 2;
         pet.origin.y += pet.viewport.height - size.height;
         pet.viewport = size;

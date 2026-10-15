@@ -60,7 +60,8 @@ TOOLS = [
          "宿主会从当前 Interaction 读取原文，不要重述、改写或补充目标参数。"
          "后台会自行观察界面、规划并执行，可能需要几十秒到几分钟；"
          "调用前先简短语音回应，返回前不能假称完成。"),
-    tool("cancel_task", "用户明确要求取消或停止后台任务时调用；一般插话、问问题不等于取消任务。"),
+    tool("cancel_task", "用户要求停止当前或后台任务时调用；只停止正在执行的任务，保留排队任务并继续执行。一般插话、问问题不等于取消任务。"),
+    tool("cancel_all_tasks", "仅在用户明确要求取消全部任务或清空任务队列时调用；停止当前任务并取消所有排队任务。"),
     tool("task_status", "查询后台任务进度或最近的真实结果。"),
     tool("remember_memory", "仅在用户明确要求‘记住’某个长期有用的偏好、约定或事实时调用；不要把普通闲聊自动存入长期记忆。",
          {"content": {"type": "string", "description": "用完整、自包含的文本记录用户希望长期保留的信息。"}}),
@@ -90,7 +91,9 @@ INSTRUCTIONS = (
     "关键交互：调用前先简短说你开始处理、用户可以继续聊天，并且必须在同一个 response 中实际调用 run_task。"
     "只说‘我开始处理’却不调用 run_task 属于协议错误；通常需要几十秒到几分钟。"
     "不要在工具返回前假称目标已完成；blocked 或 failed 要如实解释。等待工具时仍可回应用户的其他话题。"
-    "用户说取消任务时调用 cancel_task；用户仅仅插话不取消任务。工具失败或取消时如实报告，不能冒充成功。"
+    "用户说停止后台任务或取消当前任务时调用 cancel_task，排队任务继续执行；"
+    "只有用户明确要求取消全部任务或清空任务队列时才调用 cancel_all_tasks。"
+    "用户仅仅插话不取消任务。工具失败或取消时如实报告，不能冒充成功。"
     "只有用户明确说要记住时才调用 remember_memory，不要自动保存普通对话。"
     "回答用户过去的偏好、约定或事件前，先调用 recall_memory，并只根据返回内容回答。"
     "用户要求忘记时，先用 recall_memory 找到精确 ID；匹配不唯一时先确认，再调用 forget_memory。"
@@ -486,10 +489,17 @@ class QwenRealtimeSession:
 
     async def run_tool(self, call):
         try:
+            metadata = {"response_id": call.get("response_id"),
+                        "call_id": call.get("call_id")}
+            reply = self.response_transcripts.get(call.get("response_id"), "")
+            if reply:
+                # The provider can emit the transcript before the executable
+                # function boundary. Preserve it so a decision disagreement
+                # can be reviewed against this exact reply.
+                metadata["reply"] = reply
             result = await self.handle_tool(
                 call.get("name"), call.get("arguments", "{}"),
-                {"response_id": call.get("response_id"),
-                 "call_id": call.get("call_id")})
+                metadata)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
