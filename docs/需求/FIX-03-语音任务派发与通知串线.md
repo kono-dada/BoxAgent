@@ -231,3 +231,11 @@ UV_CACHE_DIR=/tmp/uvcache uv run --with pytest python -m pytest -q tests/test_vo
 当前只在明确 `run_task` 调用与首轮排除意见冲突时，使用已有语义复核检查本轮原始输入、近期正式对话和对应回复。复核通过且原交互仍有效才派发；无对应回复、复核失败或交互已被打断时保留拒绝。没有按计算器关键词绕过决策，也不会因口头承诺直接显示运行中。
 
 离线回归入口为 `tests/test_turn_preparation.py::TurnPreparationTests::test_explicit_tool_call_repairs_recorded_close_calculator_false_negative`：通过生产 Qwen/Interaction/Execution 链路重放原始低分与工具调用，检查执行目标仍为“关闭计算器”且真实任务进入 running；决策复核与执行器为替身。全量 pytest 为 377 passed、12 skipped、77 subtests passed，规定 Pyright 范围 0 errors。此回归不代表真实决策模型或完整语音操作的在线验收已完成。
+
+## 2026-10-15 关闭语音状态回归
+
+现场日志在 12:54:03 出现 `voice.off`，12:54:05 再进入 `voice.stopping`，随后任务完成与回复仍保持 stopping，按钮持续显示“关闭中”。关闭流程原先只依赖麦克风 Runtime 的退出回调发布 off；在文字连接上执行关闭时缺少终态。旧 Runtime 退出还会无条件清除响应关联并发布 off，可能覆盖当前连接。
+
+明确关闭现在在资源退出后发布 `voice.off`，并清理响应关联；Runtime 自然退出仅在仍拥有当前连接时更新状态、清理关联或安排重连。当前麦克风连接自然退出时也清除请求开启标记。回归用例在 `tests/test_conversation.py`，覆盖文字连接关闭、旧连接退出不覆盖新连接及自然退出标记清理；前两个用例在修改前均失败。原有关闭等待资源清理与 AOQ 断线重连测试继续保留。
+
+本次全量 pytest：380 passed、12 skipped、77 subtests passed；规定 Pyright 范围 0 errors、0 warnings；`git diff --check` 通过。此处验证关闭状态生命周期，未重跑真实麦克风与 AOQ 连续语音验收。

@@ -466,6 +466,8 @@ class InteractionService:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
+            if self.voice is not voice:
+                return
             self.connection_error = exc
             message = str(exc) or "语音连接失败"
             reconnect = (
@@ -483,15 +485,16 @@ class InteractionService:
             else:
                 self.events.emit("voice.error", error=message)
         finally:
-            self._clear_response_tracking()
             if self.voice is voice:
+                self._clear_response_tracking()
                 self.voice = None
                 self.connection_microphone = False
-            if reconnect:
-                self._schedule_voice_reconnect()
-            elif microphone:
-                self.events.emit("voice.off", voice="off", speaking=False,
-                                 user_speaking=False)
+                if reconnect:
+                    self._schedule_voice_reconnect()
+                elif microphone:
+                    self.voice_requested = False
+                    self.events.emit("voice.off", voice="off", speaking=False,
+                                     user_speaking=False)
 
     def _schedule_voice_reconnect(self):
         if self.reconnect_task and not self.reconnect_task.done():
@@ -550,6 +553,12 @@ class InteractionService:
             except TimeoutError:
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
+        # A detached text-only connection does not publish voice.off in _run.
+        # The explicit stop owns its terminal state, after resources are closed.
+        if self.voice is None:
+            self._clear_response_tracking()
+            self.events.emit("voice.off", voice="off", speaking=False,
+                             user_speaking=False)
 
     async def close(self):
         await self.stop()

@@ -126,6 +126,69 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events[-1]["state"]["error"], "")
         self.assertIsNone(service.voice)
 
+    async def test_voice_toggle_clears_stopping_for_text_connection(self):
+        events = []
+        stopped = asyncio.Event()
+
+        class Voice:
+            async def run(self):
+                await stopped.wait()
+
+            async def stop(self):
+                stopped.set()
+
+        service = InteractionService(StateEvents(events.append), None, AsyncMock())
+        voice = Voice()
+        service.voice = voice
+        service.voice_requested = True
+        service.connection_microphone = False
+        service.task = asyncio.create_task(service._run(voice, microphone=False))
+
+        await service.toggle()
+
+        self.assertEqual(service.events.state.voice, "off")
+        self.assertFalse(service.is_connected)
+        self.assertEqual(events[-1]["type"], "voice.off")
+
+    async def test_old_voice_exit_does_not_clear_new_connection(self):
+        events = []
+
+        class OldVoice:
+            async def run(self):
+                return None
+
+        service = InteractionService(StateEvents(events.append), None, AsyncMock())
+        new_voice = object()
+        service.voice = new_voice
+        service.connection_microphone = True
+        service.voice_requested = True
+        service.events.emit("voice.ready", voice="ready")
+        service.response_interactions["new-response"] = object()
+
+        await service._run(OldVoice(), microphone=True)
+
+        self.assertIs(service.voice, new_voice)
+        self.assertEqual(service.events.state.voice, "ready")
+        self.assertIn("new-response", service.response_interactions)
+        self.assertNotIn("voice.off", [event["type"] for event in events])
+
+    async def test_current_voice_disconnect_clears_requested_flag(self):
+        class Voice:
+            async def run(self):
+                return None
+
+        service = InteractionService(StateEvents(lambda _event: None), None, AsyncMock())
+        voice = Voice()
+        service.voice = voice
+        service.voice_requested = True
+        service.connection_microphone = True
+
+        await service._run(voice, microphone=True)
+
+        self.assertFalse(service.voice_requested)
+        self.assertIsNone(service.voice)
+        self.assertEqual(service.events.state.voice, "off")
+
     async def test_provider_response_idle_close_is_silent_for_open_microphone(self):
         events = []
 
