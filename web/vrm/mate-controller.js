@@ -48,7 +48,7 @@ export class MateController {
   }
   presentState(state) {
     if (state === this.state) return;
-    this.state = state; this.stateSince = this.time; this.gesture = null;
+    this.state = state; this.stateSince = this.time;
   }
   wake() { this.sleepElapsed = 0; this.sleep = 0; }
   interact({kind,velocity = [0,0]}) {
@@ -96,6 +96,7 @@ export class MateController {
     const idle = this.gesture?.name || this.idleActions[this.idleIndex]?.name || 'rest';
     if (this.dragging) return {name:this.roles.dragging || 'rest',kind:'drag',loop:true};
     if (this.sleep) return {name:this.roles.sleeping || 'rest',kind:'sleep',loop:true};
+    if (this.gesture) return {name:this.gesture.name,kind:'gesture',loop:false};
     if (this.state === 'speaking') return {name:this.roles.speaking || idle,kind:'speaking',loop:true};
     if (this.state === 'success' && this.time-this.stateSince < 3) return {name:this.roles.success || idle,kind:'success',loop:false};
     return {name:idle,kind:'idle',loop:true};

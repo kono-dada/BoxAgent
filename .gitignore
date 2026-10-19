@@ -25,3 +25,23 @@ docs/assets/
 artifacts/
 logs/
 tmp/
+
+# 本地任务规划与过程记录，不属于项目交付文档。
+/task_plan.md
+/findings.md
+/progress.md
+
+# 本地日志、测试覆盖率和类型检查缓存。
+*.log
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+*.tsbuildinfo
+
+# Windows 文件管理器与编辑器临时文件。
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+~$*

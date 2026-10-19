@@ -48,7 +48,8 @@ class JevMemWorker:
         names = ("HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "HF_HOME",
                  "HF_HUB_CACHE", "TRANSFORMERS_CACHE", "XDG_CACHE_HOME",
                  "HF_ENDPOINT", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
-                 "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
+                 "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "SYSTEMROOT", "WINDIR",
+                 "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA")
         env = {name: os.environ[name] for name in names if name in os.environ}
         if self.decision_api_key:
             env["TYPESAFE_API_KEY"] = self.decision_api_key
@@ -60,7 +61,7 @@ class JevMemWorker:
             raise MemoryUnavailable(
                 "长期记忆需要决策模型密钥"
                 "（DASHSCOPE_API_KEY + 工作空间，或 TYPESAFE_API_KEY）")
-        env.update(PYTHONUNBUFFERED="1", TOKENIZERS_PARALLELISM="false")
+        env.update(PYTHONUNBUFFERED="1", PYTHONUTF8="1", TOKENIZERS_PARALLELISM="false")
         return env
 
     async def _start_unlocked(self):

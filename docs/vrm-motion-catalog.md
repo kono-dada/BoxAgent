@@ -1,5 +1,25 @@
 # 本地动作目录
 
+## 已确认的动作含义
+
+以下含义由用户预览后确认（2026-10-19）：
+
+| 动作文件 | 含义 |
+| --- | --- |
+| `UPDATE_2/PET_IDLE_UPDATE2_02.vrma` | 单手打招呼 |
+| `UPDATE_2/PET_IDLE_UPDATE2_04.vrma` | 双手打招呼 |
+
+## 伙伴交互动作
+
+播放器加载桌宠时播放 `PET_INTRO/PET_INTRO`。鼠标进入桌宠触发
+`PET_MISC/HoverReaction`，仅在空闲/倾听且没有表演时触发，冷却 15 秒。
+Qwen 的 `play_avatar_action` 工具接受 `dance`、`happy`、`laugh`、`shy`，分别映射到
+`PET_DANCING/PET_DANCING_5`、`PET_MISC/PET_HAPPY`、`PET_MISC/PET_LAUGHING`、
+`PET_MISC/PET_SHY_POINT`。请求通过 Engine 状态和 Electron 传递，按请求 ID 去重。
+工具返回 requested 仅表示请求已发送，不代表播放器确认完成。
+动作最长 12 秒，覆盖身体说话动作但保留口型；拖动中断表演，结束后恢复当前业务状态。
+动作缺失只产生警告，不阻止桌宠加载。模型选择动作的真实对话体验仍需在线验收。
+
 动作范围来自 `mate_engine_motions` 中的 128 个 VRMA 文件。自动待机使用原版预制体的 11 项范围，并只保留本地实际存在的动作。其它动作登记为可用资源，不会混入自动待机。
 
 ## 自动待机候选

@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import {PetBehavior} from '../behavior.js';
 const idleActions=Array.from({length:3},(_,i)=>({name:'idle-'+i,duration:3,weight:1}));
 const create=(settings={})=>new PetBehavior(()=>0.5,{idleActions,roles:{dragging:'drag',speaking:'talk'},settings});
+test('显式表演跨说话状态保留，结束恢复说话，拖动可中断',()=>{
+ const b=create();
+ b.gesture={name:'dance',start:b.time,duration:2,semantic:'dance'};
+ b.present({state:'speaking'});
+ assert.deepEqual(b.motion(),{name:'dance',kind:'gesture',loop:false});
+ b.step(0.05);assert.ok(b.lastOutput.jaw>=0);
+ b.time=2.1;b.step(0.01);assert.equal(b.motion().name,'talk');
+ b.gesture={name:'laugh',start:b.time,duration:2,semantic:'laugh'};
+ b.step(0.01);assert.equal(b.lastOutput.smile,0.65);
+ b.interact({kind:'drag-start'});assert.equal(b.gesture,null);assert.equal(b.motion().name,'drag');
+});
 function advance(b,seconds,dt=1/60){for(let i=0;i<Math.ceil(seconds/dt);i++)b.step(dt);}
 test('待机每十秒抽样，允许继续当前动作，拖动中计时暂停',()=>{
  const b=create();assert.equal(b.motion().name,'idle-0');

@@ -58,7 +58,7 @@ function presentation(state) {
   if (state.voice === "connecting") return "connecting";
   if (state.error || ["failed", "blocked"].includes(state.task)) return "error";
   if (state.task === "succeeded") return "success";
-  return state.voice === "ready" ? "listening" : "idle";
+  return "idle";
 }
 function taskFrame(anchor, area, expanded) {
   const width = Math.min(expanded ? 320 : 248, area.width - 16);

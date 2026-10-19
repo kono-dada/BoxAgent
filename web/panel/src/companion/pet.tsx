@@ -25,7 +25,7 @@ function Pet() {
   );
   useEffect(() => {
     if (frame)
-      command("present", { state: frame.state, pointer: frame.pointer });
+      command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId });
   }, [frame]);
   useEffect(() => {
     const listener = (event: MessageEvent) => {
@@ -43,6 +43,7 @@ function Pet() {
   return (
     <div
       className="pet-hit"
+      onPointerEnter={() => command("perform", "hover")}
       {...drag}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -56,7 +57,7 @@ function Pet() {
           src={frame.url}
           sandbox="allow-scripts allow-same-origin"
           onLoad={() =>
-            command("present", { state: frame.state, pointer: frame.pointer })
+            command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId })
           }
           style={{
             width: frame.viewport.width,

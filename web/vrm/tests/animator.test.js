@@ -26,6 +26,17 @@ function fixture(timeScale=1,withLegs=false){
  const animator=new AvatarAnimator(vrm,scene,new THREE.Box3(new THREE.Vector3(-0.3,0,-0.1),new THREE.Vector3(0.3,1.4,0.1)),bank,{});
  return {animator,hips,arm,bones};
 }
+test('连续请求相同表演从头播放，不冻结在上次结束帧',()=>{
+ const {animator}=fixture();
+ animator.behavior.gesture={name:'drag',start:0,duration:1,semantic:'dance'};
+ animator.update(0.05);animator.update(0.05);
+ assert.ok(animator.active.time>=0.1);
+ animator.behavior.gesture={name:'drag',start:animator.behavior.time,duration:1,semantic:'dance'};
+ animator.update(0.01);
+ assert.ok(animator.active.time<0.02);
+ animator.dispose();
+});
+
 test('持续拖动保留动画中的躯干与手臂姿势，不被程序放松姿势覆盖',()=>{
  const {animator,hips,arm}=fixture();animator.behavior.interact({kind:'drag-start'});
  for(let i=0;i<200;i++)animator.update(1/60);

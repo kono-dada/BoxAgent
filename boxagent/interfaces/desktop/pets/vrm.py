@@ -49,7 +49,7 @@ def resource_files(directory, manifest):
 def read_manifest(directory):
     """验证清单和实际资源，拒绝目录逃逸及未下载的 LFS 指针。"""
     directory = Path(directory).resolve()
-    manifest = json.loads((directory / "pet.json").read_text())
+    manifest = json.loads((directory / "pet.json").read_text(encoding="utf-8"))
     if manifest.get("type") != "vrm" or manifest.get("version") != 1:
         raise ValueError("VRM 形象清单版本无效")
     resource_files(directory, manifest)

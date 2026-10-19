@@ -2,6 +2,7 @@ import asyncio
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -292,8 +293,9 @@ class AoqFactoryTests(unittest.TestCase):
             sdk = root / "sdk"
             (sdk / "AoqClientSdk.framework").mkdir(parents=True)
             (sdk / "PluginOpus.framework").mkdir()
-            factory = create_voice_factory(self._settings(
-                root, aoq_sdk_dir=sdk, qwen_workspace_id="workspace"))
+            with patch("sys.platform", "darwin"):
+                factory = create_voice_factory(self._settings(
+                    root, aoq_sdk_dir=sdk, qwen_workspace_id="workspace"))
         self.assertIs(factory.func, AoqRealtimeSession)
         self.assertEqual(factory.keywords["workspace_id"], "workspace")
 

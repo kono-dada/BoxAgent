@@ -18,7 +18,7 @@ def valid_pet_scale(scale: object) -> TypeGuard[int | float]:
 def load_pet_scale(data_dir: Path) -> float:
     """旧安装或损坏的设置使用原始大小。"""
     try:
-        settings = json.loads((data_dir / "appearance.json").read_text())
+        settings = json.loads((data_dir / "appearance.json").read_text(encoding="utf-8"))
         scale = settings.get("scale") if isinstance(settings, dict) else None
         if valid_pet_scale(scale):
             return float(scale)

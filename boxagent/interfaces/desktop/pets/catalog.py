@@ -31,7 +31,7 @@ class PetCatalog:
         path = Path(path)
         if path.resolve() != path or path.stat().st_size > 2 * 1024 * 1024:
             raise ValueError("形象元数据无效")
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def write_json(self, path, value):
         path = Path(path)

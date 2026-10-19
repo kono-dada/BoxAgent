@@ -72,13 +72,23 @@ class SkillFileRepositoryTests(unittest.TestCase):
         external = self.root / "external"
         write_skill(external, "linked-directory")
         self.user.mkdir(parents=True, exist_ok=True)
-        (self.user / "linked-directory").symlink_to(
-            external / "linked-directory", target_is_directory=True)
+        try:
+            (self.user / "linked-directory").symlink_to(
+                external / "linked-directory", target_is_directory=True)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege is unavailable")
+            raise
 
         linked_manifest = self.user / "linked-manifest"
         linked_manifest.mkdir()
-        (linked_manifest / "SKILL.md").symlink_to(
-            external / "linked-directory" / "SKILL.md")
+        try:
+            (linked_manifest / "SKILL.md").symlink_to(
+                external / "linked-directory" / "SKILL.md")
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege is unavailable")
+            raise
         write_skill(self.user, "INVALID ID")
 
         identifiers = {item.skill_id for item in self.service.list()}

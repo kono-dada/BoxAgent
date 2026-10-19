@@ -14,7 +14,9 @@ const report = (type, detail = {}) => {
 window.addEventListener('message', event => {
   if (event.source !== window.parent || event.data?.type !== 'boxagent-pet-command') return;
   const { method, value } = event.data;
-  if (['present','interact','dispose'].includes(method)) window.pet?.[method](value);
+  if (['present','interact','dispose','perform'].includes(method)) {
+    Promise.resolve(window.pet?.[method](value)).catch(error => report('warning', {message:String(error)}));
+  }
 });
 const previewTheme = new URLSearchParams(location.search).get('previewTheme');
 function applyPreviewTheme(theme) {
@@ -104,6 +106,15 @@ function snapshot() {
   reportBounds(true);
   return { image: renderer.domElement.toDataURL('image/png'), behavior: animator.debug() };
 }
+const semanticMotions = Object.freeze({
+  greeting:'PET_INTRO/PET_INTRO',
+  hover:'PET_MISC/HoverReaction',
+  dance:'PET_DANCING/PET_DANCING_5',
+  happy:'PET_MISC/PET_HAPPY',
+  laugh:'PET_MISC/PET_LAUGHING',
+  shy:'PET_MISC/PET_SHY_POINT',
+});
+let actionSequence = 0, lastHoverAt = -Infinity, lastActionId = '';
 window.pet = {
   bounds() { return lastBounds ? JSON.parse(lastBounds) : null; },
   motions() { return animator?.bank.catalog() || []; },
@@ -114,8 +125,29 @@ window.pet = {
     b.gesture = {name,start:b.time,duration:clip.duration/animator.bank.settings(name).timeScale};
     return animator.bank.settings(name);
   },
-  present(value) { state = value.state; animator?.behavior.present(value); },
+  async perform(action) {
+    if (!Object.hasOwn(semanticMotions, action) || !animator) return;
+    const b = animator.behavior;
+    if (b.dragging) return;
+    if (action === 'hover') {
+      if (b.gesture || !['idle','listening'].includes(b.state) || performance.now() - lastHoverAt < 15000) return;
+      lastHoverAt = performance.now();
+    }
+    const sequence = ++actionSequence;
+    const name = semanticMotions[action];
+    const clip = await animator.bank.loadMotion(name);
+    if (sequence !== actionSequence || b.dragging || disposed) return;
+    b.gesture = {name,start:b.time,duration:Math.min(12,clip.duration/animator.bank.settings(name).timeScale),semantic:action};
+  },
+  present(value) {
+    state = value.state; animator?.behavior.present(value);
+    if (animator && value.actionId && value.actionId !== lastActionId) {
+      lastActionId = value.actionId;
+      void window.pet.perform(value.action).catch(error => report('warning',{message:String(error)}));
+    }
+  },
   interact(value) {
+    if (value.kind === 'drag-start' || value.kind === 'drag-move') actionSequence++;
     animator?.behavior.interact(value); physics?.interact(value);
     if (value.kind !== 'drag-move') fastBoundsUntil = performance.now() + 400;
   },
@@ -183,6 +215,10 @@ window.addEventListener('unhandledrejection', event => report('error', { message
   }).load();
   physics = new SpringPhysics(vrm,manifest.physicsSettings);
   animator = new AvatarAnimator(vrm, scene, box, bank, manifest, camera, () => ({width:innerWidth,height:innerHeight}));
+  animator.behavior.present({state});
+  if (window.parent !== window) {
+    void window.pet.perform('greeting').catch(error => report('warning',{message:String(error)}));
+  }
   update(1 / 30); started = performance.now(); renderer.render(scene, camera);
   reportBounds(); report('ready'); requestAnimationFrame(frame);
 })().catch(error => report('error', { message:String(error) }));

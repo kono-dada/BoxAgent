@@ -67,8 +67,8 @@ export class AvatarAnimator {
     scene.add(this.shadow);
     if (vrm.lookAt) vrm.lookAt.autoUpdate = false;
   }
-  play(name, loop = false, kind = 'idle') {
-    if (name === this.current) return;
+  play(name, loop = false, kind = 'idle', restart = false) {
+    if (name === this.current && !restart) return;
     const clip = name === 'rest' ? this.restClip : this.bank.clips.get(name);
     if (!clip) { if (this.current !== 'rest') this.play('rest'); return; }
     const next = this.mixer.clipAction(clip);
@@ -82,7 +82,7 @@ export class AvatarAnimator {
     const duration = idleBlend ? this.behavior.settings.idleTransitionTime : this.behavior.settings.dragTransitionTime;
     // Idle BlendTree 共用归一化播放相位；Drag 进入时从动作起点播放。
     if (idleBlend) next.time = (this.active.time % this.active.getClip().duration) / this.active.getClip().duration * clip.duration;
-    next.crossFadeFrom(this.active, duration, false);
+    if (next !== this.active) next.crossFadeFrom(this.active, duration, false);
     this.currentKind = kind;
     this.active = next;
     this.current = name;
@@ -98,7 +98,9 @@ export class AvatarAnimator {
   update(dt) {
     const b = this.behavior.step(dt), h = this.height;
     const motion = this.behavior.motion();
-    this.play(motion.name,motion.loop,motion.kind);
+    const gesture = motion.kind === 'gesture' ? this.behavior.gesture : null;
+    this.play(motion.name,motion.loop,motion.kind,Boolean(gesture && gesture !== this.lastGesture));
+    this.lastGesture = gesture;
     // 恢复纯动画的位置与旋转，清除上一帧附加摆动，再求值动画。
     for (const [name, node] of Object.entries(this.bones)) {
       node.quaternion.copy(this.base[name]);

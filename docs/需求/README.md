@@ -29,6 +29,7 @@
 
 | 编号 | 名称 | 动机 | 验收标准 | 依赖 | 状态 | 分支 / 文档 |
 |---|---|---|---|---|---|---|
+| UI-ACTION-01 | 伙伴语义动作 | 对话和鼠标交互未使用现有动作素材 | 见面/悬停反馈，模型可请求跳舞/开心/笑/害羞，拖动中断且保留说话口型 | VRM、Qwen 工具、Engine 事件 | 🚧（实现和离线检查完成，待真实模型与视觉验收） | [动作说明](../vrm-motion-catalog.md#伙伴交互动作) |
 | REQ-01 | 前台上下文可观测 | Qwen 上下文在服务端，本地看不见；后续优化缺少基线 | 每个 Session 有上下文账本；Engine 提供 `context_snapshot` / `context_entry`；离线回放给出构成与晚到基线 | — | ✅ | `feature/context-ledger` · [REQ-01](<REQ-01-上下文可观测.md>) |
 | INFRA-03 | 统一诊断日志 | 静默吞异常、无级别、无轮转、无关联 ID | `errors.jsonl` 汇总 warning+；记录带 session/interaction/task ID；未捕获异常落盘；静默 `except` 有测试守护 | — | ✅ | `feature/logging` · [INFRA-03](<INFRA-03-统一日志.md>) |
 | FIX-01 | 屏幕摘要复读与截图失败 | 8.2% 摘要复读；一次截图失败就永久停止观察 | 离线样本无复读；单次截图失败（含超时）不停止观察 | — | ✅（2026-10-11 收尾，已核对解锁后运行记录） | `fix/window-summary` → 本地 `zl_dev` · [FIX-01](<FIX-01-屏幕摘要复读与截图失败.md>) |

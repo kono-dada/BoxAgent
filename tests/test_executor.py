@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -615,8 +616,16 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         arguments = session.launch_arguments(Path("/codex"), Path("/computer-use"))
 
         notify = next(value for value in arguments if value.startswith("notify="))
-        self.assertEqual(json.loads(notify.removeprefix("notify=")), [
-            "/usr/bin/env", "CODEX_HOME=/native-installation-home", "/computer-use", "turn-ended"])
+        expected = [str(Path("/computer-use")), "turn-ended"]
+        if os.name == "nt":
+            import sys
+            actual = json.loads(notify.removeprefix("notify="))
+            self.assertEqual(actual[:2], [sys.executable, "-c"])
+            self.assertIn("CODEX_HOME", actual[2])
+            expected = [*actual[:3], str(session.computer_use_home), *expected]
+        else:
+            expected = ["/usr/bin/env", f"CODEX_HOME={session.computer_use_home}", *expected]
+        self.assertEqual(json.loads(notify.removeprefix("notify=")), expected)
         self.assertNotIn("notify=[]", arguments)
 
     async def test_matching_runtime_request_reuses_one_codex_thread(self):
@@ -906,7 +915,7 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.rpc.await_args.args[0], "command/exec")
         params = session.rpc.await_args.args[1]
         args = params["command"]
-        self.assertEqual(args[:2], ["/client", "turn-ended"])
+        self.assertEqual(args[:2], [str(Path("/client")), "turn-ended"])
         self.assertEqual(json.loads(args[2])["thread-id"], "test-thread")
         self.assertEqual(json.loads(args[2])["turn-id"], "own-turn")
         self.assertEqual(json.loads(args[2])["client"], "boxagent-pet")
@@ -915,7 +924,7 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(args[2])["last-assistant-message"],
                          "已经完成浏览。")
         self.assertEqual(params["timeoutMs"], 8000)
-        self.assertEqual(params["env"], {"CODEX_HOME": "/native-installation-home"})
+        self.assertEqual(params["env"], {"CODEX_HOME": str(Path("/native-installation-home"))})
         self.assertEqual(session.rpc.await_args.kwargs["timeout"], 10)
         self.assertEqual(session.cleanup_status, "notified")
         self.assertEqual(session.turn_input_messages, [])
@@ -1062,7 +1071,7 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
             complete.parent.mkdir()
             incomplete.write_text("")
             complete.write_text("")
-            complete.with_name("codex-code-mode-host").write_text("")
+            complete.with_name("codex-code-mode-host.exe" if os.name == "nt" else "codex-code-mode-host").write_text("")
             with patch.dict("os.environ", {"BOXAGENT_CODEX_BIN": str(incomplete),
                                              "CODEX_HOME": str(root)}), \
                     patch("boxagent.infrastructure.runtimes.codex.app_server.shutil.which",

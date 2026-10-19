@@ -75,7 +75,12 @@ class VrmCatalogTests(unittest.TestCase):
     def test_symlink_and_outside_model_cannot_be_selected(self):
         outside = self.make_model(self.root / "outside")
         linked = self.cache / "linked"
-        linked.symlink_to(outside, target_is_directory=True)
+        try:
+            linked.symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege is unavailable")
+            raise
         for path in (outside, linked):
             with self.assertRaises(ValueError):
                 self.catalog.commit(path)

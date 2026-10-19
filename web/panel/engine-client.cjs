@@ -1,17 +1,34 @@
 const net = require('node:net');
+const fs = require('node:fs');
 const { EventEmitter } = require('node:events');
 
 class EngineClient extends EventEmitter {
-  constructor(path, { connectionTimeout = 5000 } = {}) {
+  constructor(path, { connectionTimeout = 5000, platform = process.platform } = {}) {
     super(); this.path = path; this.pending = new Map(); this.seq = 0;
     this.online = false; this.closed = false; this.waiting = new Set(); this.connectionTimeout = connectionTimeout;
+    this.platform = platform;
   }
   connect() {
     if (this.closed || (this.socket && !this.socket.destroyed)) return;
-    const socket = this.socket = net.createConnection(this.path);
+    let endpoint;
+    if (this.platform === 'win32') {
+      try {
+        endpoint = JSON.parse(fs.readFileSync(this.path, 'utf8'));
+        if (!Number.isInteger(endpoint?.port) || endpoint.port < 1 || endpoint.port > 65535 ||
+            typeof endpoint.token !== 'string' || !/^[a-f0-9]{64}$/.test(endpoint.token))
+          throw new Error('无效的 Windows Engine 连接信息');
+      } catch (error) {
+        this.emit('diagnostic', error.message);
+        this.emit('offline');
+        return;
+      }
+    }
+    const socket = this.socket = net.createConnection(endpoint ?
+      {host: '127.0.0.1', port: endpoint.port} : this.path);
     let buffer = '';
     this.socket.setEncoding('utf8');
     this.socket.on('connect', () => {
+      if (endpoint) socket.write(endpoint.token + '\n');
       this.online = true;
       for (const item of this.waiting) { clearTimeout(item.timer); item.resolve(); }
       this.waiting.clear(); this.emit('online');

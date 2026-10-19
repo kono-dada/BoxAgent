@@ -93,6 +93,18 @@ class FakeSkillAuthoring:
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_avatar_action_is_validated_without_starting_desktop_task(self):
+        result = await self.runtime.handle_tool("play_avatar_action", {"action": "dance"})
+        self.assertEqual(result["status"], "requested")
+        self.assertEqual(self.runtime.state.avatar_action, "dance")
+        previous = self.runtime.state.avatar_action_id
+        await self.runtime.handle_tool("play_avatar_action", {"action": "happy"})
+        self.assertNotEqual(self.runtime.state.avatar_action_id, previous)
+        rejected = await self.runtime.handle_tool("play_avatar_action", {"action": ["dance"]})
+        self.assertEqual(rejected["status"], "failed")
+        self.assertEqual(self.runtime.state.avatar_action, "happy")
+        self.assertEqual(self.runtime.state.task, "idle")
+
     async def test_rejected_progress_call_does_not_queue_or_cancel_active_task(self):
         from boxagent.domain.conversation import ConversationService
         from boxagent.infrastructure.persistence import JsonlSessionStore

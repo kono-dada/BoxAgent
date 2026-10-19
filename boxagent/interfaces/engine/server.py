@@ -1,7 +1,9 @@
 """Local Unix-socket server owning BoxAgentApplication and all Agent services."""
 
 import asyncio
-import fcntl
+import json
+import secrets
+from boxagent.core import file_lock as fcntl
 import logging
 import os
 from pathlib import Path
@@ -21,10 +23,11 @@ class EngineServer:
         self.clients = {}
         self.stop_requested = asyncio.Event()
         self.lock_stream = None
+        self.auth_token = ""
 
     async def start(self):
         self.socket_path.parent.mkdir(parents=True, exist_ok=True)
-        self.lock_stream = self.socket_path.with_suffix(self.socket_path.suffix + ".lock").open("w")
+        self.lock_stream = self.socket_path.with_suffix(self.socket_path.suffix + ".lock").open("a+")
         try:
             fcntl.flock(self.lock_stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
@@ -36,8 +39,16 @@ class EngineServer:
         await self.application.start()
         if self.start_context:
             await self.application.toggle_context()
-        self.server = await asyncio.start_unix_server(
-            self._handle_client, path=self.socket_path, limit=STREAM_LIMIT)
+        if os.name == "nt":
+            self.auth_token = secrets.token_hex(32)
+            self.server = await asyncio.start_server(
+                self._handle_client, host="127.0.0.1", port=0, limit=STREAM_LIMIT)
+            port = self.server.sockets[0].getsockname()[1]
+            self.socket_path.write_text(json.dumps({"port": port, "token": self.auth_token}),
+                                        encoding="utf-8")
+        else:
+            self.server = await asyncio.start_unix_server(
+                self._handle_client, path=self.socket_path, limit=STREAM_LIMIT)
         os.chmod(self.socket_path, 0o600)
 
     async def run(self):
@@ -75,6 +86,16 @@ class EngineServer:
             pass
 
     async def _handle_client(self, reader, writer):
+        if self.auth_token:
+            try:
+                token = (await asyncio.wait_for(reader.readline(), 5)).decode().strip()
+                if not secrets.compare_digest(token, self.auth_token):
+                    writer.close()
+                    await writer.wait_closed()
+                    return
+            except (TimeoutError, UnicodeError, ValueError, OSError):
+                writer.close()
+                return
         outbox = asyncio.Queue(maxsize=1000)
         sender = asyncio.create_task(
             self._write_client(writer, outbox), name="boxagent-engine-writer")
@@ -222,8 +243,8 @@ class EngineServer:
                 await self.application.close()
                 self.application = None
         finally:
-            self.socket_path.unlink(missing_ok=True)
             if self.lock_stream:
+                self.socket_path.unlink(missing_ok=True)
                 fcntl.flock(self.lock_stream, fcntl.LOCK_UN)
                 self.lock_stream.close()
                 self.lock_stream = None

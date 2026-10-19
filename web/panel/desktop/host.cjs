@@ -20,6 +20,7 @@ const {
   linkedFrames,
   clampFrames,
 } = require("./layout.cjs");
+const { WindowGeometry } = require("./window-geometry.cjs");
 class DesktopHost {
   constructor({
     app,
@@ -42,6 +43,7 @@ class DesktopHost {
     this.state = {};
     this.snapshot = {};
     this.windows = new Set();
+    this.geometry = new WindowGeometry();
     this.bubbleOpen = false;
     this.bubbleHeight = 270;
     this.drag = null;
@@ -74,6 +76,7 @@ class DesktopHost {
       },
       ...options,
     });
+    this.geometry.remember(window, options);
     this.registerWindow(window);
     this.windows.add(window);
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -254,6 +257,8 @@ class DesktopHost {
         crop: pet.crop,
         state: presentation(this.state),
         pointer: this.pointerValue || [0, 0],
+        action: this.state.avatar_action,
+        actionId: this.state.avatar_action_id,
       });
   }
   async report(sender, message) {
@@ -272,7 +277,7 @@ class DesktopHost {
       };
       // Capture layout padding once; animated crop changes must not move the chat.
       pet.dockInsetY ??= pet.crop.y;
-      pet.window.setBounds({
+      this.geometry.setBounds(pet.window, {
         x: Math.round(pet.origin.x + pet.crop.x),
         y: Math.round(pet.origin.y + pet.crop.y),
         width: Math.round(pet.crop.width),
@@ -368,11 +373,11 @@ class DesktopHost {
     );
     // Animation crop is not a placement anchor; content growth keeps the header still.
     if (preserveTop) {
-      const previous = this.bubble.getBounds();
+      const previous = this.geometry.getBounds(this.bubble);
       frame.x = previous.x;
       frame.y = previous.y;
     }
-    this.bubble.setBounds(
+    this.geometry.setBounds(this.bubble,
       clampFrame(frame, {
         x: this.area.x + 8,
         y: this.area.y + 8,
@@ -444,7 +449,7 @@ class DesktopHost {
   }
   positionTasks() {
     const anchor = this.bubble
-      ? this.bubble.getBounds()
+      ? this.geometry.getBounds(this.bubble)
       : this.current ? { ...this.current.origin, ...this.current.viewport }
       : { x: this.area.x + this.area.width - 280, y: this.area.y + this.area.height - 210, width: 252, height: 182 };
     const area = screen.getDisplayMatching(anchor).workArea;
@@ -458,13 +463,13 @@ class DesktopHost {
     const frames = linkedFrames(bubble, tasks, {
       x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16,
     });
-    this.bubble.setBounds(frames.bubble);
-    this.tasks.setBounds(frames.tasks);
+    this.geometry.setBounds(this.bubble, frames.bubble);
+    this.geometry.setBounds(this.tasks, frames.tasks);
     if (this.current) {
       const dx = frames.bubble.x - bubble.x, dy = frames.bubble.y - bubble.y;
       this.current.origin.x += dx;
       this.current.origin.y += dy;
-      if (dx || dy) this.current.window.setPosition(
+      if (dx || dy) this.geometry.setPosition(this.current.window,
         Math.round(this.current.origin.x + this.current.crop.x),
         Math.round(this.current.origin.y + this.current.crop.y),
       );
@@ -475,17 +480,17 @@ class DesktopHost {
   }
   dockPetBelowBubble() {
     if (!this.bubbleOpen || !this.current || this.drag) return;
-    const pet = this.current, bubble = this.bubble.getBounds();
+    const pet = this.current, bubble = this.geometry.getBounds(this.bubble);
     const area = screen.getDisplayMatching(bubble).workArea;
     const origin = { ...pet.origin, ...pet.viewport,
       y: bubble.y + bubble.height + 12 - (pet.dockInsetY || 0) };
-    const tasks = this.tasks?.isVisible() ? this.tasks.getBounds() : null;
+    const tasks = this.tasks?.isVisible() ? this.geometry.getBounds(this.tasks) : null;
     const frames = clampFrames([origin, bubble, ...(tasks ? [tasks] : [])],
       { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
     pet.origin = { x: frames[0].x, y: frames[0].y };
-    pet.window.setPosition(Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
-    this.bubble.setBounds(frames[1]);
-    if (tasks) this.tasks.setBounds(frames[2]);
+    this.geometry.setPosition(pet.window, Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
+    this.geometry.setBounds(this.bubble, frames[1]);
+    if (tasks) this.geometry.setBounds(this.tasks, frames[2]);
     const base = bubbleFrame({ ...pet.origin, ...pet.viewport }, this.area, null, this.bubbleHeight);
     this.offset = { x: frames[1].x - base.x, y: frames[1].y - base.y };
   }
@@ -515,8 +520,8 @@ class DesktopHost {
       this.drag = {
         sender: sender.id, pet,
         start: point,
-        frames: windows.map(window => ({ window, frame: window.getBounds(), visible: window.isVisible(),
-          limit: window === this.current.window ? { ...this.current.origin, ...this.current.viewport } : window.getBounds() })),
+        frames: windows.map(window => ({ window, frame: this.geometry.getBounds(window), visible: window.isVisible(),
+          limit: window === this.current.window ? { ...this.current.origin, ...this.current.viewport } : this.geometry.getBounds(window) })),
         origin: { ...this.current.origin },
         last: point,
         time: Date.now(),
@@ -542,7 +547,7 @@ class DesktopHost {
       const moveX = clamped[0].x - visible[0].limit.x, moveY = clamped[0].y - visible[0].limit.y;
       this.current.origin = { x: drag.origin.x + moveX, y: drag.origin.y + moveY };
       for (const item of drag.frames) if (!item.window.isDestroyed())
-        item.window.setPosition(Math.round(item.frame.x + moveX), Math.round(item.frame.y + moveY));
+        this.geometry.setPosition(item.window, Math.round(item.frame.x + moveX), Math.round(item.frame.y + moveY));
       if (pet) {
         const now = Date.now(),
           dt = Math.max(1, now - drag.time) / 1000;
@@ -573,7 +578,7 @@ class DesktopHost {
           null,
           this.bubbleHeight,
         );
-        const actual = this.bubble.getBounds();
+        const actual = this.geometry.getBounds(this.bubble);
         this.offset = {
           x: actual.x - defaultFrame.x,
           y: actual.y - defaultFrame.y,
@@ -713,7 +718,7 @@ class DesktopHost {
         pet.viewport = size;
         pet.crop = { x: 0, y: 0, ...size };
         pet.origin = clampFrame({ ...pet.origin, ...size }, this.area);
-        pet.window.setBounds(pet.origin);
+        this.geometry.setBounds(pet.window, pet.origin);
         this.sendPet(pet);
         this.savePosition();
         this.positionBubble();
