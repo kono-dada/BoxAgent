@@ -454,6 +454,11 @@ class QwenRealtimeSession:
                 if transcript:
                     self.response_transcripts[response_id] = transcript
         elif kind == "response.audio.done":
+            response_id = event.get("response_id") or self.response_id
+            if response_id == self.response_id:
+                finish = getattr(self.audio, "finish", None)
+                if finish is not None:
+                    finish()
             self._schedule_response_finalizer(event.get("response_id"))
         elif kind == "response.function_call_arguments.done":
             # The arguments-done event is the provider's executable boundary.
@@ -582,6 +587,9 @@ class QwenRealtimeSession:
             timer.cancel()
         if self.response_id == response_id:
             self.response_active = False
+            finish = getattr(self.audio, "finish", None)
+            if finish is not None:
+                finish()
         has_tool_calls = bool(self.response_calls.pop(response_id, set()))
         cancelled = response_id in self.cancelled_responses
         notification_id = self.notification_responses.pop(response_id, None)

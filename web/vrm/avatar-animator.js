@@ -98,7 +98,8 @@ export class AvatarAnimator {
   update(dt) {
     const b = this.behavior.step(dt), h = this.height;
     const motion = this.behavior.motion();
-    const gesture = motion.kind === 'gesture' ? this.behavior.gesture : null;
+    const gesture = motion.kind === 'music' ? this.behavior.musicGesture :
+      motion.kind === 'gesture' ? this.behavior.gesture : null;
     this.play(motion.name,motion.loop,motion.kind,Boolean(gesture && gesture !== this.lastGesture));
     this.lastGesture = gesture;
     // 恢复纯动画的位置与旋转，清除上一帧附加摆动，再求值动画。

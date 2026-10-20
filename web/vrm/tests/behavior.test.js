@@ -9,12 +9,32 @@ test('显式表演跨说话状态保留，结束恢复说话，拖动可中断',
  b.present({state:'speaking'});
  assert.deepEqual(b.motion(),{name:'dance',kind:'gesture',loop:false});
  b.step(0.05);assert.ok(b.lastOutput.jaw>=0);
- b.time=2.1;b.step(0.01);assert.equal(b.motion().name,'talk');
+ b.time=2.1;b.step(0.01);assert.equal(b.motion().name,'idle-0');
  b.gesture={name:'laugh',start:b.time,duration:2,semantic:'laugh'};
  b.step(0.01);assert.equal(b.lastOutput.smile,0.65);
  b.interact({kind:'drag-start'});assert.equal(b.gesture,null);assert.equal(b.motion().name,'drag');
 });
 function advance(b,seconds,dt=1/60){for(let i=0;i<Math.ceil(seconds/dt);i++)b.step(dt);}
+test('Talking 复用连续待机身体，脸部说话，停止后口型归零',()=>{
+ const b=create();const before=b.motion();
+ b.present({state:'speaking'});assert.deepEqual(b.motion(),before);
+ b.step(0.1);assert.ok(b.lastOutput.jaw>0);
+ advance(b,10);assert.equal(b.motion().name,'idle-1');
+ assert.equal(b.motion().kind,'idle');
+ const body=b.motion();b.present({state:'idle'});b.step(0.01);
+ assert.deepEqual(b.motion(),body);assert.equal(b.lastOutput.jaw,0);
+});
+test('说话结束清除聊天情绪动作并恢复待机，明确表演仍可独立完成',()=>{
+ const b=create();b.present({state:'speaking'});
+ b.gesture={name:'laugh',start:b.time,duration:8,semantic:'laugh'};
+ b.present({state:'idle'});
+ assert.equal(b.gesture,null);assert.equal(b.motion().kind,'idle');
+ b.step(0.05);assert.equal(b.lastOutput.jaw,0);
+ b.present({state:'speaking'});
+ b.gesture={name:'dance',start:b.time,duration:2,semantic:'dance'};
+ b.present({state:'idle'});assert.equal(b.motion().name,'dance');
+ advance(b,2.1);assert.equal(b.motion().kind,'idle');
+});
 test('待机每十秒抽样，允许继续当前动作，拖动中计时暂停',()=>{
  const b=create();assert.equal(b.motion().name,'idle-0');
  advance(b,10.1);assert.equal(b.motion().name,'idle-1');
@@ -34,7 +54,7 @@ test('Drag 覆盖说话但不丢失业务状态，持续移动不会重置最短
  const deadline=b.dragUntil;
  for(let i=0;i<60;i++){b.interact({kind:'drag-move',velocity:[800,0]});b.step(1/60);}
  assert.equal(b.dragUntil,deadline);assert.deepEqual(b.motion(),{name:'drag',kind:'drag',loop:true});
- b.interact({kind:'drag-end'});b.step(1/60);assert.equal(b.motion().name,'talk');
+ b.interact({kind:'drag-end'});b.step(1/60);assert.equal(b.motion().name,'idle-0');
 });
 test('摆动与播放姿势分离，停住后回正，松开后权重清零',()=>{
  const b=create();for(let i=0;i<60;i++){b.interact({kind:'drag-move',velocity:[1800,200]});b.step(1/60);}

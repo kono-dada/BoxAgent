@@ -6,9 +6,11 @@ registered node_repl server instead of locating or starting a native helper.
 
 from dataclasses import dataclass
 import json
+import os
+import re
 from pathlib import Path
 import tomllib
-from typing import Mapping
+from typing import Callable, Mapping
 
 from boxagent.core.errors import TaskFailure
 
@@ -42,7 +44,33 @@ def _strings(value: object, label: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def load_windows_skill(codex_home: Path) -> WindowsSkill:
+def available_computer_use_pipes() -> tuple[str, ...]:
+    """Enumerate pipe names only; never connect to or launch a native helper."""
+    with os.scandir("\\\\.\\pipe\\") as entries:
+        return tuple(entry.name for entry in entries
+                     if re.fullmatch(r"codex-computer-use-[0-9a-fA-F-]{36}", entry.name))
+
+
+def refresh_pipe_environment(environment: Mapping[str, str],
+                             pipe_names: Callable[[], tuple[str, ...]]) -> dict[str, str]:
+    """Refresh only a stale address; preserve permission settings and live selections."""
+    result = dict(environment)
+    if result.get("SKY_CUA_NATIVE_PIPE") != "1":
+        return result
+    names = pipe_names()
+    prefix = "\\\\.\\pipe\\"
+    addresses = tuple(prefix + name for name in names
+                      if re.fullmatch(r"codex-computer-use-[0-9a-fA-F-]{36}", name))
+    if result.get("SKY_CUA_NATIVE_PIPE_DIRECTORY") in addresses:
+        return result
+    if len(addresses) != 1:
+        raise ValueError("Computer Use 通信管道不可用或存在多个候选，请在 Codex 中刷新 Computer Use 后重试")
+    result["SKY_CUA_NATIVE_PIPE_DIRECTORY"] = addresses[0]
+    return result
+
+
+def load_windows_skill(codex_home: Path, *,
+                       pipe_names: Callable[[], tuple[str, ...]] | None = None) -> WindowsSkill:
     """Read only the installed Computer Use skill and node_repl configuration."""
     try:
         config = tomllib.loads((codex_home / "config.toml").read_text(encoding="utf-8"))
@@ -82,15 +110,21 @@ def load_windows_skill(codex_home: Path) -> WindowsSkill:
         instructions = "\n\n".join(
             path.read_text(encoding="utf-8") for path in (
                 skill, docs / "guidance.md", docs / "api.md", docs / "confirmations.md"))
+        environment = dict(raw_environment)
+        if os.name == "nt" or pipe_names is not None:
+            environment = refresh_pipe_environment(
+                environment, pipe_names or available_computer_use_pipes)
         return WindowsSkill(
             command=Path(command), arguments=_strings(node.get("args", []), "node_repl args"),
-            environment=dict(raw_environment),
+            environment=environment,
             inherited_variables=_strings(node.get("env_vars", []), "node_repl env_vars"),
             startup_timeout=float(timeout), skill_path=skill, instructions=instructions)
     except (OSError, ValueError) as exc:
+        message = (str(exc) if "通信管道" in str(exc) else
+                   "Windows Computer Use 技能未就绪，请在 Codex 桌面应用中启用 Control Windows apps 及 node_repl 后重试。")
         raise TaskFailure(
             "windows_skill_unavailable",
-            "Windows Computer Use 技能未就绪，请在 Codex 桌面应用中启用 Control Windows apps 及 node_repl 后重试。",
+            message,
             detail=str(exc)) from exc
 
 

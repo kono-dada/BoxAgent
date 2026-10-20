@@ -5,7 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from types import SimpleNamespace
 
 from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, TOOLS, QwenRealtimeSession
@@ -502,6 +502,17 @@ class FakeSocket:
 
 
 class VoiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_audio_done_finishes_current_playback_without_stale_response_interference(self):
+        voice = QwenRealtimeSession(lambda *_args: None, lambda *_args, **_kw: None)
+        audio = Mock()
+        voice.audio = audio
+        voice.response_id = "current"
+        voice._schedule_response_finalizer = Mock()
+        await voice.receive({"type": "response.audio.done", "response_id": "old"})
+        audio.finish.assert_not_called()
+        await voice.receive({"type": "response.audio.done", "response_id": "current"})
+        audio.finish.assert_called_once()
+
     def test_voice_exposes_explicit_memory_tools_and_deletion_guardrail(self):
         names = {item["function"]["name"] for item in TOOLS}
         self.assertTrue({"remember_memory", "recall_memory", "forget_memory"} <= names)

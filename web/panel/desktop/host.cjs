@@ -15,12 +15,12 @@ const {
   petSize,
   validBounds,
   bubbleFrame,
-  presentation,
   taskFrame,
   linkedFrames,
   clampFrames,
 } = require("./layout.cjs");
 const { WindowGeometry } = require("./window-geometry.cjs");
+const { MusicMonitor } = require("./music-monitor.cjs");
 class DesktopHost {
   constructor({
     app,
@@ -138,6 +138,13 @@ class DesktopHost {
     )
       this.feedback("快捷键已被占用，请使用小窗的语音按钮");
     this.pointerTimer = setInterval(() => this.pointer(), 40);
+    if (process.platform === 'win32') {
+      this.musicMonitor = new MusicMonitor(active => {
+        this.musicActive = active;
+        if (this.current) this.sendPet(this.current);
+      });
+      this.musicMonitor.start();
+    }
     await this.loadAvatar(this.snapshot.appearance, false);
   }
   get area() {
@@ -255,10 +262,11 @@ class DesktopHost {
         url: pet.url,
         viewport: pet.viewport,
         crop: pet.crop,
-        state: presentation(this.state),
+        state: this.state.speaking && !this.state.user_speaking ? "speaking" : "idle",
         pointer: this.pointerValue || [0, 0],
         action: this.state.avatar_action,
         actionId: this.state.avatar_action_id,
+        music: this.musicActive === true,
       });
   }
   async report(sender, message) {
@@ -732,6 +740,7 @@ class DesktopHost {
     return result;
   }
   close() {
+    this.musicMonitor?.stop();
     this.closed = true;
     clearInterval(this.pointerTimer);
     globalShortcut.unregisterAll();

@@ -48,6 +48,8 @@ export class MateController {
   }
   presentState(state) {
     if (state === this.state) return;
+    if (this.state === 'speaking' && state !== 'speaking' &&
+        ['happy','laugh','shy'].includes(this.gesture?.semantic)) this.gesture = null;
     this.state = state; this.stateSince = this.time;
   }
   wake() { this.sleepElapsed = 0; this.sleep = 0; }
@@ -58,7 +60,7 @@ export class MateController {
         this.dragUntil = this.time + this.settings.dragMinimumHold;
         this.events.push({type:'pickup',at:this.time});
       }
-      this.mouseHeld = true; this.dragging = true; this.gesture = null;
+      this.mouseHeld = true; this.dragging = true; this.gesture = null; this.musicGesture = null;
       this.dragVelocity = velocity.map(v => clamp(Number(v) || 0,-2400,2400));
       this.dragAt = this.time;
     } else if (kind === 'drag-end') {
@@ -75,7 +77,7 @@ export class MateController {
     this.time += dt;
     if (!this.mouseHeld && this.time >= this.dragUntil) this.dragging = false;
     // 只有可见的自主待机消耗调度时间，交互结束后恢复先前动作。
-    if(this.state === 'idle' && !this.dragging && !this.sleep && !this.gesture)this.idleTimer += dt;
+    if(['idle','speaking'].includes(this.state) && !this.dragging && !this.sleep && !this.gesture && !this.musicGesture)this.idleTimer += dt;
     if (this.idleTimer >= this.settings.idleSwitchTime && this.idleActions.length) {
       this.idleTimer %= this.settings.idleSwitchTime;
       this.idleIndex = sampleIdle(this.idleProbabilities,this.random);
@@ -83,6 +85,7 @@ export class MateController {
       this.history = this.history.slice(-24);
     }
     if (this.gesture && this.time - this.gesture.start > this.gesture.duration) this.gesture = null;
+    if (this.musicGesture && this.time - this.musicGesture.start >= this.musicGesture.duration) this.musicGesture = null;
     const allowed = this.state === 'idle' && !this.dragging;
     if (!this.settings.enableSleep || !allowed) this.wake();
     else {
@@ -95,9 +98,11 @@ export class MateController {
   motion() {
     const idle = this.gesture?.name || this.idleActions[this.idleIndex]?.name || 'rest';
     if (this.dragging) return {name:this.roles.dragging || 'rest',kind:'drag',loop:true};
+    if (this.musicGesture) return {name:this.musicGesture.name,kind:'music',loop:false};
     if (this.sleep) return {name:this.roles.sleeping || 'rest',kind:'sleep',loop:true};
     if (this.gesture) return {name:this.gesture.name,kind:'gesture',loop:false};
-    if (this.state === 'speaking') return {name:this.roles.speaking || idle,kind:'speaking',loop:true};
+    // Talking is composed from the continuous idle body and independent face layer.
+    if (this.state === 'speaking') return {name:idle,kind:'idle',loop:true};
     if (this.state === 'success' && this.time-this.stateSince < 3) return {name:this.roles.success || idle,kind:'success',loop:false};
     return {name:idle,kind:'idle',loop:true};
   }

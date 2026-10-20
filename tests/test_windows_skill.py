@@ -8,7 +8,48 @@ import pytest
 
 from boxagent.core.errors import TaskFailure
 from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
-from boxagent.infrastructure.runtimes.codex.windows_skill import WindowsSkill, load_windows_skill
+from boxagent.infrastructure.runtimes.codex.windows_skill import (
+    WindowsSkill, load_windows_skill, refresh_pipe_environment,
+)
+
+
+def test_stale_pipe_refresh_is_local_and_preserves_permissions() -> None:
+    name = 'codex-computer-use-11111111-1111-1111-1111-111111111111'
+    environment = {'SKY_CUA_NATIVE_PIPE': '1', 'SKY_CUA_NATIVE_PIPE_DIRECTORY': 'stale',
+                   'NODE_REPL_TRUSTED_SERVICES': 'unchanged'}
+    refreshed = refresh_pipe_environment(environment, lambda: (name,))
+    assert refreshed['SKY_CUA_NATIVE_PIPE_DIRECTORY'] == '\\\\.\\pipe\\' + name
+    assert environment['SKY_CUA_NATIVE_PIPE_DIRECTORY'] == 'stale'
+    assert refreshed['NODE_REPL_TRUSTED_SERVICES'] == 'unchanged'
+
+
+@pytest.mark.parametrize('names', [(), (
+    'codex-computer-use-11111111-1111-1111-1111-111111111111',
+    'codex-computer-use-22222222-2222-2222-2222-222222222222'), ('unrelated',)])
+def test_stale_pipe_rejects_missing_or_ambiguous_services(names: tuple[str, ...]) -> None:
+    with pytest.raises(ValueError, match='通信管道'):
+        refresh_pipe_environment({'SKY_CUA_NATIVE_PIPE': '1'}, lambda: names)
+
+
+def test_live_pipe_is_preserved_when_multiple_services_exist() -> None:
+    first = 'codex-computer-use-11111111-1111-1111-1111-111111111111'
+    second = 'codex-computer-use-22222222-2222-2222-2222-222222222222'
+    environment = {'SKY_CUA_NATIVE_PIPE': '1',
+                   'SKY_CUA_NATIVE_PIPE_DIRECTORY': '\\\\.\\pipe\\' + second}
+    assert refresh_pipe_environment(environment, lambda: (first, second)) == environment
+
+
+def test_loader_refreshes_task_override_without_rewriting_global_config(installed_skill: WindowsSkill) -> None:
+    home = Path(installed_skill.environment['CODEX_HOME'])
+    config = home / 'config.toml'
+    text = config.read_text(encoding='utf-8') + (
+        '\nSKY_CUA_NATIVE_PIPE="1"\nSKY_CUA_NATIVE_PIPE_DIRECTORY="stale"\n')
+    config.write_text(text, encoding='utf-8')
+    name = 'codex-computer-use-11111111-1111-1111-1111-111111111111'
+    skill = load_windows_skill(home, pipe_names=lambda: (name,))
+    override = tomllib.loads(skill.config_override())['mcp_servers']['node_repl']['env']
+    assert override['SKY_CUA_NATIVE_PIPE_DIRECTORY'].endswith(name)
+    assert config.read_text(encoding='utf-8') == text
 
 
 @pytest.fixture

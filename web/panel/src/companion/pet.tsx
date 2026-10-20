@@ -25,7 +25,7 @@ function Pet() {
   );
   useEffect(() => {
     if (frame)
-      command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId });
+      command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId, music: frame.music });
   }, [frame]);
   useEffect(() => {
     const listener = (event: MessageEvent) => {
@@ -57,7 +57,7 @@ function Pet() {
           src={frame.url}
           sandbox="allow-scripts allow-same-origin"
           onLoad={() =>
-            command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId })
+            command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId, music: frame.music })
           }
           style={{
             width: frame.viewport.width,
