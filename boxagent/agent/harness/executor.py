@@ -1,14 +1,14 @@
 """Harness execution lifecycle around one Agent Runtime request."""
 
 import asyncio
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, replace
 import hashlib
 import inspect
 import json
 import time
 import traceback
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from boxagent.core.errors import append_jsonl, redact, timestamp, write_json
 from boxagent.core.logs import bind_log_context
@@ -93,6 +93,8 @@ class TaskExecutor:
         self.log("phase", phase=phase, message=message)
 
     def bind_tools(self, tools: list[dict]) -> list[dict]:
+        if self.gateway is None:
+            raise RuntimeError("Computer Use 工具网关尚未启动")
         return self.gateway.bind(tools)
 
     async def call_tool(self, name: str, arguments: dict) -> dict:
@@ -100,8 +102,23 @@ class TaskExecutor:
             raise RuntimeError("Computer Use 工具网关尚未启动")
         return await self.gateway.call(name, arguments)
 
+    async def observe_native_tool(self, operation: str, arguments: dict, response: dict) -> None:
+        if self.gateway is None:
+            raise RuntimeError("Computer Use 工具网关尚未启动")
+        await self.gateway.observe_native_tool(operation, arguments, response)
+
     def validate_result(self, text: str) -> dict:
         return validate_task_result(text, self.observations, self.tool_errors)
+
+    def result_evidence(self) -> str:
+        """Expose actual current-task observations to tool-free result formatting."""
+        rows = []
+        for step, observation in list(self.observations.items())[-12:]:
+            path = self.output / f"step-{step}.txt"
+            rows.append({"step": step, "tool": observation.get("tool"),
+                         "success": observation.get("success"),
+                         "text": path.read_text(encoding="utf-8")[:1800] if path.exists() else ""})
+        return json.dumps(rows, ensure_ascii=False) if rows else ""
 
     def capture_environment(self):
         if self.environment_provider is None:
@@ -120,6 +137,7 @@ class TaskExecutor:
         session_arguments = dict(
             output=self.output,
             on_tool_call=self.call_tool,
+            on_tool_observed=self.observe_native_tool,
             approve=self.approve,
             current_app=lambda: self.active_app,
             report=self.report,
@@ -240,7 +258,7 @@ class TaskExecutor:
                      evidence_characters=len(request.evidence_context),
                      memory_evidence_count=len(memories))
             text = await asyncio.wait_for(self.runtime.execute(
-                request, tools, self.call_tool, self.validate_result,
+                replace(request, result_evidence=self.result_evidence), tools, self.call_tool, self.validate_result,
                 lambda message: self.report("model", message)), 300)
             request_snapshot["runtime_thread_id"] = getattr(
                 self.session, "thread_id", None)
@@ -272,7 +290,7 @@ class TaskExecutor:
         write_json(self.output / "manifest.json", manifest)
         write_json(self.output / "task.json", manifest)
         self._index_run("started", manifest)
-        final = {"outcome": "failed"}
+        final: dict[str, Any] = {"outcome": "failed"}
         heartbeat = asyncio.create_task(self.heartbeat())
         try:
             final = await self._execute(goal)
@@ -311,7 +329,7 @@ class TaskExecutor:
     def _record(value):
         if value is None:
             return None
-        if is_dataclass(value):
+        if is_dataclass(value) and not isinstance(value, type):
             return asdict(value)
         if isinstance(value, dict):
             return dict(value)

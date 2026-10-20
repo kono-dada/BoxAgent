@@ -1,8 +1,8 @@
 """Immutable-shape application state and presentation projection."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Awaitable, Callable, Protocol
+from typing import Awaitable, Callable, Protocol, TypedDict
 
 
 class VoiceState(StrEnum):
@@ -19,9 +19,15 @@ class TaskState(StrEnum):
     AWAITING_APPROVAL = "awaiting_approval"
     CANCELLING = "cancelling"
     SUCCEEDED = "succeeded"
+    NEEDS_INPUT = "needs_input"
     BLOCKED = "blocked"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+
+class TaskQueueItem(TypedDict):
+    task_id: str
+    goal: str
 
 
 @dataclass
@@ -33,6 +39,8 @@ class Snapshot:
     user_speaking: bool = False
     task: str = "idle"
     task_id: str = ""
+    task_goal: str = ""
+    task_queue: list[TaskQueueItem] = field(default_factory=list)
     task_started_at: float = 0
     task_ended_at: float = 0
     task_activity_at: float = 0

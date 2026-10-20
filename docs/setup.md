@@ -150,6 +150,10 @@ Final User Message 直接交给 Jev-Mem，不再调用 Codex 候选提取器，�
 
 桌宠启动时会后台预热记忆 Worker。首次启动仍需加载本地 embedding 模型，可能明显慢于后续请求。Final User Message 一经 Session Store 持久化就创建 durable ingestion job，Jev-Mem 完成是否保存、类型判断、关系构造和索引；Assistant 消息、屏幕摘要、原始音频和未经验证的桌面操作中间状态不会进入自动写入链路。显式“记住”带 `explicit` 标记并强制进入 Jev-Mem，但仍经过本地 Secret Filter。
 
+自动写入由真实决策模型判断准入，包括“？”“可以”等短消息；不使用确认词表或字数规则代替判断。准入、类型或关系判断失败时，不回退到 MAGMA 原文写入；durable job 最多重试 3 次，耗尽后保留失败记录与原始会话历史。显式“记住”跳过准入筛选，但类型与关系仍需成功判断。生产 Worker 的 `auto` 与 `jev` 都需要决策模型密钥，缺少密钥会明确报错；模拟模式仅在显式选择 `mock` 时启用。
+
+User Profile 只应用成功的模型提案；模型缺少配置、请求失败或响应格式错误时不使用正则生成替代画像，已有投影保持不变。自动 job 重试时会复用已写入的同源记忆补做画像，避免重复插入节点；job 完成前也包含画像处理。历史已完成的任务不会自动重做，也不会删除已有节点。
+
 启动桌宠后，从菜单栏星光图标或桌宠右键菜单打开「伙伴控制台…」，在长期记忆页查看图、列表和节点关系。React / Electron 页面通过本机 `engine.sock` 调用同一个 Worker 的脱敏、限量图快照，不直接读取 `graph.json`。删除使用精确节点 ID，并在控制台确认。旧 AppKit 记忆、Skill、角色管理窗口已移除。
 
 完整安装已包含控制台；单独准备依次执行 `pnpm --dir web/panel install --frozen-lockfile`、`pnpm --dir web/panel build`、`pnpm --dir web/panel start`。菜单和 `start` 直接载入构建产物，避免每次打开都检查/构建；修改前端源码后用 `pnpm --dir web/panel dev` 重建并打开。如设置 `BOXAGENT_DATA_DIR`，控制台与桌宠须使用同一目录。设置 → 界面偏好提供中英文及浅色 / 深色 / 跟随系统。架构与通道详见 [前后端连接](BoxAgent-架构重构方案.md#44-伙伴控制台与前后端连接)。

@@ -4,15 +4,14 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type PointerEvent,
 } from "react";
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { t } from "../i18n";
 import { locale, startPreferences } from "../preferences";
-import { useAction, run } from "../hooks/useAction";
-import { TaskStatus } from "../components/TaskStatus";
+import { useAction, run, runtimeLabel } from "../hooks/useAction";
+import { useWindowDrag } from "../hooks/useWindowDrag";
 import { transcript } from "./model";
 import type { AvatarSnapshot, ProductMessage, RuntimeState } from "../types";
 import "../../style.css";
@@ -36,9 +35,9 @@ function Companion() {
     scroll = useRef<HTMLDivElement>(null),
     shell = useRef<HTMLElement>(null),
     content = useRef<HTMLDivElement>(null),
-    follow = useRef(true),
-    dragging = useRef(false);
+    follow = useRef(true);
   const action = useAction(bridge);
+  const drag = useWindowDrag(bridge);
   const refresh = useCallback(async () => {
     const id = session.current,
       mine = ++request.current;
@@ -134,6 +133,12 @@ function Companion() {
     };
   }, [refresh]);
   const entries = transcript(history, runtime, pending);
+  const queued = runtime.task_queue?.length || 0;
+  const taskActive = queued > 0 || ["accepted", "running", "cancelling", "awaiting_approval"].includes(runtime.task || "");
+  const taskLabel = runtime.approval ? t("需要你的确认") : runtimeLabel(runtime.task || "idle");
+  const taskProgress = runtime.approval ||
+    (runtime.task && runtime.task !== "idle" ? runtime.task_text || runtime.task_goal : "") ||
+    t("当前没有任务");
   const [visible, setVisible] = useState(!document.hidden);
   useEffect(() => {
     const change = () => setVisible(!document.hidden);
@@ -253,16 +258,6 @@ function Companion() {
     setTitle("");
     await refresh();
   }
-  function drag(event: PointerEvent, phase: string) {
-    if ((event.target as HTMLElement).closest("button,input")) return;
-    if (phase === "start") {
-      if (event.button !== 0) return;
-      dragging.current = true;
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } else if (!dragging.current) return;
-    bridge.desktopAction("drag", phase);
-    if (phase === "end") dragging.current = false;
-  }
   return (
     <section
       ref={shell}
@@ -286,10 +281,7 @@ function Companion() {
       </div>
       <header
         className="companion-header"
-        onPointerDown={(event) => drag(event, "start")}
-        onPointerMove={(event) => drag(event, "move")}
-        onPointerUp={(event) => drag(event, "end")}
-        onPointerCancel={(event) => drag(event, "end")}
+        {...drag}
       >
         <div className="companion-heading">
           <strong>{desktop.name || t("伙伴")}</strong>
@@ -307,6 +299,22 @@ function Companion() {
           </span>
         </div>
         <button
+          className="companion-task-summary"
+          data-state={runtime.task || "idle"}
+          data-active={taskActive}
+          data-attention={!!runtime.approval}
+          title={[runtime.task && runtime.task !== "idle" ? runtime.task_goal : "", taskProgress].filter(Boolean).join("\n")}
+          aria-label={[taskLabel, queued ? t("排队 {0}", queued) : "", taskProgress, t("展开任务面板")].filter(Boolean).join("，")}
+          aria-expanded={!!desktop.tasks_expanded}
+          onClick={() => bridge.desktopAction(desktop.tasks_expanded ? "collapse-tasks" : "show-tasks")}
+        >
+          <span className="companion-task-summary-state"><i aria-hidden="true"/><span className="companion-task-summary-label">{taskLabel}</span>
+            {queued > 0 && <span className="companion-task-summary-queue">· {t("排队 {0}", queued)}</span>}
+          </span>
+          <span className="companion-task-summary-progress" aria-live="polite">{taskProgress}</span>
+        </button>
+        <div className="companion-controls">
+        <button
           className="icon-button"
           title={t("打开伙伴控制台")}
           aria-label={t("打开伙伴控制台")}
@@ -322,6 +330,7 @@ function Companion() {
         >
           ×
         </button>
+        </div>
       </header>
       <div
         className={`companion-history-wrap ${away ? "reading-history" : ""}`}
@@ -405,12 +414,6 @@ function Companion() {
           </button>
         )}
       </div>
-      <TaskStatus
-        runtime={runtime}
-        busy={action.busy}
-        act={action.act}
-        compact
-      />
       {desktop.feedback && (
         <p className="companion-feedback" role="status">
           <span>{t(desktop.feedback)}</span>

@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import AsyncMock, Mock, patch
 from pathlib import Path
 
 from boxagent.application.memory import MemoryModule
@@ -230,6 +231,15 @@ class MemoryWorkerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(MemoryUnavailable, "决策模型密钥"):
             worker._environment()
 
+    def test_auto_backend_requires_key_without_starting_a_mock(self):
+        worker = JevMemWorker(backend="auto")
+        with self.assertRaisesRegex(MemoryUnavailable, "决策模型密钥"):
+            worker._environment()
+        with patch.dict("os.environ", {}, clear=True):
+            for backend in ("auto", "jev"):
+                with self.assertRaisesRegex(MemoryUnavailable, "不会自动切换"):
+                    Worker(Path(self.directory.name), backend)
+
     def test_decision_service_is_passed_through_sdk_variables(self):
         worker = JevMemWorker(
             backend="jev", command=[sys.executable, "unused"],
@@ -400,6 +410,71 @@ class IngestionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("example-only-not-real",
                          redact_memory_source("密码: example-only-not-real"))
 
+    async def test_rejected_filler_reaches_admission_and_stays_in_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions = JsonlSessionStore(root / "conversations")
+            jobs = JsonMemoryJobStore(root / "memory")
+            backend = RecordingBackend(admitted=False)
+            ingestion = MemoryIngestionCoordinator(
+                sessions, jobs, service=MemoryService(backend, jobs))
+            conversation = ConversationService(sessions, message_sinks=(ingestion,))
+            await conversation.start()
+            await ingestion.start()
+            texts = ["？", "???", "……", "👍", "可以", "好的！", "OK", "谢谢你"]
+            try:
+                for text in texts:
+                    await conversation.begin_interaction(text)
+                await ingestion.drain()
+                self.assertEqual([row["content"] for row in backend.observations], texts)
+                self.assertEqual(backend.remember_attempts, len(texts))
+                self.assertEqual(backend.nodes, [])
+                stored = await jobs.jobs()
+                self.assertEqual(len(stored), len(texts))
+                for job in stored:
+                    self.assertEqual(job.status, "completed")
+                    self.assertEqual(job.result["admitted"], 0)
+                    self.assertEqual(job.result["rejected"], 1)
+                events = await sessions.read_events(stored[0].session_id)
+                self.assertEqual([row.content for row in events
+                                  if row.type == "message.final" and row.role == "user"], texts)
+            finally:
+                await ingestion.close()
+
+    async def test_short_facts_and_explicit_writes_reach_backend(self):
+        backend = RecordingBackend()
+        service = MemoryService(backend)
+        for text in ("我不吃辣", "我叫李明", "我喜欢猫", "周五面试", "可以叫我小李", "我可以周五陪你"):
+            await service.observe_user_message(text, session_id="ses-1",
+                                               interaction_id="int-1", source_event_id=text)
+        self.assertEqual(len(backend.observations), 6)
+        await service.remember("项目名称是 OK", source="explicit")
+        self.assertTrue(backend.observations[-1]["metadata"]["explicit"])
+
+    async def test_exhausted_admission_outage_is_failed_not_completed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions = JsonlSessionStore(root / "conversations")
+            jobs = JsonMemoryJobStore(root / "memory")
+            backend = RecordingBackend(fail_times=10)
+            ingestion = MemoryIngestionCoordinator(
+                sessions, jobs, service=MemoryService(backend, jobs),
+                retry_base_seconds=.01)
+            conversation = ConversationService(sessions, message_sinks=(ingestion,))
+            await conversation.start()
+            await ingestion.start()
+            try:
+                await conversation.begin_interaction("我周五有面试")
+                await ingestion.drain()
+                job = (await jobs.jobs())[0]
+                self.assertEqual((job.status, job.attempts), ("failed", 3))
+                self.assertEqual(backend.nodes, [])
+                self.assertNotIn("admitted", job.result)
+                events = await sessions.read_events(job.session_id)
+                self.assertTrue(any(row.content == "我周五有面试" for row in events))
+            finally:
+                await ingestion.close()
+
 
 class LegacyMigrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_active_records_import_once_and_inactive_records_stay_out(self):
@@ -476,8 +551,12 @@ class ProjectionAndRecallTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = JsonProfileStore(Path(directory) / "profile.json")
             backend = RecordingBackend()
-            projector = ProfileProjector(
-                store, DeepSeekProfileConstructor(api_key=""))
+            constructor = DeepSeekProfileConstructor(api_key="fixture")
+            constructor._request = Mock(return_value=[{
+                "op": "replace", "path": "preferences.communication.answer_style",
+                "value": "简洁", "confidence": .95,
+            }])
+            projector = ProfileProjector(store, constructor)
             service = MemoryService(backend, profile_projector=projector)
             remembered = await service.remember("我偏好简洁回答")
             profile = await store.load()
@@ -486,6 +565,42 @@ class ProjectionAndRecallTests(unittest.IsolatedAsyncioTestCase):
                 "简洁")
             await service.delete_node(remembered["memory_id"])
             self.assertEqual((await store.load())["fields"], {})
+
+    async def test_profile_failure_leaves_existing_profile_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = JsonProfileStore(Path(directory) / "profile.json")
+            await store.apply([{"op": "add", "path": "identity.preferred_name",
+                                "value": "Leon"}], memory_id="existing")
+            before = await store.load()
+            for key in ("", "fixture"):
+                constructor = DeepSeekProfileConstructor(api_key=key)
+                constructor._request = Mock(side_effect=RuntimeError("model unavailable"))
+                projector = ProfileProjector(store, constructor)
+                node = {"id": "new", "content": "我叫小李，我偏好简洁回答",
+                        "metadata": {"jev_mem": {"memory_type": {"semantic": .9}}}}
+                with self.assertRaises(MemoryUnavailable):
+                    await projector.observe(node)
+                self.assertEqual(await store.load(), before)
+                if not key:
+                    constructor._request.assert_not_called()
+
+    async def test_profile_retry_uses_reused_memory_after_a_committed_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = JsonProfileStore(Path(directory) / "profile.json")
+            backend = RecordingBackend()
+            constructor = DeepSeekProfileConstructor(api_key="fixture")
+            patches = [{"op": "replace", "path": "identity.preferred_name", "value": "Leon"}]
+            constructor._request = Mock(side_effect=[RuntimeError("unavailable"), patches])
+            service = MemoryService(backend, profile_projector=ProfileProjector(store, constructor))
+            with self.assertRaises(MemoryUnavailable):
+                await service.observe_user_message("我叫 Leon", session_id="s", interaction_id="i",
+                                                   source_event_id="e")
+            self.assertEqual(len(backend.nodes), 1)
+            backend.remember = AsyncMock(return_value={
+                "admitted": 1, "created": [], "reused": backend.nodes})
+            await service.observe_user_message("我叫 Leon", session_id="s", interaction_id="i",
+                                               source_event_id="e")
+            self.assertEqual((await store.load())["fields"]["identity.preferred_name"]["value"], "Leon")
 
     async def test_l2_direct_split_and_l3_deep(self):
         backend = RecordingBackend()

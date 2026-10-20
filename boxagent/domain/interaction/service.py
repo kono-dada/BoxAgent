@@ -6,6 +6,8 @@ import logging
 import time
 
 from boxagent.domain.context.contracts import NullContextObserver
+from boxagent.domain.conversation.models import InteractionContext
+from boxagent.domain.interaction.delegation import DecisionAdvice
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,7 @@ class InteractionService:
         self.interaction = None
         self.response_interactions = {}
         self.tool_interactions = {}
+        self.decisions: dict[str, DecisionAdvice] = {}
         self.pending_user_responses = []
         self.closed_interactions = set()
         self.toggle_lock = asyncio.Lock()
@@ -122,15 +125,16 @@ class InteractionService:
                 voice = self.voice
                 packet, report = await self.turn_preparer.prepare(
                     text, session_id=context.session.session_id,
-                    query_id=context.interaction_id)
+                    query_id=context.interaction_id, context=self._decision_context(context))
                 if self.interaction is not context or self.voice is not voice:
                     return {"status": "interrupted", "message": "本轮已被新的输入打断"}
                 self.context_observer.turn_prepared(context.session.session_id, **report)
+                self._store_decision(context, report)
                 await submit(text, reference=packet, query_id=context.interaction_id)
             else:
                 await submit(text)
         except Exception:
-            if self.interaction is not None:
+            if self.interaction is not None and self.conversation is not None:
                 await self.conversation.finish_interaction(
                     self.interaction, status="failed", runtime="qwen_realtime")
                 self._close_interaction(self.interaction)
@@ -215,6 +219,7 @@ class InteractionService:
             conversation_history=conversation_history,
             conversation_checkpoint=conversation_checkpoint,
             stable_memory_context=stable_memory_context,
+            delegation_review=self._review_delegation,
             product_session_id=(session.session_id if session else ""))
         self.connection_microphone = microphone
         self.connection_error = None
@@ -253,10 +258,11 @@ class InteractionService:
                     voice = self.voice
                     packet, report = await self.turn_preparer.prepare(
                         transcript, session_id=context.session.session_id,
-                        query_id=context.interaction_id)
-                    if self.interaction is not context or self.voice is not voice:
+                        query_id=context.interaction_id, context=self._decision_context(context))
+                    if self.interaction is not context or self.voice is not voice or voice is None:
                         return
                     self.context_observer.turn_prepared(context.session.session_id, **report)
+                    self._store_decision(context, report)
                     await voice.respond_to_query(packet, query_id=context.interaction_id)
                 else:
                     await self._inject_memory_context(transcript, self.interaction)
@@ -273,6 +279,11 @@ class InteractionService:
                     self.response_interactions[response_id] = context
                 return
             if origin != "user":
+                return
+            query_id = payload.get("query_id")
+            if query_id:
+                if self.interaction is not None and self.interaction.interaction_id == query_id:
+                    self.response_interactions[response_id] = self.interaction
                 return
             if self.interaction is not None:
                 self.response_interactions[response_id] = self.interaction
@@ -298,7 +309,7 @@ class InteractionService:
                     context, status="cancelled", runtime="qwen_realtime")
                 self._close_interaction(context)
                 self.events.emit("conversation.updated")
-            elif not payload.get("has_tool_calls"):
+            elif not payload.get("has_tool_calls") and not payload.get("delegation_review_pending"):
                 await self.conversation.finish_interaction(
                     context, status="succeeded", runtime="qwen_realtime")
                 self._close_interaction(context)
@@ -355,9 +366,11 @@ class InteractionService:
         self.pending_user_responses.clear()
         self.response_interactions.clear()
         self.tool_interactions.clear()
+        self.decisions.clear()
 
     def _close_interaction(self, context):
         self.closed_interactions.add(context.interaction_id)
+        self.decisions.pop(context.interaction_id, None)
         if self.interaction is context:
             self.interaction = None
         for response_id, item in tuple(self.response_interactions.items()):
@@ -365,14 +378,70 @@ class InteractionService:
                 self.response_interactions.pop(response_id, None)
 
     async def _handle_tool(self, name, arguments, metadata=None):
-        interaction = self._response_interaction(metadata or {})
-        try:
-            return await self.handle_tool(name, arguments, interaction=interaction)
-        finally:
-            if name == "run_task" and interaction is not None:
-                self._close_interaction(interaction)
-            elif interaction is not None and (metadata or {}).get("call_id"):
-                self.tool_interactions[metadata["call_id"]] = interaction
+        metadata = metadata or {}
+        interaction = self._response_interaction(metadata)
+        if name == "run_task" and interaction is None:
+            return {"status": "failed", "message": "此请求已被打断或结束，未启动任务"}
+        advice = self.decisions.get(interaction.interaction_id) if interaction is not None else None
+        if name == "run_task" and advice is not None and advice.exclusion is not None:
+            # The lightweight first-pass decision is advice, not an absolute
+            # veto. If Qwen explicitly called run_task, resolve the conflict
+            # with the stricter query+reply semantic reviewer. This repairs
+            # false negatives such as “关闭计算器” while punctuation, chat and
+            # status questions remain rejected when review is absent or fails.
+            approved = await self._review_explicit_delegation(
+                interaction, str(metadata.get("reply") or ""))
+            if approved:
+                result = await self.handle_tool(
+                    name, arguments, interaction=interaction)
+            else:
+                result = {
+                    "status": "not_delegated", "reason": advice.exclusion,
+                    "message": ("本轮决策认为是已有任务的进度询问。请调用 task_status 后自然回答。"
+                                if advice.exclusion == "status" else
+                                "本轮决策认为是聊天或澄清，未创建新任务。请自然回应或询问用户。"),
+                }
+        else:
+            result = await self.handle_tool(name, arguments, interaction=interaction)
+        if name == "run_task" and interaction is not None and result.get("status") in {"accepted", "queued"}:
+            self._close_interaction(interaction)
+        elif interaction is not None and (metadata or {}).get("call_id"):
+            self.tool_interactions[(metadata or {})["call_id"]] = interaction
+        return result
+
+    async def _review_explicit_delegation(self, interaction: InteractionContext,
+                                          reply: str) -> bool:
+        if self.turn_preparer is None or not reply.strip():
+            return False
+        approved = await self.turn_preparer.review_delegation(
+            interaction.user_event.content or "", reply,
+            context=self._decision_context(interaction))
+        return bool(approved and self.interaction is interaction
+                    and interaction.interaction_id not in self.closed_interactions)
+
+    @staticmethod
+    def _decision_context(context: InteractionContext) -> str:
+        # Stable chronological suffix; excludes ephemeral references and old
+        # decision scores. Short confirmations can refer to the last exchange.
+        return "\n".join(f"{event.role}: {event.content}" for event in context.prior_messages[-8:]
+                         if event.content)[-2400:]
+
+    def _store_decision(self, context: InteractionContext, report: dict[str, object]) -> None:
+        advice = DecisionAdvice.from_payload(report.get("jev"))
+        if advice is not None:
+            self.decisions[context.interaction_id] = advice
+
+    async def _review_delegation(self, response_id: str, reply: str) -> bool:
+        context = self._response_interaction({"response_id": response_id})
+        if context is None or self.turn_preparer is None:
+            return False
+        advice = self.decisions.get(context.interaction_id)
+        if advice is None or advice.exclusion is not None:
+            return False
+        approved = await self.turn_preparer.review_delegation(
+            context.user_event.content or "", reply, context=self._decision_context(context))
+        # A new utterance may have interrupted while the model was reviewing.
+        return bool(approved and self._response_interaction({"response_id": response_id}) is context)
 
     async def deliver_notification(self, item):
         if not self.is_connected:
@@ -397,6 +466,8 @@ class InteractionService:
         except asyncio.CancelledError:
             pass
         except Exception as exc:
+            if self.voice is not voice:
+                return
             self.connection_error = exc
             message = str(exc) or "语音连接失败"
             reconnect = (
@@ -414,15 +485,16 @@ class InteractionService:
             else:
                 self.events.emit("voice.error", error=message)
         finally:
-            self._clear_response_tracking()
             if self.voice is voice:
+                self._clear_response_tracking()
                 self.voice = None
                 self.connection_microphone = False
-            if reconnect:
-                self._schedule_voice_reconnect()
-            elif microphone:
-                self.events.emit("voice.off", voice="off", speaking=False,
-                                 user_speaking=False)
+                if reconnect:
+                    self._schedule_voice_reconnect()
+                elif microphone:
+                    self.voice_requested = False
+                    self.events.emit("voice.off", voice="off", speaking=False,
+                                     user_speaking=False)
 
     def _schedule_voice_reconnect(self):
         if self.reconnect_task and not self.reconnect_task.done():
@@ -481,6 +553,12 @@ class InteractionService:
             except TimeoutError:
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
+        # A detached text-only connection does not publish voice.off in _run.
+        # The explicit stop owns its terminal state, after resources are closed.
+        if self.voice is None:
+            self._clear_response_tracking()
+            self.events.emit("voice.off", voice="off", speaking=False,
+                             user_speaking=False)
 
     async def close(self):
         await self.stop()

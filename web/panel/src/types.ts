@@ -119,6 +119,8 @@ export interface RuntimeState {
   assistant_text?: string;
   task_id?: string;
   task_started_at?: number;
+  task_goal?: string;
+  task_queue?: { task_id: string; goal: string }[];
   task_ended_at?: number;
   task_activity_at?: number;
   notification_id?: string;
@@ -142,6 +144,8 @@ export interface Avatar {
   description?: string;
 }
 export interface AvatarSnapshot {
+  tasks_expanded?: boolean;
+  tasks_pinned?: boolean;
   appearance?: string;
   appearance_ready?: boolean;
   appearance_error?: string;

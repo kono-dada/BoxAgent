@@ -65,6 +65,9 @@ async def main(voice_wav: Path | None = None) -> None:
             ("别放音乐了，我准备睡觉。", "", "rest"),
             ("请帮我打开计算器。", "意图参考 P(action)=0.6；由你决定 run_task。", "action"),
         ]
+        progress_case = json.loads((Path(__file__).resolve().parents[2]
+                                   / "tests/fixtures/voice_task_progress.json").read_text())
+        rows.append((progress_case["user_query"], "", progress_case["id"]))
         for index, (query, evidence, kind) in enumerate(rows):
             while session.response_active or not session.results.empty():
                 await asyncio.sleep(.05)
@@ -87,7 +90,8 @@ async def main(voice_wav: Path | None = None) -> None:
         report = {"cases": results, "snapshot": snapshot,
                   "checks": {"name_retained": "小芽" in results[1]["reply"],
                              "chat_did_not_run_task": not any(r["calls"] for r in results[:4]),
-                             "action_called_tool": "run_task" in results[-1]["calls"],
+                             "action_called_tool": "run_task" in results[-2]["calls"],
+                             "progress_chat_did_not_run_task": not results[-1]["calls"],
                              "one_reference": sum(e["category"] == "reference" for e in snapshot["entries"]) <= 1,
                              "deletion_ack": snapshot["delete_ack_count"] >= 1}}
         (directory / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))

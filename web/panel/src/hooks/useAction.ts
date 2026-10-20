@@ -57,6 +57,7 @@ const states: Record<string, string> = {
   failed: '失败',
   cancelled: '已停止',
   blocked: '受阻',
+  needs_input: '待补充',
   connected: '已连接',
   disconnected: '未连接',
   listening: '聆听中',

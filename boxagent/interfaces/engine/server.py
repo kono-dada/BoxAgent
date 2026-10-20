@@ -155,8 +155,9 @@ class EngineServer:
                 str(params.get("session_id") or ""), after_seq=int(params.get("after_seq", 0)),
                 limit=int(params.get("limit", 150)))
         if method == "cancel_task":
-            await self.application.cancel_task()
-            return self.application.last_result
+            return await self.application.cancel_task()
+        if method == "cancel_all_tasks":
+            return await self.application.cancel_all_tasks()
         if method == "answer_approval":
             await self.application.answer_approval(bool(params.get("allowed")))
             return {"status": "succeeded"}

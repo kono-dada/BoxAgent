@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { PetFrame } from "../types";
+import { useWindowDrag } from "../hooks/useWindowDrag";
 import "./pet.css";
 function Pet() {
   const [frame, setFrame] = useState<PetFrame | null>(null);
-  const iframe = useRef<HTMLIFrameElement>(null),
-    dragging = useRef(false);
+  const iframe = useRef<HTMLIFrameElement>(null);
+  const drag = useWindowDrag(window.boxagent);
   function command(method: string, value?: unknown) {
     if (frame)
       iframe.current?.contentWindow?.postMessage(
@@ -39,22 +40,10 @@ function Pet() {
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
   }, [frame?.url]);
-  function drag(event: PointerEvent, phase: string) {
-    if (phase === "start") {
-      if (event.button !== 0) return;
-      dragging.current = true;
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } else if (!dragging.current) return;
-    window.boxagent.desktopAction("drag", phase);
-    if (phase === "end") dragging.current = false;
-  }
   return (
     <div
       className="pet-hit"
-      onPointerDown={(event) => drag(event, "start")}
-      onPointerMove={(event) => drag(event, "move")}
-      onPointerUp={(event) => drag(event, "end")}
-      onPointerCancel={(event) => drag(event, "end")}
+      {...drag}
       onContextMenu={(event) => {
         event.preventDefault();
         window.boxagent.desktopAction("context-menu");

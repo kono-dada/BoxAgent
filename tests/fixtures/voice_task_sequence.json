@@ -1,0 +1,25 @@
+{
+  "id": "FIX-03-second-task-after-interruptions",
+  "origin": "User-reported 2026-10-12 dialogue; controlled provider event replay",
+  "turns": [
+    {"query": "哎，我操，操作本地计算器啊，算个数，呃，十加十等于多少？太简单了。", "reply": "好，我去操作本地计算器。", "reply_source": "Synthetic task acceptance; execution is held by the test"},
+    {"query": "快吗？", "reply": "", "reply_source": "Response interrupted before completion"},
+    {"query": "如果你用Z V的话。", "reply": "你说的 Z V 是指什么？", "reply_source": "Synthetic clarification without an operation request"},
+    {"query": "啊，打开科学计算器，计算二的五次方加上根号四四十二。", "reply": "刚才后台没成功解析，我重新来。打开科学计算器，算2的5次方加根号42。", "reply_source": "User-reported actual reply; run_task omitted"},
+    {"query": "哎，有可能出问题了。", "reply": "别急，我这就去盯着计算器。要是卡住了马上告诉你。", "reply_source": "User-reported actual reply"},
+    {"query": "有可能出问题了，别急。哈哈哈", "reply": "当然可以，后台正在处理计算器的操作，你随时可以继续和我聊。", "reply_source": "Actual reply from the subsequent 2026-10-13 regression; deliberately combined as a stress variant"}
+  ],
+  "schedule": [
+    "Keep the first executor running through speed and model discussion",
+    "Interrupt the speed response before or after its response.created acknowledgement",
+    "Finish the old task while the science query reference is being prepared",
+    "Deliver the old tool result and completion notification during that preparation",
+    "Omit run_task from the science reply, then inject a late real call after host repair",
+    "Keep the science executor running through two follow-up interruptions"
+  ],
+  "expected": {
+    "task_turn_indices": [0, 3],
+    "task_count": 2,
+    "pending_task_count": 0
+  }
+}

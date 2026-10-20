@@ -1,0 +1,11 @@
+{
+  "id": "FIX-04-native-mcp-observations",
+  "origin": "2026-10-13 task 48e95d9ca902; UI excerpts sanitized, App Server envelopes follow the installed protocol schema",
+  "goal": "打开音乐。",
+  "calls": [
+    {"id": "native-state", "tool": "get_app_state", "arguments": {"app": "Music"}, "text": "Window: 音乐.\n0 表单\n1 text 自动过渡已打开\n2 按钮 好"},
+    {"id": "native-dismiss", "tool": "click", "arguments": {"app": "Music", "element_index": "2"}, "text": "Window: 音乐.\n主页，边栏与迷你播放器正常显示。"}
+  ],
+  "reported_result": {"outcome": "completed", "summary": "音乐 App 已打开；自动过渡提示已关闭。", "evidence_steps": [1, 2]},
+  "original_failure": {"error_code": "invalid_evidence", "detail": "后台结果引用了不存在的观察记录：[1, 2]；实际步骤：[]"}
+}

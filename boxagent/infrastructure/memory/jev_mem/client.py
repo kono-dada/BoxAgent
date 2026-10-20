@@ -56,9 +56,9 @@ class JevMemWorker:
                 env["TYPESAFE_BASE_URL"] = self.decision_base_url
             if self.decision_model:
                 env["TYPESAFE_DEFAULT_MODEL"] = self.decision_model
-        elif self.backend == "jev":
+        elif self.backend == "jev" or (self.backend == "auto" and self.command is None):
             raise MemoryUnavailable(
-                "BOXAGENT_JEV_MEM_BACKEND=jev 时需要决策模型密钥"
+                "长期记忆需要决策模型密钥"
                 "（DASHSCOPE_API_KEY + 工作空间，或 TYPESAFE_API_KEY）")
         env.update(PYTHONUNBUFFERED="1", TOKENIZERS_PARALLELISM="false")
         return env

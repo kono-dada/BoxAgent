@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 
@@ -44,6 +45,7 @@ class RuntimeRequest:
     history: tuple[RuntimeMessage, ...] = ()
     history_delta: tuple[RuntimeMessage, ...] = ()
     evidence_context: str = ""
+    result_evidence: Callable[[], str] | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True)

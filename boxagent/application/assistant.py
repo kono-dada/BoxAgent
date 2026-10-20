@@ -19,6 +19,7 @@ from boxagent.domain.memory.contracts import MemoryUnavailable
 from boxagent.domain.perception.service import PerceptionService
 from boxagent.domain.execution.service import ExecutionService
 from boxagent.domain.interaction.service import InteractionService
+from boxagent.domain.interaction.delegation import delegation_exclusion
 from boxagent.domain.notification import NotificationOutbox
 
 
@@ -272,8 +273,11 @@ class BoxAgentApplication:
     async def answer_approval(self, allowed):
         await self.execution_service.answer_approval(allowed)
 
-    async def cancel_task(self):
-        await self.execution_service.cancel()
+    async def cancel_task(self) -> dict[str, object]:
+        return await self.execution_service.cancel()
+
+    async def cancel_all_tasks(self) -> dict[str, object]:
+        return await self.execution_service.cancel_all()
 
     async def stop_voice(self):
         await self.interaction_service.stop()
@@ -286,7 +290,8 @@ class BoxAgentApplication:
 
     async def _context_events(self, session_id):
         """Prefer the live ledger; fall back to trace reconstruction for old Sessions."""
-        events = await asyncio.to_thread(self.context_ledger.read, session_id)
+        events = (await asyncio.to_thread(self.context_ledger.read, session_id)
+                  if self.context_ledger is not None else [])
         if events or self.context_history is None:
             return events, "ledger"
         return (await asyncio.to_thread(self.context_history.read, session_id),
@@ -411,8 +416,11 @@ class BoxAgentApplication:
 
     async def _run_skill_draft_job(self, draft_id, *, request, session_id,
                                    interaction_id, task_context):
+        authoring = self.skill_authoring
         try:
-            result = await self.skill_authoring.prepare(
+            if authoring is None:
+                raise RuntimeError("Skill 草稿服务未配置")
+            result = await authoring.prepare(
                 request, session_id=session_id,
                 interaction_id=interaction_id, task_context=task_context,
                 draft_id=draft_id)
@@ -426,7 +434,8 @@ class BoxAgentApplication:
                 outcome = "not_needed"
                 self.events.emit("skill.draft.not_needed")
         except Exception as exc:
-            self.skill_authoring.fail(draft_id, str(exc))
+            if authoring is not None:
+                authoring.fail(draft_id, str(exc))
             summary = f"Skill 草稿生成失败：{str(exc) or type(exc).__name__}"
             outcome = "failed"
             self.events.emit("skill.draft.failed")
@@ -479,14 +488,24 @@ class BoxAgentApplication:
                 query = (interaction.user_event.content
                          if interaction and interaction.user_event.content
                          else data.get("goal", ""))
+                exclusion = delegation_exclusion(query) if isinstance(query, str) else None
+                if exclusion is not None:
+                    return {
+                        "status": "not_delegated", "reason": exclusion,
+                        "message": ("当前是进度询问，未创建新任务。请调用 task_status 查看真实进度后自然回答。"
+                                    if exclusion == "status" else
+                                    "当前是聊天或未明确的请求，未创建新任务。请自然回应或询问用户想做什么。"),
+                    }
                 accepted = await self.execution_service.start(
                     query, interaction=interaction)
                 return accepted
             if name == "cancel_task":
-                await self.execution_service.cancel()
-                return self.execution_service.last_result
+                return await self.cancel_task()
+            if name == "cancel_all_tasks":
+                return await self.cancel_all_tasks()
             if name == "task_status":
-                return {**self.execution_service.last_result, "progress": self.state.task_text}
+                return {**self.execution_service.last_result, "progress": self.state.task_text,
+                        "task_queue": self.state.task_queue}
             if name == "remember_memory":
                 return await self.memory.remember(
                     data["content"], source="voice_explicit",

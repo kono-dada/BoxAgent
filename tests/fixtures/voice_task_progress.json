@@ -1,0 +1,26 @@
+{
+  "id": "FIX-03-progress-is-not-a-new-task",
+  "origin": "2026-10-13 real AOQ and DeepSeek/Codex Runtime verification",
+  "active_goal": "打开本地计算器，计算十加十，确认结果。只操作计算器。",
+  "user_query": "趁后台在做，你回答一句就好：我可以继续和你聊吗？不要操作或取消任务。",
+  "observed_reply": "当然可以，后台正在处理计算器的操作，你随时可以继续和我聊。",
+  "progress_variants": [
+    "任务已经开始处理了，你可以继续聊天。",
+    "我正在处理刚才的任务，你说就好。"
+  ],
+  "recorded_status_case": {
+    "origin": "2026-10-13 task 79e35feea482; chat was incorrectly queued during calculator task d8f9be7513d3",
+    "user_query": "你现在在干嘛呢？",
+    "observed_reply": "正在帮你打开计算器。",
+    "variants": [
+      "我正在帮你播放音乐。",
+      "我现在还在帮你打开计算器。",
+      "已经帮你打开计算器了。"
+    ]
+  },
+  "expected": {
+    "new_task_count": 0,
+    "existing_task_continues": true,
+    "chat_finalizes": true
+  }
+}

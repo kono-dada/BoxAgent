@@ -73,11 +73,36 @@ function presentation(state) {
   if (state.task === "succeeded") return "success";
   return state.voice === "ready" ? "listening" : "idle";
 }
+function taskFrame(anchor, area, expanded) {
+  const width = Math.min(expanded ? 320 : 248, area.width - 16);
+  const height = Math.min(expanded ? 280 : 54, area.height - 16);
+  const left = anchor.x - width - 12;
+  return clampFrame({
+    x: left >= area.x + 8 ? left : anchor.x + anchor.width + 12,
+    y: anchor.y,
+    width, height,
+  }, { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
+}
+function linkedFrames(bubble, tasks, area) {
+  const [chat, panel] = clampFrames([bubble, tasks], area);
+  return { bubble: chat, tasks: panel };
+}
+function clampFrames(frames, area) {
+  const x = Math.min(...frames.map(frame => frame.x)), y = Math.min(...frames.map(frame => frame.y));
+  const group = clampFrame({ x, y,
+    width: Math.max(...frames.map(frame => frame.x + frame.width)) - x,
+    height: Math.max(...frames.map(frame => frame.y + frame.height)) - y,
+  }, area);
+  return frames.map(frame => ({ ...frame, x: frame.x + group.x - x, y: frame.y + group.y - y }));
+}
 module.exports = {
   clampFrame,
   petSize,
   validBounds,
   scalePetCrop,
   bubbleFrame,
+  taskFrame,
+  linkedFrames,
+  clampFrames,
   presentation,
 };

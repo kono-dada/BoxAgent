@@ -1,0 +1,46 @@
+html, body, #app { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
+.task-float, .task-chip { border: 1px solid var(--line); background: var(--surface); color: var(--text); box-shadow: 0 8px 24px #00000018; }
+.task-float { position: relative; height: calc(100% - 12px); margin: 6px; border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; }
+.task-float-header { display: flex; flex-shrink: 0; align-items: center; gap: 3px; padding: 9px 10px 7px 16px; cursor: grab; touch-action: none; user-select: none; }
+.task-float-brand { flex: 1; font-size: 12px; font-weight: 500; color: var(--secondary); }
+.task-float-brand > span { margin-left: 5px; color: var(--muted); font-size: 10px; font-weight: 400; }
+.task-pin-indicator { color: var(--muted); font-size: 13px; }
+.task-float-header .icon-button { width: 24px; height: 24px; color: var(--secondary); font-size: 18px; }
+.task-float-header .icon-button:hover { background: var(--hover); }
+.task-actions { display: flex; flex-shrink: 0; align-items: center; gap: 6px; margin: 0 14px; padding-top: 8px; border-top: 1px solid var(--line); }
+.task-actions button { flex: 1; padding: 5px 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--canvas); color: var(--secondary); font-size: 10px; line-height: 1.4; white-space: nowrap; }
+.task-actions button:hover { background: var(--hover); color: var(--text); }
+.task-actions .task-pin-button { flex: 0 0 auto; margin-left: auto; }
+.task-actions button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.task-float-body { flex: 1; min-height: 0; overflow: auto; padding: 0 12px 8px; scrollbar-width: thin; }
+.task-current { display: flex; align-items: center; gap: 9px; min-height: 54px; padding: 9px 10px; border-radius: 9px; background: var(--hover); }
+.task-current-icon { flex: 0 0 16px; font-size: 19px; line-height: 1; text-align: center; color: var(--secondary); }
+.task-current[data-active="true"] .task-current-icon { color: #719fd0; }
+.task-current-copy { flex: 1; min-width: 0; }
+.task-current-copy strong, .task-current-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-current .task-goal { margin: 0; font-size: 12px; font-weight: 500; }
+.task-current .task-progress { margin-top: 2px; color: var(--secondary); font-size: 10px; }
+.task-current-state { flex-shrink: 0; align-self: flex-start; margin-top: 2px; color: var(--secondary); font-size: 9px; }
+.task-float .task-queue { margin: 8px 0 0; border: 0; padding: 0; }
+.task-float .task-queue header { display: flex; justify-content: space-between; padding: 4px 10px; color: var(--muted); font-size: 10px; }
+.task-float .task-queue ol { margin: 0; max-height: none; overflow: visible; }
+.task-float .task-queue li { align-items: center; gap: 10px; padding: 5px 10px; border-radius: 7px; font-size: 12px; }
+.task-float .task-queue li:hover { background: var(--hover); }
+.task-float .queue-position { flex: 0 0 16px; background: transparent; color: var(--muted); }
+.task-float .task-queue li > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-float .approval-card { flex-shrink: 0; margin: 4px 12px 8px; padding: 9px; font-size: 11px; }
+.task-float .approval-card p { margin: 0 0 7px; max-height: 40px; overflow: auto; }
+.task-float .feature-actions { gap: 6px; }
+.task-float .feature-actions .button { flex: 1; min-height: 27px; font-size: 11px; }
+.task-float-footer { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; margin: 0 14px; padding: 7px 2px; font-size: 9px; color: var(--muted); }
+.task-float-footer button { font-size: 10px; color: var(--secondary); }
+.task-float-feedback { flex-shrink: 0; margin: 4px 14px; max-height: 34px; overflow: auto; font-size: 10px; color: var(--secondary); }
+.task-chip { display: flex; align-items: center; margin: 6px; height: calc(100% - 12px); border-radius: 14px; }
+.task-chip-grip { padding: 10px 8px; color: var(--muted); cursor: grab; touch-action: none; user-select: none; }
+.task-chip-button { display: flex; align-items: center; flex: 1; gap: 8px; min-width: 0; padding: 9px 12px 9px 0; border: 0; background: transparent; font-size: 12px; }
+.task-chip-button strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-chip-dot { flex: 0 0 6px; height: 6px; border-radius: 50%; background: var(--secondary); }
+.task-chip[data-active="true"] .task-chip-dot { background: #719fd0; box-shadow: 0 0 0 3px #719fd018; }
+.task-chip[data-attention="true"] .task-chip-dot { background: var(--warning); }
+.task-chip-count { margin-left: auto; padding: 1px 7px; border-radius: 6px; background: var(--surface); color: var(--secondary); font-size: 10px; white-space: nowrap; }
+.task-chip-arrow { margin-left: auto; color: var(--secondary); }
