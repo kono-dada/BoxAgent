@@ -130,6 +130,7 @@ export interface RuntimeState {
   context_app?: string;
   context_at?: number;
   voice?: string;
+  camera_status?: 'off' | 'starting' | 'waiting' | 'active' | 'error';
   task?: string;
   task_text?: string;
   approval?: string;
@@ -143,7 +144,14 @@ export interface Avatar {
   name: string;
   description?: string;
 }
+export interface CameraSnapshot {
+  status: 'off' | 'starting' | 'on';
+  error: string;
+}
 export interface AvatarSnapshot {
+  displays?: { id: string; label: string; primary: boolean }[];
+  pet_display_id?: string;
+  separate_windows?: boolean;
   tasks_expanded?: boolean;
   tasks_pinned?: boolean;
   appearance?: string;
@@ -184,6 +192,7 @@ export interface RunData {
 export interface PanelBridge extends Bridge {
   errors(): Promise<RecordData[]>;
   onState(callback: (state: RuntimeState) => void): () => void;
+  onCamera(callback: (state: CameraSnapshot) => void): () => void;
   onEvent(
     callback: (event: { type: string; state?: RuntimeState }) => void,
   ): () => void;

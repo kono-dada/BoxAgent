@@ -59,3 +59,25 @@ test('an operation already sent is rejected on disconnect rather than replayed',
     assert.equal(requests, 1); assert.equal(client.pending.size, 0);
   } finally { client.close(); await new Promise(resolve => server.close(resolve)); }
 });
+
+test('voice startup waits beyond normal RPC timeout and preserves provider errors', async () => {
+  const socket = path.join(os.tmpdir(), `boxagent-panel-voice-${process.pid}.sock`);
+  const requests = [];
+  const server = net.createServer(connection => connection.on('data', chunk => {
+    for (const line of String(chunk).trim().split('\n')) {
+      const request = JSON.parse(line); requests.push(request.method);
+      if (request.method === 'state') continue;
+      setTimeout(() => connection.write(JSON.stringify({id: request.id, ok: false, error: 'AOQ 服务器连接超时'}) + '\n'), 40);
+    }
+  }));
+  await new Promise(resolve => server.listen(socket, resolve));
+  const client = new EngineClient(socket, {requestTimeout: 10, voiceTimeout: 200});
+  try {
+    client.connect();
+    await assert.rejects(client.request('state'), /Engine 响应超时/);
+    for (const method of ['toggle_voice', 'camera_start'])
+      await assert.rejects(client.request(method), /^Error: AOQ 服务器连接超时$/);
+    assert.deepEqual(requests, ['state', 'toggle_voice', 'camera_start']);
+    assert.equal(client.pending.size, 0);
+  } finally { client.close(); await new Promise(resolve => server.close(resolve)); }
+});

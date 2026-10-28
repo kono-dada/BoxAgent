@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from boxagent.core.events import StateEvents
+from boxagent.application.camera import CameraInteractionService
 from boxagent.application.memory import DisabledMemoryModule
 from boxagent.application.skill_authoring import (
     has_explicit_skill_authorization,
@@ -33,6 +34,7 @@ class BoxAgentApplication:
                  notification_outbox=None, context_ledger=None,
                  context_observer=None, context_history=None, turn_preparer=None):
         self.events = StateEvents(publish)
+        self.camera: CameraInteractionService | None = None
         self.conversation_service = conversation_service or ConversationService()
         self.notification_outbox = notification_outbox or NotificationOutbox()
         self.execution_service = ExecutionService(
@@ -597,6 +599,8 @@ class BoxAgentApplication:
     async def close(self):
         if self._closed:
             return
+        if self.camera is not None:
+            await self.camera.close()
         await self.perception_service.close()
         await self.execution_service.close()
         for job in tuple(self.skill_jobs):

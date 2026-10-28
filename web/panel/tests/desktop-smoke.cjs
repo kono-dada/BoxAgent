@@ -149,6 +149,12 @@ const js = async (window, source) => {
   try { return await window.webContents.executeJavaScript(source); }
   catch (error) { throw new Error(`Renderer script failed (${window.webContents.getURL()}): ${source}`, { cause: error }); }
 };
+const footerFits = `(() => {
+  const buttons = [...document.querySelectorAll('.companion-footer button')].map(button => button.getBoundingClientRect());
+  return buttons.length === 3 && buttons.every((rect, i) =>
+    rect.left >= 8 && rect.right <= innerWidth - 8 && rect.bottom <= innerHeight &&
+    buttons.slice(i + 1).every(other => rect.right <= other.left || other.right <= rect.left || rect.bottom <= other.top || other.bottom <= rect.top));
+})()`;
 const dragBy = async (window, dx, dy, inspect = () => {}) => {
   const bounds = window.getBounds(), start = { x: bounds.x + 24, y: bounds.y + 24 };
   const point = { x: start.x + dx, y: start.y + dy };
@@ -204,6 +210,12 @@ server.listen(path.join(data, "engine.sock"), () => {
         w.webContents.getURL().endsWith("/companion.html"),
       );
       await wait(() => pet.isVisible(), "VRM ready and committed");
+      if (process.argv.includes('--displays')) {
+        await require('./desktop-display-smoke.cjs').run({ pet, bubble, js, wait, dragBy, emit });
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
       if (preview) {
         events = [
           {event_id:'preview-user',type:'message.final',role:'user',content:'帮我收藏这首歌，后面再打开计算器。'},
@@ -390,7 +402,8 @@ server.listen(path.join(data, "engine.sock"), () => {
             return rect.right <= innerWidth - 8 && rect.bottom <= footer.top;
           });
       })()`), 'approval controls remain visible in compact panel');
-      assert.equal(await js(bubble, "document.querySelectorAll('.companion-header .icon-button').length"), 2, 'chat keeps console and close controls');
+      assert.deepEqual(await js(bubble, "Array.from(document.querySelectorAll('.companion-header .icon-button'), button => button.getAttribute('aria-label'))"),
+        ['小人显示屏', '打开伙伴控制台', '收起对话'], 'chat keeps display, console and close controls');
       assert.equal(await js(tasks, "Boolean(document.querySelector('.task-menu'))"), false, 'task controls are direct buttons');
       await js(tasks, "document.querySelector('.task-actions [aria-pressed]').click()");
       await wait(() => js(tasks, "document.querySelector('[aria-pressed]').getAttribute('aria-pressed')==='true'"), 'task pin');
@@ -576,7 +589,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       assert(
         await js(
           bubble,
-          "document.querySelector('.companion-composer button').getBoundingClientRect().bottom < innerHeight && document.querySelector('.companion-footer').getBoundingClientRect().bottom <= innerHeight && document.querySelector('.companion-session-button').getBoundingClientRect().right <= innerWidth - 8 && document.querySelector('.companion-shortcut').getBoundingClientRect().right <= document.querySelector('.companion-session-button').getBoundingClientRect().left",
+          "document.querySelector('.companion-composer button').getBoundingClientRect().bottom < innerHeight && document.querySelector('.companion-footer').getBoundingClientRect().bottom <= innerHeight && " + footerFits,
         ),
         "composer and voice fit",
       );
@@ -680,7 +693,7 @@ server.listen(path.join(data, "engine.sock"), () => {
         "new session excludes old history",
       );
       await js(bubble, "boxagent.desktopAction('dismiss-feedback')");
-      await wait(() => bubble.getBounds().height < 340, "empty chat shrinks");
+      await wait(() => beforeCompact.chat.height - bubble.getBounds().height > 100, "empty chat shrinks with the current footer controls");
       await new Promise(resolve => setTimeout(resolve, 200));
       const compactChat = bubble.getBounds(), compactPet = pet.getBounds();
       const avatarGap = compactPet.y - compactChat.y - compactChat.height;
@@ -720,7 +733,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       assert(
         await js(
           bubble,
-          "document.querySelector('.companion-session-button').getBoundingClientRect().right <= innerWidth - 8 && document.querySelector('.companion-shortcut').getBoundingClientRect().right <= document.querySelector('.companion-session-button').getBoundingClientRect().left",
+          footerFits,
         ),
         "Chinese footer buttons fit",
       );

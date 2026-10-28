@@ -58,6 +58,11 @@ class Snapshot:
     notification_id: str = ""
     notification_text: str = ""
     notification_unread: bool = False
+    camera_status: str = "off"
+    camera_error: str = ""
+    camera_frame_at: float = 0
+    camera_frames_sent: int = 0
+    voice_input_level: float = -1
     revision: int = 0
 
     def payload(self):

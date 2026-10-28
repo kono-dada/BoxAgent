@@ -127,6 +127,18 @@ class EngineServer:
                     "protocol_version": PROTOCOL_VERSION}
         if method == "state":
             return self.application.state.payload()
+        if method in {"camera_start", "camera_frame", "camera_stop"}:
+            camera = self.application.camera
+            if camera is None:
+                raise ValueError("Camera feature unavailable in this Engine")
+            if method == "camera_start":
+                return await camera.start()
+            if method == "camera_stop":
+                token = params.get("token")
+                if not isinstance(token, str):
+                    raise ValueError("Camera token required")
+                return await camera.stop(token)
+            return await camera.send_frame(params)
         if method == "toggle_context":
             await self.application.toggle_context()
             return {"status": "succeeded"}

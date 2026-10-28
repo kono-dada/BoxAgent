@@ -85,6 +85,7 @@ def create_voice_factory(app_settings, *, persona=None,
             "BOXAGENT_QWEN_TRANSPORT 只支持 auto、aoq 或 websocket")
     session_class = QwenRealtimeSession
     transport_options = {}
+    output_device = getattr(app_settings, "aoq_output_device", "")
     if transport != "websocket":
         available, reason = aoq_preflight(
             sdk_dir=app_settings.aoq_sdk_dir,
@@ -97,6 +98,8 @@ def create_voice_factory(app_settings, *, persona=None,
                 "sdk_dir": app_settings.aoq_sdk_dir,
                 "work_dir": app_settings.aoq_work_dir,
             }
+            if output_device:
+                transport_options["output_device"] = output_device
             qwen_trace("transport.selected", transport="aoq")
         else:
             qwen_trace(
@@ -104,6 +107,18 @@ def create_voice_factory(app_settings, *, persona=None,
                 selected="websocket", reason=reason)
     else:
         qwen_trace("transport.selected", transport="websocket")
+
+    if session_class is QwenRealtimeSession:
+        if output_device:
+            raise ValueError("独立扬声器配置需要 AOQ；未回退到系统默认音频输出")
+        proxy = getattr(app_settings, "qwen_websocket_proxy", "auto")
+        if proxy not in {"auto", "direct"}:
+            raise ValueError("BOXAGENT_QWEN_WEBSOCKET_PROXY 只支持 auto 或 direct")
+        transport_options["websocket_proxy"] = None if proxy == "direct" else True
+        if app_settings.qwen_workspace_id:
+            transport_options["websocket_url"] = (
+                f"wss://{app_settings.qwen_workspace_id}.{app_settings.qwen_region}"
+                f".maas.aliyuncs.com/api-ws/v1/realtime?model={app_settings.voice_model}")
 
     return partial(
         session_class,
@@ -326,6 +341,9 @@ def create_application(publish, *, task_provider=None, task_model=None,
             request_builder.context_assembler.restore_context,
             character_budget=app_settings.qwen_history_character_budget),
     )
+    from boxagent.application.camera import CameraInteractionService
+
+    application.camera = CameraInteractionService(application.events, application.interaction_service)
     application.observer = WindowSummary(
         application.emit, context_interval or 15,
         model=app_settings.perception_model,

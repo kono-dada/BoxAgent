@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 from boxagent.bootstrap.engine import create_voice_factory
 from boxagent.infrastructure.runtimes.qwen.aoq import (
@@ -43,6 +44,9 @@ class FakeNative:
 
     def send(self, message):
         self.sent.append(message)
+
+    def start(self, _token, *, microphone=True, playback=True) -> None:
+        pass
 
     def interrupt(self):
         self.interrupted = True
@@ -118,6 +122,109 @@ class AoqTokenTests(unittest.TestCase):
 
 
 class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_statistics_do_not_extend_handshake_deadline(self) -> None:
+        native = FakeNative()
+        session = AoqRealtimeSession(
+            lambda *_: None, lambda *_a, **_k: None,
+            workspace_id="workspace", sdk_dir="/sdk", work_dir="/work",
+            connect_timeout=.03, native_factory=lambda **_: native,
+            token_client_factory=lambda **_: SimpleNamespace(allocate=lambda _: None))
+
+        async def statistics() -> None:
+            while True:
+                session.events.put_nowait({"type": "_aoq.audio_stats", "bytes": 0})
+                await asyncio.sleep(.002)
+
+        producer = asyncio.create_task(statistics())
+        try:
+            with self.assertRaisesRegex(AoqUnavailable, "AOQ 服务器连接超时"):
+                await asyncio.wait_for(session.run(), .5)
+            self.assertTrue(native.closed)
+            self.assertFalse(session.ready.is_set())
+        finally:
+            producer.cancel()
+            await asyncio.gather(producer, return_exceptions=True)
+
+    async def test_stop_during_handshake_exits_without_waiting_for_network(self) -> None:
+        native = FakeNative()
+        session = AoqRealtimeSession(
+            lambda *_: None, lambda *_a, **_k: None,
+            workspace_id="workspace", sdk_dir="/sdk", work_dir="/work",
+            native_factory=lambda **_: native,
+            token_client_factory=lambda **_: SimpleNamespace(allocate=lambda _: None))
+        task = asyncio.create_task(session.run())
+        try:
+            async with asyncio.timeout(1):
+                while session.transport is None:
+                    await asyncio.sleep(.001)
+            await session.stop()
+            await asyncio.wait_for(task, .2)
+            self.assertTrue(native.closed)
+            self.assertFalse(session.ready.is_set())
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    def test_camera_support_preserves_native_audio_tracks_and_codecs(self):
+        framework = AoqFramework(
+            sdk_dir="/sdk", work_dir="/work", event_callback=lambda _: None)
+        framework.engine = Mock()
+        framework.engine.setAudioEncoderConfig_.return_value = 0
+        framework.engine.setAudioDecoderConfig_.return_value = 0
+        audio_track, data_track = Mock(), Mock()
+        encoder, decoder = Mock(), Mock()
+        connect = Mock()
+        framework._classes = {
+            "AoqConnectConfig": Mock(),
+            "AoqTrackParam": Mock(),
+            "AoqAudioCodecConfig": Mock(),
+        }
+        framework._classes["AoqConnectConfig"].alloc.return_value.init.return_value = connect
+        framework._classes["AoqTrackParam"].alloc.return_value.init.side_effect = [audio_track, data_track]
+        framework._classes["AoqAudioCodecConfig"].alloc.return_value.init.side_effect = [encoder, decoder]
+        token = AoqToken("token", "sid", "fingerprint", (), "workspace-hash")
+
+        self.assertIs(framework._connect_config(token), connect)
+        framework._configure_audio_codecs()
+
+        audio_track.setTrackType_.assert_called_once_with(0)
+        data_track.setTrackType_.assert_called_once_with(2)
+        connect.setPublishTracks_.assert_called_once_with([audio_track, data_track])
+        connect.setSubscribeTracks_.assert_called_once_with([audio_track, data_track])
+        audio_track.setTrackMode_.assert_not_called()
+        for config in (encoder, decoder):
+            config.setTrackType_.assert_called_once_with(0)
+            config.setCodecType_.assert_called_once_with(2)
+            config.setSampleRate_.assert_called_once_with(16000)
+            config.setChannel_.assert_called_once_with(1)
+            config.setBitrate_.assert_called_once_with(32000)
+
+    def test_camera_support_keeps_native_capture_playback_and_read_only_observer(self):
+        framework = AoqFramework(
+            sdk_dir="/sdk", work_dir="/work", event_callback=lambda _: None)
+        framework.engine = Mock()
+        framework.delegate = Mock()
+        for method in ("startAudioCapture_", "startAudioPlayer_",
+                       "enableAudioFrameObserver_audioSource_config_"):
+            getattr(framework.engine, method).return_value = 0
+        framework._classes = {name: Mock() for name in (
+            "AoqAudioCaptureConfig", "AoqAudioPlaybackConfig", "AoqAudioObserverConfig")}
+
+        framework._start_audio_devices()
+
+        capture = framework._classes["AoqAudioCaptureConfig"].alloc.return_value.init.return_value
+        player = framework._classes["AoqAudioPlaybackConfig"].alloc.return_value.init.return_value
+        observer = framework._classes["AoqAudioObserverConfig"].alloc.return_value.init.return_value
+        capture.setIsExternal_.assert_called_once_with(False)
+        player.setIsExternal_.assert_called_once_with(False)
+        framework.engine.startAudioCapture_.assert_called_once_with(capture)
+        framework.engine.startAudioPlayer_.assert_called_once_with(player)
+        observer.setMode_.assert_called_once_with(0)
+        framework.engine.enableAudioFrameObserver_audioSource_config_.assert_called_once_with(
+            True, 3, observer)
+        framework.engine.startVideoCapture_.assert_not_called()
+        framework.engine.muteAudioCapture_.assert_not_called()
+
     def test_qwen_38_waits_through_a_natural_speaking_pause(self):
         turn_detection = MODELS[
             "qwen3.8-omni-flash-realtime"]["turn_detection"]
@@ -127,9 +234,8 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_generated_silence_does_not_mark_playback_started(self):
         states = []
-        framework = object.__new__(AoqFramework)
-        framework._playback_observed = False
-        framework.playback_callback = states.append
+        framework = AoqFramework(sdk_dir="/sdk", work_dir="/work",
+                                 event_callback=lambda _: None, playback_callback=states.append)
 
         class Frame:
             def autoGenMute(self):
@@ -142,9 +248,8 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_real_frame_marks_playback_started_once(self):
         states = []
-        framework = object.__new__(AoqFramework)
-        framework._playback_observed = False
-        framework.playback_callback = states.append
+        framework = AoqFramework(sdk_dir="/sdk", work_dir="/work",
+                                 event_callback=lambda _: None, playback_callback=states.append)
 
         class Frame:
             def autoGenMute(self):
@@ -157,9 +262,7 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_native_playback_observer_does_not_replace_data_track_audio(self):
         chunks = []
-        framework = object.__new__(AoqFramework)
-        framework._playback_observed = False
-        framework.playback_callback = lambda _active: None
+        framework = AoqFramework(sdk_dir="/sdk", work_dir="/work", event_callback=lambda _: None)
         framework.audio_output = SimpleNamespace(append_pcm=chunks.append)
 
         class Pointer:
@@ -229,6 +332,21 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(native.media_enabled, [True])
         session.inject_history.assert_awaited_once_with()
         self.assertTrue(session.ready.is_set())
+        self.assertFalse(session.audio_input_ready.is_set(),
+                         'handshake alone is not evidence that audio reached the model')
+
+    async def test_native_stats_are_metadata_not_proof_of_speech(self):
+        traces = []
+        session = AoqRealtimeSession(
+            lambda *_args: None, lambda *_args, **_kwargs: None,
+            workspace_id="workspace", sdk_dir="/sdk", work_dir="/work",
+            trace=lambda kind, **payload: traces.append((kind, payload)))
+        await session.receive({"type": "_aoq.audio_stats", "bytes": 1280,
+                               "bitrate": 32000, "encode_volume": 0})
+        self.assertEqual(traces[-1][0], "transport.audio_publish")
+        self.assertEqual(traces[-1][1]["bytes"], 1280)
+        self.assertFalse(session.audio_input_ready.is_set())
+        self.assertFalse(session.user_speaking)
 
     async def test_notification_receipt_survives_media_data_track_race(self):
         receipts = []
@@ -296,6 +414,36 @@ class AoqFactoryTests(unittest.TestCase):
                 root, aoq_sdk_dir=sdk, qwen_workspace_id="workspace"))
         self.assertIs(factory.func, AoqRealtimeSession)
         self.assertEqual(factory.keywords["workspace_id"], "workspace")
+
+    def test_websocket_direct_is_explicit_and_scoped_to_qwen(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            settings = self._settings(Path(temporary), qwen_transport='websocket',
+                qwen_websocket_proxy='direct', qwen_workspace_id='workspace',
+                voice_model='qwen3.8-omni-flash-realtime')
+            factory = create_voice_factory(settings)
+        self.assertIsNone(factory.keywords['websocket_proxy'])
+        self.assertTrue(factory.keywords['websocket_url'].startswith('wss://workspace.cn-beijing.maas.aliyuncs.com/'))
+
+    def test_explicit_output_device_reaches_aoq_but_cannot_silently_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sdk = root / "sdk"
+            (sdk / "AoqClientSdk.framework").mkdir(parents=True)
+            (sdk / "PluginOpus.framework").mkdir()
+            settings = self._settings(root, aoq_sdk_dir=sdk, qwen_workspace_id="workspace",
+                                      aoq_output_device="Display")
+            factory = create_voice_factory(settings)
+            self.assertEqual(factory.keywords["output_device"], "Display")
+            settings.qwen_transport = "websocket"
+            with self.assertRaisesRegex(ValueError, "未回退"):
+                create_voice_factory(settings)
+
+    def test_websocket_auto_keeps_proxy_discovery_and_rejects_typos(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            settings = self._settings(Path(temporary), qwen_transport='websocket')
+            self.assertIs(create_voice_factory(settings).keywords['websocket_proxy'], True)
+            settings.qwen_websocket_proxy = 'typo'
+            with self.assertRaises(ValueError): create_voice_factory(settings)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,92 @@ from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
 
 
 class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
+    async def test_voice_startup_timeout_cleans_up_before_retry(self) -> None:
+        voices = []
+
+        class Voice:
+            def __init__(self) -> None:
+                self.ready = asyncio.Event()
+                self.closed = asyncio.Event()
+                voices.append(self)
+
+            async def run(self) -> None:
+                if len(voices) > 1:
+                    await asyncio.sleep(.03)
+                    self.ready.set()
+                await self.closed.wait()
+
+            async def stop(self) -> None:
+                self.closed.set()
+
+        events = StateEvents(lambda _event: None)
+        service = InteractionService(events, lambda *_a, **_k: Voice(), None,
+                                     connection_timeout=.02)
+        try:
+            with self.assertRaisesRegex(TimeoutError, "千问语音连接超时"):
+                await service.toggle()
+            self.assertTrue(voices[0].closed.is_set())
+            self.assertFalse(service.is_connected)
+            self.assertFalse(service.voice_requested)
+            self.assertEqual(events.state.voice, "off")
+            service.connection_timeout = .2
+            await service.toggle()
+            self.assertTrue(service.is_connected)
+            self.assertTrue(voices[1].ready.is_set())
+        finally:
+            await service.close()
+
+    async def test_voice_startup_failure_does_not_launch_background_reconnect(self) -> None:
+        class Voice:
+            ready = asyncio.Event()
+            stop = AsyncMock()
+
+            async def run(self) -> None:
+                raise RuntimeError("AOQ 连接失败")
+
+        service = InteractionService(StateEvents(lambda _event: None),
+                                     lambda *_a, **_k: Voice(), None, reconnect_delays=(0,))
+        with self.assertRaisesRegex(RuntimeError, "AOQ 连接失败"):
+            await service.toggle()
+        self.assertIsNone(service.reconnect_task)
+        self.assertFalse(service.is_connected)
+        self.assertFalse(service.voice_requested)
+
+    async def test_existing_call_retries_after_one_reconnect_startup_failure(self) -> None:
+        voices = []
+        disconnected = asyncio.Event()
+
+        class Voice:
+            def __init__(self) -> None:
+                self.index = len(voices)
+                self.ready, self.closed = asyncio.Event(), asyncio.Event()
+                voices.append(self)
+
+            async def run(self) -> None:
+                if self.index == 1:
+                    raise RuntimeError("AOQ 连接失败")
+                self.ready.set()
+                if self.index == 0:
+                    await disconnected.wait()
+                    raise RuntimeError("AOQ 语音连接已断开")
+                await self.closed.wait()
+
+            async def stop(self) -> None:
+                self.closed.set()
+
+        service = InteractionService(StateEvents(lambda _event: None),
+                                     lambda *_a, **_k: Voice(), None, reconnect_delays=(0, 0))
+        try:
+            await service.toggle()
+            disconnected.set()
+            async with asyncio.timeout(1):
+                while len(voices) < 3 or not voices[2].ready.is_set():
+                    await asyncio.sleep(.001)
+            self.assertTrue(service.voice_requested)
+            self.assertTrue(service.is_connected)
+        finally:
+            await service.close()
+
     async def test_task_terminal_does_not_skip_unseen_qwen_chat(self):
         with tempfile.TemporaryDirectory() as directory:
             conversation = ConversationService(JsonlSessionStore(Path(directory)))

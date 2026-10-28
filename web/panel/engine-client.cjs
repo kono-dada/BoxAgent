@@ -2,9 +2,10 @@ const net = require('node:net');
 const { EventEmitter } = require('node:events');
 
 class EngineClient extends EventEmitter {
-  constructor(path, { connectionTimeout = 5000 } = {}) {
+  constructor(path, { connectionTimeout = 5000, requestTimeout = 20000, voiceTimeout = 60000 } = {}) {
     super(); this.path = path; this.pending = new Map(); this.seq = 0;
     this.online = false; this.closed = false; this.waiting = new Set(); this.connectionTimeout = connectionTimeout;
+    this.requestTimeout = requestTimeout; this.voiceTimeout = voiceTimeout;
   }
   connect() {
     if (this.closed || (this.socket && !this.socket.destroyed)) return;
@@ -56,7 +57,12 @@ class EngineClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       if (!this.online || !this.socket || this.socket.destroyed) return reject(new Error('Engine 未连接'));
       const id = String(++this.seq);
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Engine 响应超时')); }, 20000);
+      // Allow the provider's bounded startup and cleanup to report their actual error.
+      const voice = ['toggle_voice', 'camera_start', 'camera_stop', 'submit_text'].includes(method);
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(voice ? '语音会话请求超时，请检查当前连接状态后重试' : 'Engine 响应超时'));
+      }, voice ? this.voiceTimeout : this.requestTimeout);
       this.pending.set(id, { resolve, reject, timer });
       this.socket.write(JSON.stringify({ version: 1, type: 'request', id, method, params }) + '\n');
     });

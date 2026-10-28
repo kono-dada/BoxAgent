@@ -2,6 +2,10 @@
   "include": [
     "boxagent/agent/runtime",
     "boxagent/core/states.py",
+    "boxagent/application/camera.py",
+    "boxagent/domain/perception/camera.py",
+    "boxagent/infrastructure/runtimes/qwen/media.py",
+    "boxagent/infrastructure/audio/output.py",
     "boxagent/domain/context/contracts.py",
     "boxagent/domain/environment",
     "boxagent/domain/execution",

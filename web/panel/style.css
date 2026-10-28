@@ -319,6 +319,7 @@ body[data-view="conversation"] .feature-page { width: 100%; max-width: 1040px; m
 .control-settings > div:last-child { border-bottom: 0; }
 .control-settings h2 { margin-bottom: 4px; }
 .control-settings p { margin: 0; color: var(--secondary); }
+.pet-display-select { max-width: 60%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font: inherit; }
 .context-summary { padding: 12px; background: var(--surface); white-space: pre-wrap; }
 .approval-card { padding: 12px; background: var(--warning-soft); border-radius: 6px; margin-bottom: 12px; }
 .approval-card .button { margin-right: 8px; }
