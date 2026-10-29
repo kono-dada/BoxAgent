@@ -19,6 +19,7 @@ if [ -d "$panel_dir/src" ]; then
                 "$panel_dir/companion.html" \
                 "$panel_dir/pet.html" \
                 "$panel_dir/tasks.html" \
+                "$panel_dir/camera.html" \
                 "$panel_dir/style.css" \
                 "$panel_dir/package.json" \
                 "$panel_dir/tsconfig.json" \

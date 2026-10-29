@@ -25,17 +25,20 @@ test('Windows client reads endpoint and sends token before requests', async () =
           continue;
         }
         const row = JSON.parse(line);
-        connection.write(JSON.stringify({id: row.id, ok: true, result: 'ready'}) + '\n');
+        setTimeout(() => connection.write(JSON.stringify({id: row.id, ok: true, result: 'ready'}) + '\n'),
+          row.method === 'camera_start' ? 40 : 0);
       }
     });
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   fs.writeFileSync(endpoint, JSON.stringify({port: server.address().port, token}));
-  const client = new EngineClient(endpoint, {platform: 'win32'});
+  const client = new EngineClient(endpoint, {platform: 'win32', requestTimeout: 20, voiceTimeout: 200});
   try {
     client.connect();
     assert.equal(await client.request('health'), 'ready');
     assert.equal(lines.length, 2);
+    assert.equal(await client.request('camera_start'), 'ready', 'Windows camera startup also uses the longer voice budget');
+    assert.equal(lines.length, 3);
   } finally {
     client.close();
     await new Promise(resolve => server.close(resolve));
@@ -105,5 +108,27 @@ test('an operation already sent is rejected on disconnect rather than replayed',
   try {
     client.connect(); await assert.rejects(client.request('submit_text'), /Engine 已断开/);
     assert.equal(requests, 1); assert.equal(client.pending.size, 0);
+  } finally { client.close(); await new Promise(resolve => server.close(resolve)); }
+});
+
+test('voice startup waits beyond normal RPC timeout and preserves provider errors', async () => {
+  const socket = socketPath(`boxagent-panel-voice-${process.pid}.sock`);
+  const requests = [];
+  const server = net.createServer(connection => connection.on('data', chunk => {
+    for (const line of String(chunk).trim().split('\n')) {
+      const request = JSON.parse(line); requests.push(request.method);
+      if (request.method === 'state') continue;
+      setTimeout(() => connection.write(JSON.stringify({id: request.id, ok: false, error: 'AOQ 服务器连接超时'}) + '\n'), 40);
+    }
+  }));
+  await new Promise(resolve => server.listen(socket, resolve));
+  const client = new EngineClient(socket, {requestTimeout: 10, voiceTimeout: 200, platform: 'darwin'});
+  try {
+    client.connect();
+    await assert.rejects(client.request('state'), /Engine 响应超时/);
+    for (const method of ['toggle_voice', 'camera_start'])
+      await assert.rejects(client.request(method), /^Error: AOQ 服务器连接超时$/);
+    assert.deepEqual(requests, ['state', 'toggle_voice', 'camera_start']);
+    assert.equal(client.pending.size, 0);
   } finally { client.close(); await new Promise(resolve => server.close(resolve)); }
 });

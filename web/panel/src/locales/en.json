@@ -451,6 +451,9 @@
   "形象加载失败，请在设置中选择其他形象。": "Couldn't load the avatar. Choose another avatar in Settings.",
   "结束语音": "End voice",
   "开启语音": "Start voice",
+  "开启摄像头": "Start camera",
+  "关闭摄像头": "Stop camera",
+  "开启摄像头并开始视频通话": "Turn on the camera and start a video conversation",
   "连接中…": "Connecting…",
   "关闭中…": "Stopping…",
   "用时 {0} 秒": "Took {0} seconds",
@@ -464,5 +467,9 @@
   "取消固定": "Unpin panel",
   "固定面板": "Pin panel",
   "接下来": "Up next",
-  "全部任务": "All tasks"
+  "全部任务": "All tasks",
+  "小人显示屏": "Companion display",
+  "小人与聊天同屏": "Keep companion and chat together",
+  "主屏": "Primary display",
+  "副屏": "Secondary display"
 }

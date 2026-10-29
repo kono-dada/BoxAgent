@@ -345,6 +345,61 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                         finish.set()
                         await app.close()
 
+    async def test_interruption_does_not_cancel_a_pending_response_using_the_previous_id(self):
+        emitted = []
+        session = QwenRealtimeSession(None, lambda kind, **data: emitted.append((kind, data)),
+                                      host_turn_control=True)
+        session.ws = AsyncMock()
+        session.ready.set()
+        await session.receive({"type": "response.created", "response": {"id": "previous"}})
+        await session.receive({"type": "response.done", "response": {"id": "previous"}})
+        session.begin_query("first")
+        first = asyncio.create_task(session._create_response({"kind": "user", "query_id": "first"}))
+        session.preparation_task = first
+        await asyncio.sleep(0)
+        await session.receive({"type": "input_audio_buffer.speech_started"})
+        await asyncio.gather(first, return_exceptions=True)
+        messages = lambda: [json.loads(call.args[0]) for call in session.ws.send.call_args_list]
+        self.assertEqual([row["type"] for row in messages()], ["response.create"])
+        self.assertIsNone(session.response_id)
+
+        session.begin_query("second")
+        second = asyncio.create_task(session._create_response({"kind": "user", "query_id": "second"}))
+        try:
+            await session.receive({"type": "response.created", "response": {"id": "late-first"}})
+            await asyncio.sleep(.01)
+            self.assertEqual([row["type"] for row in messages()],
+                             ["response.create", "response.cancel", "response.create"])
+            self.assertIn("late-first", session.cancelled_responses)
+            self.assertNotIn("previous", session.cancelled_responses)
+            # A delayed terminal event must not end the newly requested response.
+            await session.receive({"type": "response.done", "response": {"id": "late-first"}})
+            self.assertTrue(session.response_active)
+            await session.receive({"type": "response.created", "response": {"id": "second-reply"}})
+            await asyncio.wait_for(second, .2)
+            self.assertFalse(session.closed)
+            self.assertFalse(any(kind == "voice.error" for kind, _ in emitted))
+        finally:
+            second.cancel()
+            await asyncio.gather(second, return_exceptions=True)
+            await session.stop()
+
+    async def test_cancel_race_is_nonfatal_but_other_provider_errors_stay_visible(self):
+        emitted = []
+        session = QwenRealtimeSession(None, lambda kind, **data: emitted.append((kind, data)))
+        session.ready.set()
+        race = {"type": "invalid_request_error", "param": "response",
+                "message": "Cannot cancel response before response.created"}
+        await session.receive({"type": "error", "error": race})
+        self.assertFalse(emitted)
+        self.assertFalse(session.closed)
+        await session.receive({"type": "error", "error": {
+            **race, "message": "Invalid response configuration"}})
+        self.assertEqual(emitted[-1][0], "voice.error")
+        session.ready.clear()
+        with self.assertRaises(RuntimeError):
+            await session.receive({"type": "error", "error": race})
+
     async def test_pending_response_is_bound_before_the_next_request(self):
         session = QwenRealtimeSession(None, lambda *_args, **_kw: None, host_turn_control=True)
         class Socket:

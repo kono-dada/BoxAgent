@@ -21,9 +21,9 @@ body,
 }
 .companion-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 174px minmax(0, 1fr);
+  grid-template-columns: minmax(70px, 1fr) minmax(80px, 174px) auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 17px 18px 14px;
   border-bottom: 1px solid var(--line);
   touch-action: none;
@@ -35,6 +35,7 @@ body,
   display: flex;
   gap: 4px;
 }
+.companion-display[data-active="true"] { color: var(--accent); background: var(--selected); }
 .companion-heading {
   flex: 1;
   min-width: 0;
@@ -290,34 +291,50 @@ html[data-theme="dark"] .companion-task-summary {
 }
 .companion-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 9px;
   padding: 12px 16px 14px;
   flex-shrink: 0;
 }
-.companion-voice {
-  display: flex;
+.companion-voice,
+.companion-camera {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   gap: 7px;
+  box-sizing: border-box;
+  min-width: 112px;
+  height: 34px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.companion-voice svg,
+.companion-camera svg {
+  flex-shrink: 0;
+}
+.companion-voice {
   border: 1px solid var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
-  padding: 7px 9px;
-  border-radius: 9px;
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
 }
 .companion-voice.active {
   background: var(--accent);
   color: white;
 }
 .voice-switch {
+  flex-shrink: 0;
   width: 21px;
   height: 12px;
   border-radius: 10px;
-  background: currentColor;
-  opacity: 0.5;
+  background: color-mix(in srgb, currentColor 28%, transparent);
   position: relative;
 }
 .voice-switch:after {
@@ -325,7 +342,7 @@ html[data-theme="dark"] .companion-task-summary {
   position: absolute;
   width: 8px;
   height: 8px;
-  background: var(--surface);
+  background: currentColor;
   border-radius: 50%;
   left: 2px;
   top: 2px;
@@ -333,11 +350,35 @@ html[data-theme="dark"] .companion-task-summary {
 .active .voice-switch:after {
   left: 11px;
 }
-.companion-shortcut {
-  color: var(--muted);
-  font-size: 10px;
-  flex: 1;
-  white-space: nowrap;
+.companion-camera {
+  position: relative;
+  min-width: 132px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: var(--bubble-input);
+}
+html[lang="en"] .companion-camera {
+  min-width: 148px;
+}
+.companion-camera.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+.companion-camera:hover:not(:disabled),
+.companion-voice:hover:not(:disabled) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.companion-camera:focus-visible,
+.companion-voice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.companion-camera:disabled,
+.companion-voice:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .companion-session-button {
   display: inline-flex;
@@ -353,6 +394,7 @@ html[data-theme="dark"] .companion-task-summary {
   font-size: 11px;
   flex-shrink: 0;
   white-space: nowrap;
+  margin-left: auto;
 }
 .companion-session-button:hover,
 .companion-session-button[aria-expanded="true"] {
@@ -595,6 +637,7 @@ html[data-theme="dark"]
   font-size: 12px;
 }
 html[data-theme="dark"] .companion-voice.active,
+html[data-theme="dark"] .companion-camera.active,
 html[data-theme="dark"] .companion-shell .button.primary {
   background: var(--accent);
   border-color: var(--accent);

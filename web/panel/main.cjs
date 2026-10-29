@@ -1,4 +1,8 @@
-const { app, BrowserWindow, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, protocol } = require("electron");
+const { CameraWindow } = require("./camera/window.cjs");
+protocol.registerSchemesAsPrivileged([{ scheme: 'boxagent-camera', privileges: {
+  standard: true, secure: true, supportFetchAPI: true, corsEnabled: true,
+} }]);
 const fs = require("node:fs");
 const path = require("node:path");
 const { EngineClient } = require("./engine-client.cjs");
@@ -39,6 +43,7 @@ const methods = new Set([
 const desktopMethods = new Set([
   "desktop_snapshot",
   "desktop_set_pet_scale",
+  "desktop_set_pet_display",
   "desktop_toggle_bubble",
   "desktop_avatars",
   "desktop_preview_avatar",
@@ -51,6 +56,7 @@ const desktopMethods = new Set([
   "desktop_quit",
 ]);
 let client,
+  camera,
   service,
   host,
   panel,
@@ -119,6 +125,7 @@ function startDesktop() {
       client,
       data,
       showPanel,
+      showCamera: () => camera.show(),
       broadcast,
       registerWindow,
     });
@@ -187,6 +194,9 @@ app.whenReady().then(async () => {
     ]),
   );
   client = new EngineClient(path.join(data, "engine.sock"));
+  camera = new CameraWindow({ root, client, registerWindow,
+    onState: (state) => broadcast('desktop:camera', state) });
+  ipcMain.handle('camera:request', (event, method, params) => camera.request(event, method, params));
   client.on("state", (state, event) => {
     broadcast("engine:state", state);
     broadcast("engine:event", event);
@@ -195,12 +205,16 @@ app.whenReady().then(async () => {
   client.on("online", () => broadcast("engine:diagnostic", "Engine 已连接"));
   client.on("diagnostic", (message) => broadcast("engine:diagnostic", message));
   client.on("offline", () => {
+    camera.disconnected();
     broadcast("engine:diagnostic", "Engine 已断开");
     if (!disposed) reconnect = setTimeout(() => client.connect(), 1000);
   });
   ipcMain.handle("engine:request", (event, method, params) => {
     if (!windows.has(BrowserWindow.fromWebContents(event.sender)))
       throw Error("未知窗口");
+    if (method === 'desktop_open_camera') { camera.show(); return { status: 'opened' }; }
+    if (method === 'desktop_toggle_camera') return camera.toggle();
+    if (method === 'desktop_camera_state') return camera.snapshot();
     if (desktopMethods.has(method))
       return host
         ? host.request(method, params)
@@ -246,6 +260,7 @@ app.whenReady().then(async () => {
     if (!host || !windows.has(BrowserWindow.fromWebContents(event.sender)))
       return;
     if (action === "show-panel") showPanel();
+    else if (action === 'display-menu') host.showDisplayMenu(event.sender);
     else if (action === "show-tasks") host.showTasks();
     else if (action === "collapse-tasks") host.collapseTasks();
     else if (action === "pin-tasks") host.pinTasks();
@@ -294,6 +309,7 @@ app.on("before-quit", (event) => {
   disposed = true;
   clearTimeout(reconnect);
   host?.close();
+  void camera?.stop();
   client?.removeAllListeners();
   client?.close();
   Promise.resolve(service?.close())

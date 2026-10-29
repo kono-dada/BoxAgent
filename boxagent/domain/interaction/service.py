@@ -8,6 +8,7 @@ import time
 from boxagent.domain.context.contracts import NullContextObserver
 from boxagent.domain.conversation.models import InteractionContext
 from boxagent.domain.interaction.delegation import DecisionAdvice
+from boxagent.domain.perception.camera import CameraFeed
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,8 @@ class InteractionService:
     def __init__(self, events, voice_factory, handle_tool, *, conversation=None,
                  history_builder=None, notification_event=None,
                  memory=None, reconnect_delays=(.5, 1.5, 3.0),
-                 context_observer=None, turn_preparer=None):
+                 context_observer=None, turn_preparer=None,
+                 connection_timeout: float = 45.0):
         self.events = events
         self.context_observer = context_observer or NullContextObserver()
         self.voice_factory = voice_factory
@@ -46,6 +48,7 @@ class InteractionService:
         self.voice = self.task = None
         self.connection_microphone = False
         self.connection_error = None
+        self.connection_timeout = connection_timeout
         self.interaction = None
         self.response_interactions = {}
         self.tool_interactions = {}
@@ -57,6 +60,43 @@ class InteractionService:
         self.voice_requested = False
         self.reconnect_delays = tuple(reconnect_delays)
         self.reconnect_task = None
+        self.camera_feed: CameraFeed | None = None
+        self.camera_owns_voice = False
+
+    async def open_camera(self) -> CameraFeed:
+        async with self.toggle_lock:
+            if (self.camera_feed is not None and self.camera_feed is self.voice
+                    and self.camera_connected(self.camera_feed)):
+                return self.camera_feed
+            borrowed = self.is_connected and self.connection_microphone
+            if self.is_connected and not self.connection_microphone:
+                await self.stop()
+            self.voice_requested = True
+            try:
+                await self._connect(microphone=True)
+                if not isinstance(self.voice, CameraFeed):
+                    raise RuntimeError("当前对话模型不支持摄像头输入")
+            except BaseException:
+                if not borrowed:
+                    await self.stop()
+                raise
+            self.camera_feed = self.voice
+            self.camera_owns_voice = not borrowed
+            return self.camera_feed
+
+    def camera_connected(self, feed: CameraFeed) -> bool:
+        return self.voice is feed and self.is_connected and self.connection_microphone
+
+    async def close_camera(self, feed: CameraFeed) -> None:
+        async with self.toggle_lock:
+            owns_voice = self.camera_feed is feed and self.camera_owns_voice
+            if self.camera_feed is feed:
+                self.camera_feed = None
+                self.camera_owns_voice = False
+            # An old camera window must not close a newer conversation.
+            # Attaching a camera to an existing call does not transfer ownership.
+            if self.voice is feed and owns_voice:
+                await self.stop()
 
     @property
     def is_connected(self):
@@ -222,23 +262,35 @@ class InteractionService:
             delegation_review=self._review_delegation,
             product_session_id=(session.session_id if session else ""))
         self.connection_microphone = microphone
+        self.events.emit("voice.input_reset", voice_input_level=-1)
         self.connection_error = None
         voice = self.voice
         self.task = asyncio.create_task(self._run(voice, microphone))
         ready = getattr(voice, "ready", None)
         if isinstance(ready, asyncio.Event):
             waiter = asyncio.create_task(ready.wait())
-            done, _pending = await asyncio.wait(
-                {waiter, self.task}, timeout=20,
-                return_when=asyncio.FIRST_COMPLETED)
-            if waiter not in done:
+            try:
+                done, _pending = await asyncio.wait(
+                    {waiter, self.task}, timeout=self.connection_timeout,
+                    return_when=asyncio.FIRST_COMPLETED)
+                if self.task in done:
+                    if self.connection_error:
+                        raise RuntimeError(str(self.connection_error))
+                    raise RuntimeError("前台交互 Runtime 已断开")
+                if waiter not in done:
+                    raise TimeoutError("千问语音连接超时，请稍后重试；本次连接已关闭")
+            except BaseException as exc:
+                # A timed-out startup must not become a live microphone session later.
+                retry_task = self.reconnect_task
+                retrying = retry_task is asyncio.current_task() and not isinstance(exc, asyncio.CancelledError)
+                await self.stop()
+                if retrying:
+                    self.reconnect_task = retry_task
+                    self.voice_requested = True
+                raise
+            finally:
                 waiter.cancel()
                 await asyncio.gather(waiter, return_exceptions=True)
-                if self.connection_error:
-                    raise RuntimeError(str(self.connection_error))
-                if self.task.done():
-                    raise RuntimeError("前台交互 Runtime 已断开")
-                raise TimeoutError("连接前台交互 Runtime 超时")
 
     async def _conversation_event(self, kind, payload):
         if not self.conversation or not self.conversation.store:
@@ -470,8 +522,11 @@ class InteractionService:
                 return
             self.connection_error = exc
             message = str(exc) or "语音连接失败"
+            ready = getattr(voice, "ready", None)
             reconnect = (
                 microphone and self.voice_requested
+                and (not isinstance(ready, asyncio.Event) or ready.is_set())
+                and (self.camera_feed is not voice or not self.camera_owns_voice)
                 and _is_reconnectable_voice_disconnect(message)
             )
             if reconnect:
@@ -543,6 +598,8 @@ class InteractionService:
             await asyncio.gather(reconnect_task, return_exceptions=True)
         voice, task = self.voice, self.task
         self.voice = None
+        self.camera_feed = None
+        self.camera_owns_voice = False
         self.connection_microphone = False
         if voice:
             with contextlib.suppress(Exception):
@@ -558,7 +615,7 @@ class InteractionService:
         if self.voice is None:
             self._clear_response_tracking()
             self.events.emit("voice.off", voice="off", speaking=False,
-                             user_speaking=False)
+                             user_speaking=False, voice_input_level=-1)
 
     async def close(self):
         await self.stop()

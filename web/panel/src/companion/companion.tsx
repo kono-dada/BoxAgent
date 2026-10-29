@@ -8,12 +8,13 @@ import {
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Camera, Mic, Monitor } from "lucide-react";
 import { t } from "../i18n";
 import { locale, startPreferences } from "../preferences";
 import { useAction, run, runtimeLabel } from "../hooks/useAction";
 import { useWindowDrag } from "../hooks/useWindowDrag";
 import { transcript } from "./model";
-import type { AvatarSnapshot, ProductMessage, RuntimeState } from "../types";
+import type { AvatarSnapshot, CameraSnapshot, ProductMessage, RuntimeState } from "../types";
 import "../../style.css";
 import "./companion.css";
 const bridge = window.boxagent;
@@ -37,6 +38,9 @@ function Companion() {
     content = useRef<HTMLDivElement>(null),
     follow = useRef(true);
   const action = useAction(bridge);
+  const [camera, setCamera] = useState<CameraSnapshot>({ status: "off", error: "" });
+  const cameraActive = camera.status !== "off";
+  const cameraStarting = camera.status === "starting";
   const drag = useWindowDrag(bridge);
   const refresh = useCallback(async () => {
     const id = session.current,
@@ -58,6 +62,19 @@ function Companion() {
           error instanceof Error ? error.message : String(error),
         );
     }
+  }, []);
+  useEffect(() => {
+    let live = true;
+    let received = false;
+    const update = (value: CameraSnapshot) => {
+      setCamera(value);
+      if (value.error) action.setStatus(value.error);
+    };
+    const stop = bridge.onCamera((value) => { received = true; update(value); });
+    void bridge.request<CameraSnapshot>("desktop_camera_state").then((value) => {
+      if (live && !received) update(value);
+    }).catch(() => {});
+    return () => { live = false; stop(); };
   }, []);
   useEffect(() => {
     const state = (value: RuntimeState) => {
@@ -315,6 +332,16 @@ function Companion() {
         </button>
         <div className="companion-controls">
         <button
+          className="icon-button companion-display"
+          title={t('小人显示屏')}
+          aria-label={t('小人显示屏')}
+          aria-haspopup="menu"
+          data-active={desktop.separate_windows || false}
+          onClick={() => bridge.desktopAction('display-menu')}
+        >
+          <Monitor size={16} aria-hidden="true" />
+        </button>
+        <button
           className="icon-button"
           title={t("打开伙伴控制台")}
           aria-label={t("打开伙伴控制台")}
@@ -470,6 +497,7 @@ function Companion() {
       <footer className="companion-footer">
         <button
           className={`companion-voice ${runtime.voice === "ready" ? "active" : ""}`}
+          title={`${t("全双工")} · ⌃⌥${t("空格")}`}
           aria-pressed={runtime.voice === "ready"}
           disabled={
             !online ||
@@ -478,29 +506,7 @@ function Companion() {
           }
           onClick={() => run(action.act("toggle_voice"))}
         >
-          <svg
-            width="13"
-            height="16"
-            viewBox="0 0 16 20"
-            fill="none"
-            aria-hidden="true"
-          >
-            <rect
-              x="5"
-              y="1"
-              width="6"
-              height="11"
-              rx="3"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            />
-            <path
-              d="M2 9v1a6 6 0 0012 0V9M8 16v3M5 19h6"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Mic size={16} aria-hidden="true" />
           {runtime.voice === "ready"
             ? t("结束语音")
             : runtime.voice === "connecting"
@@ -508,11 +514,20 @@ function Companion() {
               : runtime.voice === "stopping"
                 ? t("关闭中…")
                 : t("开启语音")}
-          <i className="voice-switch" />
+          <i className="voice-switch" aria-hidden="true" />
         </button>
-        <span className="companion-shortcut" title={t("全双工")}>
-          ⌃⌥{t("空格")}
-        </span>
+        <button
+          type="button"
+          className={`companion-camera ${cameraActive ? "active" : ""}`}
+          title={cameraActive ? t("关闭摄像头") : t("开启摄像头并开始视频通话")}
+          aria-pressed={cameraActive}
+          disabled={!online || action.busy}
+          onClick={() => run(action.act("desktop_toggle_camera"))}
+        >
+          <Camera size={16} aria-hidden="true" />
+          <span>{cameraStarting ? t("连接中…") : cameraActive ? t("关闭摄像头") : t("开启摄像头")}</span>
+          <i className="voice-switch" aria-hidden="true" />
+        </button>
         <button
           className="companion-session-button"
           aria-expanded={creating}

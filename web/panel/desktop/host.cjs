@@ -10,6 +10,7 @@ const {
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const { targetDisplay, petAnchor, petPlacement, primaryBubbleFrame } = require('./displays.cjs');
 const {
   clampFrame,
   petSize,
@@ -29,6 +30,7 @@ class DesktopHost {
     client,
     data,
     showPanel,
+    showCamera,
     broadcast,
     registerWindow,
   }) {
@@ -38,6 +40,7 @@ class DesktopHost {
       client,
       data,
       showPanel,
+      showCamera,
       broadcast,
       registerWindow,
     });
@@ -56,6 +59,20 @@ class DesktopHost {
     this.engineReady = false;
     this.bubbleReady = false;
     this.loading = false;
+    this.displayTarget = null;
+    this.displayLabel = '';
+    try {
+      const saved = JSON.parse(fs.readFileSync(path.join(data, 'display.json'), 'utf8'));
+      if (saved?.version === 1 && typeof saved.target === 'string' &&
+        (saved.target === 'primary' || /^-?\d+$/.test(saved.target))) {
+        this.displayTarget = saved.target;
+        if (saved.target !== 'primary' && typeof saved.label === 'string' && saved.label.length <= 256)
+          this.displayLabel = saved.label;
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) console.error('Display preference:', error.message);
+    }
+    this.displayChanged = () => this.reconcileDisplays();
   }
   createWindow(options, page) {
     const window = new BrowserWindow({
@@ -87,6 +104,14 @@ class DesktopHost {
     return window;
   }
   async start() {
+    if (this.displayTarget && this.displayTarget !== 'primary' && !this.displayLabel) {
+      const display = screen.getAllDisplays().find(item => String(item.id) === this.displayTarget);
+      if (display?.label) {
+        this.displayLabel = display.label;
+        try { this.saveDisplayPreference(this.displayTarget, this.displayLabel); }
+        catch (error) { console.error('Display preference:', error.message); }
+      }
+    }
     this.snapshot = await this.service.request("desktop_snapshot");
     this.bubble = this.createWindow(
       {
@@ -116,19 +141,9 @@ class DesktopHost {
     icon.setTemplateImage(true);
     this.tray = new Tray(icon);
     this.tray.setToolTip(`BoxAgent · ${this.snapshot.name} · ⌃⌥空格切换麦克风`);
-    this.menu = Menu.buildFromTemplate([
-      { label: "伙伴控制台…", click: this.showPanel },
-      {
-        label: "新建会话…",
-        click: () => {
-          this.showBubble();
-          this.bubble.webContents.send("desktop:new-session");
-        },
-      },
-      { type: "separator" },
-      { label: "退出 BoxAgent", click: () => this.app.quit() },
-    ]);
-    this.tray.setContextMenu(this.menu);
+    this.updateMenu();
+    for (const event of ['display-added', 'display-removed', 'display-metrics-changed'])
+      screen.on(event, this.displayChanged);
     this.tray.on("click", () => this.toggleBubble());
     if (
       !globalShortcut.register("Control+Alt+Space", () =>
@@ -148,7 +163,118 @@ class DesktopHost {
     }
     await this.loadAvatar(this.snapshot.appearance, false);
   }
+  preferredDisplay(displays = screen.getAllDisplays(), primary = screen.getPrimaryDisplay()) {
+    return targetDisplay(displays, primary, this.displayTarget, this.displayLabel);
+  }
+  saveDisplayPreference(target, label = '') {
+    fs.mkdirSync(this.data, { recursive: true });
+    const file = path.join(this.data, 'display.json');
+    fs.writeFileSync(file + '.tmp', JSON.stringify({ version: 1, target, ...(label ? { label } : {}) }));
+    fs.renameSync(file + '.tmp', file);
+  }
+  displayState() {
+    const primary = screen.getPrimaryDisplay();
+    const displays = screen.getAllDisplays();
+    const active = this.displayTarget ? this.preferredDisplay(displays, primary)
+      : this.current ? screen.getDisplayMatching({ ...this.current.origin, ...this.current.viewport }) : primary;
+    return {
+      displays: displays.map(display => ({ id: String(display.id), label: display.label || String(display.id), primary: display.id === primary.id })),
+      pet_display_id: String(active.id),
+      separate_windows: Boolean(this.displayTarget),
+    };
+  }
+  displayMenuItems() {
+    const state = this.displayState();
+    const enabled = Boolean(this.current?.ready) && !this.pending && !this.loading;
+    return [
+      { label: '小人与聊天同屏', type: 'radio', checked: !state.separate_windows, enabled,
+        click: () => this.changeDisplayFromMenu(null) },
+      ...state.displays.map(display => ({
+        label: `${display.primary ? '主屏' : '副屏'} · ${display.label}`,
+        type: 'radio', checked: state.separate_windows && state.pet_display_id === display.id, enabled,
+        click: () => this.changeDisplayFromMenu(display.id),
+      })),
+      ...(state.displays.length < 2 ? [{ type: 'separator' }, { label: '未检测到扩展副屏', enabled: false }] : []),
+    ];
+  }
+  changeDisplayFromMenu(id) {
+    try { this.setPetDisplay(id); } catch (error) { this.feedback(error.message); }
+  }
+  showDisplayMenu(sender) {
+    Menu.buildFromTemplate(this.displayMenuItems()).popup({ window: BrowserWindow.fromWebContents(sender) });
+  }
+  updateMenu() {
+    if (!this.tray) return;
+    const displayItems = this.displayMenuItems();
+    const signature = JSON.stringify(displayItems);
+    if (signature === this.menuSignature) return;
+    this.menuSignature = signature;
+    this.menu = Menu.buildFromTemplate([
+      { label: "伙伴控制台…", click: this.showPanel },
+      { label: "摄像头互动…", click: this.showCamera },
+      { label: '小人显示屏', submenu: displayItems },
+      {
+        label: "新建会话…",
+        click: () => {
+          this.showBubble();
+          this.bubble.webContents.send("desktop:new-session");
+        },
+      },
+      { type: "separator" },
+      { label: "退出 BoxAgent", click: () => this.app.quit() },
+    ]);
+    this.tray.setContextMenu(this.menu);
+  }
+  placePet(pet, display, center = false) {
+    const placement = petPlacement(pet, this.snapshot.scale || 1, display.workArea, center, Boolean(this.displayTarget));
+    if (placement.viewport.width !== pet.viewport.width || placement.viewport.height !== pet.viewport.height) {
+      if (pet.dockInsetY !== undefined) pet.dockInsetY *= placement.viewport.height / pet.viewport.height;
+    }
+    Object.assign(pet, placement);
+    this.geometry.setBounds(pet.window, { x: Math.round(pet.origin.x + pet.crop.x), y: Math.round(pet.origin.y + pet.crop.y),
+      width: pet.crop.width, height: pet.crop.height });
+    this.sendPet(pet);
+  }
+  setPetDisplay(id) {
+    if (!this.current?.ready || this.pending || this.loading) throw Error('形象仍在加载，请稍后切换屏幕');
+    const primary = screen.getPrimaryDisplay();
+    const display = id === null ? primary : screen.getAllDisplays().find(item => String(item.id) === id);
+    if (!display) throw Error('该显示器已断开，请重新选择');
+    const target = id === null ? null : display.id === primary.id ? 'primary' : id;
+    const label = target && target !== 'primary' ? display.label || '' : '';
+    this.saveDisplayPreference(target, label);
+    this.cancelDisplayDrag();
+    this.displayTarget = target;
+    this.displayLabel = label;
+    this.offset = null;
+    this.taskSide = null;
+    this.placePet(this.current, display, true);
+    this.positionBubble();
+    this.savePosition();
+    return this.sendDesktop();
+  }
+  cancelDisplayDrag() {
+    if (this.drag?.pet && this.current)
+      this.current.window.webContents.send('desktop:interact', { kind: 'drag-end', velocity: [0, 0] });
+    this.drag = null;
+  }
+  reconcileDisplays() {
+    if (this.closed) return;
+    this.cancelDisplayDrag();
+    const primary = screen.getPrimaryDisplay(), displays = screen.getAllDisplays();
+    for (const pet of [this.current, this.pending].filter(Boolean)) {
+      const frame = this.geometry.getBounds(pet.window);
+      const previous = screen.getDisplayMatching(frame);
+      const display = this.displayTarget ? this.preferredDisplay(displays, primary) : previous;
+      this.placePet(pet, display, display.id !== previous.id);
+    }
+    this.taskSide = null;
+    this.positionBubble();
+    this.sendDesktop();
+  }
   get area() {
+    if (this.displayTarget)
+      return this.preferredDisplay().workArea;
     return screen.getDisplayNearestPoint(
       this.current?.origin || screen.getCursorScreenPoint(),
     ).workArea;
@@ -156,6 +282,7 @@ class DesktopHost {
   sendDesktop() {
     const value = {
       ...this.snapshot,
+      ...this.displayState(),
       bubble_open: this.bubbleOpen,
       tasks_expanded: Boolean(this.tasksExpanded),
       tasks_pinned: Boolean(this.tasksPinned),
@@ -164,6 +291,7 @@ class DesktopHost {
       appearance_error: this.error || "",
     };
     this.broadcast("desktop:state", value);
+    this.updateMenu();
     return value;
   }
   dismissFeedback() {
@@ -198,6 +326,7 @@ class DesktopHost {
       x: area.x + area.width - viewport.width - 26,
       y: area.y + area.height - viewport.height - 30,
     };
+    let restoreAnchor = this.displayTarget && this.current?.hasBounds ? petAnchor(this.current) : null;
     if (!this.current) {
       try {
         const saved = JSON.parse(
@@ -218,18 +347,28 @@ class DesktopHost {
           saved?.version === 2 &&
           Number.isFinite(saved.x) &&
           Number.isFinite(saved.y)
-        )
+        ) {
           origin = saved;
+          if (this.displayTarget && Number.isFinite(saved.anchor?.x) && Number.isFinite(saved.anchor?.y))
+            restoreAnchor = saved.anchor;
+        }
       } catch (error) {
         if (error.code !== "ENOENT" && !(error instanceof SyntaxError))
           this.feedback(error.message);
       }
     }
-    area = screen.getDisplayNearestPoint({
+    const previousDisplay = screen.getDisplayNearestPoint({
       x: Math.round(origin.x),
       y: Math.round(origin.y),
-    }).workArea;
+    });
+    area = this.displayTarget ? this.area : previousDisplay.workArea;
     viewport = petSize(this.snapshot.scale || 1, area);
+    if (this.displayTarget) {
+      const placement = petPlacement({ origin }, this.snapshot.scale || 1, area,
+        previousDisplay.id !== this.preferredDisplay().id);
+      origin = placement.origin;
+      viewport = placement.viewport;
+    }
     origin = clampFrame({ ...origin, ...viewport }, area);
     const window = this.createWindow({ ...origin, focusable: false }, "pet");
     const candidate = {
@@ -237,6 +376,7 @@ class DesktopHost {
       viewport,
       origin,
       crop: { x: 0, y: 0, ...viewport },
+      restoreAnchor,
       ready: false,
       ...prepared,
       persist,
@@ -286,9 +426,21 @@ class DesktopHost {
         width: bounds.width,
         height: bounds.height,
       };
+      pet.hasBounds = true;
       pet.initialCrop = { crop: { ...pet.crop }, viewport: { ...pet.viewport } };
-      // 同时保留首帧的停靠间距，供聊天框与任务浮层联动定位。
+      // Keep the first-frame crop for both split-display scaling and linked docking.
       pet.dockInsetY ??= pet.crop.y;
+      if (this.displayTarget) {
+        const display = this.preferredDisplay();
+        if (pet.restoreAnchor) {
+          pet.origin = { x: pet.restoreAnchor.x - pet.crop.x - pet.crop.width / 2,
+            y: pet.restoreAnchor.y - pet.crop.y - pet.crop.height };
+          pet.restoreAnchor = null;
+        }
+        this.placePet(pet, display);
+        if (pet === this.current) this.savePosition();
+        return;
+      }
       this.geometry.setBounds(pet.window, {
         x: Math.round(pet.origin.x + pet.crop.x),
         y: Math.round(pet.origin.y + pet.crop.y),
@@ -308,6 +460,7 @@ class DesktopHost {
         this.current = pet;
         this.pending = null;
         pet.ready = true;
+        if (this.displayTarget && pet.hasBounds) this.savePosition();
         this.snapshot = { ...this.snapshot, ...snapshot };
         if (this.snapshot.feedback === this.error) this.snapshot.feedback = "";
         this.error = "";
@@ -377,6 +530,11 @@ class DesktopHost {
   }
   positionBubble(preserveTop = false) {
     if (!this.bubble || !this.current) return;
+    if (this.displayTarget) {
+      this.geometry.setBounds(this.bubble, primaryBubbleFrame(this.geometry.getBounds(this.bubble), screen.getPrimaryDisplay().workArea, this.bubbleHeight));
+      if (this.tasks?.isVisible()) this.positionTasks();
+      return;
+    }
     const frame = bubbleFrame(
       { ...this.current.origin, ...this.current.viewport },
       this.area,
@@ -457,10 +615,10 @@ class DesktopHost {
     if (this.tasksExpanded || (!this.bubbleOpen && this.hasTaskStatus())) {
       const place = reposition || !this.tasks.isVisible();
       if (place) this.positionTasks();
-      const frame = this.tasks.getBounds();
+      const frame = this.geometry.getBounds(this.tasks);
       this.tasks.showInactive();
       // macOS 可能在重新显示窗口时调整位置，恢复已计算的整组停靠坐标。
-      if (place) this.tasks.setBounds(frame);
+      if (place) this.geometry.setBounds(this.tasks, frame);
     } else this.tasks.hide();
   }
   positionTasks() {
@@ -481,7 +639,7 @@ class DesktopHost {
     });
     this.geometry.setBounds(this.bubble, frames.bubble);
     this.geometry.setBounds(this.tasks, frames.tasks);
-    if (this.current) {
+    if (this.current && !this.displayTarget) {
       const dx = frames.bubble.x - bubble.x, dy = frames.bubble.y - bubble.y;
       this.current.origin.x += dx;
       this.current.origin.y += dy;
@@ -495,7 +653,7 @@ class DesktopHost {
     this.dockPetBelowBubble();
   }
   dockPetBelowBubble() {
-    if (!this.bubbleOpen || !this.current || this.drag) return;
+    if (this.displayTarget || !this.bubbleOpen || !this.current || this.drag) return;
     const pet = this.current, bubble = this.geometry.getBounds(this.bubble);
     const area = screen.getDisplayMatching(bubble).workArea;
     const origin = { ...pet.origin, ...pet.viewport,
@@ -525,19 +683,21 @@ class DesktopHost {
     if (!this.current || !message || typeof message !== "object") return;
     let { phase } = message;
     const { point, buttons } = message;
-    const windows = [this.current.window, this.bubble, this.tasks].filter(window => window && !window.isDestroyed());
+    let windows = [this.current.window, this.bubble, this.tasks].filter(window => window && !window.isDestroyed());
     if (!windows.some(window => window.webContents.id === sender.id)) return;
     if (!["start", "move", "end", "cancel"].includes(phase)) return;
     if (phase === "move" && !(Number.isInteger(buttons) && (buttons & 1))) phase = "cancel";
     if (["start", "move"].includes(phase) && (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y))) return;
     const pet = this.current.window.webContents.id === sender.id;
+    if (this.displayTarget) windows = windows.filter(window => pet ? window === this.current.window : window !== this.current.window);
     if (phase === "start") {
       if (!(Number.isInteger(buttons) && (buttons & 1))) return;
       this.drag = {
         sender: sender.id, pet,
         start: point,
         frames: windows.map(window => ({ window, frame: this.geometry.getBounds(window), visible: window.isVisible(),
-          limit: window === this.current.window ? { ...this.current.origin, ...this.current.viewport } : this.geometry.getBounds(window) })),
+          limit: window === this.current.window && !this.displayTarget
+            ? { ...this.current.origin, ...this.current.viewport } : this.geometry.getBounds(window) })),
         origin: { ...this.current.origin },
         last: point,
         time: Date.now(),
@@ -557,11 +717,12 @@ class DesktopHost {
         });
       drag.moved = true;
       const visible = drag.frames.filter(item => item.visible);
-      const area = screen.getDisplayNearestPoint(point).workArea;
+      if (!visible.length) return;
+      const area = this.displayTarget ? (pet ? this.area : screen.getPrimaryDisplay().workArea) : screen.getDisplayNearestPoint(point).workArea;
       const clamped = clampFrames(visible.map(item => ({ ...item.limit, x: item.limit.x + dx, y: item.limit.y + dy })),
         { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
       const moveX = clamped[0].x - visible[0].limit.x, moveY = clamped[0].y - visible[0].limit.y;
-      this.current.origin = { x: drag.origin.x + moveX, y: drag.origin.y + moveY };
+      if (pet || !this.displayTarget) this.current.origin = { x: drag.origin.x + moveX, y: drag.origin.y + moveY };
       for (const item of drag.frames) if (!item.window.isDestroyed())
         this.geometry.setPosition(item.window, Math.round(item.frame.x + moveX), Math.round(item.frame.y + moveY));
       if (pet) {
@@ -587,6 +748,10 @@ class DesktopHost {
         if (!drag.moved && phase === "end") this.toggleBubble();
       }
       if (drag.moved) {
+        if (this.displayTarget) {
+          if (pet) this.savePosition();
+          return;
+        }
         this.savePosition();
         const defaultFrame = bubbleFrame(
           { ...this.current.origin, ...this.current.viewport },
@@ -607,6 +772,7 @@ class DesktopHost {
       version: 2,
       x: this.current.origin.x,
       y: this.current.origin.y,
+      ...(this.displayTarget && this.current.hasBounds ? { anchor: petAnchor(this.current) } : {}),
     };
     fs.mkdirSync(this.data, { recursive: true });
     const file = path.join(this.data, "position.json");
@@ -677,6 +843,7 @@ class DesktopHost {
       });
   }
   async request(method, params = {}) {
+    if (method === 'desktop_set_pet_display') return this.setPetDisplay(params.id);
     if (method === "desktop_snapshot") {
       this.snapshot = {
         ...this.snapshot,
@@ -727,6 +894,12 @@ class DesktopHost {
       this.snapshot = { ...this.snapshot, ...result };
       const pet = this.current;
       if (pet) {
+        if (this.displayTarget) {
+          this.placePet(pet, this.preferredDisplay());
+          this.savePosition();
+          this.positionBubble();
+          return this.sendDesktop();
+        }
         const size = petSize(result.scale, this.area);
         if (pet.dockInsetY !== undefined) pet.dockInsetY *= size.height / pet.viewport.height;
         pet.origin.x += (pet.viewport.width - size.width) / 2;
@@ -736,7 +909,7 @@ class DesktopHost {
           ? scalePetCrop(pet.initialCrop, size)
           : { x: 0, y: 0, ...size };
         pet.origin = clampFrame({ ...pet.origin, ...size }, this.area);
-this.geometry.setBounds(pet.window, {
+        this.geometry.setBounds(pet.window, {
           x: Math.round(pet.origin.x + pet.crop.x),
           y: Math.round(pet.origin.y + pet.crop.y),
           width: Math.round(pet.crop.width),
@@ -758,6 +931,8 @@ this.geometry.setBounds(pet.window, {
     this.musicMonitor?.stop();
     this.closed = true;
     clearInterval(this.pointerTimer);
+    for (const event of ['display-added', 'display-removed', 'display-metrics-changed'])
+      screen.removeListener(event, this.displayChanged);
     globalShortcut.unregisterAll();
     this.tray?.destroy();
     if (this.pending) {
