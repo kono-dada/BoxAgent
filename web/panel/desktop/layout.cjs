@@ -28,6 +28,19 @@ function validBounds(report, viewport) {
     ? b
     : null;
 }
+function scalePetCrop(initial, viewport) {
+  // 始终从首帧边界缩放，向外取整，避免反复缩放积累误差或裁掉边缘。
+  const scaleX = viewport.width / initial.viewport.width,
+    scaleY = viewport.height / initial.viewport.height,
+    x = Math.floor(initial.crop.x * scaleX),
+    y = Math.floor(initial.crop.y * scaleY);
+  return {
+    x,
+    y,
+    width: Math.ceil((initial.crop.x + initial.crop.width) * scaleX) - x,
+    height: Math.ceil((initial.crop.y + initial.crop.height) * scaleY) - y,
+  };
+}
 function bubbleFrame(anchor, area, offset, requestedHeight = 270) {
   const width = Math.min(440, area.width - 16),
     height = Math.min(
@@ -86,6 +99,7 @@ module.exports = {
   clampFrame,
   petSize,
   validBounds,
+  scalePetCrop,
   bubbleFrame,
   taskFrame,
   linkedFrames,

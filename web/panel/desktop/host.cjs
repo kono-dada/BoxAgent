@@ -14,6 +14,7 @@ const {
   clampFrame,
   petSize,
   validBounds,
+  scalePetCrop,
   bubbleFrame,
   taskFrame,
   linkedFrames,
@@ -275,6 +276,8 @@ class DesktopHost {
     );
     if (!pet || !message || typeof message !== "object") return;
     if (message.type === "bounds") {
+      // 只采用模型加载后的首帧；后续动作和诊断截图不能改变窗口。
+      if (pet.initialCrop) return;
       const bounds = validBounds(message, pet.viewport);
       if (!bounds || this.drag) return;
       pet.crop = {
@@ -283,7 +286,8 @@ class DesktopHost {
         width: bounds.width,
         height: bounds.height,
       };
-      // Capture layout padding once; animated crop changes must not move the chat.
+      pet.initialCrop = { crop: { ...pet.crop }, viewport: { ...pet.viewport } };
+      // 同时保留首帧的停靠间距，供聊天框与任务浮层联动定位。
       pet.dockInsetY ??= pet.crop.y;
       this.geometry.setBounds(pet.window, {
         x: Math.round(pet.origin.x + pet.crop.x),
@@ -451,8 +455,12 @@ class DesktopHost {
   syncTasksVisibility(reposition = false) {
     if (!this.tasks || this.tasks.isDestroyed()) return;
     if (this.tasksExpanded || (!this.bubbleOpen && this.hasTaskStatus())) {
-      if (reposition || !this.tasks.isVisible()) this.positionTasks();
+      const place = reposition || !this.tasks.isVisible();
+      if (place) this.positionTasks();
+      const frame = this.tasks.getBounds();
       this.tasks.showInactive();
+      // macOS 可能在重新显示窗口时调整位置，恢复已计算的整组停靠坐标。
+      if (place) this.tasks.setBounds(frame);
     } else this.tasks.hide();
   }
   positionTasks() {
@@ -724,9 +732,16 @@ class DesktopHost {
         pet.origin.x += (pet.viewport.width - size.width) / 2;
         pet.origin.y += pet.viewport.height - size.height;
         pet.viewport = size;
-        pet.crop = { x: 0, y: 0, ...size };
+        pet.crop = pet.initialCrop
+          ? scalePetCrop(pet.initialCrop, size)
+          : { x: 0, y: 0, ...size };
         pet.origin = clampFrame({ ...pet.origin, ...size }, this.area);
-        this.geometry.setBounds(pet.window, pet.origin);
+this.geometry.setBounds(pet.window, {
+          x: Math.round(pet.origin.x + pet.crop.x),
+          y: Math.round(pet.origin.y + pet.crop.y),
+          width: Math.round(pet.crop.width),
+          height: Math.round(pet.crop.height),
+        });
         this.sendPet(pet);
         this.savePosition();
         this.positionBubble();
