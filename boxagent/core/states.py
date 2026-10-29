@@ -63,6 +63,8 @@ class Snapshot:
     camera_frame_at: float = 0
     camera_frames_sent: int = 0
     voice_input_level: float = -1
+    avatar_action: str = ""
+    avatar_action_id: str = ""
     revision: int = 0
 
     def payload(self):
@@ -102,6 +104,4 @@ def presentation_state(state: Snapshot) -> str:
         return "error"
     if state.task == "succeeded":
         return "success"
-    if state.voice == "ready":
-        return "listening"
     return "idle"

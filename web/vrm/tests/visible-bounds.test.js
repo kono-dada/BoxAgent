@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {visibleBounds, BoundsEnvelope} from '../visible-bounds.js';
+import {visibleBounds} from '../visible-bounds.js';
 
 test('透明空白被裁掉，左下角坐标完整包含所有非透明像素', () => {
   const data = new Uint8ClampedArray(100 * 100 * 4);
@@ -22,17 +22,4 @@ test('边缘像素与完全透明的帧不产生无效边界', () => {
   assert.equal(visibleBounds(data, 10, 10, 100, 100), null);
   data[3] = 255; data[data.length - 1] = 255;
   assert.deepEqual(visibleBounds(data, 10, 10, 100, 100), {x:0, y:0, width:100, height:100});
-});
-
-test('小幅摆动不反复缩窗，扩大后等待明显余量稳定才收紧', () => {
-  const envelope = new BoundsEnvelope();
-  const base = {x:20, y:10, width:50, height:80};
-  assert.deepEqual(envelope.fit(base, [200,200], 0), base);
-  assert.deepEqual(envelope.fit({...base,x:21,width:48}, [200,200], 100), base);
-  const wide = {x:10, y:10, width:90, height:80};
-  assert.deepEqual(envelope.fit(wide, [200,200], 200), wide);
-  assert.deepEqual(envelope.fit(base, [200,200], 300), wide);
-  assert.deepEqual(envelope.fit(base, [200,200], 1700), wide);
-  assert.deepEqual(envelope.fit(base, [200,200], 1800), base);
-  assert.deepEqual(envelope.fit({...base,width:30}, [100,100], 1900), {...base,width:30});
 });

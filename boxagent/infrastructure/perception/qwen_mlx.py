@@ -5,9 +5,11 @@ import json
 import logging
 import os
 import re
+import sys
 import tempfile
 import time
 from pathlib import Path
+from boxagent.infrastructure.perception.windows import WindowInfo
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +38,13 @@ def clean_summary(text):
     return "".join(kept)
 
 
-def focused_window():
+def focused_window() -> WindowInfo | None:
     """选择前台应用最上层的普通窗口；不截整屏，也不改变焦点。"""
+    if sys.platform == "win32":
+        from boxagent.infrastructure.perception.windows import focused_window as windows_focused_window
+        return windows_focused_window()
+    if sys.platform != "darwin":
+        raise RuntimeError(f"不支持的桌面操作系统：{sys.platform}")
     import AppKit as AK
     import Quartz as Q
     app = AK.NSWorkspace.sharedWorkspace().frontmostApplication()
@@ -61,8 +68,8 @@ class WindowSummary:
                  python=None, worker_script=None, log_path=None):
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
-        self.model = Path(model or self.workspace / ".runtime/models/qwen3.5-0.8b-mlx")
-        self.python = Path(python or self.workspace / ".runtime/vision-venv/bin/python")
+        self.model = Path(model or self.workspace / (".runtime/models/qwen3.5-0.8b" if os.name == "nt" else ".runtime/models/qwen3.5-0.8b-mlx"))
+        self.python = Path(python or self.workspace / (".runtime/vision-venv/Scripts/python.exe" if os.name == "nt" else ".runtime/vision-venv/bin/python"))
         self.worker_script = Path(worker_script or self.workspace / "scripts/window_summary_worker.py")
         self.log_path = Path(log_path or self.workspace / ".runtime/pet/context-worker.log")
         self.max_size = max_size
@@ -75,7 +82,17 @@ class WindowSummary:
             await asyncio.gather(self.task, return_exceptions=True)
             self.task = None
 
-    async def command(self, *args):
+    async def capture(self, window_id: int, path: Path) -> None:
+        if sys.platform == "win32":
+            from boxagent.infrastructure.perception.windows import capture_window
+            await asyncio.to_thread(capture_window, window_id, path)
+        elif sys.platform == "darwin":
+            await self.command("/usr/sbin/screencapture", "-x", "-o", "-l",
+                               str(window_id), str(path))
+        else:
+            raise RuntimeError(f"不支持的桌面操作系统：{sys.platform}")
+
+    async def command(self, *args: str) -> None:
         process = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.DEVNULL,
                                                        stderr=asyncio.subprocess.PIPE)
         try:
@@ -102,7 +119,7 @@ class WindowSummary:
         try:
             self.emit("context.loading", context_status="正在加载本地模型…", context_text="")
             if not self.model.is_dir() or not self.python.exists():
-                raise RuntimeError("缺少本地 MLX 环境或模型，请按 docs/qwen-mlx-probe.md 准备")
+                raise RuntimeError("缺少本地视觉环境或模型，请按 docs/windows.md 或 docs/qwen-mlx-probe.md 准备")
             with self.log_path.open("a") as errors:
                 self.process = await asyncio.create_subprocess_exec(
                     "uv", "run", "--no-project", "--python", str(self.python),
@@ -145,8 +162,7 @@ class WindowSummary:
         with tempfile.TemporaryDirectory(prefix="boxagent-context-") as directory:
             path = Path(directory) / "window.png"
             try:
-                await self.command("/usr/sbin/screencapture", "-x", "-o", "-l",
-                                   str(window["id"]), str(path))
+                await self.capture(window["id"], path)
             except (RuntimeError, TimeoutError, OSError) as exc:
                 # 窗口在列举与截图之间关闭、缩放或被系统暂时拒绝时会失败；
                 # 跳过这一轮，连续失败才视为权限或环境问题。

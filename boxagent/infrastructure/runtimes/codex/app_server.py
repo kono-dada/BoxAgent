@@ -5,9 +5,11 @@ import contextlib
 import json
 import os
 import shutil
+import sys
 import time
 import traceback
 from pathlib import Path
+from typing import Callable
 
 from boxagent.agent.runtime.models import ModelProfile
 from boxagent.agent.runtime.contracts import ToolObservationSink
@@ -16,6 +18,9 @@ from boxagent.infrastructure.runtimes.codex.computer_use import (
     resolve_computer_use_home,
 )
 from boxagent.infrastructure.runtimes.codex.skills import CodexSkillAdapter
+from boxagent.infrastructure.runtimes.codex.windows_skill import (
+    WINDOWS_INSTRUCTIONS, WINDOWS_TOOL_NAMES, WindowsSkill,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -34,7 +39,7 @@ def resolve_codex_runtime(workspace=PROJECT_ROOT):
         candidates.append(Path(executable))
     for candidate in candidates:
         candidate = candidate.resolve()
-        if candidate.is_file() and candidate.with_name("codex-code-mode-host").is_file():
+        if candidate.is_file() and candidate.with_name("codex-code-mode-host.exe" if os.name == "nt" else "codex-code-mode-host").is_file():
             return candidate
     raise RuntimeError("找不到同时包含 codex 和 codex-code-mode-host 的运行时；"
                        "可通过 BOXAGENT_CODEX_BIN 指定")
@@ -47,7 +52,8 @@ class CodexAppServer:
                  auto_approve=True, runtime_resolver=None,
                  workspace=PROJECT_ROOT, model_profile: ModelProfile | None = None,
                  permission_check=None, codex_home=None, skill_service=None,
-                 on_tool_observed: ToolObservationSink | None = None):
+                 on_tool_observed: ToolObservationSink | None = None,
+                 windows_skill_loader: Callable[[], WindowsSkill] | None = None):
         self.output = Path(output)
         self.on_tool_call = on_tool_call
         self.on_tool_observed = on_tool_observed
@@ -61,6 +67,9 @@ class CodexAppServer:
         self.workspace = Path(workspace)
         self.codex_home = Path(codex_home) if codex_home else None
         self.computer_use_home = resolve_computer_use_home()
+        self.windows_skill_loader = windows_skill_loader
+        self.windows_skill: WindowsSkill | None = None
+        self.discovery_thread_id: str | None = None
         self.runtime_resolver = runtime_resolver or (
             lambda: resolve_codex_runtime(self.workspace))
         self.model_profile = model_profile
@@ -112,7 +121,7 @@ class CodexAppServer:
         self.cleanup_status = "not_started"
 
     def launch_environment(self) -> dict[str, str]:
-        env = {key: os.environ[key] for key in ("HOME", "PATH", "TMPDIR", "LANG", "CODEX_HOME")
+        env = {key: os.environ[key] for key in ("HOME", "PATH", "TMPDIR", "LANG", "CODEX_HOME", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE")
                if key in os.environ}
         profile = self.model_profile
         if self.codex_home:
@@ -151,11 +160,21 @@ class CodexAppServer:
         return overrides
 
     def launch_arguments(self, executable: Path, client: Path) -> list[str]:
+        if self.windows_skill is not None:
+            arguments = [str(executable), "app-server", "--stdio", "-c",
+                         self.windows_skill.config_override()]
+            for override in self.model_config_overrides():
+                arguments.extend(("-c", override))
+            return arguments
         mcp = 'mcp_servers.boxagent_cua={command=' + json.dumps(str(client)) + ',args=["mcp"]}'
         # 保留原生结束通知；显式清理用于取消和异常路径。
         # 两条路径都依赖工具调用携带同一轮次的元数据，返回成功不等于浮层已消失。
-        notify = "notify=" + json.dumps([
-            "/usr/bin/env", f"CODEX_HOME={self.computer_use_home}", str(client), "turn-ended"])
+        notifier = ([sys.executable, "-c",
+                     "import os,subprocess,sys; os.environ['CODEX_HOME']=sys.argv[1]; "
+                     "sys.exit(subprocess.call(sys.argv[2:]))",
+                     str(self.computer_use_home), str(client), "turn-ended"] if os.name == "nt" else
+                    ["/usr/bin/env", f"CODEX_HOME={self.computer_use_home}", str(client), "turn-ended"])
+        notify = "notify=" + json.dumps(notifier)
         arguments = [str(executable), "app-server", "--stdio", "-c", mcp,
                      "-c", notify]
         for override in self.model_config_overrides():
@@ -249,11 +268,13 @@ class CodexAppServer:
         """Persist actual native results before accepting the turn's final report."""
         item = params.get("item") or {}
         if (params.get("turnId") != self.turn_id or not self.turn_id
-                or item.get("type") != "mcpToolCall" or item.get("server") != "boxagent_cua"
+                or item.get("type") != "mcpToolCall"
+                or item.get("server") != ("node_repl" if self.windows_skill else "boxagent_cua")
                 or self.on_tool_observed is None):
             return
         call_id = item.get("id")
-        operation = item.get("tool")
+        native_operation = item.get("tool")
+        operation = (WINDOWS_TOOL_NAMES.get(native_operation) if self.windows_skill else native_operation)
         allowed = {tool.get("name") for tool in self.tools}
         if not isinstance(call_id, str) or f"desktop_{operation}" not in allowed:
             return
@@ -264,7 +285,7 @@ class CodexAppServer:
         started = self.native_tool_calls.pop(call_id, None)
         if started is None or call_id in self.observed_native_calls:
             return
-        if started.get("tool") != operation or item.get("status") not in {"completed", "failed"}:
+        if started.get("tool") != native_operation or item.get("status") not in {"completed", "failed"}:
             return
         arguments = started.get("arguments")
         result = item.get("result")
@@ -288,7 +309,10 @@ class CodexAppServer:
             elif method == "mcpServer/elicitation/request":
                 app = self.current_app()
                 self.log("approval_requested", app=app, message=params.get("message"))
-                accepted = self.permission_check(params, stopped=self.stopped)
+                policy_params = dict(params)
+                if self.windows_skill and params.get("serverName") == "node_repl":
+                    policy_params["serverName"] = "boxagent_cua"
+                accepted = self.permission_check(policy_params, stopped=self.stopped)
                 if accepted and not self.auto_approve:
                     self.report("approval", "等待你的授权")
                     accepted = await self.approve({**params, "app": app})
@@ -311,29 +335,46 @@ class CodexAppServer:
                                                    "approvalPolicy": "on-request", "sandbox": "read-only"})
         self.log("tool_discovery_thread_started",
                  thread_id=bootstrap.get("thread", {}).get("id"))
-        async with asyncio.timeout(30):
+        self.discovery_thread_id = bootstrap.get("thread", {}).get("id")
+        server_name = "node_repl" if self.windows_skill else "boxagent_cua"
+        async with asyncio.timeout(self.windows_skill.startup_timeout + 10 if self.windows_skill else 30):
             while True:
                 inventory = await self.rpc("mcpServerStatus/list", {})
                 server = next((item for item in inventory.get("data", [])
-                               if item["name"] == "boxagent_cua"), None)
+                               if item["name"] == server_name), None)
                 if server and server.get("tools"):
                     tools = server["tools"]
-                    return list(tools.values()) if isinstance(tools, dict) else tools
+                    tools = list(tools.values()) if isinstance(tools, dict) else tools
+                    if self.windows_skill:
+                        tools = [{**tool, "name": WINDOWS_TOOL_NAMES[tool["name"]]}
+                                 for tool in tools if tool.get("name") in WINDOWS_TOOL_NAMES]
+                        if not any(tool["name"] == "windows_js" for tool in tools):
+                            raise RuntimeError("Windows Computer Use 缺少 node_repl js 工具")
+                    return tools
                 if self.stopped:
                     raise asyncio.CancelledError
                 await asyncio.sleep(.2)
 
     async def call_tool(self, operation, arguments):
         # RPC 顶层的 threadId 只负责路由；原生光标通过 MCP 元数据关联轮次。
-        metadata = {"threadId": self.thread_id}
+        thread_id = self.thread_id or self.discovery_thread_id
+        metadata = {"threadId": thread_id}
         if self.turn_metadata is not None:
             metadata["x-codex-turn-metadata"] = dict(self.turn_metadata)
+        server_name = "boxagent_cua"
+        if self.windows_skill:
+            reverse = {value: key for key, value in WINDOWS_TOOL_NAMES.items()}
+            if operation not in reverse:
+                raise ValueError("Windows 技能工具未注册")
+            operation, server_name = reverse[operation], "node_repl"
         return await self.rpc("mcpServer/tool/call", {
-            "threadId": self.thread_id, "server": "boxagent_cua", "tool": operation,
+            "threadId": thread_id, "server": server_name, "tool": operation,
             "_meta": metadata, "arguments": arguments})
 
     async def ensure_thread(self, *, model, instructions, preferred_thread_id=None,
                             product_session_id=None):
+        if self.windows_skill:
+            instructions += "\n\n" + WINDOWS_INSTRUCTIONS + "\n\n" + self.windows_skill.instructions
         await self.refresh_skills(force=self.skills_changed)
         skill_signature = self.skill_adapter.signature if self.skill_adapter else ()
         signature = (model, instructions,
@@ -521,7 +562,11 @@ class CodexAppServer:
             await self.refresh_skills()
             return self.discovered_tools
         executable = self.runtime_resolver()
-        self.client = resolve_computer_use_client(self.computer_use_home)
+        if self.windows_skill_loader:
+            self.windows_skill = self.windows_skill_loader()
+            self.client = self.windows_skill.command
+        else:
+            self.client = resolve_computer_use_client(self.computer_use_home)
         arguments = self.launch_arguments(executable, self.client)
         env = self.launch_environment()
         self.output.mkdir(parents=True, exist_ok=True)
@@ -554,6 +599,21 @@ class CodexAppServer:
     async def end_turn(self):
         if not self.thread_id or not self.turn_id:
             self.cleanup_status = "not_needed"
+            return
+        if self.windows_skill:
+            try:
+                result = await self.rpc("mcpServer/tool/call", {
+                    "threadId": self.thread_id, "server": "node_repl", "tool": "turn_ended",
+                    "arguments": {"hook_event_name": "Stop", "session_id": self.thread_id,
+                                  "turn_id": self.turn_id}}, timeout=10)
+                self.cleanup_status = "failed" if result.get("isError") else "notified"
+            except Exception as exc:
+                self.cleanup_status = "failed"
+                self.log("windows_skill_cleanup_failed", error=repr(exc))
+            finally:
+                self.turn_id = None
+                self.turn_input_messages = []
+                self.turn_metadata = None
             return
         payload = {"type": "agent-turn-complete", "thread-id": self.thread_id,
                    "turn-id": self.turn_id, "cwd": str(self.workspace),

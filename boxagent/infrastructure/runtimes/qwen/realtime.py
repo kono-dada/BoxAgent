@@ -58,6 +58,10 @@ def tool(name, description, properties=None, required=None):
 
 
 TOOLS = [
+    tool("play_avatar_action", "控制你自己的桌宠身体动作。用户要求跳舞时选 dance；"
+         "受到夸奖或轻松聊天时可偶尔选择 happy、laugh 或 shy，不要每轮调用。"
+         "这不是电脑操作，不要为桌宠表演调用 run_task。返回 requested 只代表请求已发送。",
+         {"action": {"type": "string", "enum": ["dance", "happy", "laugh", "shy"]}}),
     tool("run_task", "将当前这条用户原始请求委托给后台通用桌面操作 Agent。"
          "仅用于用户要求执行操作；聊天、问号、澄清或查询已有任务进度不得调用。"
          "宿主会从当前 Interaction 读取原文，不要重述、改写或补充目标参数。"
@@ -483,6 +487,11 @@ class QwenRealtimeSession:
                 if transcript:
                     self.response_transcripts[response_id] = transcript
         elif kind == "response.audio.done":
+            response_id = event.get("response_id") or self.response_id
+            if response_id == self.response_id:
+                finish = getattr(self.audio, "finish", None)
+                if finish is not None:
+                    finish()
             self._schedule_response_finalizer(event.get("response_id"))
         elif kind == "response.function_call_arguments.done":
             # The arguments-done event is the provider's executable boundary.
@@ -616,6 +625,9 @@ class QwenRealtimeSession:
             timer.cancel()
         if self.response_id == response_id:
             self.response_active = False
+            finish = getattr(self.audio, "finish", None)
+            if finish is not None:
+                finish()
         has_tool_calls = bool(self.response_calls.pop(response_id, set()))
         cancelled = response_id in self.cancelled_responses
         notification_id = self.notification_responses.pop(response_id, None)

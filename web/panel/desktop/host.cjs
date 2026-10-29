@@ -10,17 +10,19 @@ const {
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
-const { targetDisplay, petAnchor, petPlacement, constrainPetOrigin, primaryBubbleFrame } = require('./displays.cjs');
+const { targetDisplay, petAnchor, petPlacement, primaryBubbleFrame } = require('./displays.cjs');
 const {
   clampFrame,
   petSize,
   validBounds,
+  scalePetCrop,
   bubbleFrame,
-  presentation,
   taskFrame,
   linkedFrames,
   clampFrames,
 } = require("./layout.cjs");
+const { WindowGeometry } = require("./window-geometry.cjs");
+const { MusicMonitor } = require("./music-monitor.cjs");
 class DesktopHost {
   constructor({
     app,
@@ -45,6 +47,7 @@ class DesktopHost {
     this.state = {};
     this.snapshot = {};
     this.windows = new Set();
+    this.geometry = new WindowGeometry();
     this.bubbleOpen = false;
     this.bubbleHeight = 270;
     this.drag = null;
@@ -91,6 +94,7 @@ class DesktopHost {
       },
       ...options,
     });
+    this.geometry.remember(window, options);
     this.registerWindow(window);
     this.windows.add(window);
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -150,6 +154,13 @@ class DesktopHost {
     )
       this.feedback("快捷键已被占用，请使用小窗的语音按钮");
     this.pointerTimer = setInterval(() => this.pointer(), 40);
+    if (process.platform === 'win32') {
+      this.musicMonitor = new MusicMonitor(active => {
+        this.musicActive = active;
+        if (this.current) this.sendPet(this.current);
+      });
+      this.musicMonitor.start();
+    }
     await this.loadAvatar(this.snapshot.appearance, false);
   }
   preferredDisplay(displays = screen.getAllDisplays(), primary = screen.getPrimaryDisplay()) {
@@ -220,7 +231,7 @@ class DesktopHost {
       if (pet.dockInsetY !== undefined) pet.dockInsetY *= placement.viewport.height / pet.viewport.height;
     }
     Object.assign(pet, placement);
-    pet.window.setBounds({ x: Math.round(pet.origin.x + pet.crop.x), y: Math.round(pet.origin.y + pet.crop.y),
+    this.geometry.setBounds(pet.window, { x: Math.round(pet.origin.x + pet.crop.x), y: Math.round(pet.origin.y + pet.crop.y),
       width: pet.crop.width, height: pet.crop.height });
     this.sendPet(pet);
   }
@@ -252,7 +263,7 @@ class DesktopHost {
     this.cancelDisplayDrag();
     const primary = screen.getPrimaryDisplay(), displays = screen.getAllDisplays();
     for (const pet of [this.current, this.pending].filter(Boolean)) {
-      const frame = pet.window.getBounds();
+      const frame = this.geometry.getBounds(pet.window);
       const previous = screen.getDisplayMatching(frame);
       const display = this.displayTarget ? this.preferredDisplay(displays, primary) : previous;
       this.placePet(pet, display, display.id !== previous.id);
@@ -392,8 +403,11 @@ class DesktopHost {
         url: pet.url,
         viewport: pet.viewport,
         crop: pet.crop,
-        state: presentation(this.state),
+        state: this.state.speaking && !this.state.user_speaking ? "speaking" : "idle",
         pointer: this.pointerValue || [0, 0],
+        action: this.state.avatar_action,
+        actionId: this.state.avatar_action_id,
+        music: this.musicActive === true,
       });
   }
   async report(sender, message) {
@@ -402,9 +416,10 @@ class DesktopHost {
     );
     if (!pet || !message || typeof message !== "object") return;
     if (message.type === "bounds") {
+      // 只采用模型加载后的首帧；后续动作和诊断截图不能改变窗口。
+      if (pet.initialCrop) return;
       const bounds = validBounds(message, pet.viewport);
       if (!bounds || this.drag) return;
-      const firstBounds = !pet.hasBounds;
       pet.crop = {
         x: bounds.x,
         y: pet.viewport.height - bounds.y - bounds.height,
@@ -412,25 +427,21 @@ class DesktopHost {
         height: bounds.height,
       };
       pet.hasBounds = true;
-      // Capture layout padding once; animated crop changes must not move the chat.
+      pet.initialCrop = { crop: { ...pet.crop }, viewport: { ...pet.viewport } };
+      // Keep the first-frame crop for both split-display scaling and linked docking.
       pet.dockInsetY ??= pet.crop.y;
       if (this.displayTarget) {
         const display = this.preferredDisplay();
-        const area = display.workArea;
-        if (firstBounds && pet.restoreAnchor) {
+        if (pet.restoreAnchor) {
           pet.origin = { x: pet.restoreAnchor.x - pet.crop.x - pet.crop.width / 2,
             y: pet.restoreAnchor.y - pet.crop.y - pet.crop.height };
           pet.restoreAnchor = null;
         }
-        // Calibrate once, then only shrink on overflow. Idle animation must not continuously change zoom.
-        if (firstBounds || pet.crop.width > area.width - 16 || pet.crop.height > area.height - 16) {
-          this.placePet(pet, display);
-          if (pet === this.current) this.savePosition();
-          return;
-        }
-        pet.origin = constrainPetOrigin(pet.origin, pet.crop, area);
+        this.placePet(pet, display);
+        if (pet === this.current) this.savePosition();
+        return;
       }
-      pet.window.setBounds({
+      this.geometry.setBounds(pet.window, {
         x: Math.round(pet.origin.x + pet.crop.x),
         y: Math.round(pet.origin.y + pet.crop.y),
         width: Math.round(pet.crop.width),
@@ -520,7 +531,7 @@ class DesktopHost {
   positionBubble(preserveTop = false) {
     if (!this.bubble || !this.current) return;
     if (this.displayTarget) {
-      this.bubble.setBounds(primaryBubbleFrame(this.bubble.getBounds(), screen.getPrimaryDisplay().workArea, this.bubbleHeight));
+      this.geometry.setBounds(this.bubble, primaryBubbleFrame(this.geometry.getBounds(this.bubble), screen.getPrimaryDisplay().workArea, this.bubbleHeight));
       if (this.tasks?.isVisible()) this.positionTasks();
       return;
     }
@@ -532,11 +543,11 @@ class DesktopHost {
     );
     // Animation crop is not a placement anchor; content growth keeps the header still.
     if (preserveTop) {
-      const previous = this.bubble.getBounds();
+      const previous = this.geometry.getBounds(this.bubble);
       frame.x = previous.x;
       frame.y = previous.y;
     }
-    this.bubble.setBounds(
+    this.geometry.setBounds(this.bubble,
       clampFrame(frame, {
         x: this.area.x + 8,
         y: this.area.y + 8,
@@ -602,13 +613,17 @@ class DesktopHost {
   syncTasksVisibility(reposition = false) {
     if (!this.tasks || this.tasks.isDestroyed()) return;
     if (this.tasksExpanded || (!this.bubbleOpen && this.hasTaskStatus())) {
-      if (reposition || !this.tasks.isVisible()) this.positionTasks();
+      const place = reposition || !this.tasks.isVisible();
+      if (place) this.positionTasks();
+      const frame = this.geometry.getBounds(this.tasks);
       this.tasks.showInactive();
+      // macOS 可能在重新显示窗口时调整位置，恢复已计算的整组停靠坐标。
+      if (place) this.geometry.setBounds(this.tasks, frame);
     } else this.tasks.hide();
   }
   positionTasks() {
     const anchor = this.bubble
-      ? this.bubble.getBounds()
+      ? this.geometry.getBounds(this.bubble)
       : this.current ? { ...this.current.origin, ...this.current.viewport }
       : { x: this.area.x + this.area.width - 280, y: this.area.y + this.area.height - 210, width: 252, height: 182 };
     const area = screen.getDisplayMatching(anchor).workArea;
@@ -622,13 +637,13 @@ class DesktopHost {
     const frames = linkedFrames(bubble, tasks, {
       x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16,
     });
-    this.bubble.setBounds(frames.bubble);
-    this.tasks.setBounds(frames.tasks);
+    this.geometry.setBounds(this.bubble, frames.bubble);
+    this.geometry.setBounds(this.tasks, frames.tasks);
     if (this.current && !this.displayTarget) {
       const dx = frames.bubble.x - bubble.x, dy = frames.bubble.y - bubble.y;
       this.current.origin.x += dx;
       this.current.origin.y += dy;
-      if (dx || dy) this.current.window.setPosition(
+      if (dx || dy) this.geometry.setPosition(this.current.window,
         Math.round(this.current.origin.x + this.current.crop.x),
         Math.round(this.current.origin.y + this.current.crop.y),
       );
@@ -639,17 +654,17 @@ class DesktopHost {
   }
   dockPetBelowBubble() {
     if (this.displayTarget || !this.bubbleOpen || !this.current || this.drag) return;
-    const pet = this.current, bubble = this.bubble.getBounds();
+    const pet = this.current, bubble = this.geometry.getBounds(this.bubble);
     const area = screen.getDisplayMatching(bubble).workArea;
     const origin = { ...pet.origin, ...pet.viewport,
       y: bubble.y + bubble.height + 12 - (pet.dockInsetY || 0) };
-    const tasks = this.tasks?.isVisible() ? this.tasks.getBounds() : null;
+    const tasks = this.tasks?.isVisible() ? this.geometry.getBounds(this.tasks) : null;
     const frames = clampFrames([origin, bubble, ...(tasks ? [tasks] : [])],
       { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
     pet.origin = { x: frames[0].x, y: frames[0].y };
-    pet.window.setPosition(Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
-    this.bubble.setBounds(frames[1]);
-    if (tasks) this.tasks.setBounds(frames[2]);
+    this.geometry.setPosition(pet.window, Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
+    this.geometry.setBounds(this.bubble, frames[1]);
+    if (tasks) this.geometry.setBounds(this.tasks, frames[2]);
     const base = bubbleFrame({ ...pet.origin, ...pet.viewport }, this.area, null, this.bubbleHeight);
     this.offset = { x: frames[1].x - base.x, y: frames[1].y - base.y };
   }
@@ -680,9 +695,9 @@ class DesktopHost {
       this.drag = {
         sender: sender.id, pet,
         start: point,
-        frames: windows.map(window => ({ window, frame: window.getBounds(), visible: window.isVisible(),
+        frames: windows.map(window => ({ window, frame: this.geometry.getBounds(window), visible: window.isVisible(),
           limit: window === this.current.window && !this.displayTarget
-            ? { ...this.current.origin, ...this.current.viewport } : window.getBounds() })),
+            ? { ...this.current.origin, ...this.current.viewport } : this.geometry.getBounds(window) })),
         origin: { ...this.current.origin },
         last: point,
         time: Date.now(),
@@ -709,7 +724,7 @@ class DesktopHost {
       const moveX = clamped[0].x - visible[0].limit.x, moveY = clamped[0].y - visible[0].limit.y;
       if (pet || !this.displayTarget) this.current.origin = { x: drag.origin.x + moveX, y: drag.origin.y + moveY };
       for (const item of drag.frames) if (!item.window.isDestroyed())
-        item.window.setPosition(Math.round(item.frame.x + moveX), Math.round(item.frame.y + moveY));
+        this.geometry.setPosition(item.window, Math.round(item.frame.x + moveX), Math.round(item.frame.y + moveY));
       if (pet) {
         const now = Date.now(),
           dt = Math.max(1, now - drag.time) / 1000;
@@ -744,7 +759,7 @@ class DesktopHost {
           null,
           this.bubbleHeight,
         );
-        const actual = this.bubble.getBounds();
+        const actual = this.geometry.getBounds(this.bubble);
         this.offset = {
           x: actual.x - defaultFrame.x,
           y: actual.y - defaultFrame.y,
@@ -890,9 +905,16 @@ class DesktopHost {
         pet.origin.x += (pet.viewport.width - size.width) / 2;
         pet.origin.y += pet.viewport.height - size.height;
         pet.viewport = size;
-        pet.crop = { x: 0, y: 0, ...size };
+        pet.crop = pet.initialCrop
+          ? scalePetCrop(pet.initialCrop, size)
+          : { x: 0, y: 0, ...size };
         pet.origin = clampFrame({ ...pet.origin, ...size }, this.area);
-        pet.window.setBounds(pet.origin);
+        this.geometry.setBounds(pet.window, {
+          x: Math.round(pet.origin.x + pet.crop.x),
+          y: Math.round(pet.origin.y + pet.crop.y),
+          width: Math.round(pet.crop.width),
+          height: Math.round(pet.crop.height),
+        });
         this.sendPet(pet);
         this.savePosition();
         this.positionBubble();
@@ -906,6 +928,7 @@ class DesktopHost {
     return result;
   }
   close() {
+    this.musicMonitor?.stop();
     this.closed = true;
     clearInterval(this.pointerTimer);
     for (const event of ['display-added', 'display-removed', 'display-metrics-changed'])

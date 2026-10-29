@@ -59,6 +59,7 @@ async function fixture(t, { preference, position, initialScale = 1,
   class Tray extends EventEmitter { setToolTip() {} setContextMenu(menu) { this.menu = menu; } destroy() {} }
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(sourceFile, 'utf8'), { module, __dirname: path.dirname(sourceFile), console,
+    process: { platform: 'darwin' },
     setTimeout, clearTimeout, setInterval, clearInterval, setImmediate,
     require(name) { return name === 'electron' ? { BrowserWindow: FakeWindow, screen, Tray,
       nativeImage: { createFromPath: () => ({ setTemplateImage() {} }) },
@@ -328,20 +329,22 @@ test('measured portrait pet uses visible bounds, not transparent canvas, at maxi
   inside({ ...host.current.origin, ...host.current.viewport }, screen.displays[0].workArea);
 });
 
-test('first measured bounds calibrate saved maximum scale; stale reports and animation do not grow zoom', async t => {
+test('first measured bounds calibrate saved maximum scale; all later animation reports leave the frame fixed', async t => {
   const { host, screen } = await fixture(t, { preference: JSON.stringify({ version: 1, target: '2' }) });
   await host.request('desktop_set_pet_scale', { scale: 6 });
   const before = { ...host.current.viewport };
   await reportCrop(host);
   assert(host.current.viewport.height > before.height * 2);
   const calibrated = { ...host.current.viewport };
+  const fixedFrame = host.current.window.getBounds();
   await host.report(host.current.window.webContents, { type: 'bounds', viewport: [before.width, before.height],
     bounds: { x: 0, y: 0, ...before } });
   assert.deepEqual(host.current.viewport, calibrated);
   await reportCrop(host, host.current, .3, .7);
   assert.deepEqual(host.current.viewport, calibrated, 'smaller animation bounds do not zoom back in');
   await reportCrop(host, host.current, .65, .78);
-  assert(host.current.viewport.width < calibrated.width, 'wider gesture fits the physical screen');
+  assert.deepEqual(host.current.viewport, calibrated, 'wider gestures cannot change first-frame sizing');
+  assert.deepEqual(host.current.window.getBounds(), fixedFrame);
   inside(host.current.window.getBounds(), screen.displays[1].workArea);
   const reduced = { ...host.current.viewport };
   await reportCrop(host, host.current, .3, .7);
@@ -352,6 +355,59 @@ test('first measured bounds calibrate saved maximum scale; stale reports and ani
   screen.displays.push(secondary);
   screen.emit('display-added');
   inside(host.current.window.getBounds(), secondary.workArea);
+});
+
+test('split scaling and repeated screen changes retain the original crop without rounding drift', async t => {
+  const { host, screen } = await fixture(t);
+  await reportCrop(host);
+  host.setPetDisplay('2');
+  await host.request('desktop_set_pet_scale', { scale: 6 });
+  const crop = { ...host.current.crop }, viewport = { ...host.current.viewport };
+  for (let index = 0; index < 20; index++) {
+    host.setPetDisplay('1');
+    await host.request('desktop_set_pet_scale', { scale: 1.37 });
+    host.setPetDisplay('2');
+    await host.request('desktop_set_pet_scale', { scale: 6 });
+  }
+  assert.deepEqual(host.current.crop, crop);
+  assert.deepEqual(host.current.viewport, viewport);
+  inside(host.current.window.getBounds(), screen.displays[1].workArea);
+});
+
+test('split resize and drag share geometry tracking for avatar, chat and task windows', async t => {
+  const { host, screen } = await fixture(t);
+  await reportCrop(host);
+  host.setPetDisplay('2');
+  await host.request('desktop_set_pet_scale', { scale: 6 });
+  host.resizeBubble(host.bubble.webContents, 570);
+  host.showTasks();
+  for (const window of [host.current.window, host.bubble, host.tasks]) {
+    const before = window.getBounds();
+    assert.deepEqual(host.geometry.getBounds(window), before, 'resizes update requested DIP sizes');
+    for (let index = 0; index < 10; index++) drag(host, window, -5, -3);
+    assert.equal(window.getBounds().width, before.width);
+    assert.equal(window.getBounds().height, before.height);
+  }
+  inside(host.current.window.getBounds(), screen.displays[1].workArea);
+  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+});
+
+test('avatar actions and music survive camera state updates while the avatar is on secondary', async t => {
+  const { host } = await fixture(t);
+  host.setPetDisplay('2');
+  const frame = host.current.window.getBounds();
+  let sent;
+  host.current.window.webContents.send = (channel, payload) => { if (channel === 'desktop:pet') sent = payload; };
+  host.musicActive = true;
+  host.stateChanged({ avatar_action: 'dance', avatar_action_id: 'action-1', speaking: true });
+  host.stateChanged({ camera_status: 'active', voice: 'ready' });
+  assert.equal(sent.action, 'dance');
+  assert.equal(sent.actionId, 'action-1');
+  assert.equal(sent.music, true);
+  assert.equal(sent.state, 'speaking');
+  host.stateChanged({ user_speaking: true });
+  assert.equal(sent.state, 'idle');
+  assert.deepEqual(host.current.window.getBounds(), frame);
 });
 
 test('visible scaling preserves the feet and horizontal center when there is room', () => {

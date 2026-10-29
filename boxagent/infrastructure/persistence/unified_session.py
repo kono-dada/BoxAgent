@@ -70,7 +70,7 @@ class UnifiedSessionRepository:
                                        "active_session_id": None, "sessions": []})
 
     def _index(self) -> dict[str, Any]:
-        return json.loads(self.index_path.read_text())
+        return json.loads(self.index_path.read_text(encoding="utf-8"))
 
     async def create_session(self, title: str = "新会话") -> SessionMetadata:
         async with self.lock:

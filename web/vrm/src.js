@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { MotionBank } from './motion-bank.js';
+import { MusicDance } from './music-dance.js';
 import { AvatarAnimator } from './avatar-animator.js';
 import { SpringPhysics } from './spring-physics.js';
-import { visibleBounds, BoundsEnvelope } from './visible-bounds.js';
+import { visibleBounds } from './visible-bounds.js';
 
 const report = (type, detail = {}) => {
   const value = { type, ...detail };
@@ -14,7 +15,9 @@ const report = (type, detail = {}) => {
 window.addEventListener('message', event => {
   if (event.source !== window.parent || event.data?.type !== 'boxagent-pet-command') return;
   const { method, value } = event.data;
-  if (['present','interact','dispose'].includes(method)) window.pet?.[method](value);
+  if (['present','interact','dispose','perform'].includes(method)) {
+    Promise.resolve(window.pet?.[method](value)).catch(error => report('warning', {message:String(error)}));
+  }
 });
 const previewTheme = new URLSearchParams(location.search).get('previewTheme');
 function applyPreviewTheme(theme) {
@@ -38,22 +41,16 @@ configureLights(scene);
 const camera = new THREE.OrthographicCamera();
 let vrm, animator, physics, height = 1, width = 1, state = 'idle', elapsed = 0;
 let disposed = false, frames = 0, last = 0, started = 0, suspended = false;
+let musicDance, musicActive = false;
 const warnings = [];
 const boundsCanvas = document.createElement('canvas');
 const boundsContext = boundsCanvas.getContext('2d', {willReadFrequently:true});
 let lastBounds = '';
-const boundsEnvelope = new BoundsEnvelope();
-let lastBoundsCheck = -Infinity, fastBoundsUntil = 0, boundsMotion = '';
 let boundsChecks = 0, boundsReports = 0, boundsMilliseconds = 0;
-function reportBounds(force = false) {
+// 加载首帧和显式诊断时才测量边界，日常动画不扫描像素、不调整窗口。
+function reportBounds() {
   const now = performance.now();
-  if (boundsMotion !== animator?.current) {
-    boundsMotion = animator?.current; fastBoundsUntil = now + 400;
-  }
-  // 平稳动作每秒采样十次，拖动或动作过渡期间最多每秒三十次。
-  const interval = animator?.behavior.dragging || now < fastBoundsUntil ? 1000 / 30 : 100;
-  if (!force && now - lastBoundsCheck < interval - .7) return;
-  lastBoundsCheck = now; boundsChecks++;
+  boundsChecks++;
   const ratio = Math.min(1, 256 / Math.max(innerWidth, innerHeight));
   const w = Math.ceil(innerWidth * ratio), h = Math.ceil(innerHeight * ratio);
   if (boundsCanvas.width !== w || boundsCanvas.height !== h) {
@@ -61,16 +58,14 @@ function reportBounds(force = false) {
   }
   boundsContext.clearRect(0, 0, w, h);
   boundsContext.drawImage(renderer.domElement, 0, 0, w, h);
-  const measured = visibleBounds(boundsContext.getImageData(0, 0, w, h).data, w, h, innerWidth, innerHeight);
+  const bounds = visibleBounds(boundsContext.getImageData(0, 0, w, h).data, w, h, innerWidth, innerHeight);
   boundsMilliseconds += performance.now() - now;
-  if (!measured) return;
-  const bounds = boundsEnvelope.fit(measured, [innerWidth, innerHeight], now);
+  if (!bounds) return;
   const detail = {bounds, viewport:[innerWidth, innerHeight]};
   const signature = JSON.stringify(detail);
   if (signature !== lastBounds) { lastBounds = signature; boundsReports++; report('bounds', detail); }
 }
 function resize() {
-  lastBoundsCheck = -Infinity;
   renderer.setSize(innerWidth, innerHeight);
   const half = Math.max(height * 0.72, width * 0.56 * innerHeight / innerWidth);
   camera.left = -half * innerWidth / innerHeight; camera.right = -camera.left;
@@ -79,6 +74,7 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 function update(dt) {
+  musicDance?.update();
   physics.beginFrame();
   const steps = Math.max(1, Math.ceil(dt * 60)), step = dt / steps;
   for (let i = 0; i < steps; i++) {
@@ -97,13 +93,22 @@ function frame(now) {
   const delta = Math.min((now - (last || now)) / 1000, 0.08);
   last = now;
   if (!animator) return;
-  update(delta); renderer.render(scene, camera); reportBounds(); frames++;
+  update(delta); renderer.render(scene, camera); frames++;
 }
 function snapshot() {
   renderer.render(scene, camera);
-  reportBounds(true);
+  reportBounds();
   return { image: renderer.domElement.toDataURL('image/png'), behavior: animator.debug() };
 }
+const semanticMotions = Object.freeze({
+  greeting:'PET_INTRO/PET_INTRO',
+  hover:'PET_MISC/HoverReaction',
+  dance:'PET_DANCING/PET_DANCING_5',
+  happy:'PET_MISC/PET_HAPPY',
+  laugh:'PET_MISC/PET_LAUGHING',
+  shy:'PET_MISC/PET_SHY_POINT',
+});
+let actionSequence = 0, lastHoverAt = -Infinity, lastActionId = '';
 window.pet = {
   bounds() { return lastBounds ? JSON.parse(lastBounds) : null; },
   motions() { return animator?.bank.catalog() || []; },
@@ -114,10 +119,33 @@ window.pet = {
     b.gesture = {name,start:b.time,duration:clip.duration/animator.bank.settings(name).timeScale};
     return animator.bank.settings(name);
   },
-  present(value) { state = value.state; animator?.behavior.present(value); },
+  async perform(action) {
+    if (!Object.hasOwn(semanticMotions, action) || !animator) return;
+    if (musicActive) return;
+    const b = animator.behavior;
+    if (b.dragging) return;
+    if (action === 'hover') {
+      if (b.gesture || !['idle','listening'].includes(b.state) || performance.now() - lastHoverAt < 15000) return;
+      lastHoverAt = performance.now();
+    }
+    const sequence = ++actionSequence;
+    const name = semanticMotions[action];
+    const clip = await animator.bank.loadMotion(name);
+    if (sequence !== actionSequence || b.dragging || disposed || musicActive) return;
+    b.gesture = {name,start:b.time,duration:Math.min(12,clip.duration/animator.bank.settings(name).timeScale),semantic:action};
+  },
+  present(value) {
+    musicActive = value.music === true;
+    musicDance?.setActive(musicActive);
+    state = value.state; animator?.behavior.present(value);
+    if (animator && value.actionId && value.actionId !== lastActionId) {
+      lastActionId = value.actionId;
+      void window.pet.perform(value.action).catch(error => report('warning',{message:String(error)}));
+    }
+  },
   interact(value) {
+    if (value.kind === 'drag-start' || value.kind === 'drag-move') actionSequence++;
     animator?.behavior.interact(value); physics?.interact(value);
-    if (value.kind !== 'drag-move') fastBoundsUntil = performance.now() + 400;
   },
   debug() { return { ready: Boolean(animator), state, frames, warnings, elapsed,
     visibility: document.visibilityState, seconds: (performance.now() - started) / 1000,
@@ -153,8 +181,9 @@ window.pet = {
     return snapshot();
   },
   resume() { suspended = false; last = performance.now(); },
-  screenshot() { renderer.render(scene, camera); reportBounds(true); return renderer.domElement.toDataURL('image/png'); },
+  screenshot() { renderer.render(scene, camera); reportBounds(); return renderer.domElement.toDataURL('image/png'); },
   dispose() {
+    musicDance?.dispose();
     disposed = true; physics?.dispose(); animator?.dispose();
     if (vrm) VRMUtils.deepDispose(vrm.scene);
     renderer.dispose();
@@ -183,6 +212,13 @@ window.addEventListener('unhandledrejection', event => report('error', { message
   }).load();
   physics = new SpringPhysics(vrm,manifest.physicsSettings);
   animator = new AvatarAnimator(vrm, scene, box, bank, manifest, camera, () => ({width:innerWidth,height:innerHeight}));
+  musicDance = new MusicDance(bank,animator.behavior,Math.random,
+    message=>report('warning',{message}));
+  musicDance.setActive(musicActive);
+  animator.behavior.present({state});
+  if (window.parent !== window) {
+    void window.pet.perform('greeting').catch(error => report('warning',{message:String(error)}));
+  }
   update(1 / 30); started = performance.now(); renderer.render(scene, camera);
   reportBounds(); report('ready'); requestAnimationFrame(frame);
 })().catch(error => report('error', { message:String(error) }));

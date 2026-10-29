@@ -18,9 +18,10 @@ process.env.BOXAGENT_DATA_DIR = data;
 process.env.BOXAGENT_ELECTRON_USER_DATA = path.join(fixture, "profile");
 const python = path.join(fixture, "python");
 if (!second) {
+  const runtime = process.env.BOXAGENT_TEST_PYTHON || path.join(root, ".venv/bin/python3");
   fs.writeFileSync(
     python,
-    `#!/bin/sh\nexec '${root}/.venv/bin/python3' '${root}/tests/fixtures/electron_desktop.py'\n`,
+    `#!/bin/sh\nexec '${runtime}' '${root}/tests/fixtures/electron_desktop.py'\n`,
     { mode: 0o700 },
   );
 }
@@ -272,6 +273,18 @@ server.listen(path.join(data, "engine.sock"), () => {
       const initial = await js(bubble, "boxagent.request('desktop_snapshot')");
       assert(initial.appearance_ready);
       assert(pet.getBounds().width < 252, "crop removes transparent area");
+      const fixedPetFrame = pet.getBounds();
+      const animation = pet.webContents.mainFrame.frames[0];
+      const firstBounds = await animation.executeJavaScript("pet.bounds().bounds");
+      assert.equal(fixedPetFrame.width, firstBounds.width, "首帧决定紧凑窗口宽度");
+      assert.equal(fixedPetFrame.height, firstBounds.height, "首帧决定紧凑窗口高度");
+      const beforeAnimation = await animation.executeJavaScript("pet.debug()");
+      await new Promise((r) => setTimeout(r, 2000));
+      const afterAnimation = await animation.executeJavaScript("pet.debug()");
+      assert(afterAnimation.frames > beforeAnimation.frames, "真实动画仍在播放");
+      assert.equal(afterAnimation.windowSizing.checks, beforeAnimation.windowSizing.checks,
+        "日常动画不再扫描边界");
+      assert.deepEqual(pet.getBounds(), fixedPetFrame, "动画播放期间窗口保持首帧边界");
       assert(bubble.getBounds().height <= 600, "long history stays bounded");
       assert.equal(bubble.getBounds().width, 440);
       assert.equal(app.getName(), "BoxAgent");
@@ -283,12 +296,14 @@ server.listen(path.join(data, "engine.sock"), () => {
       await js(bubble, "boxagent.request('desktop_toggle_bubble')");
       await wait(() => bubble.isVisible(), "bubble visible");
       const fixedFrame = bubble.getBounds();
+      const dockedPetFrame = pet.getBounds();
       for (const x of [12, 40, 20]) {
         await js(
           pet,
           `boxagent.desktopAction('pet-report',{type:'bounds',viewport:[252,182],bounds:{x:${x},y:18,width:170,height:150}})`,
         );
         await new Promise((r) => setTimeout(r, 70));
+        assert.deepEqual(pet.getBounds(), dockedPetFrame, "后续边界报告不能移动或缩放已停靠的桌宠窗口");
         assert.equal(
           bubble.getBounds().x,
           fixedFrame.x,
@@ -485,8 +500,11 @@ server.listen(path.join(data, "engine.sock"), () => {
       await wait(() => !tasks.isVisible(), 'header summary replaces separate collapsed panel');
       assert(await js(bubble, "document.querySelector('.companion-task-summary-queue').textContent.includes('2')"), 'queue stays visible without floating pill');
       await js(bubble, "boxagent.desktopAction('show-tasks')");
-      await wait(() => tasks.getBounds().height === 280, 'expand attached task panel');
-      assert.deepEqual(relation(), attached, 'collapse and expand preserve docking side and spacing');
+      // 收起只隐藏浮层，尺寸仍是展开值；须等重新显示后再检查停靠位置。
+      await wait(() => tasks.isVisible() && tasks.getBounds().height === 280, 'expand attached task panel');
+      assert.deepEqual(relation(), attached, 'collapse and expand preserve docking side and spacing: ' + JSON.stringify({
+        pet: pet.getBounds(), bubble: bubble.getBounds(), tasks: tasks.getBounds(), area,
+      }));
       await js(tasks, "boxagent.desktopAction('pin-tasks')");
       await wait(() => js(tasks, "document.querySelector('[aria-pressed]')?.getAttribute('aria-pressed')==='true'"), 'pin reopened task panel');
       const taskBounds = tasks.getBounds();
@@ -606,6 +624,14 @@ server.listen(path.join(data, "engine.sock"), () => {
       );
       assert.equal(scaled.scale, 2.37);
       await wait(() => pet.getBounds().height > 182, "scaled VRM crop");
+      const scaledFrame = pet.getBounds();
+      assert(Math.abs(scaledFrame.width - fixedPetFrame.width * 2.37) <= 2,
+        "手动缩放保持首帧窗口比例");
+      assert(Math.abs(scaledFrame.height - fixedPetFrame.height * 2.37) <= 2,
+        "手动缩放保持首帧窗口比例");
+      await animation.executeJavaScript("pet.preview('drag-left', .5); pet.preview('release', .5); pet.preview('speaking', 1); pet.resume()");
+      await new Promise((r) => setTimeout(r, 100));
+      assert.deepEqual(pet.getBounds(), scaledFrame, "拖拽、说话与诊断截图不会改变固定窗口");
       const before = await js(bubble, "boxagent.request('desktop_snapshot')");
       const failed = await js(
         bubble,

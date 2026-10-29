@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import replace
 import json
+import os
 import sys
 import tempfile
 import time
@@ -251,6 +252,14 @@ class MemoryWorkerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(env["TYPESAFE_BASE_URL"],
                          "https://ws.cn-beijing.maas.aliyuncs.com/compatible-mode")
         self.assertEqual(env["TYPESAFE_DEFAULT_MODEL"], "decision-model-preview")
+
+    def test_worker_preserves_windows_system_environment(self):
+        worker = JevMemWorker(decision_api_key="test-key")
+        with patch.dict(os.environ, {"SYSTEMROOT": "C:\\Windows", "TEMP": "C:\\Temp"}):
+            env = worker._environment()
+        self.assertEqual(env["SYSTEMROOT"], "C:\\Windows")
+        self.assertEqual(env["TEMP"], "C:\\Temp")
+        self.assertEqual(env["PYTHONUTF8"], "1")
 
     def test_forget_removes_graph_vector_and_keyword_indexes(self):
         worker = Worker.__new__(Worker)

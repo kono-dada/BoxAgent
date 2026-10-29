@@ -2,6 +2,9 @@
 
 import asyncio
 import itertools
+import json
+import os
+from pathlib import Path
 
 from boxagent.interfaces.engine.protocol import PROTOCOL_VERSION, STREAM_LIMIT, decode, encode
 
@@ -26,12 +29,23 @@ class EngineClient:
         last_error = None
         while not self.closed and asyncio.get_running_loop().time() < deadline:
             try:
-                self.reader, self.writer = await asyncio.open_unix_connection(
-                    self.socket_path, limit=STREAM_LIMIT)
+                if os.name == "nt":
+                    endpoint = json.loads(Path(self.socket_path).read_text(encoding="utf-8"))
+                    if (not isinstance(endpoint, dict) or type(endpoint.get("port")) is not int
+                            or not 0 < endpoint["port"] < 65536
+                            or not isinstance(endpoint.get("token"), str)):
+                        raise ConnectionError("Invalid Engine endpoint")
+                    self.reader, self.writer = await asyncio.open_connection(
+                        "127.0.0.1", endpoint["port"], limit=STREAM_LIMIT)
+                    self.writer.write((endpoint["token"] + "\n").encode())
+                    await self.writer.drain()
+                else:
+                    self.reader, self.writer = await asyncio.open_unix_connection(
+                        self.socket_path, limit=STREAM_LIMIT)
                 self.reader_task = asyncio.create_task(self._read(), name="boxagent-engine-reader")
                 self.connected.set()
                 return
-            except (ConnectionError, FileNotFoundError, OSError) as exc:
+            except (ConnectionError, OSError, ValueError) as exc:
                 last_error = exc
                 await asyncio.sleep(.1)
         raise EngineDisconnected(f"无法连接 BoxAgent Engine：{last_error}")

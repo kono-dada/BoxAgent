@@ -3,9 +3,9 @@
 # dependencies = [
 #   "pyaudio>=0.2.14",
 #   "websockets>=15,<17",
-#   "pyobjc-framework-Cocoa>=11,<13",
-#   "pyobjc-framework-Quartz>=11,<13",
-#   "pillow>=11,<13",
+#   "pyobjc-framework-Cocoa>=11,<13; sys_platform == 'darwin'",
+#   "pyobjc-framework-Quartz>=11,<13; sys_platform == 'darwin'",
+#   "pillow>=11.2.1,<13",
 # ]
 # ///
 """uv 直接启动桌宠；不生成 .app，不修改已有 MLX 环境。"""

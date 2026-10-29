@@ -1,4 +1,4 @@
-const { clampFrame, petSize } = require('./layout.cjs');
+const { clampFrame, petSize, scalePetCrop } = require('./layout.cjs');
 
 function targetDisplay(displays, primary, target, label = '') {
   if (target === 'primary') return primary;
@@ -25,18 +25,24 @@ function constrainPetOrigin(origin, crop, area) {
 
 function petPlacement(pet, scale, area, center = false, fitVisible = true) {
   const measured = fitVisible && pet.hasBounds;
+  let initial = pet.initialCrop || { crop: pet.crop, viewport: pet.viewport };
+  if (measured) {
+    // Reserve fixed motion room on independent displays without per-frame resizing.
+    const { crop, viewport } = initial;
+    const x = Math.max(0, Math.floor(crop.x - crop.width * .12));
+    const y = Math.max(0, Math.floor(crop.y - crop.height * .06));
+    initial = { viewport, crop: { x, y,
+      width: Math.min(viewport.width, Math.ceil(crop.x + crop.width * 1.12)) - x,
+      height: Math.min(viewport.height, Math.ceil(crop.y + crop.height * 1.06)) - y,
+    } };
+  }
   const padding = measured ? 18 : 16;
   // The renderer's transparent margins may extend offscreen; only its cropped window must fit.
   const viewport = petSize(scale, {
-    width: Math.max(1, area.width - padding) / (measured ? pet.crop.width / pet.viewport.width : 1),
-    height: Math.max(1, area.height - padding) / (measured ? pet.crop.height / pet.viewport.height : 1),
+    width: Math.max(1, area.width - padding) / (measured ? initial.crop.width / initial.viewport.width : 1),
+    height: Math.max(1, area.height - padding) / (measured ? initial.crop.height / initial.viewport.height : 1),
   });
-  const crop = pet.hasBounds ? {
-    x: Math.floor(pet.crop.x * viewport.width / pet.viewport.width),
-    y: Math.floor(pet.crop.y * viewport.height / pet.viewport.height),
-    width: Math.ceil(pet.crop.width * viewport.width / pet.viewport.width),
-    height: Math.ceil(pet.crop.height * viewport.height / pet.viewport.height),
-  } : { x: 0, y: 0, ...viewport };
+  const crop = pet.hasBounds ? scalePetCrop(initial, viewport) : { x: 0, y: 0, ...viewport };
   const limit = fitVisible ? crop : { x: 0, y: 0, ...viewport };
   const anchor = measured ? petAnchor(pet) : null;
   const origin = center ? {

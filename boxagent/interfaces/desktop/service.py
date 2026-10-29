@@ -129,7 +129,7 @@ class DesktopService:
             if method == "desktop_runs":
                 records = SessionRunRecords(self.data_dir / "runs")
                 return {"items": [{"id": str(directory),
-                                   "manifest": json.loads((directory / "manifest.json").read_text()),
+                                   "manifest": json.loads((directory / "manifest.json").read_text(encoding="utf-8")),
                                    "files": [p.name for p in directory.iterdir() if p.is_file()]}
                                   for directory in reversed(records.directories(str(params.get("session_id", ""))))]}
             if method == "desktop_run_directory":

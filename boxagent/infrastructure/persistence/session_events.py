@@ -6,7 +6,7 @@ separate cursor so migration does not silently move existing runtime bindings.
 
 from __future__ import annotations
 
-import fcntl
+from boxagent.core import file_lock as fcntl
 import json
 import gzip
 import math
@@ -43,6 +43,8 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+    if os.name == "nt":
+        return  # Windows cannot open directories with the POSIX fsync contract.
     descriptor = os.open(path.parent, os.O_RDONLY)
     try:
         os.fsync(descriptor)
@@ -212,7 +214,7 @@ class SessionEventStore:
 
     def state(self, session_id: str) -> dict[str, Any]:
         with self.lock:
-            value = json.loads((self.directory(session_id) / "state.json").read_text())
+            value = json.loads((self.directory(session_id) / "state.json").read_text(encoding="utf-8"))
             if not isinstance(value, dict):
                 raise ValueError("Session state 必须是 object")
             return value

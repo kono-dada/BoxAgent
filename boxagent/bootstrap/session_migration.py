@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import fcntl
+from boxagent.core import file_lock as fcntl
 import json
 import hashlib
 import math
@@ -91,10 +91,10 @@ async def _migrate_sessions(data_dir: Path) -> dict[str, Any]:
     ledger = JsonlContextLedgerStore(source_root)
     totals = {"sessions": 0, "events": 0, "tasks": 0}
     try:
-        index = json.loads(legacy.index_path.read_text())
+        index = json.loads(legacy.index_path.read_text(encoding="utf-8"))
         for sid in index["sessions"]:
             directory = legacy.sessions_path / sid
-            meta = json.loads((directory / "metadata.json").read_text())
+            meta = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
             target.create(sid, created_at=meta["created_at"])
             for filename in ("events.jsonl", "context.jsonl", "context.v1.jsonl"):
                 validate_legacy_log(directory / filename)
@@ -130,7 +130,7 @@ async def _migrate_sessions(data_dir: Path) -> dict[str, Any]:
                 at=meta["created_at"], dedup_key="migration-source:" + source_root.name)
             state_path = target.directory(sid) / "state.json"
             if not state_path.exists() or rolled_back:
-                bindings = json.loads((directory / "runtime-bindings.json").read_text())
+                bindings = json.loads((directory / "runtime-bindings.json").read_text(encoding="utf-8"))
                 target.save_state(sid, {"metadata": meta, "bindings": bindings["bindings"]})
             migrated = target.read(sid)
             original_keys = {"product:" + e.event_id for e in events}
@@ -181,7 +181,7 @@ def rollback_sessions(data_dir: Path) -> None:
         marker = root / ".migrated-v1"
         if not marker.exists():
             return
-        index = json.loads((root / "index.json").read_text())
+        index = json.loads((root / "index.json").read_text(encoding="utf-8"))
         try:
             for sid in index["sessions"]:
                 target.acquire(sid)

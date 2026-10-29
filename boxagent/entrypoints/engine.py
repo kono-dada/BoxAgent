@@ -22,7 +22,10 @@ async def run(args):
         context_interval=args.context_interval, context_size=args.context_size)
     loop = asyncio.get_running_loop()
     for name in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(name, server.request_stop)
+        try:
+            loop.add_signal_handler(name, server.request_stop)
+        except NotImplementedError:
+            signal.signal(name, lambda *_args: loop.call_soon_threadsafe(server.request_stop))
     try:
         await server.run()
     finally:

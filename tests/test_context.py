@@ -24,7 +24,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
                 paths.append(path)
                 Image.new("RGB", (1600, 900)).save(path)
 
-            observer.command = capture
+            observer.capture = capture
             first = {"id": 1, "app": "测试窗口"}
             second = {"id": 2, "app": "另一个窗口"} if switched else first
             with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
@@ -62,7 +62,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
         with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
                    return_value=window), patch("asyncio.create_subprocess_exec",
                    AsyncMock(return_value=process)), patch("asyncio.wait_for",
-                   timeout):
+                   timeout), patch("boxagent.infrastructure.perception.qwen_mlx.sys.platform", "darwin"):
             await observer.observe()
         self.assertEqual(events[-1], "context.waiting")
         self.assertEqual(observer.capture_failures, 1)
@@ -72,7 +72,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
         async def capture(*args):
             Image.new("RGB", (400, 300)).save(Path(args[-1]))
 
-        observer.command = capture
+        observer.capture = capture
         with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
                    return_value=window):
             await observer.observe()
@@ -82,7 +82,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_mixed_capture_failures_share_the_retry_limit(self):
         events = []
         observer = WindowSummary(lambda kind, **fields: events.append(kind))
-        observer.command = AsyncMock(side_effect=[
+        observer.capture = AsyncMock(side_effect=[
             RuntimeError("could not create image from window"),
             TimeoutError(), OSError("capture unavailable")])
         with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
@@ -96,7 +96,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_capture_cancellation_is_not_a_retry(self):
         observer = WindowSummary(lambda kind, **fields: None)
-        observer.command = AsyncMock(side_effect=asyncio.CancelledError)
+        observer.capture = AsyncMock(side_effect=asyncio.CancelledError)
         with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
                    return_value={"id": 7, "app": "测试窗口"}):
             with self.assertRaises(asyncio.CancelledError):
@@ -108,7 +108,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         observer = WindowSummary(lambda kind, **fields: events.append(kind))
-        observer.command = AsyncMock(side_effect=RuntimeError(
+        observer.capture = AsyncMock(side_effect=RuntimeError(
             "could not create image from window\n"))
         window = {"id": 7, "app": "测试窗口"}
         with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
@@ -130,7 +130,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
                 raise failures.pop()
             Image.new("RGB", (400, 300)).save(Path(args[-1]))
 
-        observer.command = capture
+        observer.capture = capture
         window = {"id": 7, "app": "测试窗口"}
         with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
                    return_value=window):

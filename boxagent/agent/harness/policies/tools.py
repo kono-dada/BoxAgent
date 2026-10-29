@@ -10,6 +10,7 @@ from boxagent.core.errors import redact
 
 
 TOOL_LABELS = {
+    "windows_js": "Windows 界面操作", "windows_js_reset": "重置 Windows 操作会话",
     "list_apps": "查找应用", "get_app_state": "观察界面", "click": "点击",
     "type_text": "输入", "press_key": "按键", "scroll": "滚动", "drag": "拖动",
     "set_value": "修改控件", "select_text": "选择文字",
