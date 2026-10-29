@@ -1,13 +1,14 @@
 """AOQ transport for Qwen Realtime on macOS.
 
 The model protocol remains the same JSON event stream used by the WebSocket
-adapter. AOQ carries those events on its data track and owns microphone,
-speaker, acoustic echo cancellation, and noise suppression on the audio track.
+adapter. AOQ owns the audio track and native capture. Playback stays native
+unless an explicit output device opts into the SDK's external-rendering path.
 """
 
 from __future__ import annotations
 
 import asyncio
+import ctypes
 import json
 import sys
 import threading
@@ -17,6 +18,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from boxagent.infrastructure.audio.output import PcmOutput
 from boxagent.infrastructure.runtimes.qwen.realtime import MODELS, QwenRealtimeSession
 
 _AOQ_DELEGATE_CLASS = None
@@ -143,11 +145,15 @@ class AoqFramework:
     _active = False
 
     def __init__(self, *, sdk_dir, work_dir, event_callback,
-                 playback_callback=None):
+                 playback_callback=None, output_device: str = ""):
         self.sdk_dir = Path(sdk_dir)
         self.work_dir = Path(work_dir)
         self.event_callback = event_callback
         self.playback_callback = playback_callback or (lambda _active: None)
+        self.output_device = output_device
+        self.output: PcmOutput | None = None
+        self._output_error = False
+        self.output_pcm_bytes = 0
         self.engine = self.delegate = None
         self._classes = {}
         self._closed = False
@@ -203,8 +209,15 @@ class AoqFramework:
                         "type": "_aoq.connection", "status": int(status),
                     })
 
-                def onStats_(self, _stats):
-                    return None
+                def onStats_(self, stats):
+                    for audio in stats.audioPublishStats() or ():
+                        if int(audio.trackType()) == 0:
+                            self.owner.event_callback({
+                                "type": "_aoq.audio_stats",
+                                "bytes": int(audio.bytes()),
+                                "bitrate": int(audio.bitrate()),
+                                "encode_volume": int(audio.encodeVolume()),
+                            })
 
                 def onAudioDeviceStateChanged_(self, state):
                     self.owner.event_callback({
@@ -247,7 +260,9 @@ class AoqFramework:
         self.delegate.owner = self
 
     def observe_playback_frame(self, frame):
-        """Observe native renderer activity without replacing SDK playback."""
+        """Only the explicitly selected output receives copied PCM frames."""
+        if self._closed:
+            return
         try:
             if bool(frame.autoGenMute()):
                 return
@@ -255,9 +270,35 @@ class AoqFramework:
             # Older SDK builds may not expose autoGenMute. In that case the
             # callback still represents the best available playback receipt.
             pass
+        if self.output is not None:
+            try:
+                size = int(frame.dataSize())
+                if (int(frame.samplesPerSec()) != self.output.sample_rate
+                        or int(frame.numOfChannels()) != 1
+                        or int(frame.bytesPerSample()) != 2
+                        or not 0 < size <= self.output.sample_rate * 2 // 5
+                        or size != int(frame.numOfSamples()) * 2):
+                    raise ValueError("AOQ 播放帧格式与输出设备不匹配")
+                pointer = frame.dataPtr()
+                if not isinstance(pointer, int) or pointer <= 0:
+                    raise ValueError("AOQ 播放帧为空")
+                # The SDK owns the pointer only for this callback's lifetime.
+                pcm = ctypes.string_at(pointer, size)
+                if len(pcm) != size:
+                    raise ValueError("AOQ 播放帧长度无效")
+                self.output.append_pcm(pcm)
+                self.output_pcm_bytes += len(pcm)
+            except Exception as exc:
+                self.output_failed(str(exc))
+                return
         if not self._playback_observed:
             self._playback_observed = True
             self.playback_callback(True)
+
+    def output_failed(self, message: str) -> None:
+        if not self._closed and not self._output_error:
+            self._output_error = True
+            self.event_callback({"type": "_aoq.output_error", "message": message})
 
     def start(self, token, *, microphone=True, playback=True):
         if not self._active_lock.acquire(blocking=False):
@@ -336,8 +377,12 @@ class AoqFramework:
 
     def _start_audio_devices(self, *, microphone=True, playback=True):
         if playback:
+            if self.output_device:
+                from boxagent.infrastructure.audio.output import DeviceOutput
+                self.output = DeviceOutput(self.output_device, self.output_failed)
+                self.event_callback({"type": "_aoq.output_selected", "device": self.output_device})
             config = self._classes["AoqAudioPlaybackConfig"].alloc().init()
-            config.setIsExternal_(False)
+            config.setIsExternal_(bool(self.output_device))
             config.setChannel_(1)
             result = int(self.engine.startAudioPlayer_(config))
             if result != 0:
@@ -353,7 +398,7 @@ class AoqFramework:
         if playback:
             self.engine.setAudioFrameObserver_(self.delegate)
             observer = self._classes["AoqAudioObserverConfig"].alloc().init()
-            observer.setSampleRate_(16000)
+            observer.setSampleRate_(self.output.sample_rate if self.output is not None else 16000)
             observer.setChannels_(1)
             observer.setMode_(0)  # read-only
             result = int(self.engine.enableAudioFrameObserver_audioSource_config_(
@@ -389,6 +434,8 @@ class AoqFramework:
         self.mark_playback_idle()
         if self.engine is not None and not self._closed:
             self.engine.interruptAudioPlayer_fadeMs_(0, 20)
+        if self.output is not None:
+            self.output.clear()
 
     def begin_playback(self):
         return None
@@ -405,12 +452,23 @@ class AoqFramework:
         self.mark_playback_idle()
         engine, self.engine = self.engine, None
         if engine is not None:
+            if self.output is not None:
+                try:
+                    engine.setAudioFrameObserver_(None)
+                except Exception:
+                    pass
             for method in (engine.stopAudioCapture, engine.stopAudioPlayer,
                            engine.disconnect):
                 try:
                     method()
                 except Exception:
                     pass
+        if self.output is not None:
+            try:
+                self.output.close()
+            except Exception:
+                pass
+            self.output = None
         if self._owns_singleton and "AoqClientEngine" in self._classes:
             try:
                 self._classes["AoqClientEngine"].destroy()
@@ -442,7 +500,8 @@ class AoqRealtimeSession(QwenRealtimeSession):
 
     def __init__(self, *args, workspace_id, region="cn-beijing", sdk_dir,
                  work_dir, token_client_factory=AoqTokenClient,
-                 native_factory=AoqFramework, **kwargs):
+                 native_factory=AoqFramework, connect_timeout: float = 30.0,
+                 output_device: str = "", **kwargs):
         super().__init__(*args, **kwargs)
         self.workspace_id = workspace_id
         self.region = region
@@ -450,9 +509,18 @@ class AoqRealtimeSession(QwenRealtimeSession):
         self.work_dir = Path(work_dir)
         self.token_client_factory = token_client_factory
         self.native_factory = native_factory
+        self.connect_timeout = connect_timeout
+        self.output_device = output_device
         self.transport = None
         self.events = asyncio.Queue()
         self.playback_finish_task = None
+
+    async def feed_image(self, image: str) -> bool:
+        # Data-track images require audio in THIS turn. A server VAD receipt is
+        # evidence of audio arrival; a timer after starting the device is not.
+        if not self.microphone or not self.user_speaking:
+            return False
+        return await super().feed_image(image)
 
     def _enqueue_native(self, event):
         if not self.closed:
@@ -467,7 +535,8 @@ class AoqRealtimeSession(QwenRealtimeSession):
             raise ConnectionError("AOQ 会话已关闭")
         if message.get("type") == "input_audio_buffer.append":
             return
-        self.trace("client.request", request=message)
+        if message.get("type") != "input_image_buffer.append":
+            self.trace("client.request", request=message)
         self.transport.send(message)
 
     async def run(self):
@@ -481,25 +550,39 @@ class AoqRealtimeSession(QwenRealtimeSession):
             client = self.token_client_factory(
                 api_key=self.key, workspace_id=self.workspace_id,
                 region=self.region)
+            self.trace("transport.token_request", transport="aoq")
             token = await asyncio.to_thread(client.allocate, self.model)
+            self.trace("transport.token_received", transport="aoq")
             self.transport = self.native_factory(
                 sdk_dir=self.sdk_dir, work_dir=self.work_dir,
                 event_callback=self._enqueue_native,
-                playback_callback=self._native_playback_changed)
+                playback_callback=self._native_playback_changed,
+                **({"output_device": self.output_device} if self.output_device else {}))
             self.audio = _AoqAudioControl(self.transport)
             self.ws = self  # active-transport sentinel used by shared session logic
             self.transport.start(
                 token, microphone=self.microphone, playback=self.playback)
-            while True:
-                event = await asyncio.wait_for(self.events.get(), timeout=20)
-                kind = event.get("type")
-                if kind == "_aoq.connection" and event.get("status") == 2:
-                    break
-                if kind == "_aoq.connection" and event.get("status") == 3:
-                    raise AoqUnavailable("AOQ 连接失败")
-                if kind == "_aoq.error":
-                    raise AoqUnavailable(event.get("message") or "AOQ 连接失败")
-                buffered.append(event)
+            self.trace("transport.connecting", transport="aoq")
+            try:
+                # Audio statistics must not reset the overall handshake deadline.
+                async with asyncio.timeout(self.connect_timeout):
+                    while True:
+                        event = await self.events.get()
+                        kind = event.get("type")
+                        if kind == "_aoq.closed":
+                            return
+                        if kind == "_aoq.connection" and event.get("status") == 2:
+                            break
+                        if kind == "_aoq.connection" and event.get("status") in {0, 3}:
+                            raise AoqUnavailable("AOQ 连接失败")
+                        if kind == "_aoq.error":
+                            raise AoqUnavailable(event.get("message") or "AOQ 连接失败")
+                        if str(kind).startswith("_aoq."):
+                            await self.receive(event)
+                        else:
+                            buffered.append(event)
+            except TimeoutError as exc:
+                raise AoqUnavailable("AOQ 服务器连接超时，请检查网络或代理后重试") from exc
             self.trace(
                 "transport.connected", transport="aoq",
                 sdk_version=getattr(self.transport, "version", ""),
@@ -525,9 +608,20 @@ class AoqRealtimeSession(QwenRealtimeSession):
 
     async def receive(self, event):
         kind = event.get("type")
+        if kind == "_aoq.output_selected":
+            self.trace("transport.output_selected", transport="aoq", device=event.get("device"))
+            return
+        if kind == "_aoq.output_error":
+            self.trace("transport.output_error", transport="aoq", message=event.get("message"))
+            raise AoqUnavailable(event.get("message") or "桌宠独立扬声器播放失败")
         if kind == "session.updated" and self.transport:
             self.transport.enable_audio_send(self.microphone)
             await self.inject_history()
+        if kind == "input_audio_buffer.speech_started":
+            self.audio_input_ready.set()
+        elif kind in {"input_audio_buffer.speech_stopped",
+                      "input_audio_buffer.committed", "input_audio_buffer.cleared"}:
+            self.audio_input_ready.clear()
         if kind == "response.audio.delta":
             self.trace(
                 "transport.audio_delta", transport="aoq",
@@ -539,6 +633,11 @@ class AoqRealtimeSession(QwenRealtimeSession):
         if kind == "_aoq.audio_device":
             self.trace("transport.audio_device", transport="aoq", **{
                 key: event.get(key) for key in ("state", "reason")})
+            return
+        if kind == "_aoq.audio_stats":
+            self.trace("transport.audio_publish", transport="aoq",
+                       bytes=event.get("bytes"), bitrate=event.get("bitrate"),
+                       encode_volume=event.get("encode_volume"))
             return
         if kind == "_aoq.audio_route":
             self.trace("transport.audio_route", transport="aoq",

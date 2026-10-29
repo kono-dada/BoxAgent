@@ -1,10 +1,40 @@
 import { t } from '../i18n';
+import { useEffect, useState } from 'react';
+import { Camera } from 'lucide-react';
+import type { AvatarSnapshot } from '../types';
 import { run, runtimeLabel, type PageProps } from '../hooks/useAction';
-export function Controls(props: PageProps<{ unavailable?: string }>) {
+export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: string }>) {
   const { data, runtime, busy, act } = props;
+  const [desktop, setDesktop] = useState<AvatarSnapshot>(data);
+  useEffect(() => window.boxagent.onDesktop(setDesktop), []);
   return (
     <>
       <section className="feature-card control-settings">
+        <div>
+          <section><h2><label htmlFor="pet-display">{t('小人显示屏')}</label></h2></section>
+          <select
+            id="pet-display"
+            className="pet-display-select"
+            value={desktop.separate_windows ? desktop.pet_display_id : 'together'}
+            disabled={busy || Boolean(data.unavailable) || !desktop.appearance_ready || desktop.switching}
+            onChange={(event) => run(act<AvatarSnapshot>('desktop_set_pet_display', {
+              id: event.target.value === 'together' ? null : event.target.value,
+            }).then(setDesktop))}
+          >
+            <option value="together">{t('小人与聊天同屏')}</option>
+            {desktop.displays?.map(display => (
+              <option key={display.id} value={display.id}>
+                {t(display.primary ? '主屏' : '副屏')} · {display.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <section><h2>{t('摄像头互动')}</h2></section>
+          <button className="button" disabled={busy} onClick={() => run(act('desktop_open_camera'))}>
+            <Camera size={16} aria-hidden="true" />{t('打开摄像头窗口')}
+          </button>
+        </div>
         <div>
           <section>
             <h2>{t('桌面对话小窗')}</h2>

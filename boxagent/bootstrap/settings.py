@@ -46,6 +46,8 @@ class Settings:
     soul_file: Path
     engine_watch: bool
     intent_reference_enabled: bool = True
+    qwen_websocket_proxy: str = "auto"
+    aoq_output_device: str = ""
 
     @property
     def runs_dir(self) -> Path:
@@ -194,6 +196,10 @@ def load_settings(*, log_dir=None) -> Settings:
         qwen_api_key=qwen_api_key,
         qwen_transport=(read_optional_setting("BOXAGENT_QWEN_TRANSPORT")
                         or "auto").strip().lower(),
+        qwen_websocket_proxy=(read_optional_setting("BOXAGENT_QWEN_WEBSOCKET_PROXY")
+                              or "auto").strip().lower(),
+        aoq_output_device=os.environ.get(
+            "BOXAGENT_AOQ_OUTPUT_DEVICE", read_optional_setting("BOXAGENT_AOQ_OUTPUT_DEVICE")).strip(),
         qwen_workspace_id=qwen_workspace_id,
         qwen_region=qwen_region,
         aoq_sdk_dir=Path(read_optional_setting("BOXAGENT_AOQ_SDK_DIR")

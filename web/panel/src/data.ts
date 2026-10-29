@@ -4,6 +4,7 @@ import type {
   Session,
   SessionMessages,
   AvatarData,
+  AvatarSnapshot,
   PersonaData,
   Skill,
   RunData,
@@ -11,7 +12,6 @@ import type {
   TimelineEvent,
   RecordData,
   MemoryGraph,
-  RuntimeState,
 } from './types';
 import type { EventRecord } from './event-model';
 
@@ -26,7 +26,7 @@ interface PageDataMap {
   persona: PersonaData;
   skills: Skill[];
   runs: RunData;
-  controls: RuntimeState & { unavailable?: string };
+  controls: AvatarSnapshot & { unavailable?: string };
   settings: RecordData;
   interface: RecordData;
 }
@@ -54,7 +54,7 @@ export async function readPage(
       return { view, data: await bridge.request<Skill[]>('list_skills') };
     case 'controls':
       try {
-        return { view, data: await bridge.request<RuntimeState>('desktop_snapshot') };
+        return { view, data: await bridge.request<AvatarSnapshot>('desktop_snapshot') };
       } catch (error) {
         return { view, data: { unavailable: error instanceof Error ? error.message : String(error) } };
       }

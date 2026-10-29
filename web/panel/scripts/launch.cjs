@@ -39,6 +39,7 @@ function prepare() {
       CFBundleIdentifier: "com.boxagent.desktop",
       CFBundleIconFile: "boxagent.icns",
       LSApplicationCategoryType: "public.app-category.productivity",
+      NSCameraUsageDescription: "开启视频通话后，将摄像头画面发送至千问以进行视觉对话；关闭即停止，不在本机录像。",
     }))
       execFileSync("/usr/libexec/PlistBuddy", [
         "-c",
