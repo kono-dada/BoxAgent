@@ -31,6 +31,9 @@ tmp/
 /findings.md
 /progress.md
 
+# 本机课程作业与个人资料，不属于项目代码。
+UCMP_assignment/
+
 # 本地日志、测试覆盖率和类型检查缓存。
 *.log
 .coverage
