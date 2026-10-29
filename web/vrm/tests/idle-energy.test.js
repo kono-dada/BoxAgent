@@ -64,11 +64,12 @@ test('十万次固定种子抽样符合实际素材分布，所有自动待机�
   assert.ok(sorted[0].probability>0.7 && sorted[0].probability<0.8);
   assert.ok(report.weightedMean<report.uniformMean*0.15);
 });
-test('启动选择最低耗能动作，说话时保留待机动作和剩余抽样时间',()=>{
+test('启动选择最低耗能动作，说话时继续待机抽样',()=>{
   const actions=[{name:'big',energy:10},{name:'quiet',energy:0}];
   const b=new PetBehavior(()=>0,{idleActions:actions,roles:{speaking:'talk'}});
   assert.equal(b.motion().name,'quiet');b.step(0.08);const timer=b.idleTimer;
   b.present({state:'speaking'});for(let i=0;i<200;i++)b.step(0.08);
-  assert.equal(b.idleTimer,timer);assert.equal(b.history.length,0);
-  b.present({state:'idle'});assert.equal(b.motion().name,'quiet');
+  assert.ok(b.idleTimer>timer);assert.equal(b.history.length,1);
+  assert.equal(b.motion().kind,'idle');
+  const body=b.motion();b.present({state:'idle'});assert.deepEqual(b.motion(),body);
 });

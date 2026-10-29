@@ -210,7 +210,22 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
         other = EngineServer(self.socket_path, lambda publish: FakeApplication(publish))
         with self.assertRaisesRegex(RuntimeError, "另一个 BoxAgent Engine"):
             await other.start()
+        await other.close()
         self.assertEqual((await self.client.request("health"))["status"], "ready")
+
+    async def test_windows_endpoint_rejects_wrong_token(self):
+        if not self.server.auth_token:
+            self.skipTest("Windows TCP transport only")
+        port = self.server.server.sockets[0].getsockname()[1]
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        try:
+            writer.write(b"wrong-token\n")
+            await writer.drain()
+            self.assertEqual(await asyncio.wait_for(reader.read(), 2), b"")
+            self.assertEqual((await self.client.request("health"))["status"], "ready")
+        finally:
+            writer.close()
+            await writer.wait_closed()
 
     @patch("boxagent.interfaces.engine.supervisor.asyncio.create_subprocess_exec",
            new_callable=AsyncMock)

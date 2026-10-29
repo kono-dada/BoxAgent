@@ -207,7 +207,7 @@ def load_settings(*, log_dir=None) -> Settings:
         deepseek_api_key=read_optional_secret("DEEPSEEK_API_KEY"),
         jev_mem_python=Path(read_renamed_setting(
             "BOXAGENT_JEV_MEM_PYTHON", "BOXAGENT_JEV_MEMORY_PYTHON",
-            ROOT / ".runtime/jev-mem-venv/bin/python")),
+            ROOT / (".runtime/jev-mem-venv/Scripts/python.exe" if os.name == "nt" else ".runtime/jev-mem-venv/bin/python"))),
         jev_mem_cache=resolve_jev_mem_cache(data),
         jev_mem_backend=read_renamed_setting(
             "BOXAGENT_JEV_MEM_BACKEND", "BOXAGENT_JEV_MEMORY_BACKEND", "auto"),
@@ -217,9 +217,9 @@ def load_settings(*, log_dir=None) -> Settings:
         decision_base_url=decision[2],
         decision_model=decision[3],
         perception_python=Path(read_optional_setting("BOXAGENT_PERCEPTION_PYTHON")
-                               or ROOT / ".runtime/vision-venv/bin/python").expanduser().absolute(),
+                               or ROOT / (".runtime/vision-venv/Scripts/python.exe" if os.name == "nt" else ".runtime/vision-venv/bin/python")).expanduser().absolute(),
         perception_model=Path(read_optional_setting("BOXAGENT_PERCEPTION_MODEL")
-                              or ROOT / ".runtime/models/qwen3.5-0.8b-mlx").expanduser().resolve(),
+                              or ROOT / (".runtime/models/qwen3.5-0.8b" if os.name == "nt" else ".runtime/models/qwen3.5-0.8b-mlx")).expanduser().resolve(),
         soul_file=resolve_soul_file(data),
         engine_watch=read_bool("BOXAGENT_ENGINE_WATCH", default=(ROOT / ".git").exists()),
         intent_reference_enabled=(read_optional_setting("BOXAGENT_INTENT_REFERENCE") or "1").strip().lower()

@@ -9,13 +9,10 @@ from boxagent.bootstrap.electron_launch import run_electron
 
 def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monkeypatch):
     panel = tmp_path / "web/panel"
-    executable = panel / "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+    executable = panel / "node_modules/electron/dist" / (
+        "electron.exe" if __import__("sys").platform == "win32" else "Electron.app/Contents/MacOS/Electron")
     executable.parent.mkdir(parents=True)
-    record = tmp_path / "record.json"
-    executable.write_text('#!/usr/bin/env python3\nimport os,sys,json\n'
-                          'from pathlib import Path\n'
-                          f'Path({str(record)!r}).write_text(json.dumps([sys.argv[1:], os.environ["BOXAGENT_DESKTOP_ARGS"], os.environ["BOXAGENT_DATA_DIR"]]))\n')
-    executable.chmod(0o700)
+    executable.touch()
     (panel / "dist").mkdir()
     for name in ("index", "pet", "companion"):
         (panel / f"dist/{name}.html").write_text("fixture")
@@ -23,11 +20,17 @@ def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monke
     from subprocess import CompletedProcess
     monkeypatch.setattr("boxagent.bootstrap.electron_launch.subprocess.run",
                         lambda *args, **kwargs: CompletedProcess(args, 0, str(executable)))
+    from unittest.mock import Mock
+    child = Mock()
+    child.wait.return_value = 0
+    launch = Mock(return_value=child)
+    monkeypatch.setattr("boxagent.bootstrap.electron_launch.subprocess.Popen", launch)
     assert run_electron(settings, ["--pet", "a path with spaces"]) == 0
-    args, forwarded, data = json.loads(record.read_text())
-    assert args == [str(panel), "--desktop"]
-    assert json.loads(forwarded) == ["--pet", "a path with spaces"]
-    assert data == str(settings.data_dir)
+    assert launch.call_args.args[0] == [str(executable), str(panel), "--desktop"]
+    env = launch.call_args.kwargs["env"]
+    assert json.loads(env["BOXAGENT_DESKTOP_ARGS"]) == ["--pet", "a path with spaces"]
+    assert env["BOXAGENT_DATA_DIR"] == str(settings.data_dir)
+
 
 
 def test_missing_build_reports_installation(tmp_path: Path):

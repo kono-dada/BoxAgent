@@ -1,6 +1,8 @@
 """Compose the application services that live inside the Engine process."""
 
 from functools import partial
+import os
+import sys
 import time
 
 from boxagent.agent.harness import RuntimeRequestBuilder, TaskExecutor
@@ -37,6 +39,9 @@ from boxagent.infrastructure.runtimes.codex import (
     CodexRuntimeHost,
     create_codex_session,
 )
+from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
+from boxagent.infrastructure.runtimes.codex.computer_use import resolve_computer_use_home
+from boxagent.infrastructure.runtimes.codex.windows_skill import load_windows_skill
 
 
 def create_agent_runtime_registry(app_settings):
@@ -232,6 +237,10 @@ def create_application(publish, *, task_provider=None, task_model=None,
         model_profile=selected.profile,
         permission_check=can_auto_approve_computer_use,
         skill_service=skill_service,
+        server_factory=(partial(CodexAppServer, windows_skill_loader=partial(
+            load_windows_skill, resolve_computer_use_home()))
+            if sys.platform == "win32" and not os.environ.get("BOXAGENT_COMPUTER_USE_CLIENT")
+            else CodexAppServer),
     )
     checkpoint_log_path = app_settings.log_dir / "context/checkpoints.jsonl"
     memory_log_path = app_settings.log_dir / "memory/events.jsonl"

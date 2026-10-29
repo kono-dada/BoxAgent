@@ -54,20 +54,31 @@ class SessionRunRecords:
             name = f"{date}-{directory.name}"
             expected.add(name)
             link = view / name
-            if link.is_symlink() and link.resolve(strict=False) == directory:
+            if (link.is_symlink() or link.is_junction()) and link.resolve(strict=False) == directory:
                 continue
             if link.is_symlink():
                 link.unlink()
+            elif link.is_junction():
+                link.rmdir()
             elif link.exists():
                 continue
             temporary = view / f".{name}.tmp"
-            temporary.unlink(missing_ok=True)
-            temporary.symlink_to(os.path.relpath(directory, view),
-                                 target_is_directory=True)
+            if temporary.is_junction():
+                temporary.rmdir()
+            else:
+                temporary.unlink(missing_ok=True)
+            if os.name == "nt":
+                import _winapi
+                _winapi.CreateJunction(str(directory), str(temporary))
+            else:
+                temporary.symlink_to(os.path.relpath(directory, view),
+                                     target_is_directory=True)
             temporary.replace(link)
         for link in view.iterdir():
             if link.is_symlink() and link.name not in expected:
                 link.unlink(missing_ok=True)
+            elif link.is_junction() and link.name not in expected:
+                link.rmdir()
         return view
 
     @staticmethod
@@ -82,4 +93,5 @@ class SessionRunRecords:
     @staticmethod
     def _valid_session_id(session_id):
         return (isinstance(session_id, str) and session_id.startswith("ses_")
-                and "/" not in session_id and ".." not in session_id)
+                and "/" not in session_id and "\\" not in session_id
+                and ":" not in session_id and ".." not in session_id)

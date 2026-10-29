@@ -40,8 +40,7 @@ class AudioIO:
             # single logical playback interval open until the provider marks
             # the response audio complete instead of flickering speaking state
             # on every temporary buffer underflow.
-            playing = ((bool(chunk) or self.playing)
-                       and not self.playback_finished)
+            playing = bool(chunk) or (self.playing and not self.playback_finished)
             changed = playing != self.playing
             self.playing = playing
         if changed:
@@ -64,13 +63,10 @@ class AudioIO:
             self.explicit_playback_lifecycle = True
             self.playback_finished = False
 
-    def finish(self):
+    def finish(self) -> None:
+        """Mark provider EOF; the device callback closes playback after draining."""
         with self.lock:
             self.playback_finished = True
-            changed = self.playing
-            self.playing = False
-        if changed:
-            self.playing_changed(False)
 
     def clear(self):
         with self.lock:

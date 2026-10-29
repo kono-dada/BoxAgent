@@ -33,6 +33,7 @@ export class PetBehavior extends MateController {
       out.jaw=phrase<3.1?0.04+Math.max(0,Math.sin(t*15.5+Math.sin(t*3.7)))*(0.15+0.1*Math.sin(t*2.3)**2):0;
     }
     if(this.state==='success' && t-this.stateSince<3 && !this.dragging)out.smile=0.65;
+    if (['happy','laugh','shy'].includes(this.gesture?.semantic)) out.smile=0.65;
     this.lastOutput=out;return out;
   }
   debug(){return {state:this.state,time:this.time,gesture:this.lastOutput?.gesture,history:[...this.history],

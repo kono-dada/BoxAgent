@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from uuid import uuid4
 import logging
 
 logger = logging.getLogger(__name__)
@@ -477,9 +478,21 @@ class BoxAgentApplication:
     async def forget_memory(self, memory_ids):
         return await self.memory.forget(memory_ids)
 
+    def request_avatar_action(self, action: object) -> dict[str, str]:
+        """Publish a validated semantic request; playback remains a UI concern."""
+        if not isinstance(action, str) or action not in {"dance", "happy", "laugh", "shy"}:
+            return {"status": "failed", "message": "不支持的桌宠动作"}
+        self.events.emit("avatar.action", avatar_action=action,
+                         avatar_action_id=uuid4().hex)
+        return {"status": "requested", "action": action,
+                "message": "已请求桌宠播放；界面尚未确认播放完成。"}
+
     async def handle_tool(self, name, arguments, *, interaction=None):
         try:
             data = json.loads(arguments) if isinstance(arguments, str) else arguments
+            if name == "play_avatar_action":
+                action = data.get("action") if isinstance(data, dict) else None
+                return self.request_avatar_action(action)
             if name == "run_task":
                 # The persisted User Final is authoritative. Qwen only decides
                 # whether to delegate; it must not rewrite the request that

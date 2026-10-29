@@ -4,10 +4,10 @@ requires-python = ">=3.12, <3.13"
 
 [manifest]
 requirements = [
-    { name = "pillow", specifier = ">=11,<13" },
+    { name = "pillow", specifier = ">=11.2.1,<13" },
     { name = "pyaudio", specifier = ">=0.2.14" },
-    { name = "pyobjc-framework-cocoa", specifier = ">=11,<13" },
-    { name = "pyobjc-framework-quartz", specifier = ">=11,<13" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=11,<13" },
+    { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'", specifier = ">=11,<13" },
     { name = "websockets", specifier = ">=15,<17" },
 ]
 

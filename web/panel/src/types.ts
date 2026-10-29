@@ -207,6 +207,9 @@ declare global {
 }
 
 export interface PetFrame {
+  music?: boolean;
+  action?: string;
+  actionId?: string;
   url: string;
   viewport: { width: number; height: number };
   crop: { x: number; y: number; width: number; height: number };

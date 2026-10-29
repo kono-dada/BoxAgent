@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { MotionBank } from './motion-bank.js';
+import { MusicDance } from './music-dance.js';
 import { AvatarAnimator } from './avatar-animator.js';
 import { SpringPhysics } from './spring-physics.js';
 import { visibleBounds } from './visible-bounds.js';
@@ -14,7 +15,9 @@ const report = (type, detail = {}) => {
 window.addEventListener('message', event => {
   if (event.source !== window.parent || event.data?.type !== 'boxagent-pet-command') return;
   const { method, value } = event.data;
-  if (['present','interact','dispose'].includes(method)) window.pet?.[method](value);
+  if (['present','interact','dispose','perform'].includes(method)) {
+    Promise.resolve(window.pet?.[method](value)).catch(error => report('warning', {message:String(error)}));
+  }
 });
 const previewTheme = new URLSearchParams(location.search).get('previewTheme');
 function applyPreviewTheme(theme) {
@@ -38,6 +41,7 @@ configureLights(scene);
 const camera = new THREE.OrthographicCamera();
 let vrm, animator, physics, height = 1, width = 1, state = 'idle', elapsed = 0;
 let disposed = false, frames = 0, last = 0, started = 0, suspended = false;
+let musicDance, musicActive = false;
 const warnings = [];
 const boundsCanvas = document.createElement('canvas');
 const boundsContext = boundsCanvas.getContext('2d', {willReadFrequently:true});
@@ -70,6 +74,7 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 function update(dt) {
+  musicDance?.update();
   physics.beginFrame();
   const steps = Math.max(1, Math.ceil(dt * 60)), step = dt / steps;
   for (let i = 0; i < steps; i++) {
@@ -95,6 +100,15 @@ function snapshot() {
   reportBounds();
   return { image: renderer.domElement.toDataURL('image/png'), behavior: animator.debug() };
 }
+const semanticMotions = Object.freeze({
+  greeting:'PET_INTRO/PET_INTRO',
+  hover:'PET_MISC/HoverReaction',
+  dance:'PET_DANCING/PET_DANCING_5',
+  happy:'PET_MISC/PET_HAPPY',
+  laugh:'PET_MISC/PET_LAUGHING',
+  shy:'PET_MISC/PET_SHY_POINT',
+});
+let actionSequence = 0, lastHoverAt = -Infinity, lastActionId = '';
 window.pet = {
   bounds() { return lastBounds ? JSON.parse(lastBounds) : null; },
   motions() { return animator?.bank.catalog() || []; },
@@ -105,8 +119,32 @@ window.pet = {
     b.gesture = {name,start:b.time,duration:clip.duration/animator.bank.settings(name).timeScale};
     return animator.bank.settings(name);
   },
-  present(value) { state = value.state; animator?.behavior.present(value); },
+  async perform(action) {
+    if (!Object.hasOwn(semanticMotions, action) || !animator) return;
+    if (musicActive) return;
+    const b = animator.behavior;
+    if (b.dragging) return;
+    if (action === 'hover') {
+      if (b.gesture || !['idle','listening'].includes(b.state) || performance.now() - lastHoverAt < 15000) return;
+      lastHoverAt = performance.now();
+    }
+    const sequence = ++actionSequence;
+    const name = semanticMotions[action];
+    const clip = await animator.bank.loadMotion(name);
+    if (sequence !== actionSequence || b.dragging || disposed || musicActive) return;
+    b.gesture = {name,start:b.time,duration:Math.min(12,clip.duration/animator.bank.settings(name).timeScale),semantic:action};
+  },
+  present(value) {
+    musicActive = value.music === true;
+    musicDance?.setActive(musicActive);
+    state = value.state; animator?.behavior.present(value);
+    if (animator && value.actionId && value.actionId !== lastActionId) {
+      lastActionId = value.actionId;
+      void window.pet.perform(value.action).catch(error => report('warning',{message:String(error)}));
+    }
+  },
   interact(value) {
+    if (value.kind === 'drag-start' || value.kind === 'drag-move') actionSequence++;
     animator?.behavior.interact(value); physics?.interact(value);
   },
   debug() { return { ready: Boolean(animator), state, frames, warnings, elapsed,
@@ -145,6 +183,7 @@ window.pet = {
   resume() { suspended = false; last = performance.now(); },
   screenshot() { renderer.render(scene, camera); reportBounds(); return renderer.domElement.toDataURL('image/png'); },
   dispose() {
+    musicDance?.dispose();
     disposed = true; physics?.dispose(); animator?.dispose();
     if (vrm) VRMUtils.deepDispose(vrm.scene);
     renderer.dispose();
@@ -173,6 +212,13 @@ window.addEventListener('unhandledrejection', event => report('error', { message
   }).load();
   physics = new SpringPhysics(vrm,manifest.physicsSettings);
   animator = new AvatarAnimator(vrm, scene, box, bank, manifest, camera, () => ({width:innerWidth,height:innerHeight}));
+  musicDance = new MusicDance(bank,animator.behavior,Math.random,
+    message=>report('warning',{message}));
+  musicDance.setActive(musicActive);
+  animator.behavior.present({state});
+  if (window.parent !== window) {
+    void window.pet.perform('greeting').catch(error => report('warning',{message:String(error)}));
+  }
   update(1 / 30); started = performance.now(); renderer.render(scene, camera);
   reportBounds(); report('ready'); requestAnimationFrame(frame);
 })().catch(error => report('error', { message:String(error) }));

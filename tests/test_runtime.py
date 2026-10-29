@@ -5,7 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from types import SimpleNamespace
 
 from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, TOOLS, QwenRealtimeSession
@@ -93,6 +93,18 @@ class FakeSkillAuthoring:
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_avatar_action_is_validated_without_starting_desktop_task(self):
+        result = await self.runtime.handle_tool("play_avatar_action", {"action": "dance"})
+        self.assertEqual(result["status"], "requested")
+        self.assertEqual(self.runtime.state.avatar_action, "dance")
+        previous = self.runtime.state.avatar_action_id
+        await self.runtime.handle_tool("play_avatar_action", {"action": "happy"})
+        self.assertNotEqual(self.runtime.state.avatar_action_id, previous)
+        rejected = await self.runtime.handle_tool("play_avatar_action", {"action": ["dance"]})
+        self.assertEqual(rejected["status"], "failed")
+        self.assertEqual(self.runtime.state.avatar_action, "happy")
+        self.assertEqual(self.runtime.state.task, "idle")
+
     async def test_rejected_progress_call_does_not_queue_or_cancel_active_task(self):
         from boxagent.domain.conversation import ConversationService
         from boxagent.infrastructure.persistence import JsonlSessionStore
@@ -490,6 +502,17 @@ class FakeSocket:
 
 
 class VoiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_audio_done_finishes_current_playback_without_stale_response_interference(self):
+        voice = QwenRealtimeSession(lambda *_args: None, lambda *_args, **_kw: None)
+        audio = Mock()
+        voice.audio = audio
+        voice.response_id = "current"
+        voice._schedule_response_finalizer = Mock()
+        await voice.receive({"type": "response.audio.done", "response_id": "old"})
+        audio.finish.assert_not_called()
+        await voice.receive({"type": "response.audio.done", "response_id": "current"})
+        audio.finish.assert_called_once()
+
     def test_voice_exposes_explicit_memory_tools_and_deletion_guardrail(self):
         names = {item["function"]["name"] for item in TOOLS}
         self.assertTrue({"remember_memory", "recall_memory", "forget_memory"} <= names)

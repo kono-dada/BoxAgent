@@ -12,6 +12,7 @@ from boxagent.bootstrap import settings
 
 
 class InstallationTests(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "macOS POSIX shell launcher contract")
     def test_command_reuses_global_python_and_preserves_arguments(self):
         result, calls = self._launch_fixture("global", ["--task-model", "model with spaces"])
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -20,12 +21,14 @@ class InstallationTests(unittest.TestCase):
         self.assertIn('"model with spaces"', calls)
         self.assertIn('"--locked"', calls)
 
+    @unittest.skipIf(os.name == "nt", "macOS POSIX shell launcher contract")
     def test_command_missing_python_exits_without_run_or_download(self):
         result, calls = self._launch_fixture("missing", [])
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("请先运行 ./scripts/install.sh", result.stderr)
         self.assertNotIn('"run"', calls)
 
+    @unittest.skipIf(os.name == "nt", "macOS POSIX shell launcher contract")
     def test_command_respects_explicit_python_and_offline_check(self):
         result, calls = self._launch_fixture("explicit", ["--check-install"])
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -33,6 +36,7 @@ class InstallationTests(unittest.TestCase):
         self.assertIn('"--offline"', calls)
         self.assertIn('"--no-sync"', calls)
 
+    @unittest.skipIf(os.name == "nt", "macOS POSIX shell launcher contract")
     def test_command_rejects_incompatible_explicit_python(self):
         result, calls = self._launch_fixture("incompatible", [])
         self.assertNotEqual(result.returncode, 0)
@@ -131,13 +135,19 @@ else: sys.exit(2)
             base.touch()
             executable = root / "vision/bin/python"
             executable.parent.mkdir(parents=True)
-            executable.symlink_to(base)
+            try:
+                executable.symlink_to(base)
+            except OSError as exc:
+                if getattr(exc, "winerror", None) == 1314:
+                    self.skipTest("Windows symlink privilege is unavailable")
+                raise
             with patch.object(settings, "ROOT", root), patch.dict(
                     os.environ, {"BOXAGENT_PERCEPTION_PYTHON": str(executable)}, clear=True):
                 configured = settings.load_settings()
             self.assertEqual(configured.perception_python, executable)
             self.assertNotEqual(configured.perception_python, base)
 
+    @unittest.skipIf(os.name == "nt", "macOS POSIX shell launcher contract")
     def test_runtime_config_is_literal_and_environment_takes_precedence(self):
         loader = Path(__file__).resolve().parents[1] / "scripts/runtime-env.sh"
         with tempfile.TemporaryDirectory() as directory:

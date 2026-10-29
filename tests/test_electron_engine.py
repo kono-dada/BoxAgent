@@ -9,7 +9,7 @@ from boxagent.interfaces.engine.supervisor import EngineSupervisor
 
 
 def test_bridge_restarts_isolated_engine_and_shutdown_closes_process(tmp_path: Path):
-    with tempfile.TemporaryDirectory(prefix="ba-engine-", dir="/tmp") as directory:
+    with tempfile.TemporaryDirectory(prefix="ba-engine-", dir=None if sys.platform == "win32" else "/tmp") as directory:
         asyncio.run(check_bridge(Path(directory)))
 
 

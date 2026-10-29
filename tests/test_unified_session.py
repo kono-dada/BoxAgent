@@ -1,4 +1,4 @@
-import fcntl
+from boxagent.core import file_lock as fcntl
 import asyncio
 from functools import wraps
 import json
