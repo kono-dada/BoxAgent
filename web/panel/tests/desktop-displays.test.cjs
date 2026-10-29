@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createRequire } = require('node:module');
 const { EventEmitter } = require('node:events');
-const { petAnchor, petPlacement, primaryBubbleFrame } = require('../desktop/displays.cjs');
+const { targetDisplay, petAnchor, petPlacement, primaryBubbleFrame } = require('../desktop/displays.cjs');
 const sourceFile = path.join(__dirname, '../desktop/host.cjs');
 const localRequire = createRequire(sourceFile);
 
@@ -173,6 +173,65 @@ test('display preference survives startup and avatar replacement', async t => {
   host.setPetDisplay('1');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(data, 'display.json'), 'utf8')), { version: 1, target: 'primary' });
   assert.equal(host.sendDesktop().pet_display_id, '1');
+});
+
+test('selection saves the display name and startup upgrades a valid legacy preference', async t => {
+  const { host, data } = await fixture(t, { preference: JSON.stringify({ version: 1, target: '2' }) });
+  const saved = () => JSON.parse(fs.readFileSync(path.join(data, 'display.json'), 'utf8'));
+  assert.deepEqual(saved(), { version: 1, target: '2', label: 'Display 2' });
+  host.setPetDisplay(null);
+  assert.deepEqual(saved(), { version: 1, target: null });
+  assert.equal(host.displayLabel, '');
+  host.setPetDisplay('2');
+  assert.deepEqual(saved(), { version: 1, target: '2', label: 'Display 2' });
+});
+
+test('startup restores the named secondary when its ID changed', async t => {
+  const secondary = { ...display(3, 1440, 0, 720, 1920), label: '12.3FHD' };
+  const { host, screen } = await fixture(t, {
+    preference: JSON.stringify({ version: 1, target: '2', label: '12.3FHD' }),
+    displays: [display(1, 0, 0, 1440, 900, 2), secondary],
+  });
+  assert.equal(host.sendDesktop().pet_display_id, '3');
+  inside(host.current.window.getBounds(), secondary.workArea);
+  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+  await reportCrop(host);
+  await host.request('desktop_set_pet_scale', { scale: 6 });
+  inside(host.current.window.getBounds(), secondary.workArea);
+  assert(host.displayMenuItems().some(item => item.checked && item.label.includes('12.3FHD')));
+});
+
+test('hotplug restores the named display after renumbering, including a pending avatar', async t => {
+  const { host, screen } = await fixture(t);
+  host.setPetDisplay('2');
+  const loading = host.loadAvatar('replacement');
+  await new Promise(resolve => setImmediate(resolve));
+  screen.displays = [screen.displays[0]];
+  screen.emit('display-removed');
+  assert.equal(host.sendDesktop().pet_display_id, '1');
+  const secondary = { ...display(7, 1440, 0, 720, 1920), label: 'Display 2' };
+  screen.displays.push(secondary);
+  screen.emit('display-added');
+  assert.equal(host.sendDesktop().pet_display_id, '7');
+  inside(host.current.window.getBounds(), secondary.workArea);
+  inside(host.pending.window.getBounds(), secondary.workArea);
+  await host.report(host.pending.window.webContents, { type: 'ready' });
+  await loading;
+  inside(host.current.window.getBounds(), secondary.workArea);
+  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+});
+
+test('a reused display ID cannot override the saved name; ambiguous or missing names fall back', () => {
+  const primary = display(1, 0, 0, 1440, 900);
+  const different = display(2, -1920, 0, 1920, 1080);
+  const wanted = { ...display(3, 1440, 0, 720, 1920), label: '12.3FHD' };
+  const duplicate = { ...display(4, 2160, 0, 720, 1920), label: '12.3FHD' };
+  assert.equal(targetDisplay([primary, different, wanted], primary, '2', '12.3FHD'), wanted);
+  assert.equal(targetDisplay([primary, different], primary, '2', '12.3FHD'), primary);
+  assert.equal(targetDisplay([primary, different, wanted, duplicate], primary, '2', '12.3FHD'), primary);
+  assert.equal(targetDisplay([primary, wanted, duplicate], primary, '3', '12.3FHD'), wanted);
+  assert.equal(targetDisplay([primary, wanted], primary, 'primary', '12.3FHD'), primary);
+  assert.equal(targetDisplay([primary, different], primary, '2'), different);
 });
 
 test('topology changes during avatar loading also move pending renderer', async t => {

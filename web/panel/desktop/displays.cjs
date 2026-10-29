@@ -1,7 +1,13 @@
 const { clampFrame, petSize } = require('./layout.cjs');
 
-function targetDisplay(displays, primary, target) {
-  return displays.find(display => String(display.id) === target) || primary;
+function targetDisplay(displays, primary, target, label = '') {
+  if (target === 'primary') return primary;
+  const exact = displays.find(display => String(display.id) === target);
+  if (!label) return exact || primary;
+  if (exact?.label === label) return exact;
+  // Display IDs can change after reconnecting or rebooting; avoid guessing between identical names.
+  const matches = displays.filter(display => display.label === label);
+  return matches.length === 1 ? matches[0] : primary;
 }
 
 function petAnchor(pet) {

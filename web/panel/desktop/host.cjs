@@ -57,10 +57,15 @@ class DesktopHost {
     this.bubbleReady = false;
     this.loading = false;
     this.displayTarget = null;
+    this.displayLabel = '';
     try {
       const saved = JSON.parse(fs.readFileSync(path.join(data, 'display.json'), 'utf8'));
       if (saved?.version === 1 && typeof saved.target === 'string' &&
-        (saved.target === 'primary' || /^-?\d+$/.test(saved.target))) this.displayTarget = saved.target;
+        (saved.target === 'primary' || /^-?\d+$/.test(saved.target))) {
+        this.displayTarget = saved.target;
+        if (saved.target !== 'primary' && typeof saved.label === 'string' && saved.label.length <= 256)
+          this.displayLabel = saved.label;
+      }
     } catch (error) {
       if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) console.error('Display preference:', error.message);
     }
@@ -95,6 +100,14 @@ class DesktopHost {
     return window;
   }
   async start() {
+    if (this.displayTarget && this.displayTarget !== 'primary' && !this.displayLabel) {
+      const display = screen.getAllDisplays().find(item => String(item.id) === this.displayTarget);
+      if (display?.label) {
+        this.displayLabel = display.label;
+        try { this.saveDisplayPreference(this.displayTarget, this.displayLabel); }
+        catch (error) { console.error('Display preference:', error.message); }
+      }
+    }
     this.snapshot = await this.service.request("desktop_snapshot");
     this.bubble = this.createWindow(
       {
@@ -139,10 +152,19 @@ class DesktopHost {
     this.pointerTimer = setInterval(() => this.pointer(), 40);
     await this.loadAvatar(this.snapshot.appearance, false);
   }
+  preferredDisplay(displays = screen.getAllDisplays(), primary = screen.getPrimaryDisplay()) {
+    return targetDisplay(displays, primary, this.displayTarget, this.displayLabel);
+  }
+  saveDisplayPreference(target, label = '') {
+    fs.mkdirSync(this.data, { recursive: true });
+    const file = path.join(this.data, 'display.json');
+    fs.writeFileSync(file + '.tmp', JSON.stringify({ version: 1, target, ...(label ? { label } : {}) }));
+    fs.renameSync(file + '.tmp', file);
+  }
   displayState() {
     const primary = screen.getPrimaryDisplay();
     const displays = screen.getAllDisplays();
-    const active = this.displayTarget ? targetDisplay(displays, primary, this.displayTarget)
+    const active = this.displayTarget ? this.preferredDisplay(displays, primary)
       : this.current ? screen.getDisplayMatching({ ...this.current.origin, ...this.current.viewport }) : primary;
     return {
       displays: displays.map(display => ({ id: String(display.id), label: display.label || String(display.id), primary: display.id === primary.id })),
@@ -208,12 +230,11 @@ class DesktopHost {
     const display = id === null ? primary : screen.getAllDisplays().find(item => String(item.id) === id);
     if (!display) throw Error('该显示器已断开，请重新选择');
     const target = id === null ? null : display.id === primary.id ? 'primary' : id;
-    fs.mkdirSync(this.data, { recursive: true });
-    const file = path.join(this.data, 'display.json');
-    fs.writeFileSync(file + '.tmp', JSON.stringify({ version: 1, target }));
-    fs.renameSync(file + '.tmp', file);
+    const label = target && target !== 'primary' ? display.label || '' : '';
+    this.saveDisplayPreference(target, label);
     this.cancelDisplayDrag();
     this.displayTarget = target;
+    this.displayLabel = label;
     this.offset = null;
     this.taskSide = null;
     this.placePet(this.current, display, true);
@@ -233,7 +254,7 @@ class DesktopHost {
     for (const pet of [this.current, this.pending].filter(Boolean)) {
       const frame = pet.window.getBounds();
       const previous = screen.getDisplayMatching(frame);
-      const display = this.displayTarget ? targetDisplay(displays, primary, this.displayTarget) : previous;
+      const display = this.displayTarget ? this.preferredDisplay(displays, primary) : previous;
       this.placePet(pet, display, display.id !== previous.id);
     }
     this.taskSide = null;
@@ -242,7 +263,7 @@ class DesktopHost {
   }
   get area() {
     if (this.displayTarget)
-      return targetDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay(), this.displayTarget).workArea;
+      return this.preferredDisplay().workArea;
     return screen.getDisplayNearestPoint(
       this.current?.origin || screen.getCursorScreenPoint(),
     ).workArea;
@@ -333,7 +354,7 @@ class DesktopHost {
     viewport = petSize(this.snapshot.scale || 1, area);
     if (this.displayTarget) {
       const placement = petPlacement({ origin }, this.snapshot.scale || 1, area,
-        previousDisplay.id !== targetDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay(), this.displayTarget).id);
+        previousDisplay.id !== this.preferredDisplay().id);
       origin = placement.origin;
       viewport = placement.viewport;
     }
@@ -394,7 +415,7 @@ class DesktopHost {
       // Capture layout padding once; animated crop changes must not move the chat.
       pet.dockInsetY ??= pet.crop.y;
       if (this.displayTarget) {
-        const display = targetDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay(), this.displayTarget);
+        const display = this.preferredDisplay();
         const area = display.workArea;
         if (firstBounds && pet.restoreAnchor) {
           pet.origin = { x: pet.restoreAnchor.x - pet.crop.x - pet.crop.width / 2,
@@ -859,7 +880,7 @@ class DesktopHost {
       const pet = this.current;
       if (pet) {
         if (this.displayTarget) {
-          this.placePet(pet, targetDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay(), this.displayTarget));
+          this.placePet(pet, this.preferredDisplay());
           this.savePosition();
           this.positionBubble();
           return this.sendDesktop();
