@@ -1,73 +1,28 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import type { PetFrame } from "../types";
 import { useWindowDrag } from "../hooks/useWindowDrag";
 import "./pet.css";
+
+// 命中层：窗口只覆盖人物本身，负责悬停与拖拽；画面由整屏渲染层负责，
+// 因此这里不需要再承载 3D 画布。
 function Pet() {
-  const [frame, setFrame] = useState<PetFrame | null>(null);
-  const iframe = useRef<HTMLIFrameElement>(null);
   const drag = useWindowDrag(window.boxagent);
-  function command(method: string, value?: unknown) {
-    if (frame)
-      iframe.current?.contentWindow?.postMessage(
-        { type: "boxagent-pet-command", method, value },
-        new URL(frame.url).origin,
-      );
-  }
   useEffect(() => {
-    const stop = window.boxagent.onPet(setFrame);
-    window.boxagent.desktopAction("pet-ready");
-    return stop;
+    window.boxagent.desktopAction("pet-hit-ready");
+    return () => window.boxagent.desktopAction("pet-hit-ready");
   }, []);
-  useEffect(
-    () => window.boxagent.onInteract((value) => command("interact", value)),
-    [frame?.url],
-  );
-  useEffect(() => {
-    if (frame)
-      command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId, music: frame.music });
-  }, [frame]);
-  useEffect(() => {
-    const listener = (event: MessageEvent) => {
-      if (
-        frame &&
-        event.source === iframe.current?.contentWindow &&
-        event.origin === new URL(frame.url).origin &&
-        event.data?.type === "boxagent-pet-report"
-      )
-        window.boxagent.desktopAction("pet-report", event.data.value);
-    };
-    window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
-  }, [frame?.url]);
   return (
     <div
       className="pet-hit"
-      onPointerEnter={() => command("perform", "hover")}
+      onPointerEnter={() =>
+        window.boxagent.desktopAction("pet-perform", { name: "hover" })
+      }
       {...drag}
       onContextMenu={(event) => {
         event.preventDefault();
         window.boxagent.desktopAction("context-menu");
       }}
-    >
-      {frame && (
-        <iframe
-          ref={iframe}
-          title="伙伴"
-          src={frame.url}
-          sandbox="allow-scripts allow-same-origin"
-          onLoad={() =>
-            command("present", { state: frame.state, pointer: frame.pointer, action: frame.action, actionId: frame.actionId, music: frame.music })
-          }
-          style={{
-            width: frame.viewport.width,
-            height: frame.viewport.height,
-            left: -frame.crop.x,
-            top: -frame.crop.y,
-          }}
-        />
-      )}
-    </div>
+    />
   );
 }
 createRoot(document.getElementById("app")!).render(<Pet />);

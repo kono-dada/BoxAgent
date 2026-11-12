@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("boxagent", {
   onDesktop: (callback) => subscribe("desktop:state", callback),
   onCamera: (callback) => subscribe("desktop:camera", callback),
   onPet: (callback) => subscribe("desktop:pet", callback),
+  onPerform: (callback) => subscribe("desktop:perform", callback),
   onInteract: (callback) => subscribe("desktop:interact", callback),
   onNewSession: (callback) => subscribe("desktop:new-session", callback),
   desktopAction: (action, params) =>
