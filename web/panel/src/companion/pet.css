@@ -1,7 +1,8 @@
 html,
 body,
 #app,
-.pet-hit {
+.pet-hit,
+.pet-stage {
   margin: 0;
   width: 100%;
   height: 100%;
@@ -13,7 +14,21 @@ body,
   touch-action: none;
   user-select: none;
 }
-.pet-hit iframe {
+.pet-stage {
+  position: relative;
+}
+/* 桌宠所在屏幕的全屏背景，整屏渲染层铺满工作区。 */
+.pet-stage-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+}
+.pet-stage iframe {
   position: absolute;
   border: 0;
   pointer-events: none;

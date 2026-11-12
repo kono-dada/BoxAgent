@@ -269,6 +269,8 @@ app.whenReady().then(async () => {
     else if (action === "resize-bubble")
       host.resizeBubble(event.sender, params);
     else if (action === "drag") host.dragWindow(event.sender, params);
+    else if (action === "pet-perform")
+      host.performPet(event.sender, params?.name ?? params);
     else if (action === "pet-ready") {
       host.rendererReady(event.sender);
     } else if (action === "pet-report")

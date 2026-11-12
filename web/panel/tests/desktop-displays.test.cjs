@@ -49,6 +49,7 @@ async function fixture(t, { preference, position, initialScale = 1,
     setPosition(x, y) { Object.assign(this.bounds, { x, y }); }
     setVisibleOnAllWorkspaces() {}
     setAlwaysOnTop() {}
+    setIgnoreMouseEvents(ignore) { this.ignoreMouseEvents = ignore; }
     showInactive() { this.visible = true; }
     hide() { this.visible = false; }
     isVisible() { return this.visible; }
@@ -397,7 +398,7 @@ test('avatar actions and music survive camera state updates while the avatar is 
   host.setPetDisplay('2');
   const frame = host.current.window.getBounds();
   let sent;
-  host.current.window.webContents.send = (channel, payload) => { if (channel === 'desktop:pet') sent = payload; };
+  host.current.stage.webContents.send = (channel, payload) => { if (channel === 'desktop:pet') sent = payload; };
   host.musicActive = true;
   host.stateChanged({ avatar_action: 'dance', avatar_action_id: 'action-1', speaking: true });
   host.stateChanged({ camera_status: 'active', voice: 'ready' });

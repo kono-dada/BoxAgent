@@ -1,4 +1,5 @@
 import {configureRenderer,configureLights,configureAvatar,WEB_RENDER_PROFILE} from './render-profile.js';
+import {createGroundShadow} from './ground-shadow.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
@@ -42,6 +43,7 @@ const camera = new THREE.OrthographicCamera();
 let vrm, animator, physics, height = 1, width = 1, state = 'idle', elapsed = 0;
 let disposed = false, frames = 0, last = 0, started = 0, suspended = false;
 let musicDance, musicActive = false;
+let shadow = null;
 const warnings = [];
 const boundsCanvas = document.createElement('canvas');
 const boundsContext = boundsCanvas.getContext('2d', {willReadFrequently:true});
@@ -184,6 +186,7 @@ window.pet = {
   screenshot() { renderer.render(scene, camera); reportBounds(); return renderer.domElement.toDataURL('image/png'); },
   dispose() {
     musicDance?.dispose();
+    shadow?.dispose(); shadow = null;
     disposed = true; physics?.dispose(); animator?.dispose();
     if (vrm) VRMUtils.deepDispose(vrm.scene);
     renderer.dispose();
@@ -207,6 +210,8 @@ window.addEventListener('unhandledrejection', event => report('error', { message
   height = size.y; width = size.x;
   if (!Number.isFinite(height) || height <= 0) throw new Error('模型尺寸无效');
   camera.position.set(center.x, center.y, center.z + height * 3); camera.lookAt(center); resize();
+  // 角色脚下的落地阴影。
+  shadow = createGroundShadow(scene, box, size);
   const bank = await new MotionBank(vrm, manifest, message => {
     warnings.push(message); report('warning', {message});
   }).load();

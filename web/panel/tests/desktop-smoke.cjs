@@ -204,8 +204,18 @@ server.listen(path.join(data, "engine.sock"), () => {
           ),
         "pet window",
       );
+      await wait(
+        () =>
+          BrowserWindow.getAllWindows().some((w) =>
+            w.webContents.getURL().endsWith("/stage.html"),
+          ),
+        "stage window",
+      );
       const pet = BrowserWindow.getAllWindows().find((w) =>
         w.webContents.getURL().endsWith("/pet.html"),
+      );
+      const stage = BrowserWindow.getAllWindows().find((w) =>
+        w.webContents.getURL().endsWith("/stage.html"),
       );
       const bubble = BrowserWindow.getAllWindows().find((w) =>
         w.webContents.getURL().endsWith("/companion.html"),
@@ -274,7 +284,12 @@ server.listen(path.join(data, "engine.sock"), () => {
       assert(initial.appearance_ready);
       assert(pet.getBounds().width < 252, "crop removes transparent area");
       const fixedPetFrame = pet.getBounds();
-      const animation = pet.webContents.mainFrame.frames[0];
+      const animation = stage.webContents.mainFrame.frames[0];
+      const stageFrame = stage.getBounds();
+      const stageArea = require('electron').screen.getDisplayNearestPoint(stageFrame).workArea;
+      assert.equal(stageFrame.width, stageArea.width, "整屏渲染层覆盖所在屏幕宽度");
+      assert.equal(stageFrame.height, stageArea.height, "整屏渲染层覆盖所在屏幕高度");
+      assert(stageFrame.width > fixedPetFrame.width, "渲染层不小于人物命中窗口");
       const firstBounds = await animation.executeJavaScript("pet.bounds().bounds");
       assert.equal(fixedPetFrame.width, firstBounds.width, "首帧决定紧凑窗口宽度");
       assert.equal(fixedPetFrame.height, firstBounds.height, "首帧决定紧凑窗口高度");
@@ -290,7 +305,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       assert.equal(app.getName(), "BoxAgent");
       assert.equal(
         BrowserWindow.getAllWindows().length,
-        2,
+        3,
         "console stays lazy",
       );
       await js(bubble, "boxagent.request('desktop_toggle_bubble')");
@@ -299,7 +314,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       const dockedPetFrame = pet.getBounds();
       for (const x of [12, 40, 20]) {
         await js(
-          pet,
+          stage,
           `boxagent.desktopAction('pet-report',{type:'bounds',viewport:[252,182],bounds:{x:${x},y:18,width:170,height:150}})`,
         );
         await new Promise((r) => setTimeout(r, 70));

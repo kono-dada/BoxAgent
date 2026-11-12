@@ -202,6 +202,7 @@ export interface PanelBridge extends Bridge {
     ) => void,
   ): () => void;
   onPet(callback: (state: PetFrame) => void): () => void;
+  onPerform(callback: (name: string) => void): () => void;
   onInteract(
     callback: (value: { kind: string; velocity: number[] }) => void,
   ): () => void;
@@ -222,6 +223,8 @@ export interface PetFrame {
   url: string;
   viewport: { width: number; height: number };
   crop: { x: number; y: number; width: number; height: number };
+  // 画布在整屏渲染层窗口内的位置。
+  canvas: { x: number; y: number };
   state: string;
   pointer: number[];
 }

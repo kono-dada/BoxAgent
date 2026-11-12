@@ -103,6 +103,60 @@ class DesktopHost {
     window.loadFile(path.join(__dirname, `../dist/${page}.html`));
     return window;
   }
+  // 整屏渲染层覆盖人物所在屏幕的工作区，角色按真实屏幕坐标绘制，不再被小窗口裁掉。
+  stageBounds(pet) {
+    const anchor = pet?.hasBounds
+      ? petAnchor(pet)
+      : { x: pet?.origin?.x ?? 0, y: pet?.origin?.y ?? 0 };
+    const display = this.displayTarget
+      ? this.preferredDisplay()
+      : screen.getDisplayNearestPoint(anchor);
+    const area = display.workArea, bounds = display.bounds;
+    // 背景铺到屏幕底边，Windows 任务栏一并覆盖；顶部保留 macOS 菜单栏。
+    return {
+      x: area.x,
+      y: area.y,
+      width: area.width,
+      height: bounds.y + bounds.height - area.y,
+    };
+  }
+  syncStage(pet) {
+    const stage = pet?.stage;
+    if (!stage || stage.isDestroyed()) return;
+    const bounds = this.stageBounds(pet);
+    const current = stage.getBounds();
+    if (
+      current.x !== bounds.x ||
+      current.y !== bounds.y ||
+      current.width !== bounds.width ||
+      current.height !== bounds.height
+    ) {
+      stage.setBounds(bounds);
+      this.geometry.remember(stage, bounds);
+    }
+    pet.stageArea = bounds;
+    pet.canvas = {
+      x: Math.round(pet.origin.x - bounds.x),
+      y: Math.round(pet.origin.y - bounds.y),
+    };
+  }
+  sendInteract(pet, value) {
+    const target =
+      pet?.stage && !pet.stage.isDestroyed() ? pet.stage : pet?.window;
+    if (target && !target.isDestroyed())
+      target.webContents.send("desktop:interact", value);
+  }
+  performPet(sender, name) {
+    const pet = [this.pending, this.current].find(
+      (p) => p?.window.webContents.id === sender.id,
+    );
+    const target =
+      pet?.stage && !pet.stage.isDestroyed()
+        ? pet.stage
+        : this.current?.stage;
+    if (target && !target.isDestroyed())
+      target.webContents.send("desktop:perform", name);
+  }
   async start() {
     if (this.displayTarget && this.displayTarget !== 'primary' && !this.displayLabel) {
       const display = screen.getAllDisplays().find(item => String(item.id) === this.displayTarget);
@@ -255,7 +309,7 @@ class DesktopHost {
   }
   cancelDisplayDrag() {
     if (this.drag?.pet && this.current)
-      this.current.window.webContents.send('desktop:interact', { kind: 'drag-end', velocity: [0, 0] });
+      this.sendInteract(this.current, { kind: "drag-end", velocity: [0, 0] });
     this.drag = null;
   }
   reconcileDisplays() {
@@ -370,9 +424,19 @@ class DesktopHost {
       viewport = placement.viewport;
     }
     origin = clampFrame({ ...origin, ...viewport }, area);
+    // 渲染层先建、命中层后建，保证命中层在层之上，鼠标事件落在人物身上。
+    const stageBounds = this.stageBounds({ origin });
+    const stage = this.createWindow(
+      { ...stageBounds, focusable: false },
+      "stage",
+    );
+    stage.setIgnoreMouseEvents(true, { forward: true });
     const window = this.createWindow({ ...origin, focusable: false }, "pet");
     const candidate = {
       window,
+      stage,
+      stageArea: stageBounds,
+      canvas: { x: Math.round(origin.x - area.x), y: Math.round(origin.y - area.y) },
       viewport,
       origin,
       crop: { x: 0, y: 0, ...viewport },
@@ -392,17 +456,24 @@ class DesktopHost {
       30000,
     );
     window.webContents.on("did-finish-load", () => this.sendPet(candidate));
+    stage.webContents.on("render-process-gone", () =>
+      this.failAvatar(candidate, "角色渲染进程已退出"),
+    );
     window.webContents.on("render-process-gone", () =>
       this.failAvatar(candidate, "角色渲染进程已退出"),
     );
     return loaded;
   }
   sendPet(pet) {
-    if (!pet.window.isDestroyed())
-      pet.window.webContents.send("desktop:pet", {
+    this.syncStage(pet);
+    const target =
+      pet.stage && !pet.stage.isDestroyed() ? pet.stage : pet.window;
+    if (!target.isDestroyed())
+      target.webContents.send("desktop:pet", {
         url: pet.url,
         viewport: pet.viewport,
         crop: pet.crop,
+        canvas: pet.canvas,
         state: this.state.speaking && !this.state.user_speaking ? "speaking" : "idle",
         pointer: this.pointerValue || [0, 0],
         action: this.state.avatar_action,
@@ -412,7 +483,9 @@ class DesktopHost {
   }
   async report(sender, message) {
     const pet = [this.pending, this.current].find(
-      (p) => p?.window.webContents.id === sender.id,
+      (p) =>
+        p?.window.webContents.id === sender.id ||
+        (p?.stage && !p.stage.isDestroyed() && p.stage.webContents.id === sender.id),
     );
     if (!pet || !message || typeof message !== "object") return;
     if (message.type === "bounds") {
@@ -464,8 +537,10 @@ class DesktopHost {
         this.snapshot = { ...this.snapshot, ...snapshot };
         if (this.snapshot.feedback === this.error) this.snapshot.feedback = "";
         this.error = "";
+        pet.stage?.showInactive();
         pet.window.showInactive();
         previous?.window.destroy();
+        previous?.stage?.destroy();
         this.positionBubble();
         this.sendDesktop();
         pet.resolve();
@@ -485,6 +560,7 @@ class DesktopHost {
     if (pet === this.pending) {
       this.pending = null;
       pet.window.destroy();
+      pet.stage?.destroy();
       this.service
         .request("desktop_cancel_avatar", { token: pet.token })
         .catch(() => {});
@@ -514,7 +590,10 @@ class DesktopHost {
   }
   rendererReady(sender) {
     const pet = [this.pending, this.current].find(
-      (p) => p?.window.webContents.id === sender.id,
+      (p) =>
+        p?.stage && !p.stage.isDestroyed()
+          ? p.stage.webContents.id === sender.id
+          : p?.window.webContents.id === sender.id,
     );
     if (pet) this.sendPet(pet);
   }
@@ -647,6 +726,8 @@ class DesktopHost {
         Math.round(this.current.origin.x + this.current.crop.x),
         Math.round(this.current.origin.y + this.current.crop.y),
       );
+      // 画布随人物一起移动，整屏渲染层保持覆盖所在屏幕。
+      this.sendPet(this.current);
       const base = bubbleFrame({ ...this.current.origin, ...this.current.viewport }, this.area, null, this.bubbleHeight);
       this.offset = { x: frames.bubble.x - base.x, y: frames.bubble.y - base.y };
     }
@@ -663,6 +744,7 @@ class DesktopHost {
       { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
     pet.origin = { x: frames[0].x, y: frames[0].y };
     this.geometry.setPosition(pet.window, Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
+    this.sendPet(pet);
     this.geometry.setBounds(this.bubble, frames[1]);
     if (tasks) this.geometry.setBounds(this.tasks, frames[2]);
     const base = bubbleFrame({ ...pet.origin, ...pet.viewport }, this.area, null, this.bubbleHeight);
@@ -711,7 +793,7 @@ class DesktopHost {
       const dx = point.x - drag.start.x, dy = point.y - drag.start.y;
       if (Math.abs(dx) + Math.abs(dy) < 3 && !drag.moved) return;
       if (pet && !drag.moved)
-        this.current.window.webContents.send("desktop:interact", {
+        this.sendInteract(this.current, {
           kind: "drag-start",
           velocity: [0, 0],
         });
@@ -728,20 +810,22 @@ class DesktopHost {
       if (pet) {
         const now = Date.now(),
           dt = Math.max(1, now - drag.time) / 1000;
-        this.current.window.webContents.send("desktop:interact", {
+        this.sendInteract(this.current, {
           kind: "drag-move",
           velocity: [
             (point.x - drag.last.x) / dt,
             -(point.y - drag.last.y) / dt,
           ],
         });
+        // 画布跟随人物移动，整屏渲染层保持不动。
+        this.sendPet(this.current);
         drag.last = point;
         drag.time = now;
       }
     } else {
       this.drag = null;
       if (pet) {
-        this.current.window.webContents.send("desktop:interact", {
+        this.sendInteract(this.current, {
           kind: drag.moved || phase === "cancel" ? "drag-end" : "tap",
           velocity: [0, 0],
         });
