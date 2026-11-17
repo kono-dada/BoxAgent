@@ -247,6 +247,16 @@ html[data-theme="dark"] .companion-task-summary {
   background: var(--accent-soft);
   border-radius: 10px;
 }
+.companion-notice button {
+  display: block;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .companion-latest {
   position: absolute;
   bottom: 6px;

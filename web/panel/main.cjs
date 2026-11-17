@@ -53,6 +53,7 @@ const desktopMethods = new Set([
   "desktop_runs",
   "desktop_open_run",
   "desktop_open_logs",
+  "desktop_open_game_news",
   "desktop_quit",
 ]);
 let client,
@@ -205,6 +206,7 @@ app.whenReady().then(async () => {
   client.on("online", () => broadcast("engine:diagnostic", "Engine 已连接"));
   client.on("diagnostic", (message) => broadcast("engine:diagnostic", message));
   client.on("offline", () => {
+    host?.syncWakeWord();
     camera.disconnected();
     broadcast("engine:diagnostic", "Engine 已断开");
     if (!disposed) reconnect = setTimeout(() => client.connect(), 1000);

@@ -19,7 +19,7 @@ export function Persona({ data, busy, act }: PageProps<PersonaData>) {
       }}
     >
       <label>
-        {t('角色名称')}
+        {t('角色名称（也是语音唤醒词）')}
         <input aria-label={t('角色名称')} value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
       </label>
       <label>
