@@ -16,7 +16,7 @@ from boxagent.bootstrap.settings import load_settings
 from boxagent.bootstrap.web import create_web_research
 from boxagent.domain.web.contracts import WebPage, WebSource, WebUnavailable, public_web_url
 from boxagent.domain.web.contracts import WebResearchView
-from boxagent.domain.web.game_context import game_reference_question
+from boxagent.domain.web.game_context import boss_name_conflict, game_reference_question
 from boxagent.domain.conversation import ConversationService
 from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.domain.interaction.service import InteractionService
@@ -290,6 +290,9 @@ class WebBoundaryTests(unittest.TestCase):
         self.assertIsNone(game_reference_question('这个Boss怎么打', game='鸣潮', target='无冠者', known_text='我在玩鸣潮，打无冠者'))
         self.assertIsNotNone(game_reference_question('这个Boss怎么打', game='黑神话悟空', target='二郎神', known_text='我正在喝茶'))
         self.assertIsNone(game_reference_question('无冠者和无妄者哪个是周本'))
+        self.assertIsNone(boss_name_conflict('无冠者是周本吗？'))
+        self.assertIsNone(boss_name_conflict('无冠者不是周本，对吧？'))
+        self.assertIsNotNone(boss_name_conflict('周本的无冠者怎么打'))
 
     def test_url_contract_rejects_local_credentials_and_non_web_protocols(self) -> None:
         for url in ["file:///private/key", "https://user:pass@example.com", "http://localhost/a", "http://10.1.2.3",

@@ -20,7 +20,10 @@ def game_reference_question(question: str, *, game: str = "", target: str = "",
 
 
 def boss_name_conflict(question: str) -> str | None:
-    if "无冠者" in question and "周本" in question and "无妄者" not in question:
+    # A classification question ("无冠者是周本吗") needs an answer,
+    # whereas an assumed combination ("周本无冠者的打法") needs clarification.
+    assumed_form = re.search(r"周本(?:的)?\s*无冠者|无冠者(?:的)?\s*周本", question)
+    if assumed_form and "无妄者" not in question:
         return "你说的是无冠者，还是周本无妄者？"
     return None
 
