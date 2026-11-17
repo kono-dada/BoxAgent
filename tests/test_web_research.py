@@ -5,6 +5,7 @@ import io
 import json
 import unittest
 import urllib.error
+from collections.abc import Mapping
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, Mock, patch
@@ -29,14 +30,15 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
         handler.assert_not_awaited()
 
     async def test_model_gateway_without_search_support_reports_capability_failure(self) -> None:
-        def unsupported(*_args, **_kwargs):
+        def unsupported(url: str, payload: Mapping[str, object], *,
+                        api_key: str, timeout: float) -> object:
             raise WebUnavailable("page_unavailable", "fixture")
 
         service = WebResearchService(DeepSeekWebProvider(api_key="fixture", poster=unsupported))
         result = await service.search("鸣潮")
         self.assertEqual(result["code"], "capability_unavailable")
 
-    async def test_mingchao_search_and_read_flow_does_not_start_a_desktop_task(self):
+    async def test_mingchao_search_and_read_flow_does_not_start_a_desktop_task(self) -> None:
         provider = Mock()
         provider.search = AsyncMock(return_value=(WebSource(
             "鸣潮无冠者攻略", "https://example.com/wuwa/boss", "先躲连招，再利用弹刀窗口",
@@ -55,7 +57,7 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
         application.execution_service.start.assert_not_awaited()
         await application.close()
 
-    async def test_empty_search_failure_and_invalid_arguments_never_become_answers(self):
+    async def test_empty_search_failure_and_invalid_arguments_never_become_answers(self) -> None:
         provider = Mock(search=AsyncMock(return_value=()))
         service = WebResearchService(provider)
         self.assertEqual((await service.search("鸣潮 攻略"))["status"], "empty")
@@ -66,7 +68,7 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(provider.search.await_count, 2)
         self.assertEqual((await WebResearchService(None).search("鸣潮"))["code"], "not_configured")
 
-    async def test_shared_turn_budget_bounds_search_and_fetch_and_preserves_cancellation(self):
+    async def test_shared_turn_budget_bounds_search_and_fetch_and_preserves_cancellation(self) -> None:
         provider = Mock(search=AsyncMock(return_value=()), fetch=AsyncMock(return_value=WebPage(
             "https://example.com/guide", "攻略", "正文")))
         service = WebResearchService(provider, max_calls_per_turn=2)
@@ -79,13 +81,13 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await service.search("鸣潮", scope="turn-3")
 
-    async def test_large_webpage_is_explicitly_truncated(self):
+    async def test_large_webpage_is_explicitly_truncated(self) -> None:
         provider = Mock(fetch=AsyncMock(return_value=WebPage("https://example.com/guide", "攻略", "字" * 16000)))
         result = await WebResearchService(provider).read("https://example.com/guide")
         self.assertEqual(len(result["content"]), 12000)
         self.assertTrue(result["truncated"])
 
-    async def test_provider_contract_paths_deduplication_and_dates(self):
+    async def test_provider_contract_paths_deduplication_and_dates(self) -> None:
         responses = [{"results": [
             {"title": "攻略", "url": "https://example.com/guide#part1", "summary": "正文", "date": None},
             {"title": "重复", "url": "https://example.com/guide#part2", "summary": "重复"},
@@ -93,7 +95,8 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
         ]}, {"title": "攻略", "content": "# 正文"}]
         calls = []
 
-        def poster(url, payload, *, api_key, timeout):
+        def poster(url: str, payload: Mapping[str, object], *,
+                   api_key: str, timeout: float) -> object:
             calls.append((url, payload, api_key, timeout))
             return responses.pop(0)
 
@@ -108,7 +111,7 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
             "query": "鸣潮 无冠者", "count": 3, "need_content": False}))
         self.assertEqual(calls[1][0], "https://api.example.com/v1/tools/fetch")
 
-    async def test_malformed_provider_response_is_not_misreported_as_no_results(self):
+    async def test_malformed_provider_response_is_not_misreported_as_no_results(self) -> None:
         for response in [None, {"data": []}, {"results": {}}, {"results": [{"title": "bad"}]}]:
             provider = DeepSeekWebProvider(api_key="fixture", poster=lambda *_args, **_kwargs: response)
             with self.assertRaises(WebUnavailable):
@@ -119,13 +122,13 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class WebBoundaryTests(unittest.TestCase):
-    def test_url_contract_rejects_local_credentials_and_non_web_protocols(self):
+    def test_url_contract_rejects_local_credentials_and_non_web_protocols(self) -> None:
         for url in ["file:///private/key", "https://user:pass@example.com", "http://localhost/a", "http://10.1.2.3",
                     "http://[::1]", "http://name.local", "http://2130706433", "http://intranet", "https://example.com\n"]:
             with self.subTest(url=url), self.assertRaises(ValueError):
                 public_web_url(url)
 
-    def test_http_errors_have_static_messages_and_do_not_expose_key_or_provider_body(self):
+    def test_http_errors_have_static_messages_and_do_not_expose_key_or_provider_body(self) -> None:
         for status, code in [(401, "authentication_failed"), (402, "insufficient_balance"), (404, "page_unavailable"),
                              (429, "rate_limited"), (500, "service_unavailable"), (504, "timeout")]:
             opener = Mock()
@@ -137,7 +140,7 @@ class WebBoundaryTests(unittest.TestCase):
             self.assertNotIn("fixture-key", str(raised.exception))
         self.assertIsNone(NoRedirect().redirect_request(Mock(), None, 302, "redirect", {}, "https://elsewhere.com"))
 
-    def test_qwen_tools_registered_and_bootstrap_reuses_deepseek_key(self):
+    def test_qwen_tools_registered_and_bootstrap_reuses_deepseek_key(self) -> None:
         names = {item["function"]["name"] for item in TOOLS}
         self.assertTrue({"search_web", "read_webpage"} <= names)
         with TemporaryDirectory() as directory, patch.dict("os.environ", {
