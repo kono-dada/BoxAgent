@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 from boxagent.core.events import StateEvents
 from boxagent.application.camera import CameraInteractionService
 from boxagent.application.memory import DisabledMemoryModule
+from boxagent.application.web_research import WebResearchService
 from boxagent.application.skill_authoring import (
     has_explicit_skill_authorization,
     is_pending_skill_confirmation,
@@ -33,7 +34,8 @@ class BoxAgentApplication:
                  voice_history_builder=None, skill_service=None,
                  skill_authoring=None, task_trace_reader=None,
                  notification_outbox=None, context_ledger=None,
-                 context_observer=None, context_history=None, turn_preparer=None):
+                 context_observer=None, context_history=None, turn_preparer=None,
+                 web_research: WebResearchService | None = None):
         self.events = StateEvents(publish)
         self.camera: CameraInteractionService | None = None
         self.conversation_service = conversation_service or ConversationService()
@@ -42,6 +44,7 @@ class BoxAgentApplication:
             self.events, executor_factory, conversation=self.conversation_service,
             on_terminal=self._task_terminal)
         self.memory = memory or DisabledMemoryModule()
+        self.web_research = web_research or WebResearchService(None)
         self.skill_service = skill_service
         self.skill_authoring = skill_authoring
         self.task_trace_reader = task_trace_reader
@@ -492,6 +495,13 @@ class BoxAgentApplication:
     async def handle_tool(self, name, arguments, *, interaction=None):
         try:
             data = json.loads(arguments) if isinstance(arguments, str) else arguments
+            if name in {"search_web", "read_webpage"}:
+                if not isinstance(data, dict):
+                    return {"status": "failed", "message": "联网工具参数必须是对象"}
+                scope = interaction.interaction_id if interaction else ""
+                if name == "search_web":
+                    return await self.web_research.search(data.get("query"), count=data.get("count", 5), scope=scope)
+                return await self.web_research.read(data.get("url"), scope=scope)
             if name == "play_avatar_action":
                 action = data.get("action") if isinstance(data, dict) else None
                 return self.request_avatar_action(action)

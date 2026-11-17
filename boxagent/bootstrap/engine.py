@@ -14,6 +14,7 @@ from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
 from boxagent.bootstrap.memory import create_memory_module
+from boxagent.bootstrap.web import create_web_research
 from boxagent.application.skill_authoring import SkillAuthoringService
 from boxagent.bootstrap.settings import load_settings
 from boxagent.domain.conversation import ConversationService
@@ -331,6 +332,7 @@ def create_application(publish, *, task_provider=None, task_model=None,
             context_recorder=context_recorder, host_turn_control=True),
         memory=memory,
         turn_preparer=turn_preparer if voice_factory is None else None,
+        web_research=create_web_research(app_settings),
         conversation_service=conversation_service,
         notification_outbox=notification_outbox,
         skill_service=skill_service,

@@ -120,6 +120,7 @@ zsh scripts/set-key.zsh
 - 对话小窗右上角的显示器图标：选择小人所在屏幕，聊天留在主屏。详见 [桌宠分屏显示](docs/desktop-displays.md)
 - 可选配置 `BOXAGENT_AOQ_OUTPUT_DEVICE`：只让桌宠走指定音响。默认不启用，详见 [独立语音输出](docs/audio-output.md)
 - “取消任务”或“停止任务”：停止当前后台任务的后续操作
+- 可以直接问“联网查一下《鸣潮》无冠者的打法”或发送公开攻略链接。搜索与网页阅读复用 DeepSeek Key，不启动浏览器或桌面任务；详见 [游戏攻略与联网资料](docs/web-research.md)。
 
 ## 配置
 
@@ -127,6 +128,7 @@ zsh scripts/set-key.zsh
 | --- | --- | --- |
 | Qwen Realtime | AOQ 提供全双工语音、回声消除与降噪；WebSocket 仅作诊断降级 | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
 | 桌面任务 | DeepSeek 负责规划，Codex Runtime 提供工具循环与 Computer Use | `DEEPSEEK_API_KEY`、`BOXAGENT_CODEX_BIN` |
+| 联网资料 | DeepSeek Search / Fetch，供聊天查攻略和阅读公开链接 | `DEEPSEEK_API_KEY`；`BOXAGENT_WEB_SEARCH_ENABLED=0` 可关闭，网关需支持独立工具 API |
 | 决策模型 / Jev-Mem | 默认阿里云 `decision-model-preview`，用于记忆准入/检索和当前 Query 的意图参考 | `BOXAGENT_DECISION_PROVIDER=auto`、DashScope Key / Workspace、`BOXAGENT_JEV_MEM_BACKEND=jev`；意图参考可用 `BOXAGENT_INTENT_REFERENCE=0` 关闭 |
 | 本地屏幕总结 | 启动时关闭，可从控制台设置开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
 | 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |

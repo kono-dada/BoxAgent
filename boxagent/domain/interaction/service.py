@@ -434,6 +434,8 @@ class InteractionService:
         interaction = self._response_interaction(metadata)
         if name == "run_task" and interaction is None:
             return {"status": "failed", "message": "此请求已被打断或结束，未启动任务"}
+        if name in {"search_web", "read_webpage"} and self.conversation and self.conversation.store and interaction is None:
+            return {"status": "failed", "message": "此请求已被打断或结束，未发起联网检索"}
         advice = self.decisions.get(interaction.interaction_id) if interaction is not None else None
         if name == "run_task" and advice is not None and advice.exclusion is not None:
             # The lightweight first-pass decision is advice, not an absolute

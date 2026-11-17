@@ -9,7 +9,11 @@
     "boxagent/domain/context/contracts.py",
     "boxagent/domain/environment",
     "boxagent/domain/execution",
-    "boxagent/domain/skill"
+    "boxagent/domain/skill",
+    "boxagent/domain/web",
+    "boxagent/application/web_research.py",
+    "boxagent/infrastructure/web",
+    "boxagent/bootstrap/web.py"
   ],
   "exclude": [
     "boxagent/infrastructure/memory/jev_mem"
