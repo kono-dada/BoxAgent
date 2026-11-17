@@ -16,7 +16,9 @@ def public_memory_items(items) -> list[dict]:
             key: metadata.get(key) for key in (
                 "source", "session_id", "interaction_id",
                 "source_event_id", "source_event_ids", "narrative_level",
-                "checkpoint_id", "jev_mem") if key in metadata
+                "checkpoint_id", "jev_mem", "modality", "evidence_id", "episode_id",
+                "evidence_kind", "game", "subject", "aspect", "variant", "game_version",
+                "captured_at", "chain_key") if key in metadata
         }
         if safe_metadata:
             public["metadata"] = safe_metadata

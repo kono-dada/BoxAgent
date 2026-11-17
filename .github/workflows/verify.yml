@@ -1,7 +1,7 @@
 name: Verify onboarding
 on:
   push:
-    branches: [main, 'codex/onboarding-packaging', 'codex/game-web-search']
+    branches: [main, 'codex/onboarding-packaging', 'codex/game-web-search', 'codex/multimodal-memory']
   pull_request:
 jobs:
   panel:

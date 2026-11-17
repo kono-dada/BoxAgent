@@ -16,7 +16,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         for switched in (False, True):
             events, paths = [], []
             observer = WindowSummary(lambda kind, **fields: events.append((kind, fields)))
-            observer.process = SimpleNamespace(stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+            observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
             observer.reply = AsyncMock(return_value={"summary": "正在阅读代码"})
 
             async def capture(*args):
@@ -49,7 +49,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_capture_timeout_is_retried_and_process_is_reaped(self):
         events = []
         observer = WindowSummary(lambda kind, **fields: events.append(kind))
-        observer.process = SimpleNamespace(stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+        observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
         observer.reply = AsyncMock(return_value={"summary": "正在阅读代码。"})
         process = SimpleNamespace(returncode=None, communicate=AsyncMock(),
                                   kill=Mock(), wait=AsyncMock())
@@ -121,7 +121,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_successful_capture_resets_failure_count(self):
         observer = WindowSummary(lambda kind, **fields: None)
-        observer.process = SimpleNamespace(stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+        observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
         observer.reply = AsyncMock(return_value={"summary": "正在阅读代码。"})
         failures = [RuntimeError("could not create image from window")]
 

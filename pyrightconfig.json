@@ -13,7 +13,12 @@
     "boxagent/domain/web",
     "boxagent/application/web_research.py",
     "boxagent/infrastructure/web",
-    "boxagent/bootstrap/web.py"
+    "boxagent/bootstrap/web.py",
+    "boxagent/domain/memory/visual.py",
+    "boxagent/application/visual_memory.py",
+    "boxagent/infrastructure/persistence/visual_evidence.py",
+    "boxagent/infrastructure/memory/visual_extractor.py",
+    "boxagent/infrastructure/memory/visual_episode.py"
   ],
   "exclude": [
     "boxagent/infrastructure/memory/jev_mem"

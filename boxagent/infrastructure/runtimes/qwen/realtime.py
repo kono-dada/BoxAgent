@@ -84,10 +84,11 @@ TOOLS = [
     tool("cancel_task", "用户要求停止当前或后台任务时调用；只停止正在执行的任务，保留排队任务并继续执行。一般插话、问问题不等于取消任务。"),
     tool("cancel_all_tasks", "仅在用户明确要求取消全部任务或清空任务队列时调用；停止当前任务并取消所有排队任务。"),
     tool("task_status", "查询后台任务进度或最近的真实结果。"),
-    tool("remember_memory", "仅在用户明确要求‘记住’某个长期有用的偏好、约定或事实时调用；不要把普通闲聊自动存入长期记忆。",
-         {"content": {"type": "string", "description": "用完整、自包含的文本记录用户希望长期保留的信息。"}}),
+    tool("remember_memory", "用户明确要求记住偏好、事实或当前配队、配装、画面经历时调用。保存画面时宿主会读取用户原话和对应截图，不要自行编造画面内容；queued 只表示已留存、还在整理。",
+         {"content": {"type": "string", "description": "用户希望保留的信息；画面细节由宿主读取对应来源。"}}),
     tool("recall_memory", "当用户询问过去的偏好、约定、事件或要求删除某条记忆时调用。返回的记忆 ID 可用于精确删除。",
-         {"query": {"type": "string", "description": "要回忆的人、偏好、事件或关键词。"}}),
+         {"query": {"type": "string", "description": "要回忆的人、偏好、事件或关键词；尽量包括游戏名、对象、形态和时间。"},
+          "look_at_source": {"type": "boolean", "description": "用户询问过去截图中的细节、文字或装备时设为 true，按需回看来源图。"}}, required=["query"]),
     tool("forget_memory", "删除用户明确要求忘记的长期记忆。只能使用 recall_memory 返回的精确 ID；如果匹配不唯一，先向用户确认，不得猜测或批量模糊删除。",
          {"memory_ids": {"type": "array", "items": {"type": "string"},
                          "description": "recall_memory 返回且用户确认删除的记忆 ID。"}}),
@@ -985,6 +986,8 @@ class QwenRealtimeSession:
                         name=name, status=result.get("status"))
                     continue
                 origin = {"kind": "tool_result", "call_id": call_id}
+                if name in {"remember_memory", "recall_memory", "forget_memory"}:
+                    origin["memory_speech"] = True
                 if name in {"search_web", "read_webpage"}:
                     origin["web_speech"] = True
                     if result.get("code") == "clarification_required":
@@ -1046,6 +1049,12 @@ class QwenRealtimeSession:
         self.response_id = None
         try:
             response = {"modalities": ["audio", "text"]}
+            if origin.get("memory_speech"):
+                response["instructions"] = self.instructions + (
+                    "本次是记忆工具的语音回复：默认一两句，30到60个中文字，不念记忆ID或长篇来源。"
+                    "queued 只表示画面已留存仍在整理；证据不足时简短确认。"
+                    "画面观察、用户原话和推断分清；截图不能证明通关、失败次数或原因。"
+                    "历史装备和形态只用于回忆，不能擅自当成当前状态或永久画像。")
             if origin.get("web_speech"):
                 response["instructions"] = self.instructions + (
                     "本次是联网结果的语音回复。玩家正在听：默认30到60个中文字，最多两句、两点、80字，"

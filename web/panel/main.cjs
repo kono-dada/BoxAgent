@@ -26,6 +26,7 @@ const methods = new Set([
   "session_timeline",
   "session_events",
   "memory_snapshot",
+  "memory_evidence",
   "delete_memory_node",
   "create_session",
   "activate_session",

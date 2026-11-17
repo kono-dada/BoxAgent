@@ -600,5 +600,14 @@
   "正在查资料": "Finding sources",
   "正在读攻略原文": "Reading the guide",
   "本轮已打断": "This turn was interrupted",
-  "暂时无法打开网页": "Unable to open the page"
+  "暂时无法打开网页": "Unable to open the page",
+  "正在读取来源画面…": "Loading the original image…",
+  "来源画面不可用或已删除。": "The original image is unavailable or was deleted.",
+  "暂时无法读取来源画面。": "Unable to load the original image right now.",
+  "查看当时画面": "View the original image",
+  "用户明确保存的来源画面": "Original image saved at the user's request",
+  "当时的请求": "Your request",
+  "画面观察": "Visual observation",
+  "画面观察仅代表当时的可见内容。": "This observation describes only what was visible at that time.",
+  "删除此画面经历、相关事实及来源图片？此操作无法撤销。": "Delete this visual episode, its facts and its original image? This cannot be undone."
 }

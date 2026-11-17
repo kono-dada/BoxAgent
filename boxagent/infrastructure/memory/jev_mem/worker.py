@@ -35,6 +35,10 @@ def _enum_value(value):
     return getattr(value, "value", value)
 
 
+def _published(node):
+    return (getattr(node, "attributes", {}) or {}).get("source_episode_status") != "pending"
+
+
 def inspect_node_payload(node):
     """Return only fields needed by the local dashboard."""
     attributes = getattr(node, "attributes", {}) or {}
@@ -44,6 +48,8 @@ def inspect_node_payload(node):
             "source_event_ids", "checkpoint_id", "narrative_level", "jev_mem",
             "legacy_canonical_id", "legacy_revision", "legacy_kind",
             "legacy_source_mode",
+            "modality", "evidence_id", "episode_id", "episode_role", "evidence_kind",
+            "captured_at", "game", "subject", "aspect", "variant", "game_version", "chain_key",
         ) if key in attributes
     }
     content = getattr(node, "content_narrative", "") or getattr(node, "summary", "")
@@ -141,7 +147,8 @@ class Worker:
                 metadata = observation.get("metadata") or {}
                 provenance = _source_event_ids(metadata)
                 existing = next((node for node in nodes
-                                 if provenance & _source_event_ids(
+                                 if getattr(node, "attributes", {}).get("source") != "visual_memory"
+                                 and provenance & _source_event_ids(
                                      getattr(node, "attributes", {}) or {})), None)
                 if existing is None:
                     pending.append(observation)
@@ -172,6 +179,10 @@ class Worker:
                                 for node_id in created_ids],
                     "reused": [node_payload(node) for node in reused],
                     "memory_count": len(self.system.graph_db.nodes)}
+        if operation == "remember_episode":
+            from boxagent.infrastructure.memory.visual_episode import store_visual_episode
+            with contextlib.redirect_stdout(sys.stderr):
+                return store_visual_episode(self.system, request.get("episode"))
         if operation == "remember_narrative":
             checkpoint = request.get("checkpoint")
             if not isinstance(checkpoint, dict):
@@ -204,7 +215,12 @@ class Worker:
             with contextlib.redirect_stdout(sys.stderr):
                 engine = self.direct_query_engine if mode == "direct" else self.system.query_engine
                 context, evidence = engine.query(question, top_k=top_k)
-            return {"evidence": evidence, "memories": [node_payload(node) for node in context.anchor_nodes],
+            published = [node for node in context.anchor_nodes if _published(node)]
+            # Aggregate text may also contain traversed neighbors, not just anchors.
+            # Keep individually published materials usable after an interrupted write.
+            pending = any(not _published(node) for node in self.system.graph_db.nodes.values())
+            return {"evidence": evidence if not pending and len(published) == len(context.anchor_nodes) else "",
+                    "memories": [node_payload(node) for node in published],
                     "trace": {**context.metadata, "mode": mode}}
         if operation == "inspect":
             query = request.get("query", "")
@@ -224,8 +240,9 @@ class Worker:
 
             graph = self.system.graph_db
             sanitized_nodes = {node_id: inspect_node_payload(node)
-                               for node_id, node in graph.nodes.items()}
-            sanitized_links = [inspect_link_payload(link) for link in graph.links.values()]
+                               for node_id, node in graph.nodes.items() if _published(node)}
+            sanitized_links = [inspect_link_payload(link) for link in graph.links.values()
+                               if link.source_node_id in sanitized_nodes and link.target_node_id in sanitized_nodes]
             node_types, link_types = {}, {}
             for node in sanitized_nodes.values():
                 node_types[node["type"]] = node_types.get(node["type"], 0) + 1
@@ -276,6 +293,15 @@ class Worker:
                 },
                 "truncated": matched_count > len(chosen_ids) or len(result_links) > edge_limit,
             }
+        if operation == "forget_episode":
+            evidence_id = request.get("evidence_id")
+            if not isinstance(evidence_id, str) or not evidence_id.strip() or len(evidence_id) > 160:
+                raise ValueError("evidence_id must be a valid source identity")
+            ids = [node.node_id for node in self.system.graph_db.nodes.values()
+                   if node.attributes.get("source") == "visual_memory"
+                   and node.attributes.get("evidence_id") == evidence_id]
+            result = self.handle({"operation": "forget", "memory_ids": ids}) if ids else {"deleted": [], "missing": []}
+            return {**result, "memory_ids": ids}
         if operation == "forget":
             memory_ids = request.get("memory_ids")
             if (not isinstance(memory_ids, list) or not memory_ids or len(memory_ids) > 50

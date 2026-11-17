@@ -5,6 +5,7 @@ import json
 import time
 from uuid import uuid4
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ from boxagent.domain.conversation.models import InteractionContext, ProductEvent
 from boxagent.domain.web.contracts import WebResearchView
 from boxagent.domain.web.game_context import game_reference_question, preferred_game_sites
 from boxagent.domain.memory.contracts import MemoryUnavailable
+from boxagent.domain.memory.visual import requests_visual_memory
 from boxagent.domain.perception.service import PerceptionService
 from boxagent.domain.execution.service import ExecutionService
 from boxagent.domain.interaction.service import InteractionService
@@ -299,6 +301,9 @@ class BoxAgentApplication:
 
     async def recall_memory(self, query, *, top_k=5):
         return await self.memory.recall(query, top_k=top_k)
+
+    async def memory_evidence(self, memory_id: str) -> dict[str, Any]:
+        return await self.memory.visual_evidence(memory_id)
 
     async def _context_events(self, session_id):
         """Prefer the live ledger; fall back to trace reconstruction for old Sessions."""
@@ -596,6 +601,13 @@ class BoxAgentApplication:
                 return {**self.execution_service.last_result, "progress": self.state.task_text,
                         "task_queue": self.state.task_queue}
             if name == "remember_memory":
+                if interaction and requests_visual_memory(interaction.user_event.content or ""):
+                    return await self.memory.remember_screen(
+                        user_request=interaction.user_event.content,
+                        session_id=interaction.session.session_id,
+                        interaction_id=interaction.interaction_id,
+                        source_event_id=interaction.user_event.event_id,
+                        requested_at=interaction.user_event.occurred_at)
                 return await self.memory.remember(
                     data["content"], source="voice_explicit",
                     session_id=(interaction.session.session_id if interaction else ""),
@@ -604,8 +616,15 @@ class BoxAgentApplication:
                                       if interaction else ()))
             if name == "recall_memory":
                 result = await self.memory.recall(data["query"])
-                return {key: result[key] for key in (
+                public = {key: result[key] for key in (
                     "status", "message", "memories") if key in result}
+                if data.get("look_at_source") is True:
+                    selected = next((item for item in public.get("memories", [])
+                                     if (item.get("metadata") or {}).get("evidence_id")), None)
+                    if selected:
+                        public["source_observation"] = await self.memory.look_at_source(selected["id"], data["query"])
+                public["speech_guidance"] = "只用一两句回答过去的经历，不念记忆ID；用户原话、画面观察、未确认推断不能混淆。"
+                return public
             if name == "forget_memory":
                 return await self.memory.forget(data["memory_ids"])
             if name == "find_skill":

@@ -2,6 +2,9 @@
 
 import json
 import time
+from typing import Any
+
+from boxagent.application.visual_memory import VisualMemoryCoordinator
 
 from boxagent.domain.memory.contracts import MemoryUnavailable
 
@@ -19,6 +22,33 @@ class MemoryModule:
         self._trace = trace or (lambda *_args, **_kwargs: None)
         self._started = False
         self._closed = False
+        self._visual: VisualMemoryCoordinator | None = None
+
+    def configure_visual(self, coordinator: VisualMemoryCoordinator) -> None:
+        if self._started:
+            raise RuntimeError("视觉记忆必须在启动前装配")
+        self._visual = coordinator
+
+    async def remember_screen(self, *, user_request: str, session_id: str,
+                              interaction_id: str, source_event_id: str,
+                              requested_at: float) -> dict[str, Any]:
+        if self._visual is None:
+            return {"status": "failed", "message": "画面记忆尚未启用。"}
+        return await self._visual.remember(user_request=user_request, session_id=session_id,
+                                           interaction_id=interaction_id, source_event_id=source_event_id,
+                                           requested_at=requested_at)
+
+    async def visual_evidence(self, memory_id: str) -> dict[str, Any]:
+        if self._visual is None:
+            return {"status": "not_found", "message": "没有可回看的画面。"}
+        return await self._visual.preview(memory_id)
+
+    async def look_at_source(self, memory_id: str, question: str) -> dict[str, Any]:
+        if memory_id not in self._service.recalled_memory_ids:
+            raise ValueError("回看前必须先召回对应的记忆 ID")
+        if self._visual is None:
+            return {"status": "not_found", "message": "没有可回看的画面。"}
+        return await self._visual.look(memory_id, question)
 
     async def start(self):
         if self._started:
@@ -28,6 +58,8 @@ class MemoryModule:
             await self._migration.start()
         if self._ingestion is not None:
             await self._ingestion.start()
+        if self._visual is not None:
+            await self._visual.start()
         self._started = True
 
     async def user_message_committed(self, *, session_id, interaction_id,
@@ -149,10 +181,26 @@ class MemoryModule:
         return await self._service.list_memories()
 
     async def delete_node(self, memory_id):
-        return await self._service.delete_node(memory_id)
+        result = await self._service.delete_node(memory_id)
+        if self._visual is not None:
+            ids = await self._visual.forget_sources([memory_id], evidence_ids=self._visual_source_ids(result))
+            result["deleted_ids"] = list(dict.fromkeys([memory_id, *ids]))
+        return result
 
     async def forget(self, memory_ids):
-        return await self._service.forget(memory_ids)
+        result = await self._service.forget(memory_ids)
+        if self._visual is not None:
+            ids = await self._visual.forget_sources(memory_ids, evidence_ids=self._visual_source_ids(result))
+            result["deleted_ids"] = list(dict.fromkeys([*memory_ids, *ids]))
+        return result
+
+    @staticmethod
+    def _visual_source_ids(result: dict[str, Any]) -> list[str]:
+        return [metadata["evidence_id"] for item in result.get("deleted", [])
+                if isinstance(item, dict)
+                and isinstance(metadata := item.get("metadata"), dict)
+                and metadata.get("source") == "visual_memory"
+                and isinstance(metadata.get("evidence_id"), str)]
 
     async def health(self):
         status = await self._service.health()
@@ -167,12 +215,16 @@ class MemoryModule:
             await self._ingestion.drain()
         if self._migration is not None:
             await self._migration.drain()
+        if self._visual is not None:
+            await self._visual.drain()
 
     async def close(self):
         if self._closed:
             return
         if self._ingestion is not None:
             await self._ingestion.close()
+        if self._visual is not None:
+            await self._visual.close()
         if self._migration is not None:
             await self._migration.close()
         await self._service.close()
@@ -184,6 +236,17 @@ class DisabledMemoryModule:
 
     async def start(self):
         return None
+
+    async def remember_screen(self, *, user_request: str, session_id: str,
+                              interaction_id: str, source_event_id: str,
+                              requested_at: float) -> dict[str, Any]:
+        return {"status": "failed", "message": "长期记忆未启用。"}
+
+    async def visual_evidence(self, memory_id: str) -> dict[str, Any]:
+        return {"status": "not_found", "message": "长期记忆未启用。"}
+
+    async def look_at_source(self, memory_id: str, question: str) -> dict[str, Any]:
+        return {"status": "not_found", "message": "长期记忆未启用。"}
 
     async def user_message_committed(self, **_context):
         return None

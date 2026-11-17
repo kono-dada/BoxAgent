@@ -15,6 +15,15 @@ from boxagent.infrastructure.memory import JevMemWorker
 from boxagent.infrastructure.persistence import JsonMemoryJobStore
 from boxagent.bootstrap.settings import Settings
 from boxagent.infrastructure.context.intent import IntentReference
+from boxagent.application.visual_memory import VisualMemoryCoordinator
+from boxagent.domain.memory.visual import VisualEvidence, VisualMemorySource, VisualEpisodeBackend
+from boxagent.infrastructure.persistence.visual_evidence import LocalVisualEvidenceStore
+from boxagent.infrastructure.memory.visual_extractor import GroundedVisualEpisodeExtractor
+from boxagent.domain.conversation.contracts import SessionStore
+from boxagent.domain.conversation.models import ProductEvent
+from boxagent.core.ids import new_event_id
+from typing import Any
+import time
 
 
 def create_intent_reference(app_settings: Settings) -> IntentReference:
@@ -74,3 +83,22 @@ def create_memory_module(*, app_settings, conversation_store, runtime_host,
     )
     return MemoryModule(
         service, context, ingestion, narrative, migration, trace=log)
+
+
+def configure_visual_memory(memory: MemoryModule, source: VisualMemorySource, *,
+                            app_settings: Settings, conversation_store: SessionStore) -> None:
+    async def completed(evidence: VisualEvidence, result: dict[str, Any]) -> None:
+        await conversation_store.append_event(ProductEvent(
+            sequence=0, event_id=new_event_id(), type="memory.visual.completed",
+            session_id=evidence.session_id, interaction_id=evidence.interaction_id,
+            occurred_at=time.time(), source="visual_memory",
+            data={"evidence_id": evidence.evidence_id, **result}))
+
+    backend = memory._service.backend
+    if isinstance(backend, VisualEpisodeBackend):
+        memory.configure_visual(VisualMemoryCoordinator(
+            backend, LocalVisualEvidenceStore(app_settings.data_dir / "memory/media"),
+            GroundedVisualEpisodeExtractor(api_key=app_settings.deepseek_api_key,
+                                           base_url=app_settings.deepseek_base_url,
+                                           model=app_settings.deepseek_model),
+            source, completed=completed))

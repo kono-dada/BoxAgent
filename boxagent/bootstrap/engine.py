@@ -364,6 +364,9 @@ def create_application(publish, *, task_provider=None, task_model=None,
         worker_script=app_settings.root / "scripts/window_summary_worker.py",
         log_path=app_settings.log_dir / "context-worker.log",
     )
+    from boxagent.bootstrap.memory import configure_visual_memory
+    configure_visual_memory(memory, application.observer,
+                            app_settings=app_settings, conversation_store=conversation_store)
     return application
 
 
