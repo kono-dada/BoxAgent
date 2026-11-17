@@ -1,5 +1,8 @@
 # BoxAgent Onboarding 与启动就绪设计
 
+> 历史设计说明：本文的 AppKit Host 与启动链路描述早于 Electron 迁移。
+> 当前 macOS 首次引导及打包实施以 [2026-11-17 实施方案](plans/2026-11-17-onboarding-packaging.md) 为准；本文保留能力分级、状态与配置边界的设计背景。
+
 ## 当前结论
 
 BoxAgent 需要首次启动引导，但不新增独立的“初始化业务进程”。现有进程边界保持不变：
