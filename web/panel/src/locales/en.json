@@ -584,5 +584,21 @@
   "还需准备": "A little more to prepare",
   "DeepSeek 桌面任务": "DeepSeek desktop tasks",
   "请填写 DeepSeek API Key。": "Enter a DeepSeek API Key.",
-  "DeepSeek 服务暂不可用，请稍后重试。": "DeepSeek is temporarily unavailable. Try again later."
+  "DeepSeek 服务暂不可用，请稍后重试。": "DeepSeek is temporarily unavailable. Try again later.",
+  "参考资料": "References",
+  "{0} 篇已读": "{0} read",
+  "仅找到摘要": "Summaries only",
+  "提问版本：{0}": "Requested version: {0}",
+  "攻略适用版本待核对": "Guide version needs checking",
+  "打开原文：{0}": "Open source: {0}",
+  "已读正文": "Article read",
+  "未能读正文": "Article unavailable",
+  "正在读取": "Reading",
+  "搜索摘要": "Search summary",
+  "文章日期：{0}": "Article date: {0}",
+  "检索于 {0}": "Retrieved on {0}",
+  "正在查资料": "Finding sources",
+  "正在读攻略原文": "Reading the guide",
+  "本轮已打断": "This turn was interrupted",
+  "暂时无法打开网页": "Unable to open the page"
 }

@@ -14,6 +14,8 @@ import { locale, startPreferences } from "../preferences";
 import { useAction, run, runtimeLabel } from "../hooks/useAction";
 import { useWindowDrag } from "../hooks/useWindowDrag";
 import { transcript } from "./model";
+import { researchByInteraction } from '../web-research/model';
+import { WebResearchCard, WebResearchStatus } from '../web-research/WebResearchCard';
 import type { AvatarSnapshot, CameraSnapshot, ProductMessage, RuntimeState } from "../types";
 import "../../style.css";
 import "./companion.css";
@@ -108,6 +110,7 @@ function Companion() {
             "conversation.updated",
             "session.ready",
             "front.user_text",
+            "web.research.updated",
             "task.succeeded",
             "task.failed",
             "task.cancelled",
@@ -150,6 +153,10 @@ function Companion() {
     };
   }, [refresh]);
   const entries = transcript(history, runtime, pending);
+  const research = researchByInteraction(history, runtime);
+  const lastAssistant = new Map(entries.filter(row => row.role === 'assistant' && row.interactionId)
+    .map(row => [row.interactionId, row.id]));
+  const activeResearch = runtime.web_research?.session_id === runtime.session_id ? runtime.web_research : null;
   const queued = runtime.task_queue?.length || 0;
   const taskActive = queued > 0 || ["accepted", "running", "cancelling", "awaiting_approval"].includes(runtime.task || "");
   const taskLabel = runtime.approval ? t("需要你的确认") : runtimeLabel(runtime.task || "idle");
@@ -409,8 +416,11 @@ function Companion() {
                     {row.content}
                   </ReactMarkdown>
                 </div>
+                {row.role === 'assistant' && row.interactionId && lastAssistant.get(row.interactionId) === row.id && research[row.interactionId] &&
+                  <WebResearchCard view={research[row.interactionId]} bridge={bridge} />}
               </article>
             ))}
+            <WebResearchStatus view={activeResearch} />
             {runtime.context_enabled &&
               (runtime.context_text || runtime.context_status) && (
                 <details className="companion-context">

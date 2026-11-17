@@ -9,6 +9,7 @@ from boxagent.domain.context.contracts import NullContextObserver
 from boxagent.domain.conversation.models import InteractionContext
 from boxagent.domain.interaction.delegation import DecisionAdvice
 from boxagent.domain.perception.camera import CameraFeed
+from boxagent.domain.web.game_context import game_clarification_reference
 
 logger = logging.getLogger(__name__)
 
@@ -150,12 +151,12 @@ class InteractionService:
             # Recall may take hundreds of milliseconds, but it should not make
             # the text input appear unresponsive.
             self.events.emit(
-                "front.user_text", user_text=text, assistant_text="", error="")
+                "front.user_text", user_text=text, assistant_text="", error="", web_research=None)
             if self.turn_preparer is None:
                 await self._inject_memory_context(text, self.interaction)
         else:
             self.events.emit(
-                "front.user_text", user_text=text, assistant_text="", error="")
+                "front.user_text", user_text=text, assistant_text="", error="", web_research=None)
         try:
             submit = getattr(self.voice, "submit_text", None)
             if submit is None:
@@ -170,9 +171,13 @@ class InteractionService:
                     return {"status": "interrupted", "message": "本轮已被新的输入打断"}
                 self.context_observer.turn_prepared(context.session.session_id, **report)
                 self._store_decision(context, report)
-                await submit(text, reference=packet, query_id=context.interaction_id)
+                await submit(text, reference=game_clarification_reference(text) + packet, query_id=context.interaction_id)
             else:
-                await submit(text)
+                clarification = game_clarification_reference(text)
+                if clarification and self.interaction is not None:
+                    await submit(text, reference=clarification, query_id=self.interaction.interaction_id)
+                else:
+                    await submit(text)
         except Exception:
             if self.interaction is not None and self.conversation is not None:
                 await self.conversation.finish_interaction(
@@ -198,7 +203,7 @@ class InteractionService:
         context = await self.conversation.begin_interaction(
             text, source="text", runtime=runtime)
         self.events.emit(
-            "front.user_text", user_text=text, assistant_text="", error="")
+            "front.user_text", user_text=text, assistant_text="", error="", web_research=None)
         try:
             message = str(await handler(context) or "").strip()
             await self.conversation.finish_interaction(
@@ -305,6 +310,7 @@ class InteractionService:
                 self.interaction = await self.conversation.begin_interaction(
                     transcript, source="voice",
                     runtime="qwen_realtime")
+                self.events.emit("web.research.reset", web_research=None)
                 if self.turn_preparer is not None:
                     context = self.interaction
                     voice = self.voice
@@ -315,7 +321,7 @@ class InteractionService:
                         return
                     self.context_observer.turn_prepared(context.session.session_id, **report)
                     self._store_decision(context, report)
-                    await voice.respond_to_query(packet, query_id=context.interaction_id)
+                    await voice.respond_to_query(game_clarification_reference(transcript) + packet, query_id=context.interaction_id)
                 else:
                     await self._inject_memory_context(transcript, self.interaction)
                 self._bind_pending_response(self.interaction)
@@ -422,6 +428,10 @@ class InteractionService:
 
     def _close_interaction(self, context):
         self.closed_interactions.add(context.interaction_id)
+        research = self.events.state.web_research
+        if isinstance(research, dict) and research["interaction_id"] == context.interaction_id and research["stage"] in {"searching", "reading"}:
+            self.events.emit("web.research.updated", web_research={
+                **research, "stage": "cancelled", "message": "本轮已打断"})
         self.decisions.pop(context.interaction_id, None)
         if self.interaction is context:
             self.interaction = None

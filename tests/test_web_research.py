@@ -15,12 +15,176 @@ from boxagent.application.web_research import WebResearchService
 from boxagent.bootstrap.settings import load_settings
 from boxagent.bootstrap.web import create_web_research
 from boxagent.domain.web.contracts import WebPage, WebSource, WebUnavailable, public_web_url
+from boxagent.domain.web.contracts import WebResearchView
+from boxagent.domain.web.game_context import game_reference_question
+from boxagent.domain.conversation import ConversationService
+from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.domain.interaction.service import InteractionService
-from boxagent.infrastructure.runtimes.qwen.realtime import TOOLS
+from boxagent.infrastructure.runtimes.qwen.realtime import TOOLS, QwenRealtimeSession
 from boxagent.infrastructure.web.deepseek import DeepSeekWebProvider, NoRedirect, post_json
 
 
 class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_preferred_game_sources_expand_only_on_empty_results_with_the_same_budget(self) -> None:
+        provider = Mock(search=AsyncMock(side_effect=[(), (
+            WebSource('原文', 'https://example.com/guide', '摘要'),
+            WebSource('另一篇', 'https://example.net/guide', '摘要'),
+        )]), fetch=AsyncMock(return_value=WebPage('https://example.com/guide', '原文', '正文')))
+        service = WebResearchService(provider)
+        result = await service.research('鸣潮 无冠者', scope='turn', preferred_sites=('wiki.kurobbs.com',))
+        self.assertIn('site:wiki.kurobbs.com', provider.search.call_args_list[0].args[0])
+        self.assertEqual(provider.search.call_args_list[1].args[0], '鸣潮 无冠者')
+        self.assertEqual(service.calls['turn'], 4)
+        self.assertEqual(result['read_source_count'], 2)
+
+    async def test_unresolved_boss_and_invalid_form_are_clarified_before_any_paid_request(self) -> None:
+        with TemporaryDirectory() as directory:
+            conversation = ConversationService(JsonlSessionStore(Path(directory)))
+            provider = Mock(search=AsyncMock(), fetch=AsyncMock())
+            app = BoxAgentApplication(Mock(), Mock(), None, conversation_service=conversation,
+                                      web_research=WebResearchService(provider))
+            await app.start()
+            for question in ('帮我查这个Boss怎么打', '鸣潮周本无冠者怎么打'):
+                context = await conversation.begin_interaction(question, source='text', runtime='qwen_realtime')
+                app.interaction_service.interaction = context
+                result = await app.handle_tool('search_web', {'query': 'Boss攻略'}, interaction=context)
+                self.assertEqual(result['code'], 'clarification_required')
+                await conversation.finish_interaction(context, status='succeeded', runtime='qwen_realtime')
+                app.interaction_service._close_interaction(context)
+            provider.search.assert_not_awaited()
+            provider.fetch.assert_not_awaited()
+            await app.close()
+
+    async def test_research_reads_different_sites_concurrently_with_one_bounded_fallback(self) -> None:
+        fetching: list[str] = []
+        both_started = asyncio.Event()
+
+        async def fetch(url: str) -> WebPage:
+            fetching.append(url)
+            if len(fetching) == 2:
+                both_started.set()
+            await asyncio.wait_for(both_started.wait(), 1)
+            if 'other.example.net' in url:
+                raise WebUnavailable('page_unavailable', '页面不可读')
+            return WebPage(url, '机制原文', '正文说明动作与时机。' * 1000)
+
+        provider = Mock(search=AsyncMock(return_value=(
+            WebSource('首条', 'https://wiki.example.com/one', '摘要'),
+            WebSource('同站', 'https://news.example.com/two', '摘要'),
+            WebSource('另一站', 'https://other.example.net/three', '摘要'),
+            WebSource('第三站', 'https://guide.example.org/four', '摘要'),
+        )), fetch=fetch)
+        views: list[WebResearchView] = []
+
+        async def observe(view: WebResearchView) -> None:
+            views.append(view)
+
+        service = WebResearchService(provider)
+        result = await service.research('鸣潮 周本 无冠者 弹刀', scope='turn', requested_version='用户版本', observer=observe)
+        self.assertEqual(fetching, ['https://wiki.example.com/one', 'https://other.example.net/three', 'https://guide.example.org/four'])
+        self.assertEqual(service.calls['turn'], 4)
+        self.assertEqual(result['read_site_count'], 2)
+        self.assertTrue(all(page['truncated'] for page in result['pages']))
+        self.assertEqual(result['requested_version'], '用户版本')
+        self.assertEqual(views[0]['sources'], [])  # Published snapshots cannot mutate later.
+        self.assertEqual(views[-1]['stage'], 'ready')
+        self.assertEqual(views[-1]['sources'][2]['read_status'], 'unavailable')
+
+    async def test_research_deadline_returns_partial_evidence_without_waiting_for_slow_reads(self) -> None:
+        cancelled = asyncio.Event()
+
+        async def slow(url: str) -> WebPage:
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+            return WebPage(url, '', '')
+
+        provider = Mock(search=AsyncMock(return_value=(WebSource('攻略', 'https://example.com/guide', '摘要'),)), fetch=slow)
+        views: list[WebResearchView] = []
+
+        async def observe(view: WebResearchView) -> None:
+            views.append(view)
+
+        result = await WebResearchService(provider).research('鸣潮', scope='turn', timeout=.03, observer=observe)
+        self.assertTrue(cancelled.is_set())
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['read_source_count'], 0)
+        self.assertIn('正文未能核对', views[-1]['message'])
+        self.assertEqual(views[-1]['sources'][0]['read_status'], 'unavailable')
+
+    async def test_empty_research_never_fetches_and_has_short_spoken_failure_policy(self) -> None:
+        provider = Mock(search=AsyncMock(return_value=()), fetch=AsyncMock())
+        result = await WebResearchService(provider).research('鸣潮', scope='turn')
+        self.assertEqual(result['status'], 'empty')
+        provider.fetch.assert_not_awaited()
+        self.assertIn('不念网址', result['speech_guidance'])
+
+    async def test_interrupted_research_does_not_fetch_or_publish_sources_into_the_new_turn(self) -> None:
+        with TemporaryDirectory() as directory:
+            conversation = ConversationService(JsonlSessionStore(Path(directory)))
+            started, release = asyncio.Event(), asyncio.Event()
+
+            async def search(query: str, *, count: int) -> tuple[WebSource, ...]:
+                started.set()
+                await release.wait()
+                return (WebSource('旧问题攻略', 'https://example.com/old', '旧摘要'),)
+
+            provider = Mock(search=search, fetch=AsyncMock())
+            app = BoxAgentApplication(Mock(), Mock(), None, conversation_service=conversation,
+                                      web_research=WebResearchService(provider))
+            await app.start()
+            old = await conversation.begin_interaction('旧问题', source='text', runtime='qwen_realtime')
+            app.interaction_service.interaction = old
+            running = asyncio.create_task(app.handle_tool('search_web', {'query': '旧问题'}, interaction=old))
+            await started.wait()
+            await conversation.finish_interaction(old, status='interrupted', runtime='qwen_realtime')
+            app.interaction_service._close_interaction(old)
+            new = await conversation.begin_interaction('新问题', source='text', runtime='qwen_realtime')
+            app.interaction_service.interaction = new
+            app.events.emit('front.user_text', user_text='新问题', assistant_text='', web_research=None)
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await running
+            provider.fetch.assert_not_awaited()
+            self.assertIsNone(app.state.web_research)
+            self.assertFalse(any(event.type == 'web.research.completed' for event in await conversation.events(old.session.session_id)))
+            await app.close()
+
+    async def test_completed_research_is_saved_as_metadata_not_a_spoken_message(self) -> None:
+        with TemporaryDirectory() as directory:
+            conversation = ConversationService(JsonlSessionStore(Path(directory)))
+            provider = Mock(search=AsyncMock(return_value=(WebSource('原文', 'https://example.com/guide', '摘要'),)),
+                            fetch=AsyncMock(return_value=WebPage('https://example.com/guide', '原文', '机制原文')))
+            app = BoxAgentApplication(Mock(), Mock(), None, conversation_service=conversation,
+                                      web_research=WebResearchService(provider))
+            await app.start()
+            context = await conversation.begin_interaction('鸣潮', source='text', runtime='qwen_realtime')
+            app.interaction_service.interaction = context
+            await app.handle_tool('search_web', {'query': '鸣潮'}, interaction=context)
+            events = await conversation.events(context.session.session_id)
+            evidence = [event for event in events if event.type == 'web.research.completed']
+            self.assertEqual(len(evidence), 1)
+            self.assertEqual(evidence[0].interaction_id, context.interaction_id)
+            self.assertEqual(evidence[0].data['web_research']['sources'][0]['read_status'], 'read')
+            self.assertIsNone(evidence[0].content)
+            self.assertNotIn('机制原文', json.dumps(evidence[0].payload(), ensure_ascii=False))
+            await app.close()
+
+    async def test_web_followup_applies_voice_policy_before_audio_generation_and_retains_persona(self) -> None:
+        voice = QwenRealtimeSession(None, Mock(), instructions='人物设定：喜欢用轻松语气说话。')
+        sent = []
+
+        async def send(value: dict[str, object]) -> None:
+            sent.append(value)
+
+        voice.send = send
+        await voice._send_response_request({'kind': 'tool_result', 'web_speech': True})
+        self.assertIn('人物设定', sent[-1]['response']['instructions'])
+        self.assertIn('不念网址', sent[-1]['response']['instructions'])
+        await voice._send_response_request({'kind': 'user'})
+        self.assertNotIn('instructions', sent[-1]['response'])
+
     async def test_interrupted_interaction_does_not_make_a_paid_search_request(self) -> None:
         handler = AsyncMock()
         interaction = InteractionService(Mock(), None, handler, conversation=Mock(store=Mock()))
@@ -122,6 +286,11 @@ class WebEvidenceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class WebBoundaryTests(unittest.TestCase):
+    def test_game_reference_can_use_named_user_context_but_cannot_accept_guessed_names(self) -> None:
+        self.assertIsNone(game_reference_question('这个Boss怎么打', game='鸣潮', target='无冠者', known_text='我在玩鸣潮，打无冠者'))
+        self.assertIsNotNone(game_reference_question('这个Boss怎么打', game='黑神话悟空', target='二郎神', known_text='我正在喝茶'))
+        self.assertIsNone(game_reference_question('无冠者和无妄者哪个是周本'))
+
     def test_url_contract_rejects_local_credentials_and_non_web_protocols(self) -> None:
         for url in ["file:///private/key", "https://user:pass@example.com", "http://localhost/a", "http://10.1.2.3",
                     "http://[::1]", "http://name.local", "http://2130706433", "http://intranet", "https://example.com\n"]:

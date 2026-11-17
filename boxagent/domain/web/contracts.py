@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlsplit, urlunsplit
 
+from boxagent.core.states import WebReference, WebResearchView
+
 
 class WebUnavailable(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
@@ -32,6 +34,10 @@ class WebPage:
 class WebProvider(Protocol):
     async def search(self, query: str, *, count: int) -> tuple[WebSource, ...]: ...
     async def fetch(self, url: str) -> WebPage: ...
+
+
+class WebResearchObserver(Protocol):
+    async def __call__(self, view: WebResearchView) -> bool | None: ...
 
 
 def public_web_url(value: str) -> str:
