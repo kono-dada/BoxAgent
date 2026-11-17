@@ -2,6 +2,8 @@
 
 日期：2026-11-17。状态：首次引导与打包实现已落地，成品验证记录见 [macOS 安装包说明](../macos-distribution.md)。
 
+后续用户明确要求 DeepSeek 必填：当前实现必须同时具备 DashScope、该 Key 对应的业务空间 ID 与已通过鉴权的 DeepSeek，才允许完成引导。视觉结构按 MiraJelly release 重新复核，并按用户反馈减少文字、提高对比度；当前取舍见 [视觉复核](../macos-onboarding-visual.md)。下面保留最初方案的分析背景，发生变化的要求以当前安装包说明为准。
+
 用户已确认首版面向 **macOS Apple Silicon**，交付 `.app` / `.dmg`。目标是让新用户双击打开界面，在界面内完成凭据、组件准备和授权；开发环境继续支持现有脚本入口。Windows 后续单独规划。
 
 ## 1. 参考基线与当前事实

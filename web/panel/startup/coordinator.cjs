@@ -6,7 +6,9 @@ const { PackagedRuntime } = require('./runtime.cjs');
 const { detectDesktopTools } = require('./desktop-tools.cjs');
 
 function canComplete(snapshot) {
-  return ['core', 'memory', 'vision', 'engine', 'qwen'].every(name => snapshot.capabilities[name]?.state === 'ready');
+  return snapshot.credentials?.dashscope === true && snapshot.credentials.deepseek === true &&
+    Boolean(snapshot.credentials.workspace) && snapshot.credentials.provider === 'deepseek' &&
+    ['core', 'memory', 'vision', 'engine', 'qwen', 'task'].every(name => snapshot.capabilities[name]?.state === 'ready');
 }
 class StartupCoordinator {
   constructor({ paths, credentials, permissions, ensureEngine, stopEngine, enterDesktop, broadcast, validate = validateProviders, runtime }) {
@@ -20,7 +22,7 @@ class StartupCoordinator {
   snapshot() {
     return { mode: this.mode, onboarding: this.state, credentials: this.summary, capabilities: this.capabilities,
       permissions: this.permissions.snapshot(), busy: this.busy, error: this.error, progress: this.progress,
-      canComplete: canComplete(this), packaged: this.paths.packaged };
+      canComplete: canComplete({ capabilities: this.capabilities, credentials: this.summary }), packaged: this.paths.packaged };
   }
   emit() { if (!this.closed) this.broadcast(this.snapshot()); }
   async operation(action) {
@@ -37,11 +39,13 @@ class StartupCoordinator {
       this.state = await readState(this.stateFile);
       this.summary = await this.credentials.summary();
       this.mode = this.state.completed ? 'repair' : 'needs_setup';
+      const configured = this.summary.dashscope && this.summary.deepseek && this.summary.workspace && this.summary.provider === 'deepseek';
+      if (this.state.completed && !configured) this.state = { ...this.state, step: 'providers' };
       // Returning users already passed the complete gate. Start their companion
       // after core/Engine health; model initialization is a setup/repair check.
       await this.refreshLocal(signal, this.state.completed ? ['core'] : undefined);
       // No API calls or permission requests until the user chooses to validate.
-      if (this.state.completed && this.capabilities.engine?.state === 'ready') {
+      if (this.state.completed && configured && this.capabilities.engine?.state === 'ready') {
         this.mode = 'degraded'; await this.enterDesktop();
       }
     });
@@ -91,7 +95,7 @@ class StartupCoordinator {
       } else if (method === 'complete') {
         await this.refreshLocal(signal);
         this.capabilities = { ...this.capabilities, ...await this.validate(await this.credentials.load(), { signal }) };
-        if (signal.aborted || !canComplete(this)) throw Error('capabilities_not_ready');
+        if (signal.aborted || !canComplete({ capabilities: this.capabilities, credentials: this.summary })) throw Error('capabilities_not_ready');
         // Persist completion only after the desktop itself successfully opens.
         await this.enterDesktop();
         this.state = { ...this.state, completed: true, step: 'ready', completedAt: new Date().toISOString() };

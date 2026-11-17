@@ -4,8 +4,9 @@ function createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot, registerWin
   let window;
   const show = () => {
     if (window && !window.isDestroyed()) { window.show(); window.focus(); return window; }
-    window = new BrowserWindow({ width: 940, height: 740, minWidth: 740, minHeight: 620, title: 'BoxAgent',
-      titleBarStyle: 'hiddenInset', backgroundColor: '#f6f7fb',
+    window = new BrowserWindow({ width: 500, height: 570, useContentSize: true, resizable: false, maximizable: false, fullscreenable: false, title: 'BoxAgent',
+      titleBarStyle: 'hiddenInset', backgroundColor: '#00000000',
+      ...(process.platform === 'darwin' ? { vibrancy: 'hud', visualEffectState: 'active' } : {}),
       webPreferences: { preload: path.join(panelRoot, 'startup/preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
     registerWindow(window);
     window.loadFile(path.join(panelRoot, 'dist/setup.html'));

@@ -6,11 +6,11 @@
 
 将 `BoxAgent.app` 从 DMG 拖到 Applications 后打开。首次引导依次显示欢迎、模型服务、本地组件、权限和就绪摘要。
 
-- 填写自己的 DashScope API Key 和北京地域百炼 Workspace ID。默认记忆决策复用这组配置。
-- DeepSeek API Key 用于桌面任务，可以稍后填写。Key 保存后执行受限验证，错误时保留配置并提示重试。
+- 填写自己的 DashScope API Key 和该 Key 对应的百炼业务空间 ID。默认记忆决策复用这组配置。
+- DeepSeek API Key 用于桌面任务，首版必填。两组 Key 保存后执行受限鉴权验证，错误时保留配置并提示重试。
 - 首次准备 core、Jev-Mem、MLX 环境及记忆/视觉模型。环境依赖来自随包 wheel，模型准备需要网络。建议预留至少 6 GB。
 - 麦克风、辅助功能、屏幕录制按实际用途授权。可以先用文字；摄像头在首次开启时单独授权。
-- 只有 core、Engine、Qwen、真实 Jev-Mem 和默认视觉组件通过最终检查后才记录首次完成。
+- 只有 core、Engine、Qwen、DeepSeek、真实 Jev-Mem 和默认视觉组件通过最终检查后才记录首次完成。
 
 桌面任务还需要官方 Codex、同版本 `codex-code-mode-host` 以及 Computer Use。当前安装包不重新分发这些官方组件；引导提供官方发布页和组件目录选择。选择 Codex 时指定含两个可执行文件的目录；选择 Computer Use 时指定外层 `Codex Computer Use.app`。如果官方组件尚未安装，文字聊天仍可使用，桌面执行能力显示受限。这不等于完整桌面任务已验收。
 
@@ -22,7 +22,7 @@ Key 通过 Electron `safeStorage` 加密，macOS Keychain 保护其加密密钥�
 
 Python 字节码缓存通过 `PYTHONPYCACHEPREFIX` 写到用户的 `runtimes/pycache`，避免每次健康检查重新编译重型依赖，且不写入 app 资源。
 
-已完成引导的用户重开时检查 core 和 Engine 后恢复桌宠，不阻塞等待重型模型重复初始化。首次完成、明确的重新检查/修复仍运行完整本地模型检查；跳过深度检查不被报告为模型已就绪。
+已完成引导且必需凭据齐全的用户重开时检查 core 和 Engine 后恢复桌宠，不阻塞等待重型模型重复初始化。旧测试数据如果缺少 DeepSeek，会回到 Key 配置页并保留已有数据。首次完成、明确的重新检查/修复仍运行完整本地模型检查；跳过深度检查不被报告为模型已就绪。
 
 ## 制作机器
 
@@ -66,7 +66,7 @@ node scripts/verify-packaged-app.mjs dist/mac/mac-arm64/BoxAgent.app
 node scripts/smoke-packaged-app.mjs dist/mac/mac-arm64/BoxAgent.app --models
 ```
 
-Electron smoke 使用隔离目录和模拟 Provider/Engine，验证真实页面、Key 表单、中英文、Engine 故障和完成门禁，不调用真实模型或操作其他应用。截图写入 `.runtime/onboarding-smoke/screenshots`。生产代码中没有模拟 Provider 的开关。
+Electron smoke 使用隔离目录和模拟 Provider/Engine，验证五个真实页面、中英文、200% 缩放、Key 必填、保存失败保留输入、两种服务的鉴权失败、下载取消、权限状态以及完成门禁。截图写入 `.runtime/onboarding-smoke/screenshots`。生产代码中没有模拟 Provider 的开关。视觉参考和取舍见 [视觉复核](macos-onboarding-visual.md)。
 
 成品另须在无源码、无开发工具 PATH 的隔离用户目录启动，并运行随包 core 的离线安装/健康检查。模拟边界通过不代表真实 Key、云对话、AOQ、记忆决策、TCC 或 Computer Use 已验收。最终验证记录分别列出结果与未覆盖项。
 

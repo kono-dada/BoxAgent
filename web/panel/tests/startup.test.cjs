@@ -84,13 +84,13 @@ test('Engine failure leaves configuration operations available and blocks comple
 });
 test('completion rechecks readiness and returning-user repair preserves completed', async t => {
   const { data, credentials } = await fixture(t);
-  await credentials.save({ DASHSCOPE_API_KEY: 'key', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test' });
+  await credentials.save({ DASHSCOPE_API_KEY: 'key', DEEPSEEK_API_KEY: 'task-key', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test' });
   let healthy = true, opened = 0;
   const coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true }, credentials,
     permissions: { snapshot: () => ({}) }, runtime: {
       localStatus: async () => Object.fromEntries(['core', 'memory', 'vision'].map(name => [name, { state: healthy ? 'ready' : 'missing', code: '' }])),
       environment: value => value }, ensureEngine: async () => {}, stopEngine: async () => {},
-    enterDesktop: async () => { opened++; }, broadcast: () => {}, validate: async () => ({ qwen: { state: 'ready', code: '' } }) });
+    enterDesktop: async () => { opened++; }, broadcast: () => {}, validate: async () => ({ qwen: { state: 'ready', code: '' }, task: { state: 'ready', code: '' } }) });
   await coordinator.start();
   const complete = await coordinator.request('complete');
   assert.equal(complete.onboarding.completed, true);
@@ -118,6 +118,7 @@ test('cancelled subprocess is reaped even when it handles termination with a zer
 
 test('returning users start after core/Engine checks without reloading large models', async t => {
   const { data, credentials } = await fixture(t);
+  await credentials.save({ DASHSCOPE_API_KEY: 'key', DEEPSEEK_API_KEY: 'task-key', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test' });
   const checked = [];
   let opened = 0;
   const coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true }, credentials,
@@ -133,6 +134,45 @@ test('returning users start after core/Engine checks without reloading large mod
   assert.equal(opened, 1);
   assert.equal(snapshot.capabilities.engine.state, 'ready');
   assert.equal(snapshot.canComplete, false, 'Must not fabricate model readiness');
+});
+
+test('missing or invalid DeepSeek credentials block completion even when Qwen and local components are ready', async t => {
+  const { data, credentials } = await fixture(t);
+  await credentials.save({ DASHSCOPE_API_KEY: 'qwen', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test' });
+  const ready = () => ({ state: 'ready', code: '' });
+  let opened = 0;
+  const coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true }, credentials,
+    permissions: { snapshot: () => ({}) }, runtime: { localStatus: async () => ({ core: ready(), memory: ready(), vision: ready() }), environment: value => value },
+    ensureEngine: async () => {}, stopEngine: async () => {}, enterDesktop: async () => { opened++; }, broadcast: () => {},
+    validate: async config => ({ qwen: ready(), task: !config.DEEPSEEK_API_KEY ? { state: 'missing', code: 'task_configuration_missing' } :
+      config.DEEPSEEK_API_KEY === 'valid-task-key' ? ready() : { state: 'invalid', code: 'deepseek_auth_failed' } }) });
+  await coordinator.start();
+  assert.equal((await coordinator.request('complete')).onboarding.completed, false);
+  await coordinator.request('save', { DEEPSEEK_API_KEY: 'invalid-task-key' });
+  const invalid = await coordinator.request('complete');
+  assert.equal(invalid.error, 'capabilities_not_ready');
+  assert.equal(invalid.capabilities.task.code, 'deepseek_auth_failed');
+  assert.equal(opened, 0);
+  await coordinator.request('save', { DEEPSEEK_API_KEY: 'valid-task-key' });
+  assert.equal((await coordinator.request('complete')).onboarding.completed, true);
+  assert.equal(opened, 1);
+});
+
+test('previously completed users without DeepSeek return to key setup and keep their saved state', async t => {
+  const { data, credentials } = await fixture(t);
+  await credentials.save({ DASHSCOPE_API_KEY: 'qwen', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test' });
+  let opened = 0;
+  const coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true }, credentials,
+    permissions: { snapshot: () => ({}) }, runtime: { localStatus: async () => ({ core: { state: 'ready', code: '' } }), environment: value => value },
+    ensureEngine: async () => {}, stopEngine: async () => {}, enterDesktop: async () => { opened++; }, broadcast: () => {} });
+  await atomicWrite(coordinator.stateFile, { version: 1, completed: true, step: 'ready', completedAt: new Date().toISOString() });
+  const snapshot = await coordinator.start();
+  assert.equal(snapshot.onboarding.step, 'providers');
+  assert.equal(snapshot.mode, 'repair');
+  assert.equal(snapshot.canComplete, false);
+  assert.equal(opened, 0);
+  assert.equal((await readState(coordinator.stateFile)).completed, true);
+  assert.equal((await credentials.load()).DASHSCOPE_API_KEY, 'qwen');
 });
 
 test('subprocess output limit waits for forced termination before rejecting', async () => {

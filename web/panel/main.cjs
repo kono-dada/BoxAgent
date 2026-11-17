@@ -320,7 +320,8 @@ app.whenReady().then(async () => {
   if (setupEnabled) {
     setupWindow.show();
     void startup.start().then(snapshot => {
-      if (snapshot.onboarding.completed && snapshot.capabilities.engine?.state === 'ready' && !snapshot.error) setupWindow.hide();
+      if (snapshot.onboarding.completed && ['ready', 'degraded'].includes(snapshot.mode) &&
+          snapshot.capabilities.engine?.state === 'ready' && !snapshot.error) setupWindow.hide();
     });
   } else if (companionMode) {
     try {

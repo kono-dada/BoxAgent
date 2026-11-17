@@ -76,10 +76,15 @@ try {
   };
   let state;
   for (let i = 0; i < 200; i++) {
-    state = await evaluate(`window.boxagentSetup?.request('snapshot')`);
+    try { state = await evaluate(`window.boxagentSetup?.request('snapshot')`); }
+    catch (error) {
+      // CDP may discover setup.html while its first document is still loading.
+      if (error.message !== 'Execution context was destroyed.') throw error;
+    }
     if (state && !state.busy) break;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
+  assert.ok(state && !state.busy, 'Onboarding snapshot did not become ready');
   assert.equal(state.onboarding.completed, false);
   assert.equal(state.credentials.dashscope, false);
   assert.equal(state.canComplete, false);
@@ -102,12 +107,28 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.equal(await evaluate(`document.querySelectorAll('input[type=password]').length`), 2);
-  assert.equal(await evaluate(`document.querySelector('form button[type=submit]').disabled`), true);
+  assert.equal(await evaluate(`document.querySelector('.setup-provider-submit').disabled`), true);
+  await evaluate(`(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    for (const [index, value] of [[0, 'fixture-required-key'], [1, 'fixture-workspace']]) {
+      const input = document.querySelectorAll('input')[index]; setter.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  })()`);
+  assert.equal(await evaluate(`document.querySelector('.setup-provider-submit').disabled`), true, 'DeepSeek must also be required in the actual app');
+  await evaluate(`(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    for (const input of document.querySelectorAll('input')) { setter.call(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })); }
+    return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  })()`);
+  await evaluate(`Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})))`);
+  const layout = await evaluate(`({ width: innerWidth, height: innerHeight, action: document.querySelector('.setup-provider-submit').getBoundingClientRect().toJSON(), scrollWidth: document.documentElement.scrollWidth })`);
+  await fs.writeFile(path.join(directory, 'visual-metrics.json'), JSON.stringify(layout, null, 2));
   assert.equal(await evaluate(`(() => {
-    const button = document.querySelector('form button[type=submit]').getBoundingClientRect();
-    const content = document.querySelector('.setup-content').getBoundingClientRect();
-    return button.top >= content.top && button.bottom <= content.bottom;
-  })()`), true, 'Save/verify action is hidden below the initial form viewport');
+    const button = document.querySelector('.setup-provider-submit').getBoundingClientRect();
+    return innerWidth === 500 && innerHeight === 570 && button.top >= 48 && button.bottom <= innerHeight &&
+      Math.abs((button.left + button.right) / 2 - innerWidth / 2) < 1 && document.documentElement.scrollWidth <= innerWidth;
+  })()`), true, 'Save/verify action must be visible and centered in the compact window');
   await new Promise(resolve => setTimeout(resolve, 350));
   const screenshot = await send('Page.captureScreenshot', { format: 'png' });
   await fs.writeFile(path.join(directory, 'providers.png'), Buffer.from(screenshot.data, 'base64'));
