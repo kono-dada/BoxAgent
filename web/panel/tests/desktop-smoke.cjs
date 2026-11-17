@@ -286,9 +286,13 @@ server.listen(path.join(data, "engine.sock"), () => {
       const fixedPetFrame = pet.getBounds();
       const animation = stage.webContents.mainFrame.frames[0];
       const stageFrame = stage.getBounds();
-      const stageArea = require('electron').screen.getDisplayNearestPoint(stageFrame).workArea;
+      const stageDisplay = require('electron').screen.getDisplayNearestPoint(stageFrame);
+      const stageArea = stageDisplay.workArea;
       assert.equal(stageFrame.width, stageArea.width, "整屏渲染层覆盖所在屏幕宽度");
-      assert.equal(stageFrame.height, stageArea.height, "整屏渲染层覆盖所在屏幕高度");
+      assert.equal(stageFrame.height, stageDisplay.bounds.y + stageDisplay.bounds.height - stageArea.y,
+        "渲染层从工作区顶部延伸到屏幕底边");
+      assert.equal(await js(stage, "document.querySelector('.pet-stage img') === null"), true,
+        "整屏渲染层不显示背景图片");
       assert(stageFrame.width > fixedPetFrame.width, "渲染层不小于人物命中窗口");
       const firstBounds = await animation.executeJavaScript("pet.bounds().bounds");
       assert.equal(fixedPetFrame.width, firstBounds.width, "首帧决定紧凑窗口宽度");
@@ -817,6 +821,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       });
       await wait(() => bubble.isVisible(), "pet tap toggles bubble");
       bubble.hide();
+      const windowCount = BrowserWindow.getAllWindows().length;
       const reopened = new Promise((resolve) =>
         app.once("second-instance", resolve),
       );
@@ -826,7 +831,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       });
       await reopened;
       assert(bubble.isVisible());
-      assert.equal(BrowserWindow.getAllWindows().length, 3);
+      assert.equal(BrowserWindow.getAllWindows().length, windowCount);
       child.on("exit", () => {});
       console.log(
         "Electron desktop: real VRM ready/crop/scale, failed avatar rollback, lazy console, shared theme/language, history/Markdown/latest, text/approval/cancel/voice IPC, bubble close/tap/reopen, single instance passed",

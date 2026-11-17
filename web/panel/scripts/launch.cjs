@@ -12,11 +12,13 @@ function prepare() {
   const bundle = path.join(directory, "BoxAgent.app");
   const executable = path.join(bundle, "Contents/MacOS/BoxAgent");
   const icon = path.join(panel, "public/brand/boxagent.icns");
+  const wakeSource = path.join(__dirname, "wake-listener.swift");
   const stamp = crypto
     .createHash("sha256")
     .update(fs.readFileSync(__filename))
     .update(fs.readFileSync(path.join(source, "Contents/Info.plist")))
     .update(fs.readFileSync(icon))
+    .update(fs.readFileSync(wakeSource))
     .digest("hex");
   fs.mkdirSync(directory, { recursive: true });
   const marker = path.join(directory, "bundle-version");
@@ -41,11 +43,12 @@ function prepare() {
       LSApplicationCategoryType: "public.app-category.productivity",
       NSCameraUsageDescription: "开启视频通话后，将摄像头画面发送至千问以进行视觉对话；关闭即停止，不在本机录像。",
     }))
-      execFileSync("/usr/libexec/PlistBuddy", [
-        "-c",
-        `Set :${key} ${value}`,
-        info,
-      ]);
+      execFileSync("/usr/libexec/PlistBuddy", ["-c", `Set :${key} ${value}`, info]);
+    execFileSync("/usr/libexec/PlistBuddy", [
+      "-c", "Add :NSSpeechRecognitionUsageDescription string 语音唤醒开启时，在本机识别当前角色名称。",
+      "-c", "Set :NSMicrophoneUsageDescription 使用麦克风进行本机语音唤醒和语音对话。",
+      info,
+    ]);
     fs.renameSync(
       path.join(candidate, "Contents/MacOS/Electron"),
       path.join(candidate, "Contents/MacOS/BoxAgent"),
@@ -54,6 +57,7 @@ function prepare() {
       icon,
       path.join(candidate, "Contents/Resources/boxagent.icns"),
     );
+    execFileSync("/usr/bin/swiftc", [wakeSource, "-o", path.join(candidate, "Contents/MacOS/BoxAgentWakeListener")]);
     execFileSync(
       "/usr/bin/codesign",
       ["--force", "--deep", "--sign", "-", candidate],

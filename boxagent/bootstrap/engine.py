@@ -8,7 +8,7 @@ import time
 from boxagent.agent.harness import RuntimeRequestBuilder, TaskExecutor
 from boxagent.agent.harness.context import RuntimeContextProjector
 from boxagent.agent.harness.instructions import append_persona
-from boxagent.agent.harness.persona import load_persona
+from boxagent.agent.harness.persona import Persona, load_persona
 from boxagent.agent.harness.policies import ComputerUseToolGateway, can_auto_approve_computer_use
 from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 from boxagent.application.assistant import BoxAgentApplication
@@ -212,11 +212,16 @@ def create_application(publish, *, task_provider=None, task_model=None,
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)
     selected = registry.runtime(task_provider or app_settings.task_provider, task_model)
-    persona = load_persona(app_settings.soul_file)
-    request_builder = RuntimeRequestBuilder(
-        persona=persona,
-        context_assembler=RuntimeContextProjector(
-            history_character_budget=app_settings.codex_history_character_budget))
+    def current_persona() -> Persona:
+        source = app_settings.soul_file
+        default = app_settings.root / "assets/personas/default/SOUL.md"
+        local = app_settings.data_dir / "SOUL.md"
+        if source == default and local.is_file():
+            source = local
+        return load_persona(source)
+
+    context_projector = RuntimeContextProjector(
+        history_character_budget=app_settings.codex_history_character_budget)
     environment_provider = LocalSystemEnvironmentProvider()
     from boxagent.infrastructure.persistence.session_events import SessionEventStore
     from boxagent.infrastructure.persistence.unified_session import (
@@ -313,22 +318,33 @@ def create_application(publish, *, task_provider=None, task_model=None,
         if app_settings.intent_reference_enabled and app_settings.decision_api_key else None
     turn_preparer = TurnPreparer(memory,
         intent=intent_reference,
-        environment=lambda: request_builder.context_assembler.environment_packet(environment_provider.capture()),
+        environment=lambda: context_projector.environment_packet(environment_provider.capture()),
         screen=lambda: current_screen_reference(application.events.state))
+    if voice_factory is None:
+        realtime_factory = create_voice_factory(
+            app_settings, environment_provider=environment_provider,
+            context_projector=context_projector,
+            context_recorder=context_recorder, host_turn_control=True)
+        base_instructions = realtime_factory.keywords["instructions"]
+
+        def front_voice_factory(*args, **kwargs):
+            return realtime_factory(
+                *args, instructions=append_persona(base_instructions, current_persona()), **kwargs)
+    else:
+        front_voice_factory = voice_factory
+
     application = BoxAgentApplication(
         publish,
         lambda task_id, **context: create_task_executor(
             task_id, provider=task_provider, model=task_model, auto_approve=auto_approve,
-            session_factory=runtime_host.create_session, request_builder=request_builder,
+            session_factory=runtime_host.create_session,
+            request_builder=RuntimeRequestBuilder(
+                persona=current_persona(), context_assembler=context_projector),
             app_settings=app_settings, registry=registry,
             environment_provider=environment_provider,
             memory=memory,
             conversation_service=conversation_service, session_events=session_events, **context),
-        voice_factory or create_voice_factory(
-            app_settings, persona=persona,
-            environment_provider=environment_provider,
-            context_projector=request_builder.context_assembler,
-            context_recorder=context_recorder, host_turn_control=True),
+        front_voice_factory,
         memory=memory,
         turn_preparer=turn_preparer if voice_factory is None else None,
         conversation_service=conversation_service,
@@ -347,11 +363,20 @@ def create_application(publish, *, task_provider=None, task_model=None,
                            *((intent_reference,) if intent_reference else ()),
                            turn_preparer, checkpoint_coordinator),
         voice_history_builder=partial(
-            request_builder.context_assembler.restore_context,
+            context_projector.restore_context,
             character_budget=app_settings.qwen_history_character_budget),
     )
     from boxagent.application.camera import CameraInteractionService
 
+    if sys.platform == "darwin":
+        from pathlib import Path
+        from boxagent.application.game_news import GameNewsMonitor
+        from boxagent.infrastructure.games.steam import SteamGames, steam_game_topic
+
+        steam = SteamGames(Path.home() / "Library/Application Support/Steam/steamapps")
+        application.game_news = GameNewsMonitor(steam.running, steam_game_topic,
+                                                application.announce_game_news)
+    application.interaction_service.companion_name = lambda: current_persona().name
     application.camera = CameraInteractionService(application.events, application.interaction_service)
     application.observer = WindowSummary(
         application.emit, context_interval or 15,

@@ -23,6 +23,7 @@ const {
 } = require("./layout.cjs");
 const { WindowGeometry } = require("./window-geometry.cjs");
 const { MusicMonitor } = require("./music-monitor.cjs");
+const { WakeWord, wakeReply } = require("./wake-word.cjs");
 class DesktopHost {
   constructor({
     app,
@@ -45,6 +46,12 @@ class DesktopHost {
       registerWindow,
     });
     this.state = {};
+    if (process.platform === "darwin") {
+      this.wakeWord = new WakeWord({
+        onError: (message) => this.feedback(message),
+        onWake: () => this.answerWakeWord(),
+      });
+    }
     this.snapshot = {};
     this.windows = new Set();
     this.geometry = new WindowGeometry();
@@ -194,6 +201,8 @@ class DesktopHost {
     );
     icon.setTemplateImage(true);
     this.tray = new Tray(icon);
+    this.wakeWord?.setName(this.snapshot.name);
+    this.syncWakeWord();
     this.tray.setToolTip(`BoxAgent · ${this.snapshot.name} · ⌃⌥空格切换麦克风`);
     this.updateMenu();
     for (const event of ['display-added', 'display-removed', 'display-metrics-changed'])
@@ -863,6 +872,14 @@ class DesktopHost {
     fs.writeFileSync(file + ".tmp", JSON.stringify(value));
     fs.renameSync(file + ".tmp", file);
   }
+  syncWakeWord() {
+    this.wakeWord?.sync(this.client.online && this.state.voice === "off" && !this.closed);
+  }
+  async answerWakeWord() {
+    if (!this.wakeWord.enabled || this.closed || this.state.voice !== "off") return;
+    this.showBubble();
+    await this.client.request("wake_voice", { greeting: wakeReply(this.state) });
+  }
   stateChanged(state, event) {
     if (/Engine (?:未连接|已断开)|^connect (?:ENOENT|ECONNREFUSED)/.test(this.snapshot.feedback || "")) {
       this.snapshot.feedback = "";
@@ -877,6 +894,7 @@ class DesktopHost {
       this.engineReady = true;
       if (this.bubbleReady) void this.recoverNotifications();
     }
+    this.syncWakeWord();
     if (
       [
         "front.user_text",
@@ -885,6 +903,7 @@ class DesktopHost {
         "task.failed",
         "task.blocked",
         "voice.error",
+        "game.news",
         "notification.pending",
         "notification.system_requested",
       ].includes(event?.type)
@@ -960,6 +979,13 @@ class DesktopHost {
       setTimeout(() => this.app.quit(), 100);
       return { status: "stopping" };
     }
+    if (method === "desktop_open_game_news") {
+      const url = new URL(this.state.game_news_url);
+      if (url.protocol !== "https:" || url.username || url.password)
+        throw Error("新闻来源地址无效");
+      await shell.openExternal(url.href);
+      return { status: "opened" };
+    }
     if (method === "desktop_open_logs" || method === "desktop_open_run") {
       const result = await this.service.request(
         method === "desktop_open_logs"
@@ -1007,6 +1033,8 @@ class DesktopHost {
     }
     if (method === "desktop_save_persona") {
       this.snapshot.name = result.name;
+      this.wakeWord?.setName(result.name);
+      this.tray?.setToolTip(`BoxAgent · ${result.name} · ⌃⌥空格切换麦克风`);
       this.sendDesktop();
     }
     return result;
@@ -1014,6 +1042,7 @@ class DesktopHost {
   close() {
     this.musicMonitor?.stop();
     this.closed = true;
+    this.wakeWord?.setEnabled(false);
     clearInterval(this.pointerTimer);
     for (const event of ['display-added', 'display-removed', 'display-metrics-changed'])
       screen.removeListener(event, this.displayChanged);

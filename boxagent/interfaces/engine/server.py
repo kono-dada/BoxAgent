@@ -166,6 +166,12 @@ class EngineServer:
         if method == "toggle_voice":
             await self.application.toggle_voice()
             return {"status": "succeeded"}
+        if method == "wake_voice":
+            greeting = params.get("greeting")
+            if not isinstance(greeting, str) or not greeting.strip() or len(greeting) > 160:
+                raise ValueError("语音唤醒问候无效")
+            await self.application.wake_voice(greeting)
+            return {"status": "succeeded"}
         if method == "submit_text":
             return await self.application.submit_text(params.get("goal", ""))
         if method == "list_sessions":
