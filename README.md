@@ -2,6 +2,8 @@
 
 Windows 安装与启动参见 [Windows 使用说明](docs/windows.md)。
 
+macOS Apple Silicon 的首次 Key 配置、独立 app/DMG 制作与验证参见 [macOS 安装包说明](docs/macos-distribution.md)。
+
 > A full-duplex, memory-native desktop companion for macOS.
 
 BoxAgent 是一个常驻在 Mac 桌面的 AI 伙伴。它可以自然对话、记住长期偏好，并在后台操作电脑；耗时任务不会阻塞当前聊天，完成后会主动回来告诉你结果。

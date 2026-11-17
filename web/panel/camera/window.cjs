@@ -5,20 +5,20 @@ const { pathToFileURL } = require('node:url');
 
 const origin = 'boxagent-camera://app';
 
-function assetPath(url, root) {
+function assetPath(url, root, panelRoot = path.join(root, 'web/panel')) {
   const parsed = new URL(url);
   if (parsed.protocol !== 'boxagent-camera:' || parsed.host !== 'app') return null;
   const pathname = decodeURIComponent(parsed.pathname);
-  if (pathname === '/camera.html') return path.join(root, 'web/panel/dist/camera.html');
+  if (pathname === '/camera.html') return path.join(panelRoot, 'dist/camera.html');
   const parts = pathname.split('/');
   if (parts.length !== 3) return null;
   const [, folder, name] = parts;
-  if (folder === 'assets' && /^[a-zA-Z0-9_-]+\.(?:js|css)$/.test(name)) return path.join(root, 'web/panel/dist/assets', name);
+  if (folder === 'assets' && /^[a-zA-Z0-9_-]+\.(?:js|css)$/.test(name)) return path.join(panelRoot, 'dist/assets', name);
   return null;
 }
 
 class CameraWindow {
-  constructor({ root, client, registerWindow, onState = () => {} }) {
+  constructor({ root, panelRoot, client, registerWindow, onState = () => {} }) {
     Object.assign(this, { root, client, registerWindow, onState });
     this.window = null;
     this.token = '';
@@ -31,7 +31,7 @@ class CameraWindow {
     this.session = session.fromPartition('boxagent-camera');
     this.session.protocol.handle('boxagent-camera', async (request) => {
       try {
-        const file = assetPath(request.url, root);
+        const file = assetPath(request.url, root, panelRoot);
         if (request.method !== 'GET' || !file || !fs.existsSync(file)) return new Response('Not found', { status: 404 });
         return net.fetch(pathToFileURL(file).toString());
       } catch { return new Response('Invalid asset', { status: 400 }); }

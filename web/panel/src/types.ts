@@ -190,6 +190,7 @@ export interface RunData {
   items: RunRecord[];
 }
 export interface PanelBridge extends Bridge {
+  openSetup?(): void;
   errors(): Promise<RecordData[]>;
   onState(callback: (state: RuntimeState) => void): () => void;
   onCamera(callback: (state: CameraSnapshot) => void): () => void;

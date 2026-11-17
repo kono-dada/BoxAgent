@@ -47,6 +47,7 @@ class JevMemWorker:
     def _environment(self):
         names = ("HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "HF_HOME",
                  "HF_HUB_CACHE", "TRANSFORMERS_CACHE", "XDG_CACHE_HOME",
+                 "BOXAGENT_EMBEDDING_MODEL", "HF_HUB_OFFLINE",
                  "HF_ENDPOINT", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
                  "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "SYSTEMROOT", "WINDIR",
                  "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA")

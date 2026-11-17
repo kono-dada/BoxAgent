@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, protocol } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, protocol, safeStorage, systemPreferences, shell, dialog } = require("electron");
 const { CameraWindow } = require("./camera/window.cjs");
 protocol.registerSchemesAsPrivileged([{ scheme: 'boxagent-camera', privileges: {
   standard: true, secure: true, supportFetchAPI: true, corsEnabled: true,
@@ -8,13 +8,14 @@ const path = require("node:path");
 const { EngineClient } = require("./engine-client.cjs");
 const { ServiceClient } = require("./desktop/service-client.cjs");
 const { DesktopHost } = require("./desktop/host.cjs");
-const root = path.resolve(__dirname, "../..");
+const { resolvePaths } = require('./startup/paths.cjs');
+const paths = resolvePaths({ packaged: app.isPackaged, panel: __dirname, appData: app.getPath('appData') });
+const root = paths.root;
 app.setName("BoxAgent");
 const productIcon = path.join(__dirname, "public/brand/boxagent-icon.png");
-const data = path.resolve(
-  process.env.BOXAGENT_DATA_DIR || path.join(root, ".runtime/pet"),
-);
-let companionMode = process.argv.includes("--desktop");
+const data = paths.data;
+const setupEnabled = app.isPackaged || process.argv.includes('--setup');
+let companionMode = app.isPackaged || process.argv.includes("--desktop");
 const smoke = process.argv.includes("--smoke");
 const methods = new Set([
   "state",
@@ -63,6 +64,7 @@ let client,
   disposed = false,
   reconnect,
   shuttingDown = false;
+let startup, setupWindow, serviceEnvironment = process.env;
 const windows = new Set();
 const broadcast = (channel, value) => {
   for (const window of windows)
@@ -95,6 +97,7 @@ function showPanel() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      additionalArguments: setupEnabled ? ['--boxagent-setup'] : [],
     },
   });
   registerWindow(panel);
@@ -105,20 +108,29 @@ function showPanel() {
   return panel;
 }
 let startingDesktop;
+function startService() {
+  if (service && service.child.exitCode === null && service.child.signalCode === null) return;
+  service = undefined;
+  fs.mkdirSync(path.join(data, 'logs'), { recursive: true });
+  const log = fs.openSync(path.join(data, 'logs/desktop-service.log'), 'a');
+  try {
+    const args = setupEnabled ? ['--task-provider', serviceEnvironment.BOXAGENT_TASK_PROVIDER || 'deepseek'] :
+      JSON.parse(process.env.BOXAGENT_DESKTOP_ARGS || '[]');
+    service = new ServiceClient({ root, data, log, args, python: setupEnabled ? paths.python : undefined, environment: serviceEnvironment });
+  } finally { fs.closeSync(log); }
+  service.on('diagnostic', message => { broadcast('engine:diagnostic', message); host?.feedback(message); });
+}
+async function stopService() {
+  host?.close(); host = undefined; startingDesktop = undefined;
+  const previous = service; service = undefined;
+  await previous?.close();
+}
 function startDesktop() {
   if (startingDesktop) return startingDesktop;
   companionMode = true;
   app.dock?.hide();
   startingDesktop = (async () => {
-    fs.mkdirSync(path.join(data, "logs"), { recursive: true });
-    const log = fs.openSync(path.join(data, "logs/desktop-service.log"), "a");
-    const args = JSON.parse(process.env.BOXAGENT_DESKTOP_ARGS || "[]");
-    service = new ServiceClient({ root, data, log, args });
-    fs.closeSync(log);
-    service.on("diagnostic", (message) => {
-      broadcast("engine:diagnostic", message);
-      host?.feedback(message);
-    });
+    startService();
     host = new DesktopHost({
       app,
       service,
@@ -130,7 +142,7 @@ function startDesktop() {
       registerWindow,
     });
     await host.start();
-  })();
+  })().catch(error => { startingDesktop = undefined; throw error; });
   return startingDesktop;
 }
 // Lock identity includes data directory so isolated fixtures cannot steal the live app.
@@ -194,7 +206,7 @@ app.whenReady().then(async () => {
     ]),
   );
   client = new EngineClient(path.join(data, "engine.sock"));
-  camera = new CameraWindow({ root, client, registerWindow,
+  camera = new CameraWindow({ root, panelRoot: __dirname, client, registerWindow,
     onState: (state) => broadcast('desktop:camera', state) });
   ipcMain.handle('camera:request', (event, method, params) => camera.request(event, method, params));
   client.on("state", (state, event) => {
@@ -256,6 +268,30 @@ app.whenReady().then(async () => {
       throw error;
     }
   });
+  if (setupEnabled) {
+    const { StartupCoordinator } = require('./startup/coordinator.cjs');
+    const { CredentialStore } = require('./startup/credentials.cjs');
+    const { Permissions } = require('./startup/permissions.cjs');
+    startup = new StartupCoordinator({ paths,
+      credentials: new CredentialStore(path.join(data, 'state/credentials.json'), safeStorage),
+      permissions: new Permissions(systemPreferences, shell),
+      ensureEngine: async environment => {
+        serviceEnvironment = environment; startService(); client.connect();
+        const deadline = Date.now() + 30000;
+        while (Date.now() < deadline) {
+          try { const health = await client.request('health'); if (health?.status === 'ready') return; }
+          catch { /* Bounded, read-only retries while the socket is being created. */ }
+          await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        throw Error('engine_start_failed');
+      }, stopEngine: stopService, enterDesktop: startDesktop,
+      broadcast: snapshot => setupWindow?.send(snapshot),
+    });
+    setupWindow = require('./startup/window.cjs').createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot: __dirname, registerWindow, coordinator: startup, shell, dialog });
+    ipcMain.on('setup:open', event => {
+      if (windows.has(BrowserWindow.fromWebContents(event.sender))) { void startup.request('repair'); setupWindow.show(); }
+    });
+  }
   ipcMain.on("desktop:action", (event, action, params) => {
     if (!host || !windows.has(BrowserWindow.fromWebContents(event.sender)))
       return;
@@ -281,7 +317,12 @@ app.whenReady().then(async () => {
       host.menu?.popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   client.connect();
-  if (companionMode) {
+  if (setupEnabled) {
+    setupWindow.show();
+    void startup.start().then(snapshot => {
+      if (snapshot.onboarding.completed && snapshot.capabilities.engine?.state === 'ready' && !snapshot.error) setupWindow.hide();
+    });
+  } else if (companionMode) {
     try {
       await startDesktop();
     } catch (error) {
@@ -309,6 +350,7 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   shuttingDown = true;
   disposed = true;
+  startup?.close();
   clearTimeout(reconnect);
   host?.close();
   void camera?.stop();

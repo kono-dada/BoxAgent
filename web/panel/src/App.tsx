@@ -241,6 +241,7 @@ export function App({ bridge }: { bridge: PanelBridge }) {
               aria-label={t('设置分类')}
               hidden={!settingViews.has(route.view)}
             >
+              {bridge.openSetup && <button onClick={() => bridge.openSetup?.()}>{t('配置与修复')}</button>}
               {(['settings', 'interface', 'appearance', 'persona', 'controls', 'errors'] as View[]).map((view) => (
                 <button
                   key={view}

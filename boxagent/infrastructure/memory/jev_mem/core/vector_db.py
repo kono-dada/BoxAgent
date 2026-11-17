@@ -564,6 +564,8 @@ class VectorEncoder:
             if model_name.startswith('text-embedding'):
                 model_name = 'all-MiniLM-L6-v2'
 
+            if model_name == 'all-MiniLM-L6-v2':
+                model_name = os.environ.get('BOXAGENT_EMBEDDING_MODEL', model_name)
             self.model = SentenceTransformer(model_name, device=local_model_device())
             self.dimension = self.model.get_sentence_embedding_dimension()
             logger.info(f"Using sentence-transformers ({model_name}, {self.dimension} dims)")
