@@ -369,6 +369,39 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
         })])
         self.assertNotIn("notice-1", session.pending_notifications)
 
+    async def test_native_notification_frame_after_response_created_has_a_receipt(self) -> None:
+        receipts = []
+        session = AoqRealtimeSession(
+            lambda *_args: None, lambda *_args, **_kwargs: None,
+            workspace_id="workspace", sdk_dir="/sdk", work_dir="/work",
+            notification_event=lambda kind, payload: receipts.append((kind, payload)))
+        session.pending_notifications.add("notice-1")
+        session.response_origins.append({"kind": "notification", "notification_id": "notice-1"})
+
+        await session.receive({"type": "response.created", "response": {"id": "response-1"}})
+        self.assertEqual(receipts, [])
+        session.playback_changed(True)
+        session.playback_changed(True)
+
+        self.assertEqual(receipts, [("playback_started", {"notification_id": "notice-1"})])
+        self.assertNotIn("notice-1", session.pending_notifications)
+
+    async def test_unrelated_response_cannot_acknowledge_a_stale_notification(self) -> None:
+        receipts = []
+        session = AoqRealtimeSession(
+            lambda *_args: None, lambda *_args, **_kwargs: None,
+            workspace_id="workspace", sdk_dir="/sdk", work_dir="/work",
+            notification_event=lambda kind, payload: receipts.append((kind, payload)))
+        session.pending_notifications.add("notice-1")
+        session.playing_notification_id = "notice-1"
+        session.response_origins.append({"kind": "user"})
+
+        await session.receive({"type": "response.created", "response": {"id": "response-2"}})
+        session.playback_changed(True)
+
+        self.assertEqual(receipts, [])
+        self.assertIn("notice-1", session.pending_notifications)
+
     async def test_runtime_connection_failure_is_delegated_to_lifecycle_owner(self):
         emitted = []
         session = AoqRealtimeSession(
