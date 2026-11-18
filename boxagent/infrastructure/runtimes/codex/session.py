@@ -3,8 +3,31 @@
 import asyncio
 import contextlib
 from pathlib import Path
+from typing import Protocol, Callable
+
+from boxagent.agent.runtime.contracts import ToolCall, ToolObservationSink
+from boxagent.agent.runtime.models import ModelProfile
+from boxagent.domain.skill import SkillService
 
 from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
+
+
+class RuntimeLog(Protocol):
+    def __call__(self, event: str, **data: object) -> None: ...
+
+
+class PermissionCheck(Protocol):
+    def __call__(self, params: dict, *, stopped: bool = False) -> bool: ...
+
+
+class RuntimeServerFactory(Protocol):
+    def __call__(self, *, output: Path, workspace: Path, model_profile: ModelProfile,
+                 permission_check: PermissionCheck, codex_home: Path | None,
+                 skill_service: SkillService | None, runtime_resolver: Callable[[], Path] | None,
+                 on_tool_call: ToolCall, approve: Callable[[dict], bool],
+                 current_app: Callable[[], str], report: Callable[[str, str], None],
+                 log: RuntimeLog, auto_approve: bool = True,
+                 on_tool_observed: ToolObservationSink | None = None) -> CodexAppServer: ...
 
 
 class CodexTaskSession:
@@ -49,9 +72,13 @@ class CodexTaskSession:
         return self.server.discovered_tools
 
     async def call_tool(self, operation, arguments):
+        if self.server is None:
+            raise RuntimeError("Codex Runtime 尚未启动")
         return await self.server.call_tool(operation, arguments)
 
     async def run_codex_turn(self, **arguments):
+        if self.server is None:
+            raise RuntimeError("Codex Runtime 尚未启动")
         return await self.server.run_codex_turn(
             preferred_thread_id=self.runtime_thread_id,
             on_thread_bound=self.on_thread_bound,
@@ -60,6 +87,8 @@ class CodexTaskSession:
             **arguments)
 
     async def run_isolated_structured_turn(self, **arguments):
+        if self.server is None:
+            raise RuntimeError("Codex Runtime 尚未启动")
         return await self.server.run_isolated_structured_turn(**arguments)
 
     async def interrupt(self):
@@ -78,7 +107,7 @@ class CodexRuntimeHost:
     def __init__(self, *, output, workspace, model_profile, permission_check,
                  codex_home=None,
                  skill_service=None,
-                 runtime_resolver=None, server_factory=CodexAppServer):
+                 runtime_resolver=None, server_factory: RuntimeServerFactory = CodexAppServer):
         self.output = Path(output)
         self.workspace = Path(workspace)
         self.model_profile = model_profile
