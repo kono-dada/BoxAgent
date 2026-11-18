@@ -34,6 +34,7 @@ class DesktopHost {
     showCamera,
     broadcast,
     registerWindow,
+    wakeAllowed = () => true,
   }) {
     Object.assign(this, {
       app,
@@ -44,6 +45,7 @@ class DesktopHost {
       showCamera,
       broadcast,
       registerWindow,
+      wakeAllowed,
     });
     this.state = {};
     if (process.platform === "darwin") {
@@ -920,7 +922,7 @@ class DesktopHost {
     fs.renameSync(file + ".tmp", file);
   }
   syncWakeWord() {
-    this.wakeWord?.sync(this.client.online && this.state.voice === "off" && !this.closed);
+    this.wakeWord?.sync(this.client.online && this.state.voice === "off" && !this.closed && this.wakeAllowed());
   }
   async answerWakeWord() {
     if (!this.wakeWord.enabled || this.closed || this.state.voice !== "off") return;
