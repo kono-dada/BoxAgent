@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, protocol, safeStorage, systemPreferences, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, protocol, safeStorage, systemPreferences, shell, dialog, desktopCapturer } = require("electron");
 const { CameraWindow } = require("./camera/window.cjs");
 protocol.registerSchemesAsPrivileged([{ scheme: 'boxagent-camera', privileges: {
   standard: true, secure: true, supportFetchAPI: true, corsEnabled: true,
@@ -274,7 +274,9 @@ app.whenReady().then(async () => {
     const { Permissions } = require('./startup/permissions.cjs');
     startup = new StartupCoordinator({ paths,
       credentials: new CredentialStore(path.join(data, 'state/credentials.json'), safeStorage),
-      permissions: new Permissions(systemPreferences, shell),
+      permissions: new Permissions(systemPreferences, shell, { requestScreen: async () => {
+        await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false });
+      } }),
       ensureEngine: async environment => {
         serviceEnvironment = environment; startService(); client.connect();
         const deadline = Date.now() + 30000;
