@@ -391,3 +391,9 @@ select { color: var(--text); }
 @media (max-width: 1050px) { .preference-row { align-items: flex-start; flex-direction: column; gap: 16px; } }
 html[lang="en"] .sidebar-footer { gap: 4px; margin-inline: 12px; }
 html[lang="en"] .settings-button { min-width: 82px; gap: 6px; }
+.memory-source-preview { margin: 14px 0; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--text); }
+.memory-source-preview summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 4px 0; }
+.memory-source-preview summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.memory-source-preview img { display: block; width: 100%; max-height: 320px; object-fit: contain; margin-top: 12px; border-radius: 6px; background: var(--canvas); }
+.memory-source-preview p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.memory-source-preview strong { display: block; font-size: 12px; margin-bottom: 4px; }

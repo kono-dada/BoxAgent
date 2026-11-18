@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { run, runtimeLabel, type PageProps } from '../hooks/useAction';
 import type { Session, ProductMessage, SessionMessages } from '../types';
 import { Icon } from '../components/ui';
+import { researchByInteraction, lastAssistantIds } from '../web-research/model';
+import { WebResearchCard, WebResearchStatus } from '../web-research/WebResearchCard';
 export function Conversation({
   data,
   bridge,
@@ -18,6 +20,7 @@ export function Conversation({
     [title, setTitle] = useState(''),
     [creating, setCreating] = useState(false),
     [events, setEvents] = useState(data.events);
+  useEffect(() => setEvents(data.events), [data.events, data.session_id]);
   useEffect(() => {
     let alive = true;
     const timer = setInterval(() => {
@@ -34,6 +37,8 @@ export function Conversation({
     };
   }, [data.session_id]);
   const current = runtime.session_id === data.session_id;
+  const research = researchByInteraction(events, current ? runtime : {});
+  const lastAssistant = lastAssistantIds(events);
   const rows = events
     .filter((row) => row.type === 'message.final')
     .filter(
@@ -117,12 +122,15 @@ export function Conversation({
                 <time>{row.occurred_at ? new Date(row.occurred_at * 1000).toLocaleString(locale()) : ''}</time>
               </div>
               <p>{row.content}</p>
+              {row.role === 'assistant' && row.interaction_id && lastAssistant[row.interaction_id] === (row.event_id || String(row.sequence)) && research[row.interaction_id] &&
+                <WebResearchCard view={research[row.interaction_id]} bridge={bridge} />}
             </article>
           ))
         ) : (
           <p className="metadata">{t('这个会话还没有正式消息。')}</p>
         )}
       </section>
+      {current && <WebResearchStatus view={runtime.web_research} />}
       <form
         className="chat-composer"
         onSubmit={(e) => {

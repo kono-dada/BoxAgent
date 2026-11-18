@@ -104,6 +104,25 @@ export interface ProductMessage {
   role?: string;
   content?: string;
   occurred_at?: number;
+  session_id?: string;
+  data?: Record<string, unknown>;
+}
+export interface WebReference {
+  title: string;
+  url: string;
+  published_at: string | null;
+  site_name: string | null;
+  read_status: 'not_read' | 'reading' | 'read' | 'unavailable';
+}
+export interface WebResearchView {
+  session_id: string;
+  interaction_id: string;
+  stage: 'searching' | 'reading' | 'ready' | 'empty' | 'failed' | 'cancelled';
+  query: string;
+  requested_version: string;
+  message: string;
+  retrieved_at: string;
+  sources: WebReference[];
 }
 export interface SessionMessages {
   session_id: string;
@@ -117,6 +136,7 @@ export interface RuntimeState {
   user_speaking?: boolean;
   user_text?: string;
   assistant_text?: string;
+  web_research?: WebResearchView | null;
   task_id?: string;
   task_started_at?: number;
   task_goal?: string;

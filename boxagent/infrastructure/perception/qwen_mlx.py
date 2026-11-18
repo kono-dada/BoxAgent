@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from boxagent.domain.memory.visual import VisualFrame
 from boxagent.infrastructure.perception.windows import WindowInfo
 
 logger = logging.getLogger(__name__)
@@ -75,12 +76,75 @@ class WindowSummary:
         self.max_size = max_size
         self.process = self.task = None
         self.capture_failures = 0
+        self.latest_frame: VisualFrame | None = None
+        self.inference_lock = asyncio.Lock()
+        self.model_errors = None
 
     async def stop(self):
+        self.latest_frame = None
         if self.task:
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)
             self.task = None
+        await self._stop_model()
+
+    def current_frame(self, *, requested_at: float) -> VisualFrame | None:
+        frame = self.latest_frame
+        if frame is None or not 0 <= time.time() - frame.captured_at <= 45 \
+                or not 0 <= requested_at - frame.captured_at <= 45:
+            return None
+        window = focused_window()
+        return frame if window and window["app"] == frame.app and window["id"] == frame.window_id else None
+
+    async def _stop_model(self) -> None:
+        process, self.process = self.process, None
+        if process and process.returncode is None:
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), 2)
+            except TimeoutError:
+                process.kill()
+                await process.wait()
+        if self.model_errors:
+            self.model_errors.close()
+            self.model_errors = None
+
+    async def _ensure_model(self) -> None:
+        if self.process and self.process.returncode is None:
+            return
+        if not self.model.is_dir() or not self.python.exists():
+            raise RuntimeError("缺少本地视觉环境或模型")
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.model_errors = self.log_path.open("a")
+        self.process = await asyncio.create_subprocess_exec(
+            "uv", "run", "--no-project", "--python", str(self.python),
+            str(self.worker_script), str(self.model),
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=self.model_errors,
+            env={**os.environ, "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"})
+        await self.reply(120)
+
+    async def _infer(self, path: Path, question: str = "") -> dict:
+        async with self.inference_lock:
+            try:
+                await self._ensure_model()
+                self.process.stdin.write((json.dumps({"image": str(path), "question": question}) + "\n").encode())
+                await self.process.stdin.drain()
+                return await self.reply(60)
+            except (asyncio.CancelledError, TimeoutError, RuntimeError, OSError):
+                # An unread reply must never become the next request's answer.
+                await self._stop_model()
+                raise
+
+    async def describe(self, image: bytes, question: str) -> str:
+        """Reread saved bytes locally; no new desktop capture or image upload."""
+        with tempfile.TemporaryDirectory(prefix="boxagent-memory-look-") as directory:
+            path = Path(directory) / "source.png"
+            path.write_bytes(image)
+            result = await self._infer(path, question[:500])
+        text = clean_summary(str(result.get("summary", "")))
+        if not text:
+            raise RuntimeError("原图回看没有返回可见内容")
+        return text
 
     async def capture(self, window_id: int, path: Path) -> None:
         if sys.platform == "win32":
@@ -118,20 +182,10 @@ class WindowSummary:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             self.emit("context.loading", context_status="正在加载本地模型…", context_text="")
-            if not self.model.is_dir() or not self.python.exists():
-                raise RuntimeError("缺少本地视觉环境或模型，请按 docs/windows.md 或 docs/qwen-mlx-probe.md 准备")
-            with self.log_path.open("a") as errors:
-                self.process = await asyncio.create_subprocess_exec(
-                    "uv", "run", "--no-project", "--python", str(self.python),
-                    str(self.worker_script), str(self.model),
-                    stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=errors,
-                    env={**os.environ, "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"})
-                await self.reply(120)
-                while True:
-                    started = time.monotonic()
-                    await self.observe()
-                    # 慢推理不积压；只允许一个正在执行的观察。
-                    await asyncio.sleep(max(.1, self.interval - (time.monotonic() - started)))
+            while True:
+                started = time.monotonic()
+                await self.observe()
+                await asyncio.sleep(max(.1, self.interval - (time.monotonic() - started)))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -141,19 +195,14 @@ class WindowSummary:
             self.emit("context.error", context_enabled=False, context_text="", context_status=
                       "桌面观察已暂停，请检查屏幕录制权限及本地模型环境")
         finally:
-            if self.process and self.process.returncode is None:
-                self.process.terminate()
-                try:
-                    await asyncio.wait_for(self.process.wait(), 2)
-                except TimeoutError:
-                    self.process.kill()
-                    await self.process.wait()
-            self.process = None
+            self.latest_frame = None
+            await self._stop_model()
 
     async def observe(self):
         from PIL import Image
         window = focused_window()
         if not window:
+            self.latest_frame = None
             self.emit("context.waiting", context_text="", context_status="等待可读取的前台窗口")
             return
         self.emit("context.reading", context_status="正在观察前台窗口…")
@@ -180,11 +229,11 @@ class WindowSummary:
                 image = source.convert("RGB")
                 image.thumbnail((self.max_size, self.max_size))
                 image.save(path)
-            self.process.stdin.write((json.dumps({"image": str(path)}) + "\n").encode())
-            await self.process.stdin.drain()
-            result = await self.reply(60)
+            image_bytes = path.read_bytes()
+            result = await self._infer(path)
         # 推理期间切换窗口时丢弃过时结果，避免把旧内容当作当前上下文。
         if focused_window() != window:
+            self.latest_frame = None
             self.emit("context.stale", context_text="", context_status="窗口已切换，等待下一次观察")
             return
         raw = result.get("summary", "").strip()
@@ -194,6 +243,7 @@ class WindowSummary:
                 "raw_chars": len(raw), "clean_chars": len(text)}})
         if not text:
             raise RuntimeError("模型返回空摘要")
+        self.latest_frame = VisualFrame(image_bytes, text, captured_at, window["app"], window["id"])
         self.emit("context.updated", context_status="", context_text=text,
                   context_app=window["app"], context_window_id=window["id"],
                   context_at=captured_at)

@@ -48,6 +48,7 @@ class Settings:
     intent_reference_enabled: bool = True
     qwen_websocket_proxy: str = "auto"
     aoq_output_device: str = ""
+    web_search_enabled: bool = True
 
     @property
     def runs_dir(self) -> Path:
@@ -215,6 +216,7 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         deepseek_model=os.environ.get("BOXAGENT_DEEPSEEK_MODEL", "deepseek-flash"),
         deepseek_base_url=os.environ.get("BOXAGENT_DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         deepseek_api_key=read_optional_secret("DEEPSEEK_API_KEY"),
+        web_search_enabled=read_bool("BOXAGENT_WEB_SEARCH_ENABLED", True),
         jev_mem_python=Path(read_renamed_setting(
             "BOXAGENT_JEV_MEM_PYTHON", "BOXAGENT_JEV_MEMORY_PYTHON",
             runtime / ("jev-mem-venv/Scripts/python.exe" if os.name == "nt" else "jev-mem-venv/bin/python"))),

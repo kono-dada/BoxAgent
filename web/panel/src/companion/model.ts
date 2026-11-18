@@ -4,6 +4,7 @@ export interface ChatEntry {
   role: string;
   content: string;
   time?: number;
+  interactionId?: string;
 }
 export function transcript(
   history: ProductMessage[],
@@ -28,6 +29,7 @@ export function transcript(
       role: row.role!,
       content: row.content!,
       time: row.occurred_at,
+      interactionId: row.interaction_id,
     }));
   const lastUser =
     [...rows].reverse().find((row) => row.role === "user")?.content || "";
@@ -41,6 +43,7 @@ export function transcript(
       id: "live-assistant",
       role: "assistant",
       content: state.assistant_text,
+      interactionId: state.web_research?.interaction_id,
     });
   return rows;
 }

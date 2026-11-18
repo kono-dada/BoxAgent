@@ -210,6 +210,11 @@ class EngineServer:
                 str(params.get("session_id") or ""), int(params.get("seq") or 0))
         if method == "memory_snapshot":
             return await self.application.memory_snapshot(**params)
+        if method == "memory_evidence":
+            memory_id = params.get("memory_id")
+            if not isinstance(memory_id, str) or not memory_id.strip() or len(memory_id) > 200:
+                raise ValueError("memory_id 必须是有效的记忆 ID")
+            return await self.application.memory_evidence(memory_id)
         if method == "delete_memory_node":
             return await self.application.delete_memory_node(params.get("memory_id", ""))
         if method == "list_skills":

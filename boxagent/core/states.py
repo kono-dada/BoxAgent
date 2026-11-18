@@ -2,7 +2,7 @@
 
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Awaitable, Callable, Protocol, TypedDict
+from typing import Awaitable, Callable, Literal, Protocol, TypedDict
 
 
 class VoiceState(StrEnum):
@@ -30,6 +30,26 @@ class TaskQueueItem(TypedDict):
     goal: str
 
 
+class WebReference(TypedDict):
+    title: str
+    url: str
+    published_at: str | None
+    site_name: str | None
+    read_status: Literal["not_read", "reading", "read", "unavailable"]
+
+
+class WebResearchView(TypedDict):
+    """JSON snapshot shape, independent of provider and feature implementations."""
+    session_id: str
+    interaction_id: str
+    stage: Literal["searching", "reading", "ready", "empty", "failed", "cancelled"]
+    query: str
+    requested_version: str
+    message: str
+    retrieved_at: str
+    sources: list[WebReference]
+
+
 @dataclass
 class Snapshot:
     session_id: str = ""
@@ -47,6 +67,7 @@ class Snapshot:
     task_text: str = ""
     user_text: str = ""
     assistant_text: str = ""
+    web_research: WebResearchView | None = None
     error: str = ""
     approval: str = ""
     context_text: str = ""

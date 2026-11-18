@@ -8,6 +8,7 @@ const path = require("node:path");
 const { EngineClient } = require("./engine-client.cjs");
 const { ServiceClient } = require("./desktop/service-client.cjs");
 const { DesktopHost } = require("./desktop/host.cjs");
+const { publicSourceUrl } = require('./desktop/web-links.cjs');
 const { resolvePaths } = require('./startup/paths.cjs');
 const paths = resolvePaths({ packaged: app.isPackaged, panel: __dirname, appData: app.getPath('appData') });
 const root = paths.root;
@@ -25,6 +26,7 @@ const methods = new Set([
   "session_timeline",
   "session_events",
   "memory_snapshot",
+  "memory_evidence",
   "delete_memory_node",
   "create_session",
   "activate_session",
@@ -224,6 +226,10 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:request", (event, method, params) => {
     if (!windows.has(BrowserWindow.fromWebContents(event.sender)))
       throw Error("未知窗口");
+    if (method === 'desktop_open_web_source') {
+      const url = publicSourceUrl(params?.url);
+      return shell.openExternal(url).then(() => ({ status: 'opened' }));
+    }
     if (method === 'desktop_open_camera') { camera.show(); return { status: 'opened' }; }
     if (method === 'desktop_toggle_camera') return camera.toggle();
     if (method === 'desktop_camera_state') return camera.snapshot();

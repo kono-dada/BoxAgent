@@ -5,6 +5,7 @@ import contextlib
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from boxagent.domain.memory.contracts import MemoryUnavailable
 
@@ -150,6 +151,16 @@ class JevMemWorker:
         return await self._request(
             "remember_narrative", checkpoint=checkpoint,
             metadata=dict(metadata or {}))
+
+    async def remember_episode(self, episode: dict[str, Any]) -> dict[str, Any]:
+        from boxagent.domain.memory.visual import VisualEpisode
+        validated = VisualEpisode.from_payload(episode)
+        return await self._request("remember_episode", episode=validated.payload())
+
+    async def forget_episode(self, evidence_id: str) -> dict[str, Any]:
+        if not isinstance(evidence_id, str) or not evidence_id.strip() or len(evidence_id) > 160:
+            raise ValueError("画面来源 ID 无效")
+        return await self._request("forget_episode", evidence_id=evidence_id)
 
     async def query(self, question, *, top_k=5, mode="deep"):
         if not isinstance(question, str) or not question.strip():

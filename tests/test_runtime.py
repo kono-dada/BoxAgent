@@ -969,7 +969,8 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(.15)
         self.assertEqual(len(voice.ws.sent), 2)
         self.assertEqual(list(voice.response_origins),
-                         [{"kind": "tool_result", "call_id": "real-call"}])
+                         [{"kind": "tool_result", "call_id": "real-call", "memory_speech": True}])
+        self.assertIn("queued", json.loads(voice.ws.sent[-1])["response"]["instructions"])
         worker.cancel()
         await asyncio.gather(worker, return_exceptions=True)
 
