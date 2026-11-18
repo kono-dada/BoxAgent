@@ -26,7 +26,7 @@ class QueryMemory(Protocol):
 class TurnPreparer:
     def __init__(self, memory: QueryMemory, *, intent: IntentEstimator | None = None,
                  environment: Callable[[], str] | None = None,
-                 screen: Callable[[], str] | None = None, budget: float = .4,
+                 screen: Callable[[], str] | None = None, budget: float = 1.5,
                  decision_timeout: float = 5.0,
                  character_budget: int = 1600) -> None:
         self.memory = memory

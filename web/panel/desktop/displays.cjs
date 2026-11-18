@@ -56,7 +56,7 @@ function petPlacement(pet, scale, area, center = false, fitVisible = true) {
 }
 
 function displayBubbleFrame(previous, area, requestedHeight) {
-  const width = Math.min(440, area.width - 16);
+  const width = Math.min(640, area.width - 16);
   const height = Math.min(Math.max(228, Math.min(600, requestedHeight)), area.height - 32);
   const onScreen = previous.x >= area.x && previous.y >= area.y &&
     previous.x < area.x + area.width && previous.y < area.y + area.height;
@@ -70,7 +70,8 @@ function displayBubbleFrame(previous, area, requestedHeight) {
 function companionDisplayAreas(pet, scale, area, requestedHeight) {
   const chat = displayBubbleFrame({ x: area.x, y: area.y }, area, requestedHeight);
   const desired = petPlacement(pet, scale, area);
-  const panelWidth = Math.min(chat.width, Math.max(320, Math.round(desired.crop.width * 1.2))) + 16;
+  const minimumPanelWidth = area.width >= 960 ? 600 : 320;
+  const panelWidth = Math.min(chat.width, Math.max(minimumPanelWidth, Math.round(desired.crop.width * 1.2))) + 16;
   if (desired.crop.width + 16 + panelWidth + 12 <= area.width) {
     return {
       pet: { ...area, width: area.width - panelWidth - 12 },

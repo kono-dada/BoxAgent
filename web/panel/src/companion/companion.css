@@ -204,6 +204,16 @@ html[data-theme="dark"] .companion-task-summary {
 .companion-markdown p {
   white-space: pre-wrap;
 }
+.companion-shell[data-assigned-display="true"] .companion-markdown {
+  font-size: 22px;
+  line-height: 1.6;
+}
+.companion-shell[data-assigned-display="true"] .companion-heading strong { font-size: 20px; }
+.companion-shell[data-assigned-display="true"] .companion-heading > span,
+.companion-shell[data-assigned-display="true"] .companion-task-summary-state { font-size: 14px; }
+.companion-shell[data-assigned-display="true"] .companion-task-summary-progress { font-size: 16px; }
+.companion-shell[data-assigned-display="true"] .companion-message-meta { font-size: 13px; }
+.companion-shell[data-assigned-display="true"] .companion-composer textarea { font-size: 18px; }
 .companion-markdown pre {
   overflow: auto;
   padding: 10px;

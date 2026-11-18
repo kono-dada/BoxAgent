@@ -297,6 +297,7 @@ function Companion() {
               : "idle"
       }
       data-visible={visible}
+      data-assigned-display={desktop.separate_windows ? "true" : "false"}
     >
       <div className="companion-ambient" aria-hidden="true">
         <i />

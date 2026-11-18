@@ -132,7 +132,6 @@ async function stopService() {
 function startDesktop() {
   if (startingDesktop) return startingDesktop;
   companionMode = true;
-  app.dock?.hide();
   startingDesktop = (async () => {
     startService();
     host = new DesktopHost({
@@ -146,6 +145,7 @@ function startDesktop() {
       registerWindow,
     });
     await host.start();
+    await app.dock?.show();
   })().catch(error => { startingDesktop = undefined; throw error; });
   return startingDesktop;
 }
@@ -180,7 +180,6 @@ app.on("second-instance", (_event, _argv, _cwd, info) => {
 app.whenReady().then(async () => {
   if (!smoke && !app.hasSingleInstanceLock()) return;
   app.dock?.setIcon(productIcon);
-  if (companionMode) app.dock?.hide();
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {

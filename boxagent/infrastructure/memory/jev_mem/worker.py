@@ -122,7 +122,9 @@ class Worker:
                 maximum_nodes=min(config.maximum_nodes, 12),
                 maximum_edges=min(config.maximum_edges, 40),
                 maximum_jev_calls=min(config.maximum_jev_calls, 3),
-                max_latency_seconds=min(config.max_latency_seconds, 0.30),
+                # Routing and stopping are separate network decisions. Keep
+                # their combined deadline inside the frontend reference budget.
+                max_latency_seconds=min(config.max_latency_seconds, 1.25),
             )
             self.direct_query_engine = QueryEngine(
                 self.system.trg_memory, self.system.memory_builder.node_index,

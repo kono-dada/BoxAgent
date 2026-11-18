@@ -25,6 +25,20 @@ class Memory:
 
 
 class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_default_budget_admits_network_backed_memory(self) -> None:
+        class NetworkMemory:
+            async def context_packet(self, query: str, *, session_id: str, top_k: int) -> str:
+                await asyncio.sleep(.5)
+                return "只给两条建议，不剧透"
+
+        preparer = TurnPreparer(NetworkMemory())
+        try:
+            packet, report = await preparer.prepare("游戏建议", session_id="s", query_id="q")
+            self.assertEqual(report["memory"]["status"], "ready")
+            self.assertIn("只给两条建议，不剧透", packet)
+        finally:
+            await preparer.close()
+
     async def test_slow_decision_is_installed_but_late_optional_memory_is_dropped(self):
         class SlowMemory:
             async def context_packet(self, query, **kwargs):
