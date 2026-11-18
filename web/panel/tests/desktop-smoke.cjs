@@ -291,9 +291,12 @@ server.listen(path.join(data, "engine.sock"), () => {
       const fixedPetFrame = pet.getBounds();
       const animation = stage.webContents.mainFrame.frames[0];
       const stageFrame = stage.getBounds();
-      const stageArea = require('electron').screen.getDisplayNearestPoint(stageFrame).workArea;
-      assert.equal(stageFrame.width, stageArea.width, "整屏渲染层覆盖所在屏幕宽度");
-      assert.equal(stageFrame.height, stageArea.height, "整屏渲染层覆盖所在屏幕高度");
+      const display = require('electron').screen.getDisplayMatching(fixedPetFrame);
+      assert.equal(stageFrame.x, display.workArea.x);
+      assert.equal(stageFrame.y, display.workArea.y);
+      assert.equal(stageFrame.width, display.workArea.width, "整屏渲染层覆盖所在屏幕宽度");
+      assert.equal(stageFrame.y + stageFrame.height, display.bounds.y + display.bounds.height,
+        "背景从工作区顶部铺到屏幕底边");
       assert(stageFrame.width > fixedPetFrame.width, "渲染层不小于人物命中窗口");
       const firstBounds = await animation.executeJavaScript("pet.bounds().bounds");
       assert.equal(fixedPetFrame.width, firstBounds.width, "首帧决定紧凑窗口宽度");

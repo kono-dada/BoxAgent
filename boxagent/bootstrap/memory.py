@@ -1,6 +1,6 @@
 """Compose the production Memory capability behind one application boundary."""
 
-from boxagent.application.memory import MemoryModule
+from boxagent.application.memory import DisabledMemoryModule, MemoryModule
 from boxagent.application.memory_context import MemoryContextProvider
 from boxagent.application.memory_ingestion import MemoryIngestionCoordinator
 from boxagent.application.memory_migration import LegacyCanonicalMemoryImporter
@@ -85,8 +85,11 @@ def create_memory_module(*, app_settings, conversation_store, runtime_host,
         service, context, ingestion, narrative, migration, trace=log)
 
 
-def configure_visual_memory(memory: MemoryModule, source: VisualMemorySource, *,
+def configure_visual_memory(memory: MemoryModule | DisabledMemoryModule, source: VisualMemorySource, *,
                             app_settings: Settings, conversation_store: SessionStore) -> None:
+    if isinstance(memory, DisabledMemoryModule):
+        return
+
     async def completed(evidence: VisualEvidence, result: dict[str, Any]) -> None:
         await conversation_store.append_event(ProductEvent(
             sequence=0, event_id=new_event_id(), type="memory.visual.completed",
