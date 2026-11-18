@@ -10,13 +10,14 @@ const { ServiceClient } = require("./desktop/service-client.cjs");
 const { DesktopHost } = require("./desktop/host.cjs");
 const { publicSourceUrl } = require('./desktop/web-links.cjs');
 const { resolvePaths } = require('./startup/paths.cjs');
-const paths = resolvePaths({ packaged: app.isPackaged, panel: __dirname, appData: app.getPath('appData') });
+const packaged = app.isPackaged && !process.defaultApp;
+const paths = resolvePaths({ packaged, panel: __dirname, appData: app.getPath('appData') });
 const root = paths.root;
 app.setName("BoxAgent");
 const productIcon = path.join(__dirname, "public/brand/boxagent-icon.png");
 const data = paths.data;
-const setupEnabled = app.isPackaged || process.argv.includes('--setup');
-let companionMode = app.isPackaged || process.argv.includes("--desktop");
+const setupEnabled = packaged || process.argv.includes('--setup');
+let companionMode = packaged || process.argv.includes("--desktop");
 const smoke = process.argv.includes("--smoke");
 const methods = new Set([
   "state",
