@@ -1,0 +1,1 @@
+"""Provider-independent external events."""

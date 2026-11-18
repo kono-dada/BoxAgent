@@ -50,8 +50,11 @@ class JsonNotificationRepository:
 
     def _write(self, value):
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.path.parent, 0o700)
         temporary = self.path.with_name(self.path.name + ".tmp")
-        with temporary.open("w", encoding="utf-8") as stream:
+        descriptor = os.open(temporary, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             json.dump(value, stream, ensure_ascii=False, separators=(",", ":"))
             stream.write("\n")
             stream.flush()

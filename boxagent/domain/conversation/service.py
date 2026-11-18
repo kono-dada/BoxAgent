@@ -8,6 +8,7 @@ from boxagent.core.ids import new_event_id, new_interaction_id
 from boxagent.core.logs import bind_log_context
 from boxagent.domain.conversation.contracts import NullContextCheckpointSink
 from boxagent.domain.conversation.models import InteractionContext, ProductEvent, RuntimeBinding
+from boxagent.domain.notification.models import NotificationItem
 
 
 class ConversationService:
@@ -135,6 +136,21 @@ class ConversationService:
             task_id=task_id or context.user_event.task_id, runtime=runtime,
             role="assistant", content=content.strip(), source=runtime,
             occurred_at=time.time()))
+
+    async def append_notification(self, item: NotificationItem) -> ProductEvent:
+        """Only delivered proactive messages become assistant history; never user turns."""
+        self._require_store()
+        event_id = "notification:" + item.notification_id
+        events = await self.events(item.session_id)
+        previous = next((event for event in events if event.event_id == event_id), None)
+        if previous is not None:
+            return previous
+        return await self.store.append_event(ProductEvent(
+            sequence=0, event_id=event_id, type="message.final", session_id=item.session_id,
+            occurred_at=time.time(), runtime="external_events", role="assistant",
+            content=item.summary, source="notification",
+            data={"notification_id": item.notification_id, "source_event_ids": list(item.source_event_ids),
+                  "source_refs": [dict(ref) for ref in item.source_refs]}))
 
     async def for_runtime(self, context: InteractionContext, runtime: str):
         binding = await self.store.runtime_binding(context.session.session_id, runtime)

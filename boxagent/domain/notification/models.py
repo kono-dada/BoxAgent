@@ -17,6 +17,9 @@ class NotificationItem:
     attempts: tuple[dict, ...]
     created_at: float
     updated_at: float
+    kind: str = "task_result"
+    source_event_ids: tuple[str, ...] = ()
+    source_refs: tuple[dict[str, str], ...] = ()
 
     def payload(self) -> dict:
         return {
@@ -32,6 +35,9 @@ class NotificationItem:
             "attempts": [dict(item) for item in self.attempts],
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "kind": self.kind,
+            "source_event_ids": list(self.source_event_ids),
+            "source_refs": [dict(item) for item in self.source_refs],
         }
 
     @classmethod
@@ -49,4 +55,7 @@ class NotificationItem:
             attempts=tuple(dict(item) for item in value.get("attempts") or ()),
             created_at=float(value["created_at"]),
             updated_at=float(value["updated_at"]),
+            kind=str(value.get("kind") or "task_result"),
+            source_event_ids=tuple(str(item) for item in value.get("source_event_ids", ())),
+            source_refs=tuple(dict(item) for item in value.get("source_refs", ())),
         )
