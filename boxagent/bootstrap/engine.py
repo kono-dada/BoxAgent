@@ -321,7 +321,7 @@ def create_application(publish, *, task_provider=None, task_model=None,
         intent=intent_reference,
         environment=lambda: context_projector.environment_packet(environment_provider.capture()),
         screen=lambda: current_screen_reference(application.events.state))
-    if voice_factory is None:
+    if voice_factory is None and app_settings.qwen_api_key:
         realtime_factory = create_voice_factory(
             app_settings, environment_provider=environment_provider,
             context_projector=context_projector,
