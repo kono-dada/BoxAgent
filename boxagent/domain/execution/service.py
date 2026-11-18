@@ -5,7 +5,7 @@ import re
 import time
 from collections import deque
 from collections.abc import Callable
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from boxagent.core.errors import TaskFailure
 from boxagent.core.ids import new_task_id
@@ -13,11 +13,15 @@ from boxagent.core.states import Executor, TaskQueueItem
 from boxagent.domain.conversation.models import InteractionContext
 
 
+TaskCapability = Literal["desktop", "wechat"]
+
+
 class QueuedTask(TypedDict):
     goal: str
     from_text: bool
     interaction: InteractionContext | None
     task_id: str
+    capability: TaskCapability
 
 
 class ExecutionService:
@@ -42,7 +46,8 @@ class ExecutionService:
     def state(self):
         return self.events.state
 
-    async def start(self, goal, *, from_text=False, interaction=None):
+    async def start(self, goal, *, from_text=False, interaction=None,
+                    capability: TaskCapability = "desktop"):
         if not isinstance(goal, str) or not goal.strip():
             return {"status": "failed", "message": "请输入要完成的事情"}
         task_id = new_task_id()
@@ -50,7 +55,7 @@ class ExecutionService:
             if ((self.job and not self.job.done()) or self.pending):
                 self.pending.append({
                     "goal": goal, "from_text": from_text,
-                    "interaction": interaction, "task_id": task_id,
+                    "interaction": interaction, "task_id": task_id, "capability": capability,
                 })
                 self.events.emit("task.queued", task_queue=self._queue_snapshot())
                 result = {
@@ -65,10 +70,10 @@ class ExecutionService:
                 return result
             return await self._start_now(
                 goal, from_text=from_text, interaction=interaction,
-                task_id=task_id)
+                task_id=task_id, capability=capability)
 
     async def _start_now(self, goal, *, from_text=False, interaction=None,
-                         task_id=None):
+                         task_id=None, capability: TaskCapability = "desktop"):
         task_id = task_id or new_task_id()
         self.interaction = interaction
         context = {}
@@ -78,13 +83,15 @@ class ExecutionService:
                 runtime="codex")
         if self.conversation and self.conversation.store and self.interaction is not None:
             self.interaction = await self.conversation.for_runtime(
-                self.interaction, "codex")
+                self.interaction, "wechat" if capability == "wechat" else "codex")
             context = {
                 "session_id": self.interaction.session.session_id,
                 "interaction_id": self.interaction.interaction_id,
                 "prior_messages": self.interaction.prior_messages,
                 "runtime_binding": self.interaction.runtime_binding,
             }
+        if capability != "desktop":
+            context["capability"] = capability
         self.executor = self.executor_factory(task_id, **context)
         changes = {"user_text": goal, "assistant_text": ""} if from_text else {}
         self.events.emit("task.accepted", task="accepted", task_id=task_id,

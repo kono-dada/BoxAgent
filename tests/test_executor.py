@@ -707,9 +707,9 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, ("thread-new", "started"))
         self.assertEqual(session.rpc.await_args.args[0], "thread/start")
 
-    async def test_bound_thread_is_resumed_instead_of_replaying_history(self):
+    async def test_bound_thread_without_dynamic_tools_can_be_resumed(self):
         session = self.make_session()
-        session.tools = [{"name": "click"}]
+        session.tools = []
         session.rpc = AsyncMock(return_value={"thread": {"id": "thread-old"}})
 
         result = await session.ensure_thread(

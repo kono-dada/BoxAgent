@@ -18,7 +18,7 @@ class CodexAgentRuntime:
     async def execute(self, request: RuntimeRequest, tools: list[dict], call_tool: ToolCall,
                       validate_result: ResultValidator, progress: Progress) -> str:
         del call_tool
-        progress("正在请 Codex 规划")
+        progress("后台规划中")
         self.session.tools = tools
         text = await self.session.run_codex_turn(
             model=self.model,

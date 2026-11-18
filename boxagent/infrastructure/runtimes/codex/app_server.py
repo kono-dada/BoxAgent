@@ -165,7 +165,7 @@ class CodexAppServer:
         if not self.computer_use_enabled:
             arguments = [str(executable), "app-server", "--stdio"]
             # Dedicated event hosts have no CU server, shell or delegated agents.
-            for override in ("features.shell_tool=false", "features.apps=false",
+            for override in ("mcp_servers={}", "features.shell_tool=false", "features.apps=false",
                              "features.multi_agent=false", "features.multi_agent_v2=false",
                              "features.code_mode_host=false", "features.skill_search=false",
                              "features.skill_mcp_dependency_install=false", "features.view_image=false",
@@ -406,14 +406,16 @@ class CodexAppServer:
             self.thread_id == preferred_thread_id
             and self.thread_signature is not None
             and self.thread_signature != signature)
-        if preferred_thread_id and not configuration_changed:
+        # This App Server version accepts dynamicTools only on thread/start,
+        # not thread/resume. After a process restart, restore Product history
+        # into a fresh thread rather than silently losing the current tools.
+        if preferred_thread_id and not configuration_changed and not self.tools:
             try:
                 resumed = await self.rpc("thread/resume", {
                     "threadId": preferred_thread_id,
                     "cwd": str(self.workspace),
                     "approvalPolicy": "on-request", "sandbox": "read-only",
                     "model": model, "developerInstructions": instructions,
-                    "dynamicTools": self.tools,
                 })
                 self.thread_id = resumed["thread"]["id"]
                 self.thread_signature = signature

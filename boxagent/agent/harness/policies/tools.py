@@ -5,8 +5,15 @@ import base64
 import json
 import traceback
 from pathlib import Path
+from typing import Protocol
 
 from boxagent.core.errors import redact
+from boxagent.agent.harness.policies.applications import computer_use_denial
+
+
+class ApplicationTools(Protocol):
+    def tools(self) -> list[dict[str, object]]: ...
+    async def call(self, name: str, arguments: dict[str, object]) -> dict[str, object]: ...
 
 
 TOOL_LABELS = {
@@ -39,7 +46,7 @@ def model_content(response: dict, step: int, goal: str = "") -> list[dict]:
 
 class ComputerUseToolGateway:
     def __init__(self, session, *, output: Path, goal: str, report, log, is_stopped,
-                 image_store=None):
+                 image_store=None, application_tools: ApplicationTools | None = None):
         self.session = session
         self.output = Path(output)
         self.goal = goal
@@ -47,6 +54,8 @@ class ComputerUseToolGateway:
         self.log = log
         self.is_stopped = is_stopped
         self.image_store = image_store
+        self.application_tools = application_tools
+        self.application_tool_names: set[str] = set()
         self.lock = asyncio.Lock()
         self.tool_specs = {}
         self.observations = {}
@@ -57,6 +66,14 @@ class ComputerUseToolGateway:
     def bind(self, tools):
         ordered = sorted(tools, key=lambda tool: tool["name"])
         self.tool_specs = {f"desktop_{tool['name']}": tool for tool in ordered}
+        self.application_tool_names.clear()
+        if self.application_tools is not None:
+            for tool in self.application_tools.tools():
+                name = str(tool["name"])
+                if name in self.tool_specs:
+                    raise ValueError("Application tool name collision")
+                self.application_tool_names.add(name)
+                self.tool_specs[name] = tool
         return [{"type": "function", "name": name,
                  "description": spec.get("description", ""),
                  "inputSchema": spec.get("inputSchema", {"type": "object", "properties": {}})}
@@ -88,7 +105,19 @@ class ComputerUseToolGateway:
                 self.report("tool", " · ".join(filter(None, [TOOL_LABELS.get(operation, operation),
                                                                self.active_app, f"第 {step} 步"])))
                 self.log("action", step=step, operation=operation, arguments=arguments)
-                response = await self.session.call_tool(operation, arguments)
+                if name in self.application_tool_names and self.application_tools is not None:
+                    result = await self.application_tools.call(name, arguments)
+                    items = result.get("contentItems", [])
+                    if not isinstance(items, list):
+                        raise ValueError("Application tool returned invalid content")
+                    response = {"isError": not result.get("success", False), "content": [
+                        {"type": "text", "text": item["text"]} for item in items
+                        if isinstance(item, dict) and item.get("type") == "inputText" and isinstance(item.get("text"), str)]}
+                else:
+                    denied = computer_use_denial(arguments)
+                    if denied is not None:
+                        raise RuntimeError(denied)
+                    response = await self.session.call_tool(operation, arguments)
                 text = "\n".join(item["text"] for item in response.get("content", [])
                                  if item.get("type") == "text")
                 failed = bool(response.get("isError", False))
