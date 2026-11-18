@@ -26,13 +26,6 @@ def _is_idle_realtime_disconnect(message):
         )))
 
 
-def _is_reconnectable_voice_disconnect(message):
-    text = str(message or "").lower()
-    return "aoq" in text and any(marker in text for marker in (
-        "连接已断开", "连接失败", "connection closed", "connection failed",
-    ))
-
-
 _VOICE_END_PHRASE = re.compile(
     r"(?:(?:嗯+|啊+|哦+|好(?:的|啦|了)?|行(?:了)?|可以了|谢谢(?:你|啦|了)?)"
     r"|(?:没事(?:儿)?了|没别的(?:事|问题)?了|没有(?:别的)?(?:事|问题)了"
@@ -132,6 +125,11 @@ class InteractionService:
         return bool(self.voice and self.task and not self.task.done())
 
     async def toggle(self):
+        # A retry may be waiting for the provider handshake. User stop must
+        # revoke intent immediately, rather than wait behind that handshake.
+        if self.voice_requested and self.reconnect_task is not None:
+            await self.stop()
+            return
         async with self.toggle_lock:
             if self.voice_requested or (
                     self.is_connected and self.connection_microphone):
@@ -147,12 +145,20 @@ class InteractionService:
                 return
             if self.is_connected:
                 await self.stop()
-            self.voice_requested = True
-            try:
-                await self._connect(microphone=True)
-            except BaseException:
-                self.voice_requested = False
-                raise
+            await self._start_requested_voice()
+
+    async def _start_requested_voice(self) -> None:
+        self.voice_requested = True
+        try:
+            await self._connect(microphone=True)
+        except asyncio.CancelledError:
+            await self.stop()
+            raise
+        except Exception:
+            if self.voice_requested:
+                self.events.emit("voice.reconnecting", voice="connecting")
+                self._schedule_voice_reconnect()
+            raise
 
     async def wake(self, greeting: str) -> None:
         async with self.toggle_lock:
@@ -160,15 +166,10 @@ class InteractionService:
                 return
             if self.is_connected:
                 await self.stop()
-            self.voice_requested = True
-            try:
-                await self._connect(microphone=True)
-                if self.voice is None:
-                    raise RuntimeError("语音唤醒连接已断开")
-                await self.voice.greet_on_wake(greeting)
-            except BaseException:
-                await self.stop()
-                raise
+            await self._start_requested_voice()
+            if self.voice is None:
+                raise RuntimeError("语音唤醒连接已断开")
+            await self.voice.greet_on_wake(greeting)
 
     async def submit_text(self, text):
         async with self.text_lock:
@@ -271,6 +272,7 @@ class InteractionService:
                 "interaction_id": context.interaction_id}
 
     async def _connect(self, *, microphone):
+        microphone = microphone or self.voice_requested
         if self.is_connected and (not microphone or self.connection_microphone):
             return
         if self.voice_factory is None:
@@ -314,28 +316,26 @@ class InteractionService:
         self.events.emit("voice.input_reset", voice_input_level=-1)
         self.connection_error = None
         voice = self.voice
-        self.task = asyncio.create_task(self._run(voice, microphone))
+        task = self.task = asyncio.create_task(self._run(voice, microphone))
         ready = getattr(voice, "ready", None)
         if isinstance(ready, asyncio.Event):
             waiter = asyncio.create_task(ready.wait())
             try:
                 done, _pending = await asyncio.wait(
-                    {waiter, self.task}, timeout=self.connection_timeout,
+                    {waiter, task}, timeout=self.connection_timeout,
                     return_when=asyncio.FIRST_COMPLETED)
-                if self.task in done:
+                if task in done:
                     if self.connection_error:
                         raise RuntimeError(str(self.connection_error))
                     raise RuntimeError("前台交互 Runtime 已断开")
                 if waiter not in done:
-                    raise TimeoutError("千问语音连接超时，请稍后重试；本次连接已关闭")
+                    raise TimeoutError("千问语音连接超时，正在自动重连" if microphone and self.voice_requested
+                                       else "千问语音连接超时，请稍后重试；本次连接已关闭")
             except BaseException as exc:
                 # A timed-out startup must not become a live microphone session later.
-                retry_task = self.reconnect_task
-                retrying = retry_task is asyncio.current_task() and not isinstance(exc, asyncio.CancelledError)
-                await self.stop()
-                if retrying:
-                    self.reconnect_task = retry_task
-                    self.voice_requested = True
+                retrying = microphone and self.voice_requested and not isinstance(exc, asyncio.CancelledError)
+                if self.voice is voice:
+                    await self.stop(preserve_request=retrying)
                 raise
             finally:
                 waiter.cancel()
@@ -586,6 +586,19 @@ class InteractionService:
         await notify(item)
         return True
 
+    async def announce_lol(self, content: str, instruction: str) -> bool:
+        # Never open a microphone or reconnect for a transient game event.
+        # The user owns the voice connection; disconnected/busy events expire.
+        if (not self.is_connected or self.text_lock.locked() or self.toggle_lock.locked()
+                or self.events.state.user_speaking or self.events.state.speaking
+                or self.events.state.approval
+                or self.events.state.task in {"accepted", "running", "cancelling"}):
+            return False
+        announce = getattr(self.voice, "announce_lol", None)
+        if announce is None:
+            return False
+        return bool(await announce(content, instruction))
+
     async def _notification_event(self, kind, payload):
         if self.notification_event is None:
             return
@@ -594,7 +607,6 @@ class InteractionService:
             await result
 
     async def _run(self, voice, microphone):
-        reconnect = False
         try:
             await voice.run()
         except asyncio.CancelledError:
@@ -604,20 +616,13 @@ class InteractionService:
                 return
             self.connection_error = exc
             message = str(exc) or "语音连接失败"
-            ready = getattr(voice, "ready", None)
-            reconnect = (
-                microphone and self.voice_requested
-                and (not isinstance(ready, asyncio.Event) or ready.is_set())
-                and (self.camera_feed is not voice or not self.camera_owns_voice)
-                and _is_reconnectable_voice_disconnect(message)
-            )
-            if reconnect:
+            if microphone and self.voice_requested:
                 self.events.emit("voice.reconnecting", voice="connecting",
-                                 speaking=False, user_speaking=False, error="")
+                                 speaking=False, user_speaking=False, error=message)
             elif _is_idle_realtime_disconnect(message):
                 # DashScope closes idle text-only Realtime sessions after 180s.
-                # Text reconnects on demand. Voice returns to the off state and
-                # can be reopened without exposing the provider close frame.
+                # Text reconnects on demand; requested microphone sessions
+                # take the persistent recovery path above.
                 self.events.emit("front.idle_disconnected", error="")
             else:
                 self.events.emit("voice.error", error=message)
@@ -626,10 +631,11 @@ class InteractionService:
                 self._clear_response_tracking()
                 self.voice = None
                 self.connection_microphone = False
-                if reconnect:
+                if microphone and self.voice_requested:
+                    self.events.emit("voice.reconnecting", voice="connecting",
+                                     speaking=False, user_speaking=False)
                     self._schedule_voice_reconnect()
                 elif microphone:
-                    self.voice_requested = False
                     self.events.emit("voice.off", voice="off", speaking=False,
                                      user_speaking=False)
 
@@ -638,30 +644,28 @@ class InteractionService:
             return
 
         async def reconnect():
-            last_error = None
-            for delay in self.reconnect_delays:
-                if delay:
-                    await asyncio.sleep(delay)
+            attempt = 0
+            delays = self.reconnect_delays or (.5, 1.5, 3.0)
+            while self.voice_requested:
+                delay = delays[attempt] if attempt < len(delays) else 10.0
+                attempt += 1
+                # Even a zero-delay test/configuration cannot create a busy loop.
+                await asyncio.sleep(max(.01, delay))
                 if not self.voice_requested:
                     return
                 try:
-                    await self._connect(microphone=True)
-                    if self.is_connected:
-                        return
+                    async with self.toggle_lock:
+                        if not self.voice_requested:
+                            return
+                        await self._connect(microphone=True)
+                        if self.is_connected:
+                            return
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    last_error = exc
                     self.events.emit(
-                        "voice.reconnecting", voice="connecting", error="")
-            if self.voice_requested:
-                self.voice_requested = False
-                detail = str(last_error or "连接失败")
-                self.events.emit(
-                    "voice.error", error=f"语音自动重连失败：{detail}")
-                self.events.emit(
-                    "voice.off", voice="off", speaking=False,
-                    user_speaking=False)
+                        "voice.reconnecting", voice="connecting",
+                        error=f"语音连接待恢复，将继续重试：{str(exc) or type(exc).__name__}")
 
         task = asyncio.create_task(reconnect())
         self.reconnect_task = task
@@ -672,12 +676,14 @@ class InteractionService:
 
         task.add_done_callback(clear)
 
-    async def stop(self):
-        self.voice_requested = False
-        reconnect_task, self.reconnect_task = self.reconnect_task, None
-        if reconnect_task and reconnect_task is not asyncio.current_task():
-            reconnect_task.cancel()
-            await asyncio.gather(reconnect_task, return_exceptions=True)
+    async def stop(self, *, preserve_request: bool = False) -> None:
+        requested = preserve_request and self.voice_requested
+        self.voice_requested = requested
+        if not preserve_request:
+            reconnect_task, self.reconnect_task = self.reconnect_task, None
+            if reconnect_task and reconnect_task is not asyncio.current_task():
+                reconnect_task.cancel()
+                await asyncio.gather(reconnect_task, return_exceptions=True)
         voice, task = self.voice, self.task
         self.voice = None
         self.camera_feed = None
@@ -696,7 +702,8 @@ class InteractionService:
         # The explicit stop owns its terminal state, after resources are closed.
         if self.voice is None:
             self._clear_response_tracking()
-            self.events.emit("voice.off", voice="off", speaking=False,
+            self.events.emit("voice.reconnecting" if requested else "voice.off",
+                             voice="connecting" if requested else "off", speaking=False,
                              user_speaking=False, voice_input_level=-1)
 
     async def close(self):

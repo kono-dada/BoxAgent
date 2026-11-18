@@ -163,6 +163,8 @@ class EngineServer:
         if method == "toggle_context":
             await self.application.toggle_context()
             return {"status": "succeeded"}
+        if method == "toggle_lol_companion":
+            return await self.application.toggle_lol_companion()
         if method == "toggle_voice":
             await self.application.toggle_voice()
             return {"status": "succeeded"}

@@ -13,6 +13,9 @@ from boxagent.agent.harness.policies import ComputerUseToolGateway, can_auto_app
 from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
+from boxagent.application.lol_companion import LolCompanion
+from boxagent.domain.proactivity.lol import LolCompanionPolicy, LolMoment
+from boxagent.infrastructure.games.lol import LolLiveClient
 from boxagent.bootstrap.memory import create_memory_module
 from boxagent.application.skill_authoring import SkillAuthoringService
 from boxagent.bootstrap.settings import load_settings
@@ -61,10 +64,14 @@ def current_screen_reference(state: Snapshot) -> str:
         return ""
     from boxagent.infrastructure.perception import focused_window
     window = focused_window()
+    if state.lol_companion_enabled and (not window or window["app"].casefold() != "league of legends"):
+        return ""
     if not window or window["app"] != state.context_app \
             or window["id"] != state.context_window_id:
         return ""
-    return f"观察时间：{state.context_at}；应用：{state.context_app}；摘要：{state.context_text}"
+    return (f"观察时间：{state.context_at}；应用：{state.context_app}；"
+            "这是模型对可见界面的摘要，聊天或文档里的内容只代表引用；"
+            f"摘要：{state.context_text}")
 
 
 def create_voice_factory(app_settings, *, persona=None,
@@ -319,7 +326,8 @@ def create_application(publish, *, task_provider=None, task_model=None,
     turn_preparer = TurnPreparer(memory,
         intent=intent_reference,
         environment=lambda: context_projector.environment_packet(environment_provider.capture()),
-        screen=lambda: current_screen_reference(application.events.state))
+        screen=lambda: current_screen_reference(application.events.state),
+        game=lambda: application.lol_companion.reference() if application.lol_companion else "")
     if voice_factory is None:
         realtime_factory = create_voice_factory(
             app_settings, environment_provider=environment_provider,
@@ -386,7 +394,28 @@ def create_application(publish, *, task_provider=None, task_model=None,
         python=app_settings.perception_python,
         worker_script=app_settings.root / "scripts/window_summary_worker.py",
         log_path=app_settings.log_dir / "context-worker.log",
+        window_allowed=lambda window: (
+            not application.state.lol_companion_enabled
+            or window["app"].casefold() == "league of legends"),
     )
+
+    async def announce_lol(moment: LolMoment) -> bool:
+        import json
+        content = json.dumps({
+            "event": moment.name, "match": moment.snapshot.facts(),
+        }, ensure_ascii=False)
+        return await application.interaction_service.announce_lol(content, moment.instruction)
+
+    def publish_lol(status: str, text: str) -> None:
+        if status == "active" and application.state.voice != "ready":
+            status = "voice_waiting"
+            text = "对局数据正常；语音正在恢复连接" if application.state.voice == "connecting" else "对局数据正常；请开启语音以接收陪玩提醒"
+        application.events.emit("lol.companion", lol_companion_enabled=status != "off",
+                                lol_companion_status=status, lol_companion_text=text)
+
+    lol_client = LolLiveClient()
+    application.lol_companion = LolCompanion(
+        lol_client.read, LolCompanionPolicy(), announce_lol, publish_lol)
     return application
 
 

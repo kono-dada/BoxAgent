@@ -87,6 +87,42 @@ async function fixture(t, { preference, position, initialScale = 1,
   return { host, screen, data, calls };
 }
 
+test('idle walking waits for animation, reaches random targets and respects changing screen limits', async t => {
+  const { host, screen } = await fixture(t);
+  clearInterval(host.pointerTimer);
+  host.hideBubble();
+  const pet = host.current;
+  pet.walkEligible = true;
+  host.stepWalk(0, () => 0);
+  assert.equal(pet.walkAt, 15000);
+  assert.equal(pet.walk, null);
+  host.stepWalk(14999, () => 0);
+  assert.equal(pet.walk, null);
+  pet.walkAt = 1000;
+  host.stepWalk(1000, () => 0);
+  assert.equal(pet.walk.direction, -1);
+  const start = pet.origin.x;
+  host.stepWalk(1040, () => 0);
+  assert.equal(pet.origin.x, start, 'no sliding before walking animation starts');
+  pet.walkPlaying = true;
+  host.stepWalk(1080, () => 0);
+  assert(pet.origin.x < start);
+  for (let now = 1120; now <= 60000 && pet.walk; now += 40) host.stepWalk(now, () => 0);
+  assert.equal(pet.walk, null);
+  assert.equal(pet.origin.x, screen.displays[0].workArea.x + 8);
+  assert.equal(pet.walkAt - pet.walkTick, 15000);
+  pet.walk = { target: 9999, direction: 1 };
+  screen.displays[0].workArea.width = pet.viewport.width + 80;
+  for (let now = 60040; now <= 65000 && pet.walk; now += 40) host.stepWalk(now, () => 0);
+  assert(pet.origin.x + pet.viewport.width <= screen.displays[0].workArea.width - 8);
+  pet.walk = { target: 0, direction: -1 };
+  host.drag = {};
+  const stopped = pet.origin.x;
+  host.stepWalk(65040, () => 0);
+  assert.equal(pet.walk, null);
+  assert.equal(pet.origin.x, stopped);
+});
+
 test('select secondary keeps chat, task panels and notifications on primary', async t => {
   const { host, screen, calls } = await fixture(t);
   const chat = host.bubble.getBounds();

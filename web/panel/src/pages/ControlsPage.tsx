@@ -75,6 +75,16 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
         {runtime.context_text && <p className="context-summary">{runtime.context_text}</p>}
         <div>
           <section>
+            <h2>{t('LOL 游戏陪玩')}</h2>
+            <p>{runtime.lol_companion_text || t('开启后进入对局，保持语音连接即可听到陪伴提醒。')}</p>
+            <p>{t('读取本机公开对局数据；已开启的屏幕总结会作为补充。')}</p>
+          </section>
+          <button className="button" disabled={busy} onClick={() => run(act('toggle_lol_companion'))}>
+            {runtime.lol_companion_enabled ? t('关闭 LOL 陪玩') : t('开启 LOL 陪玩')}
+          </button>
+        </div>
+        <div>
+          <section>
             <h2>{t('诊断日志目录')}</h2>
             <p>{t('打开原来的本机日志与诊断文件。')}</p>
           </section>

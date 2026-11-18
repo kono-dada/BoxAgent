@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 from boxagent.core.events import StateEvents
 from boxagent.application.camera import CameraInteractionService
 from boxagent.application.game_news import GameNewsMonitor
+from boxagent.application.lol_companion import LolCompanion
 from boxagent.domain.proactivity.game_news import Game, GameNews
 from boxagent.application.memory import DisabledMemoryModule
 from boxagent.application.skill_authoring import (
@@ -63,6 +64,7 @@ class BoxAgentApplication:
         self.runtime_resources = tuple(runtime_resources)
         self.skill_jobs = set()
         self.game_news: GameNewsMonitor | None = None
+        self.lol_companion: LolCompanion | None = None
         self._started = False
         self._closed = False
 
@@ -135,6 +137,14 @@ class BoxAgentApplication:
 
     async def toggle_context(self):
         await self.perception_service.toggle()
+
+    async def toggle_lol_companion(self) -> dict[str, object]:
+        if self.lol_companion is None:
+            raise ValueError("当前 Engine 未装配 LOL 陪玩")
+        await self.lol_companion.toggle()
+        self.events.emit("context.scope_changed", context_text="", context_at=0,
+                         context_app="", context_window_id=0)
+        return {"enabled": self.lol_companion.enabled}
 
     async def toggle_voice(self):
         await self.interaction_service.toggle()
@@ -635,6 +645,8 @@ class BoxAgentApplication:
     async def close(self):
         if self._closed:
             return
+        if self.lol_companion is not None:
+            await self.lol_companion.close()
         if self.camera is not None:
             await self.camera.close()
         if self.game_news is not None:

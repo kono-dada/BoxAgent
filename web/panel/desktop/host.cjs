@@ -289,6 +289,8 @@ class DesktopHost {
     this.tray.setContextMenu(this.menu);
   }
   placePet(pet, display, center = false) {
+    pet.walk = null;
+    pet.walkAt = null;
     const placement = petPlacement(pet, this.snapshot.scale || 1, display.workArea, center, Boolean(this.displayTarget));
     if (placement.viewport.width !== pet.viewport.width || placement.viewport.height !== pet.viewport.height) {
       if (pet.dockInsetY !== undefined) pet.dockInsetY *= placement.viewport.height / pet.viewport.height;
@@ -488,6 +490,7 @@ class DesktopHost {
         action: this.state.avatar_action,
         actionId: this.state.avatar_action_id,
         music: this.musicActive === true,
+        walkDirection: pet.walk?.direction || 0,
       });
   }
   async report(sender, message) {
@@ -497,6 +500,11 @@ class DesktopHost {
         (p?.stage && !p.stage.isDestroyed() && p.stage.webContents.id === sender.id),
     );
     if (!pet || !message || typeof message !== "object") return;
+    if (message.type === 'locomotion') {
+      pet.walkEligible = message.eligible === true;
+      pet.walkPlaying = message.walking === true;
+      return;
+    }
     if (message.type === "bounds") {
       // 只采用模型加载后的首帧；后续动作和诊断截图不能改变窗口。
       if (pet.initialCrop) return;
@@ -608,6 +616,7 @@ class DesktopHost {
   }
   pointer() {
     if (!this.current?.ready) return;
+    this.stepWalk();
     const point = screen.getCursorScreenPoint(),
       pet = this.current;
     this.pointerValue = [
@@ -615,6 +624,38 @@ class DesktopHost {
       Math.round(pet.origin.y + pet.viewport.height / 2 - point.y),
     ];
     this.sendPet(pet);
+  }
+  stepWalk(now = Date.now(), random = Math.random) {
+    const pet = this.current;
+    if (!pet) return;
+    const dt = Math.min(0.08, Math.max(0, (now - (pet.walkTick ?? now)) / 1000));
+    pet.walkTick = now;
+    const allowed = pet.walkEligible && !this.drag && !this.pending && !this.loading &&
+      !this.bubbleOpen && !this.musicActive && !this.state.speaking && !this.state.user_speaking;
+    const postpone = () => { pet.walk = null; pet.walkAt = now + 15000 + random() * 15000; };
+    if (!allowed) { postpone(); return; }
+    const area = this.stageBounds(pet);
+    // 以整个渲染画布留边，动作伸手或侧身时也不会越过屏幕。
+    const min = area.x + 8, max = area.x + area.width - pet.viewport.width - 8;
+    if (max <= min) { postpone(); return; }
+    if (!pet.walk) {
+      if (!pet.walkAt) postpone();
+      if (now < pet.walkAt) return;
+      const target = min + random() * (max - min);
+      if (Math.abs(target - pet.origin.x) < 24) { postpone(); return; }
+      pet.walk = { target, direction: target < pet.origin.x ? -1 : 1 };
+      return;
+    }
+    if (!pet.walkPlaying) return;
+    const target = Math.max(min, Math.min(max, pet.walk.target));
+    const distance = target - pet.origin.x;
+    const step = Math.max(35, pet.viewport.height * 0.22) * dt;
+    pet.origin.x = Math.max(min, Math.min(max, pet.origin.x + Math.sign(distance) * Math.min(Math.abs(distance), step)));
+    this.geometry.setPosition(pet.window, Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
+    if (Math.abs(target - pet.origin.x) < 0.5) {
+      postpone();
+      this.savePosition();
+    }
   }
   positionBubble(preserveTop = false) {
     if (!this.bubble || !this.current) return;
@@ -1004,6 +1045,8 @@ class DesktopHost {
       this.snapshot = { ...this.snapshot, ...result };
       const pet = this.current;
       if (pet) {
+        pet.walk = null;
+        pet.walkAt = null;
         if (this.displayTarget) {
           this.placePet(pet, this.preferredDisplay());
           this.savePosition();

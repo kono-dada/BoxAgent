@@ -8,6 +8,7 @@ import re
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from boxagent.infrastructure.perception.windows import WindowInfo
 
@@ -65,7 +66,8 @@ def focused_window() -> WindowInfo | None:
 
 class WindowSummary:
     def __init__(self, emit, interval=15, model=None, max_size=960, *, workspace=None,
-                 python=None, worker_script=None, log_path=None):
+                 python=None, worker_script=None, log_path=None,
+                 window_allowed: Callable[[WindowInfo], bool] | None = None):
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
         self.model = Path(model or self.workspace / (".runtime/models/qwen3.5-0.8b" if os.name == "nt" else ".runtime/models/qwen3.5-0.8b-mlx"))
@@ -75,6 +77,7 @@ class WindowSummary:
         self.max_size = max_size
         self.process = self.task = None
         self.capture_failures = 0
+        self.window_allowed = window_allowed
 
     async def stop(self):
         if self.task:
@@ -156,6 +159,18 @@ class WindowSummary:
         if not window:
             self.emit("context.waiting", context_text="", context_status="等待可读取的前台窗口")
             return
+        if self.window_allowed is not None and not self.window_allowed(window):
+            self.emit("context.waiting", context_text="", context_app="", context_window_id=0,
+                      context_at=0, context_status="LOL 陪玩仅观察游戏窗口；请将游戏切到前台")
+            return
+        if window["app"].lower() == "electron" and window.get("title", "").startswith("BoxAgent ·"):
+            # Do not feed the assistant's own previous claims back as screen facts.
+            self.emit("context.updated", context_status="", context_text=(
+                f"当前前台是桌宠自身窗口「{window['title']}」。"
+                "其中聊天消息是历史文字，不能据此判断其他网页或应用已打开。"
+                "若要观察其他应用，需要先切换到目标窗口。"),
+                context_app=window["app"], context_window_id=window["id"], context_at=time.time())
+            return
         self.emit("context.reading", context_status="正在观察前台窗口…")
         captured_at = time.time()
         # 临时图片随本轮结束删除，模型和图片均不上传云端。
@@ -180,11 +195,15 @@ class WindowSummary:
                 image = source.convert("RGB")
                 image.thumbnail((self.max_size, self.max_size))
                 image.save(path)
-            self.process.stdin.write((json.dumps({"image": str(path)}) + "\n").encode())
+            self.process.stdin.write((json.dumps({
+                "image": str(path), "app": window["app"],
+                "title": window.get("title", ""),
+            }) + "\n").encode())
             await self.process.stdin.drain()
-            result = await self.reply(60)
+            result = await self.reply(180 if sys.platform == "win32" else 60)
         # 推理期间切换窗口时丢弃过时结果，避免把旧内容当作当前上下文。
-        if focused_window() != window:
+        if focused_window() != window or (
+                self.window_allowed is not None and not self.window_allowed(window)):
             self.emit("context.stale", context_text="", context_status="窗口已切换，等待下一次观察")
             return
         raw = result.get("summary", "").strip()

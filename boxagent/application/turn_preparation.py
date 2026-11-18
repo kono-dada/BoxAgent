@@ -27,12 +27,14 @@ class TurnPreparer:
     def __init__(self, memory: QueryMemory, *, intent: IntentEstimator | None = None,
                  environment: Callable[[], str] | None = None,
                  screen: Callable[[], str] | None = None, budget: float = .4,
+                 game: Callable[[], str] | None = None,
                  decision_timeout: float = 5.0,
                  character_budget: int = 1600) -> None:
         self.memory = memory
         self.intent = intent
         self.environment = environment
         self.screen = screen
+        self.game = game
         self.budget = budget
         self.decision_timeout = decision_timeout
         self.character_budget = character_budget
@@ -66,6 +68,9 @@ class TurnPreparer:
             launch("environment", lambda: asyncio.to_thread(environment_source))
         if screen_source is not None:
             launch("screen", lambda: asyncio.to_thread(screen_source))
+        game_source = self.game
+        if game_source is not None:
+            launch("game", lambda: asyncio.to_thread(game_source))
         # Capture optional references at their own deadline. Waiting longer for
         # the mandatory current decision must not admit stale/late recalls.
         optional = {task for name, task in tasks.items() if name != "jev"}
@@ -113,7 +118,7 @@ class TurnPreparer:
                 "note": "本轮未取得有效决策概率；这不代表操作意图高或低，不得沿用上一轮意见。",
             }
         # Each source has its own cap so a large recall cannot hide current facts.
-        for name, cap in (("environment", 240), ("screen", 320), ("memory", 750)):
+        for name, cap in (("environment", 240), ("screen", 320), ("game", 320), ("memory", 750)):
             value = values.get(name)
             if isinstance(value, str) and value.strip():
                 reference[name] = value.strip()[:cap]
@@ -125,7 +130,7 @@ class TurnPreparer:
                       "记忆可能不完整或过时，以用户当前陈述为准；没有执行结果不得声称完成。\n")
             suffix = "\n</boxagent_query_reference>"
             packet = prefix + json.dumps(reference, ensure_ascii=False, separators=(",", ":")) + suffix
-            for name in ("memory", "screen", "environment"):
+            for name in ("memory", "screen", "environment", "game"):
                 if len(packet) <= self.character_budget:
                     break
                 if name in reference:

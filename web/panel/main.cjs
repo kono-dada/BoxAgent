@@ -30,6 +30,7 @@ const methods = new Set([
   "archive_session",
   "toggle_voice",
   "toggle_context",
+  "toggle_lol_companion",
   "submit_text",
   "cancel_task",
   "cancel_all_tasks",

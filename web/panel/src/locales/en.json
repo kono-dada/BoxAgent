@@ -472,5 +472,10 @@
   "小人显示屏": "Companion display",
   "小人与聊天同屏": "Keep companion and chat together",
   "主屏": "Primary display",
-  "副屏": "Secondary display"
+  "副屏": "Secondary display",
+  "LOL 游戏陪玩": "LOL game companion",
+  "开启后进入对局，保持语音连接即可听到陪伴提醒。": "Enable this, enter a match and keep voice connected to hear companion comments.",
+  "读取本机公开对局数据；已开启的屏幕总结会作为补充。": "Uses public local match data, supplemented by enabled screen summaries.",
+  "关闭 LOL 陪玩": "Disable LOL companion",
+  "开启 LOL 陪玩": "Enable LOL companion"
 }

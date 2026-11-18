@@ -77,7 +77,7 @@ export class MateController {
     this.time += dt;
     if (!this.mouseHeld && this.time >= this.dragUntil) this.dragging = false;
     // 只有可见的自主待机消耗调度时间，交互结束后恢复先前动作。
-    if(['idle','speaking'].includes(this.state) && !this.dragging && !this.sleep && !this.gesture && !this.musicGesture)this.idleTimer += dt;
+    if(['idle','speaking'].includes(this.state) && !this.dragging && !this.sleep && !this.gesture && !this.musicGesture && !this.walkMotion)this.idleTimer += dt;
     if (this.idleTimer >= this.settings.idleSwitchTime && this.idleActions.length) {
       this.idleTimer %= this.settings.idleSwitchTime;
       this.idleIndex = sampleIdle(this.idleProbabilities,this.random);
@@ -101,6 +101,7 @@ export class MateController {
     if (this.musicGesture) return {name:this.musicGesture.name,kind:'music',loop:false};
     if (this.sleep) return {name:this.roles.sleeping || 'rest',kind:'sleep',loop:true};
     if (this.gesture) return {name:this.gesture.name,kind:'gesture',loop:false};
+    if (this.walkMotion && this.state === 'idle') return {name:this.walkMotion,kind:'walk',loop:true};
     // Talking is composed from the continuous idle body and independent face layer.
     if (this.state === 'speaking') return {name:idle,kind:'idle',loop:true};
     if (this.state === 'success' && this.time-this.stateSince < 3) return {name:this.roles.success || idle,kind:'success',loop:false};

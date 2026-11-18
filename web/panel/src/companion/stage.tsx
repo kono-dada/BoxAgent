@@ -22,6 +22,7 @@ function Stage() {
       action: current.action,
       actionId: current.actionId,
       music: current.music,
+      walkDirection: current.walkDirection,
     });
   }
   useEffect(() => {

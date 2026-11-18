@@ -25,6 +25,20 @@ class Memory:
 
 
 class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_game_and_screen_keep_separate_budgets_and_provenance(self) -> None:
+        preparer = TurnPreparer(Memory(), screen=lambda: "可见游戏窗口摘要" * 60,
+                                game=lambda: '{"source":"LOL 本地公开接口","gold":100}')
+        try:
+            packet, report = await preparer.prepare("我有多少金币", session_id="s", query_id="q")
+            value = json.loads(packet[packet.index("{"):packet.rindex("}") + 1])
+            self.assertIn('"gold":100', value["game"])
+            self.assertNotIn("gold", value["screen"])
+            self.assertLessEqual(len(value["screen"]), 320)
+            self.assertLessEqual(len(packet), 1600)
+            self.assertEqual(report["game"]["status"], "ready")
+        finally:
+            await preparer.close()
+
     async def test_slow_decision_is_installed_but_late_optional_memory_is_dropped(self):
         class SlowMemory:
             async def context_packet(self, query, **kwargs):

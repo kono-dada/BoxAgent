@@ -43,6 +43,8 @@ const camera = new THREE.OrthographicCamera();
 let vrm, animator, physics, height = 1, width = 1, state = 'idle', elapsed = 0;
 let disposed = false, frames = 0, last = 0, started = 0, suspended = false;
 let musicDance, musicActive = false;
+let walkDirection = 0, locomotionStatus = '';
+const walkNames = { '-1':'PET_LOCOMOTION/PET_WALK_LEFT', '1':'PET_LOCOMOTION/PET_WALK_RIGHT' };
 let shadow = null;
 const warnings = [];
 const boundsCanvas = document.createElement('canvas');
@@ -77,6 +79,16 @@ function resize() {
 window.addEventListener('resize', resize);
 function update(dt) {
   musicDance?.update();
+  const b = animator.behavior;
+  const available = Object.values(walkNames).every(name => animator.bank.clips.has(name));
+  const eligible = available && b.state === 'idle' && !b.dragging && !b.mouseHeld &&
+    !b.gesture && !b.musicGesture && !musicActive && !b.sleep;
+  b.walkMotion = eligible ? walkNames[walkDirection] : null;
+  const status = JSON.stringify({eligible, walking:Boolean(b.walkMotion)});
+  if (status !== locomotionStatus) {
+    locomotionStatus = status;
+    report('locomotion', {eligible, walking:Boolean(b.walkMotion)});
+  }
   physics.beginFrame();
   const steps = Math.max(1, Math.ceil(dt * 60)), step = dt / steps;
   for (let i = 0; i < steps; i++) {
@@ -137,6 +149,7 @@ window.pet = {
     b.gesture = {name,start:b.time,duration:Math.min(12,clip.duration/animator.bank.settings(name).timeScale),semantic:action};
   },
   present(value) {
+    walkDirection = value.walkDirection === -1 || value.walkDirection === 1 ? value.walkDirection : 0;
     musicActive = value.music === true;
     musicDance?.setActive(musicActive);
     state = value.state; animator?.behavior.present(value);
@@ -217,6 +230,9 @@ window.addEventListener('unhandledrejection', event => report('error', { message
   }).load();
   physics = new SpringPhysics(vrm,manifest.physicsSettings);
   animator = new AvatarAnimator(vrm, scene, box, bank, manifest, camera, () => ({width:innerWidth,height:innerHeight}));
+  for (const name of Object.values(walkNames)) {
+    if (manifest.actions[name]) void bank.loadMotion(name).catch(error => report('warning',{message:String(error)}));
+  }
   musicDance = new MusicDance(bank,animator.behavior,Math.random,
     message=>report('warning',{message}));
   musicDance.setActive(musicActive);

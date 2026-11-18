@@ -57,6 +57,9 @@ class Snapshot:
     context_at: float = 0
     game_news_text: str = ""
     game_news_url: str = ""
+    lol_companion_enabled: bool = False
+    lol_companion_status: str = "off"
+    lol_companion_text: str = ""
     notification_id: str = ""
     notification_text: str = ""
     notification_unread: bool = False
