@@ -48,3 +48,6 @@ Desktop.ini
 *.swp
 *.swo
 ~$*
+
+# 实验目录
+experiments/

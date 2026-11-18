@@ -609,5 +609,8 @@
   "当时的请求": "Your request",
   "画面观察": "Visual observation",
   "画面观察仅代表当时的可见内容。": "This observation describes only what was visible at that time.",
-  "删除此画面经历、相关事实及来源图片？此操作无法撤销。": "Delete this visual episode, its facts and its original image? This cannot be undone."
+  "删除此画面经历、相关事实及来源图片？此操作无法撤销。": "Delete this visual episode, its facts and its original image? This cannot be undone.",
+  "伙伴与聊天显示屏": "Companion and chat display",
+  "随拖动切换屏幕": "Move together across displays",
+  "伙伴、聊天与任务展示一起放在所选屏幕。": "Keep your companion, chat and task panel on the selected display."
 }

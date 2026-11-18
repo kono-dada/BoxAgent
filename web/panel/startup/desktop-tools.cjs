@@ -5,12 +5,14 @@ const clientRelative = 'Contents/SharedSupport/SkyComputerUseClient.app/Contents
 async function regularExecutable(file) {
   try { const stat = await fs.stat(file); return stat.isFile() && Boolean(stat.mode & 0o111); } catch { return false; }
 }
-async function detectDesktopTools(root, config = {}) {
+async function detectDesktopTools(root, config = {}, { home = os.homedir(), codexHome = process.env.CODEX_HOME || path.join(home, '.codex'),
+  applications = ['/Applications', path.join(home, 'Applications')] } = {}) {
   const candidates = [config.BOXAGENT_CODEX_BIN, path.join(root, '.runtime/codex-0.153.0/codex'),
-    path.join(os.homedir(), '.local/bin/codex'), '/Applications/Codex.app/Contents/Resources/codex'].filter(Boolean);
+    path.join(codexHome, 'plugins/.plugin-appserver/codex-cli/bin/codex'),
+    path.join(home, '.local/bin/codex'), ...applications.map(directory => path.join(directory, 'Codex.app/Contents/Resources/codex'))].filter(Boolean);
   const codex = (await Promise.all(candidates.map(async file => await regularExecutable(file) &&
     await regularExecutable(path.join(path.dirname(file), 'codex-code-mode-host')) ? file : null))).find(Boolean);
-  const client = config.BOXAGENT_COMPUTER_USE_CLIENT || path.join(os.homedir(), '.codex/computer-use/Codex Computer Use.app', clientRelative);
+  const client = config.BOXAGENT_COMPUTER_USE_CLIENT || path.join(codexHome, 'computer-use/Codex Computer Use.app', clientRelative);
   return { codex: codex || null, client: await regularExecutable(client) ? client : null };
 }
 async function chooseDesktopTool(kind, directory) {
