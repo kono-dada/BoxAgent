@@ -4,7 +4,8 @@
 
 ## 新用户
 
-将 `BoxAgent.app` 从 DMG 拖到 Applications 后打开。首次引导依次显示欢迎、模型服务、本地组件、权限和就绪摘要。
+打开 DMG 后，按窗口中箭头把左侧 `BoxAgent.app` 拖到右侧 Applications；复制完成后从“应用程序”打开 BoxAgent。
+拖拽复制本身不会自动启动应用。首次引导依次显示欢迎、模型服务、本地组件、权限、微信和就绪摘要。
 
 - 填写自己的 DashScope API Key 和该 Key 对应的百炼业务空间 ID。默认记忆决策复用这组配置。
 - DeepSeek API Key 用于桌面任务，首版必填。两组 Key 保存后执行受限鉴权验证，错误时保留配置并提示重试。
@@ -15,6 +16,14 @@
 桌面任务还需要官方 Codex、同版本 `codex-code-mode-host` 以及 Computer Use。当前安装包不重新分发这些官方组件；引导提供官方发布页和组件目录选择。选择 Codex 时指定含两个可执行文件的目录；选择 Computer Use 时指定外层 `Codex Computer Use.app`。如果官方组件尚未安装，文字聊天仍可使用，桌面执行能力显示受限。这不等于完整桌面任务已验收。
 
 正常重开恢复桌宠，组件准备完成的环境继续复用。通过控制台「设置 → 配置与修复」重新打开引导，可以修改/删除 Key、重新验证、检查权限或修复组件。留空的 Key 输入框保留已保存值；明确删除按钮会删除对应 Key。
+
+升级替换 App 不会删除 `~/Library/Application Support/BoxAgent` 中的配置、模型、微信凭据和引导状态。已完成引导直接启动；未完成则恢复上次步骤。组件输入摘要和 App 路径不变时复用已通过检查的环境；从 DMG 搬到 Applications 等路径变化可能需要点击「准备或修复组件」，从安装包内的 wheel 离线重建环境。已有且校验通过的视觉模型不再下载，已有记忆模型通过本地检查后跳过下载准备；缺失或损坏的模型才需补齐。取消后留下的未完成单文件不保证断点续传。
+
+运行环境检查会比对 marker 中的 Python 来源路径和当前 App 的资源路径；来源变化时返回 `component_runtime_relocated`，即使旧 DMG 尚在挂载也不继续依赖它。微信操作前单独复查 core，失败返回 `wechat_runtime_unavailable` 并提供「修复本地组件」入口。仅删除旧 DMG 而未迁移 venv 会导致 `process_start_failed`；升级验收必须覆盖「从 DMG 运行过 → 拖到 Applications → 推出旧卷 → 修复组件 → 准备微信」。这些检测属于源码修复，已发布的旧测试包仍需通过组件页手动修复。
+
+录屏按钮先由 BoxAgent 本身调用 Electron `desktopCapturer.getSources` 请求权限，再按实际状态打开系统设置；仅打开设置不会使 App 出现在录屏列表。此次请求关闭缩略图且不保存帧。授权后系统可能要求重启 App；Computer Use 是另一个执行程序，可能另有权限条目。测试包采用 ad-hoc 签名，不能承诺跨构建沿用全部系统权限；正式升级应保持 Developer ID、Bundle ID 和安装位置稳定。
+
+桌面组件自动检测本机 App Server 插件目录、仓库运行环境和 Codex.app，并把解析后的可执行路径传给 Engine，不把探测路径固化到用户配置。DeepSeek API 负责模型推理，App Server 与 Computer Use 负责本地执行；模型 Key 不会安装这些二进制文件。手动选择组件仅放在故障排查中。当前安装包仍不随包提供这两项，干净机器的自动获取流程另行完善。
 
 Key 通过 Electron `safeStorage` 加密，macOS Keychain 保护其加密密钥；API Key 密文本体保存在用户目录。这与直接将每个 API Key 存为一个 Keychain item 不同。引导状态只保存步骤与完成时间；Renderer 无读取完整 Key 的接口。
 
@@ -38,11 +47,16 @@ pnpm --dir web/panel dist:mac
 
 入口构建 VRM 和 React，准备可迁移 CPython、三个隔离环境的 wheel 和摘要，修复非系统动态库路径，检查原生代码，制作 app 与 DMG。制作缓存位于 `.runtime/package-cache`，按输入锁、制作配方、Python 和签名身份隔离；完整摘要验证后才复用。`input-wheels.json` 保存制作前 wheel 摘要；由源代码构建的 PyAudio wheel 属于制作输入，不冒充上游原始 wheel。
 
-产物位于 `dist/mac/`。测试默认 ad-hoc 签名，**不是 Developer ID 签名公证发行包**。源码变化、依赖未变化时可复用已检查的制作资源：
+产物位于 `dist/mac/`，新版图形安装镜像为 `BoxAgent-<version>-macos-arm64-setup.dmg`。
+安装窗口由 `scripts/build-dmg-mac.cjs` 复用已签名 App 制作，写入 Finder 图标坐标、600×400 窗口和 Retina 拖拽说明背景。
+该步骤不重新打包 App，不修改用户已挂载的旧 `BoxAgent` 卷；同名 `BoxAgent Installer` 已挂载时会停止，避免强制卸载。
+测试默认 ad-hoc 签名，**不是 Developer ID 签名公证发行包**。源码变化、依赖未变化时可复用已检查的制作资源：
 
 ```sh
 bash scripts/build-dist-mac.sh --reuse-resources
 ```
+
+升级测试包时退出旧实例，将新 App 覆盖到同一个 `/Applications/BoxAgent.app`，再从 Applications 打开。引导进度与加密凭据位于用户数据目录，替换 App 不清除它们；macOS 权限由系统另外维护，不由引导完成标记推断。临时签名变动后需要以当前 App 的实际权限检查为准，不能承诺每次构建自动继承旧授权。
 
 正式签名需要自己的 Developer ID 和已配置的 notarytool Keychain profile：
 
@@ -62,8 +76,8 @@ UV_CACHE_DIR=/tmp/uvcache uv run --with pytest python -m pytest -q
 pnpm --dir web/panel build
 pnpm --dir web/panel test
 web/panel/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron web/panel/tests/onboarding-smoke.cjs
-node scripts/verify-packaged-app.mjs dist/mac/mac-arm64/BoxAgent.app
-node scripts/smoke-packaged-app.mjs dist/mac/mac-arm64/BoxAgent.app --models
+node scripts/verify-packaged-app.mjs .runtime/package-build/mac-arm64/BoxAgent.app
+node scripts/smoke-packaged-app.mjs .runtime/package-build/mac-arm64/BoxAgent.app --models
 ```
 
 Electron smoke 使用隔离目录和模拟 Provider/Engine，验证五个真实页面、中英文、200% 缩放、Key 必填、保存失败保留输入、两种服务的鉴权失败、下载取消、权限状态以及完成门禁。截图写入 `.runtime/onboarding-smoke/screenshots`。生产代码中没有模拟 Provider 的开关。视觉参考和取舍见 [视觉复核](macos-onboarding-visual.md)。

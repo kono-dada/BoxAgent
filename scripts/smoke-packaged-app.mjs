@@ -6,7 +6,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 
-const source = path.resolve(process.argv[2] || 'dist/mac/mac-arm64/BoxAgent.app');
+const source = path.resolve(process.argv[2] || '.runtime/package-build/mac-arm64/BoxAgent.app');
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'boxagent-artifact-'));
 const bundle = path.join(directory, 'Moved App/BoxAgent.app');
 const data = path.join(directory, 'User Data');
@@ -133,7 +133,31 @@ try {
   const screenshot = await send('Page.captureScreenshot', { format: 'png' });
   await fs.writeFile(path.join(directory, 'providers.png'), Buffer.from(screenshot.data, 'base64'));
   console.log('PASS: relocated signed app, system PATH, first launch, required BYOK form.');
-  if (expectedEngine) console.log('PASS: actual packaged Python desktop service and Engine socket health.');
+  if (expectedEngine) {
+    console.log('PASS: actual packaged Python desktop service and Engine socket health.');
+    await evaluate(`window.boxagentSetup.request('step', { step: 'wechat' })`);
+    const supplied = await evaluate(`window.boxagentSetup.request('snapshot')`);
+    assert.equal(supplied.wechat.downloadAvailable, true, 'Installer must provide the exact verified client');
+    const began = Date.now();
+    const prepared = await evaluate(`window.boxagentSetup.request('wechat-provision')`);
+    assert.equal(prepared.error, '', 'Automatic replica provisioning failed in the packaged app');
+    assert.equal(prepared.wechat.client.state, 'ready');
+    assert.equal(prepared.credentials.wechatEnabled, false);
+    assert.equal(prepared.credentials.wechatConfigured, false);
+    const image = await send('Page.captureScreenshot', { format: 'png' });
+    await fs.writeFile(path.join(directory, 'wechat-provisioned.png'), Buffer.from(image.data, 'base64'));
+    console.log('PASS: actual packaged fixed-build replica provisioning, no login, ' + (Date.now() - began) + ' ms');
+    if (process.argv.includes('--wechat-login')) {
+      console.log('ACTION: complete QR sign-in in the new WeChat copy; no messages will be sent.');
+      const captured = await evaluate(`window.boxagentSetup.request('wechat-capture')`);
+      assert.equal(captured.error, '', 'Real sign-in and encrypted credential acquisition failed');
+      assert.equal(captured.credentials.wechatConfigured, true);
+      assert.equal(captured.credentials.wechatEnabled, false, 'Capture alone must not enable model message processing');
+      assert.equal(captured.wechat.reading.state, 'ready');
+      assert.equal(captured.wechat.listening.state, 'ready');
+      console.log('PASS: real sign-in, account-authenticated read/listener checks, encrypted credential storage');
+    }
+  }
 } finally {
   websocket?.close();
   application.kill('SIGTERM');

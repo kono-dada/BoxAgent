@@ -100,7 +100,7 @@ Codex App Server 调用 DeepSeek API；设为 `codex` 时，同一执行器通�
 
 脚本使用同一个启动入口，只检查 `DEEPSEEK_API_KEY` 是否存在；具体密钥由 Python 配置层读取并传给 App Server 子进程。可用 `BOXAGENT_DEEPSEEK_MODEL` 覆盖默认的 `deepseek-flash`，其他参数可直接追加在脚本后。双击 `启动桌宠.command` 与 Codex 项目运行按钮也调用同一入口。
 
-优先从独立 Terminal 启动。直接 uv 运行没有独立应用权限身份；系统权限取决于启动终端及 Computer Use 组件。麦克风用于语音，屏幕录制用于本地截图；电脑操作还依赖执行组件获得所需系统权限。产品内的自动／手动授权不是 macOS 权限开关。
+macOS 源码入口会准备 `.runtime/desktop/BoxAgent.app`，再通过 LaunchServices 启动，使系统权限归属 BoxAgent；不需要先制作 DMG。请使用 `./scripts/run-pet.sh`，不要绕过入口直接运行 App 内的二进制。由 IDE 直接拉起进程可能把权限责任归给 IDE；本机曾因此在 IDE 缺少语音识别用途声明时触发 TCC 强制终止。源码版与安装版目前均可能使用临时签名，构建更新后仍可能需要重新授权。麦克风用于语音，屏幕录制用于本地截图；电脑操作还依赖执行组件获得所需系统权限。产品内的自动／手动授权不是 macOS 权限开关。
 
 ## 本地窗口摘要
 

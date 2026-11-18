@@ -137,6 +137,7 @@ def copy_source(stage: Path) -> None:
                  'computer_use.py', 'computer-use-mcp-client.mjs', 'verify-computer-use.mjs'):
         shutil.copy2(ROOT / 'scripts' / name, scripts / name)
     shutil.copytree(ROOT / 'scripts/model-manifests', scripts / 'model-manifests')
+    shutil.copytree(ROOT / 'scripts/wechat-clients', scripts / 'wechat-clients')
     if not (target / 'assets/vrm/viewer.js').is_file():
         raise RuntimeError('Build the VRM viewer first: pnpm --dir web/vrm build')
     for file in (target / 'assets').rglob('*'):
@@ -188,7 +189,8 @@ def clean_aoq(resources: Path) -> None:
                 raise ValueError(f'Broken SDK link: {entry.relative_to(aoq)}')
 
 
-def prepare(output: Path, *, identity: str, aoq: Path | None) -> None:
+def prepare(output: Path, *, identity: str, aoq: Path | None,
+            wechat_source: Path = Path('/Applications/WeChat.app')) -> None:
     if platform.system() != 'Darwin' or platform.machine() != 'arm64':
         raise RuntimeError('Build on Apple Silicon macOS')
     output = output.resolve()
@@ -208,6 +210,8 @@ def prepare(output: Path, *, identity: str, aoq: Path | None) -> None:
         shutil.rmtree(install)
         shutil.copy2(uv, stage / 'uv')
         copy_source(stage)
+        command([sys.executable, '-m', 'boxagent.entrypoints.wechat_distribution',
+                 '--source', str(wechat_source), '--output', str(stage / 'wechat')])
         (stage / 'build-identity.json').write_text(json.dumps({'wheelSigningIdentity': identity}) + '\n')
         if aoq:
             for framework in ('AoqClientSdk.framework', 'PluginOpus.framework'):
@@ -255,11 +259,13 @@ def refresh_manifest(resources: Path) -> None:
         'platform': 'macos-arm64', 'groups': groups, 'files': records}, indent=2) + '\n')
 
 
-def refresh_source(resources: Path) -> None:
+def refresh_source(resources: Path, *, wechat_source: Path = Path('/Applications/WeChat.app')) -> None:
     resources = resources.resolve()
     if not resources.is_relative_to(ROOT / '.runtime'):
         raise ValueError('Source refresh is limited to .runtime staging')
     clean_aoq(resources)
+    command([sys.executable, '-m', 'boxagent.entrypoints.wechat_distribution',
+             '--source', str(wechat_source), '--output', str(resources / 'wechat')])
     with tempfile.TemporaryDirectory(prefix='boxagent-source-') as temporary:
         stage = Path(temporary)
         copy_source(stage)
@@ -273,16 +279,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / '.runtime/package-resources')
     parser.add_argument('--aoq-dir', type=Path)
+    archive = ROOT / '.runtime/package-resources/wechat/4.1.15.270115.dmg'
+    parser.add_argument('--wechat-source', type=Path, default=archive if archive.is_file() else Path('/Applications/WeChat.app'))
     parser.add_argument('--sign-identity', default='-')
     parser.add_argument('--refresh-manifest', type=Path)
     parser.add_argument('--refresh-source', type=Path)
     args = parser.parse_args()
     if args.refresh_source:
-        refresh_source(args.refresh_source)
+        refresh_source(args.refresh_source, wechat_source=args.wechat_source)
     elif args.refresh_manifest:
         refresh_manifest(args.refresh_manifest)
     else:
-        prepare(args.output, identity=args.sign_identity, aoq=args.aoq_dir)
+        prepare(args.output, identity=args.sign_identity, aoq=args.aoq_dir, wechat_source=args.wechat_source)
 
 
 if __name__ == '__main__':
