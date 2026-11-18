@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+from contextlib import nullcontext
 from dataclasses import replace
 import json
 import shutil
@@ -10,6 +11,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -55,9 +57,19 @@ async def run(root, *, backend):
         task_provider="deepseek", task_model="deepseek-flash",
         deepseek_api_key="" if backend == "mock" else base.deepseek_api_key,
         jev_mem_backend=backend)
-    application = create_application(
-        lambda _event: None, app_settings=settings, context_interval=0)
-    report = {"data_dir": str(root), "backend": backend, "checks": {}}
+    def fixture_patches(observation: str, current_fields: dict) -> list[dict]:
+        if "叫我小明" in observation:
+            return [{"op": "add", "path": "identity.name", "value": "小明"}]
+        return []
+
+    profile_provider = patch("boxagent.bootstrap.memory.DeepSeekProfileConstructor") if backend == "mock" else nullcontext()
+    with profile_provider as constructor:
+        if constructor is not None:
+            constructor.return_value.propose = AsyncMock(side_effect=fixture_patches)
+        application = create_application(
+            lambda _event: None, app_settings=settings, context_interval=0)
+    report = {"data_dir": str(root), "backend": backend,
+              "profile_provider": "fixture" if backend == "mock" else "deepseek", "checks": {}}
     try:
         await application.start()
         await application.memory.await_idle()

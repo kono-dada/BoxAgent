@@ -441,7 +441,7 @@ server.listen(path.join(data, "engine.sock"), () => {
           });
       })()`), 'approval controls remain visible in compact panel');
       assert.deepEqual(await js(bubble, "Array.from(document.querySelectorAll('.companion-header .icon-button'), button => button.getAttribute('aria-label'))"),
-        ['小人显示屏', '打开伙伴控制台', '收起对话'], 'chat keeps display, console and close controls');
+        ['伙伴与聊天显示屏', '打开伙伴控制台', '收起对话'], 'chat keeps display, console and close controls');
       assert.equal(await js(tasks, "Boolean(document.querySelector('.task-menu'))"), false, 'task controls are direct buttons');
       await js(tasks, "document.querySelector('.task-actions [aria-pressed]').click()");
       await wait(() => js(tasks, "document.querySelector('[aria-pressed]').getAttribute('aria-pressed')==='true'"), 'task pin');
@@ -825,6 +825,8 @@ server.listen(path.join(data, "engine.sock"), () => {
       });
       await wait(() => bubble.isVisible(), "pet tap toggles bubble");
       bubble.hide();
+      const windowIds = () => BrowserWindow.getAllWindows().map(window => window.id).sort((first, second) => first - second);
+      const originalWindows = windowIds();
       const reopened = new Promise((resolve) =>
         app.once("second-instance", resolve),
       );
@@ -834,7 +836,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       });
       await reopened;
       assert(bubble.isVisible());
-      assert.equal(BrowserWindow.getAllWindows().length, 3);
+      assert.deepEqual(windowIds(), originalWindows, "second launch reuses the existing windows");
       child.on("exit", () => {});
       console.log(
         "Electron desktop: real VRM ready/crop/scale, failed avatar rollback, lazy console, shared theme/language, history/Markdown/latest, text/approval/cancel/voice IPC, bubble close/tap/reopen, single instance passed",
