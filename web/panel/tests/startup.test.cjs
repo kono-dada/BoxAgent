@@ -22,6 +22,20 @@ test('published paths do not depend on source or inherit .runtime user storage',
   assert.equal(paths.python, '/Users/example/Library/Application Support/BoxAgent/runtimes/core/bin/python3');
   assert.equal(paths.root, '/Applications/Box Agent.app/Contents/Resources/boxagent');
 });
+test('permission refresh does not unlock credentials or initialize model runtimes', async t => {
+  const { data } = await fixture(t);
+  let refreshes = 0;
+  const coordinator = new StartupCoordinator({ paths: { data },
+    credentials: { load() { throw Error('must not unlock'); } },
+    permissions: { snapshot: () => ({ speech: refreshes ? 'granted' : 'not-determined' }),
+      refresh: async () => { refreshes++; } }, runtime: {}, wechat: { snapshot: () => ({}) },
+    broadcast() {},
+  });
+  const result = await coordinator.request('refresh-permissions');
+  assert.equal(result.error, '');
+  assert.equal(result.permissions.speech, 'granted');
+  assert.equal(refreshes, 1);
+});
 test('keys are encrypted, never exposed by summary, replaceable and deletable', async t => {
   const { credentials } = await fixture(t);
   await credentials.save({ DASHSCOPE_API_KEY: 'sk-original-secret', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test-workspace' });
@@ -34,6 +48,23 @@ test('keys are encrypted, never exposed by summary, replaceable and deletable', 
   await credentials.save({ DASHSCOPE_API_KEY: '' });
   assert.equal((await credentials.summary()).dashscope, false);
 });
+
+test('repeated startup reads reuse unlocked credentials, while file changes invalidate the cache', async t => {
+  const { data } = await fixture(t);
+  let decryptions = 0;
+  const store = new CredentialStore(path.join(data, 'cache-credentials.json'), {
+    ...encryption, decryptString: value => { decryptions++; return encryption.decryptString(value); },
+  });
+  await store.save({ DASHSCOPE_API_KEY: 'test-original' });
+  await Promise.all([store.load(), store.summary(), store.load()]);
+  assert.equal(decryptions, 1);
+  const copy = await store.load();
+  copy.DASHSCOPE_API_KEY = 'caller-mutated';
+  assert.equal((await store.load()).DASHSCOPE_API_KEY, 'test-original');
+  await store.save({ DASHSCOPE_API_KEY: 'test-replacement' });
+  assert.equal((await store.load()).DASHSCOPE_API_KEY, 'test-replacement');
+  assert.equal(decryptions, 2);
+});
 test('locked storage and corrupt state preserve existing files', async t => {
   const { data, credentials } = await fixture(t);
   await credentials.save({ DASHSCOPE_API_KEY: 'sk-key' });
@@ -45,6 +76,14 @@ test('locked storage and corrupt state preserve existing files', async t => {
   await fs.writeFile(state, '{broken');
   await assert.rejects(readState(state), /configuration_unreadable/);
   assert.equal(await fs.readFile(state, 'utf8'), '{broken');
+});
+
+test('WeChat notify-all preference persists and rejects invalid values', async t => {
+  const { credentials } = await fixture(t);
+  await credentials.save({ BOXAGENT_WECHAT_NOTIFY_ALL: '1' });
+  assert.equal((await credentials.load()).BOXAGENT_WECHAT_NOTIFY_ALL, '1');
+  await assert.rejects(credentials.save({ BOXAGENT_WECHAT_NOTIFY_ALL: 'yes' }), /invalid_configuration/);
+  assert.equal((await credentials.load()).BOXAGENT_WECHAT_NOTIFY_ALL, '1');
 });
 test('concurrent key updates are serialized and invalid workspace is rejected', async t => {
   const { credentials } = await fixture(t);
@@ -180,4 +219,45 @@ test('subprocess output limit waits for forced termination before rejecting', as
   const started = Date.now();
   await assert.rejects(run(process.execPath, ['-e', "process.on('SIGTERM', () => {}); process.stdout.write('x'.repeat(1100000)); setInterval(() => {}, 1000)"]), /process_output_limit/);
   assert.ok(Date.now() - started >= 1900, 'Resolved before reaping the child that ignored SIGTERM');
+});
+
+test('auto-detected tools are passed into the Engine, with no tool paths or keys in UI snapshots', async t => {
+  const { data, credentials } = await fixture(t);
+  let environment;
+  const tools = { codex: '/private/runtime/codex', client: '/private/runtime/SkyComputerUseClient' };
+  const coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true }, credentials,
+    permissions: { snapshot: () => ({}) },
+    runtime: { localStatus: async () => ({ core: { state: 'ready', code: '' } }), environment: config => config },
+    detectTools: async () => tools,
+    ensureEngine: async value => { environment = value; }, stopEngine: async () => {}, enterDesktop: async () => {}, broadcast: () => {} });
+  const result = await coordinator.start();
+  assert.equal(environment.BOXAGENT_CODEX_BIN, tools.codex);
+  assert.equal(environment.BOXAGENT_COMPUTER_USE_CLIENT, tools.client);
+  assert.equal(result.capabilities.app_server.state, 'ready');
+  assert.equal(result.capabilities.computer_use.state, 'ready');
+  assert.equal(result.capabilities.desktop.state, 'ready');
+  assert.ok(!JSON.stringify(result).includes('/private/runtime'));
+  assert.equal((await credentials.load()).BOXAGENT_CODEX_BIN, undefined, 'Automatic discovery must not persist stale installation paths');
+});
+
+test('unfinished onboarding resumes its saved step and verifies saved keys only on completion', async t => {
+  const { data, credentials } = await fixture(t);
+  await credentials.save({ DASHSCOPE_API_KEY: 'saved-qwen', DEEPSEEK_API_KEY: 'saved-task', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'saved-space' });
+  let validations = 0, opened = 0;
+  const ready = () => ({ state: 'ready', code: '' });
+  const coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true }, credentials,
+    permissions: { snapshot: () => ({}) }, runtime: {
+      localStatus: async () => ({ core: ready(), memory: ready(), vision: ready() }), environment: config => config,
+      install: async () => assert.fail('Downloaded or installed on resumed setup'),
+    }, ensureEngine: async () => {}, stopEngine: async () => {}, enterDesktop: async () => { opened++; }, broadcast: () => {},
+    validate: async config => { validations++; assert.equal(config.DEEPSEEK_API_KEY, 'saved-task'); return { qwen: ready(), task: ready() }; } });
+  await atomicWrite(coordinator.stateFile, { version: 1, completed: false, step: 'permissions', completedAt: null });
+  const resumed = await coordinator.start();
+  assert.equal(resumed.onboarding.step, 'permissions');
+  assert.equal(resumed.credentials.deepseek, true);
+  assert.equal(validations, 0);
+  await coordinator.request('step', { step: 'ready' });
+  assert.equal((await coordinator.request('complete')).onboarding.completed, true);
+  assert.equal(validations, 1);
+  assert.equal(opened, 1);
 });

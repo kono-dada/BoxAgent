@@ -10,8 +10,11 @@ from collections.abc import Callable
 from boxagent.core.states import Voice
 from boxagent.domain.context.contracts import NullContextObserver
 from boxagent.domain.conversation.models import InteractionContext
+from boxagent.domain.interaction.contracts import GameHighlightVoice, GameLineVoice
 from boxagent.domain.interaction.delegation import DecisionAdvice
 from boxagent.domain.perception.camera import CameraFeed
+from boxagent.domain.proactivity.game_entry import ENTRY_RECEIPT_PREFIX
+from boxagent.domain.proactivity.game_highlight import GameHighlight, HIGHLIGHT_RECEIPT_PREFIX
 from boxagent.domain.web.game_context import game_clarification_reference
 
 logger = logging.getLogger(__name__)
@@ -85,6 +88,9 @@ class InteractionService:
         self.voice_end_task: asyncio.Task[None] | None = None
         self.camera_feed: CameraFeed | None = None
         self.camera_owns_voice = False
+        self.game_reference: Callable[[], str] = lambda: ""
+        self.game_playback_started: Callable[[str], None] | None = None
+        self.game_entry_playback_started: Callable[[str], None] | None = None
 
     async def open_camera(self) -> CameraFeed:
         async with self.toggle_lock:
@@ -179,6 +185,7 @@ class InteractionService:
     async def _submit_text(self, text):
         if not isinstance(text, str) or not text.strip():
             return {"status": "failed", "message": "请输入想说的话"}
+        game_reference = self.game_reference()
         async with self.toggle_lock:
             await self._connect(microphone=False)
         if self.conversation and self.conversation.store:
@@ -217,7 +224,8 @@ class InteractionService:
                     return {"status": "interrupted", "message": "本轮已被新的输入打断"}
                 self.context_observer.turn_prepared(context.session.session_id, **report)
                 self._store_decision(context, report)
-                await submit(text, reference=game_clarification_reference(text) + packet, query_id=context.interaction_id)
+                reference = game_clarification_reference(text) + game_reference + packet
+                await submit(text, reference=reference, query_id=context.interaction_id)
             else:
                 clarification = game_clarification_reference(text)
                 if clarification and self.interaction is not None:
@@ -370,6 +378,7 @@ class InteractionService:
                 if self.turn_preparer is not None:
                     context = self.interaction
                     voice = self.voice
+                    game_reference = self.game_reference()
                     packet, report = await self.turn_preparer.prepare(
                         transcript, session_id=context.session.session_id,
                         query_id=context.interaction_id, context=self._decision_context(context))
@@ -377,7 +386,8 @@ class InteractionService:
                         return
                     self.context_observer.turn_prepared(context.session.session_id, **report)
                     self._store_decision(context, report)
-                    await voice.respond_to_query(game_clarification_reference(transcript) + packet, query_id=context.interaction_id)
+                    reference = game_clarification_reference(transcript) + game_reference + packet
+                    await voice.respond_to_query(reference, query_id=context.interaction_id)
                 else:
                     await self._inject_memory_context(transcript, self.interaction)
                 self._bind_pending_response(self.interaction)
@@ -589,6 +599,25 @@ class InteractionService:
             if self.voice is not None:
                 await self.voice.announce_game_news(headline, community_topic=community_topic)
 
+    def game_voice(self) -> GameHighlightVoice | None:
+        voice = self.voice
+        if (self.is_connected and self.connection_microphone and self.events.state.voice == "ready"
+                and isinstance(voice, GameHighlightVoice)):
+            return voice
+        return None
+
+    async def announce_game_highlight(self, highlight: GameHighlight,
+                                      still_current: Callable[[], bool]) -> bool:
+        voice = self.game_voice()
+        return await voice.announce_game_highlight(highlight, still_current) if voice else False
+
+    async def announce_game_line(self, receipt: str, text: str,
+                                 still_current: Callable[[], bool]) -> bool:
+        voice = self.game_voice()
+        if isinstance(voice, GameLineVoice):
+            return await voice.announce_game_line(receipt, text, still_current)
+        return False
+
     async def deliver_notification(self, item):
         if not self.is_connected:
             return False
@@ -599,6 +628,15 @@ class InteractionService:
         return True
 
     async def _notification_event(self, kind, payload):
+        receipt = payload.get("notification_id")
+        if isinstance(receipt, str) and receipt.startswith(ENTRY_RECEIPT_PREFIX):
+            if kind == "playback_started" and self.game_entry_playback_started is not None:
+                self.game_entry_playback_started(receipt)
+            return
+        if isinstance(receipt, str) and receipt.startswith(HIGHLIGHT_RECEIPT_PREFIX):
+            if kind == "playback_started" and self.game_playback_started is not None:
+                self.game_playback_started(receipt)
+            return
         if self.notification_event is None:
             return
         result = self.notification_event(kind, payload)

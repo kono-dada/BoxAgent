@@ -143,28 +143,30 @@ class DesktopHost {
         if (!window.isDestroyed()) window.setAlwaysOnTop(true, scene ? "screen-saver" : "floating", window === stage ? 0 : 1);
       }
     }
-    const bounds = this.stageBounds(pet);
-    if (process.platform === "darwin" && stage.setSimpleFullScreen) {
-      if (scene) {
-        if (!stage.isSimpleFullScreen() || screen.getDisplayMatching(stage.getBounds()).id !== this.preferredDisplay().id) {
-          if (stage.isSimpleFullScreen()) stage.setSimpleFullScreen(false);
-          stage.setBounds(bounds);
-          stage.setSimpleFullScreen(true);
-        }
-        this.geometry.remember(stage, stage.getBounds());
-        return;
+    let bounds = this.stageBounds(pet);
+    const canUseSimpleFullScreen = process.platform === "darwin" && stage.setSimpleFullScreen;
+    if (scene && canUseSimpleFullScreen) {
+      if (!stage.isSimpleFullScreen() || screen.getDisplayMatching(stage.getBounds()).id !== this.preferredDisplay().id) {
+        if (stage.isSimpleFullScreen()) stage.setSimpleFullScreen(false);
+        stage.setBounds(bounds);
+        stage.setSimpleFullScreen(true);
       }
-      if (stage.isSimpleFullScreen()) stage.setSimpleFullScreen(false);
-    }
-    const current = stage.getBounds();
-    if (
-      current.x !== bounds.x ||
-      current.y !== bounds.y ||
-      current.width !== bounds.width ||
-      current.height !== bounds.height
-    ) {
-      stage.setBounds(bounds);
+      // Simple fullscreen can change the native frame. Use its actual origin
+      // when converting the avatar's screen position to the stage canvas.
+      bounds = stage.getBounds();
       this.geometry.remember(stage, bounds);
+    } else {
+      if (canUseSimpleFullScreen && stage.isSimpleFullScreen()) stage.setSimpleFullScreen(false);
+      const current = stage.getBounds();
+      if (
+        current.x !== bounds.x ||
+        current.y !== bounds.y ||
+        current.width !== bounds.width ||
+        current.height !== bounds.height
+      ) {
+        stage.setBounds(bounds);
+        this.geometry.remember(stage, bounds);
+      }
     }
     pet.stageArea = bounds;
     pet.canvas = {
@@ -250,6 +252,12 @@ class DesktopHost {
       this.musicMonitor.start();
     }
     await this.loadAvatar(this.snapshot.appearance, false);
+    // Engine can finish connecting before this host is constructed. Hydrate
+    // its current state so wake does not wait for a later conversation event.
+    if (this.client.online) {
+      const state = await this.client.request('state');
+      this.stateChanged(state, { type: 'engine.ready' });
+    }
   }
   preferredDisplay(displays = screen.getAllDisplays(), primary = screen.getPrimaryDisplay()) {
     return targetDisplay(displays, primary, this.displayTarget, this.displayLabel);
@@ -315,6 +323,8 @@ class DesktopHost {
   }
   placePet(pet, display, center = false) {
     if (this.closed || !pet || pet.window.isDestroyed()) return;
+    pet.walk = null;
+    pet.walkAt = null;
     const area = this.displayTarget ? companionDisplayAreas(pet, this.snapshot.scale || 1, display.workArea, this.bubbleHeight).pet : display.workArea;
     const placement = petPlacement(pet, this.snapshot.scale || 1, area, center, Boolean(this.displayTarget));
     if (placement.viewport.width !== pet.viewport.width || placement.viewport.height !== pet.viewport.height) {
@@ -519,6 +529,7 @@ class DesktopHost {
         action: this.state.avatar_action,
         actionId: this.state.avatar_action_id,
         music: this.musicActive === true,
+        walkDirection: pet.walk?.direction || 0,
       });
   }
   async report(sender, message) {
@@ -528,6 +539,11 @@ class DesktopHost {
         (p?.stage && !p.stage.isDestroyed() && p.stage.webContents.id === sender.id),
     );
     if (!pet || !message || typeof message !== "object") return;
+    if (message.type === 'locomotion') {
+      pet.walkEligible = message.eligible === true;
+      pet.walkPlaying = message.walking === true;
+      return;
+    }
     if (message.type === "bounds") {
       // 只采用模型加载后的首帧；后续动作和诊断截图不能改变窗口。
       if (pet.initialCrop) return;
@@ -647,6 +663,7 @@ class DesktopHost {
   }
   pointer() {
     if (!this.current?.ready) return;
+    this.stepWalk();
     const point = screen.getCursorScreenPoint(),
       pet = this.current;
     this.pointerValue = [
@@ -654,6 +671,39 @@ class DesktopHost {
       Math.round(pet.origin.y + pet.viewport.height / 2 - point.y),
     ];
     this.sendPet(pet);
+  }
+  stepWalk(now = Date.now(), random = Math.random) {
+    const pet = this.current;
+    if (this.closed || !pet || pet.window.isDestroyed()) return;
+    const dt = Math.min(0.08, Math.max(0, (now - (pet.walkTick ?? now)) / 1000));
+    pet.walkTick = now;
+    const allowed = pet.walkEligible && !this.drag && !this.pending && !this.loading &&
+      !this.bubbleOpen && !this.tasks?.isVisible() && !this.musicActive &&
+      !this.state.speaking && !this.state.user_speaking;
+    const postpone = () => { pet.walk = null; pet.walkAt = now + 15000 + random() * 15000; };
+    if (!allowed) { postpone(); return; }
+    const area = this.stageBounds(pet);
+    // Keep the full animation canvas inside the display, including arm motion.
+    const min = area.x + 8, max = area.x + area.width - pet.viewport.width - 8;
+    if (max <= min) { postpone(); return; }
+    if (!pet.walk) {
+      if (!pet.walkAt) postpone();
+      if (now < pet.walkAt) return;
+      const target = min + random() * (max - min);
+      if (Math.abs(target - pet.origin.x) < 24) { postpone(); return; }
+      pet.walk = { target, direction: target < pet.origin.x ? -1 : 1 };
+      return;
+    }
+    if (!pet.walkPlaying) return;
+    const target = Math.max(min, Math.min(max, pet.walk.target));
+    const distance = target - pet.origin.x;
+    const step = Math.max(35, pet.viewport.height * 0.22) * dt;
+    pet.origin.x = Math.max(min, Math.min(max, pet.origin.x + Math.sign(distance) * Math.min(Math.abs(distance), step)));
+    this.geometry.setPosition(pet.window, Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
+    if (Math.abs(target - pet.origin.x) < 0.5) {
+      postpone();
+      this.savePosition();
+    }
   }
   positionBubble(preserveTop = false) {
     if (this.closed || !this.bubble || this.bubble.isDestroyed() || !this.current || this.current.window.isDestroyed()) return;
@@ -1054,6 +1104,8 @@ class DesktopHost {
       this.snapshot = { ...this.snapshot, ...result };
       const pet = this.current;
       if (pet) {
+        pet.walk = null;
+        pet.walkAt = null;
         if (this.displayTarget) {
           this.placePet(pet, this.preferredDisplay());
           this.savePosition();

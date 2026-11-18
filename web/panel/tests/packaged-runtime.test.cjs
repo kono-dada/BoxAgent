@@ -61,3 +61,44 @@ test('healthy existing component environments are reused without installation', 
   await runtime.install({}, new AbortController().signal);
   assert.deepEqual(probes, ['core', 'memory', 'vision']);
 });
+
+test('moving the app rebuilds only offline environments and reuses verified models', async t => {
+  const data = await fs.mkdtemp(path.join(os.tmpdir(), 'boxagent-upgrade-'));
+  t.after(() => fs.rm(data, { recursive: true, force: true }));
+  const runtimeDir = path.join(data, 'runtimes'), resources = path.join(data, 'new-app/Resources');
+  const root = path.join(resources, 'boxagent'), model = path.join(data, 'models/vision');
+  const groups = { core: 'c', jev: 'j', vision: 'v' };
+  for (const [group, id] of Object.entries(groups)) {
+    await fs.mkdir(path.join(runtimeDir, group), { recursive: true });
+    await fs.writeFile(path.join(runtimeDir, group, 'boxagent-runtime.json'), JSON.stringify({ version: 1, id, base: '/Volumes/old-app/python3' }));
+  }
+  await fs.mkdir(path.join(root, 'scripts/model-manifests'), { recursive: true });
+  await fs.mkdir(model, { recursive: true });
+  await fs.writeFile(path.join(model, 'weights'), 'cached-weights');
+  await fs.writeFile(path.join(root, 'scripts/model-manifests/qwen3.5-0.8b-mlx.manifest.tsv'),
+    `weights\t${createHash('sha256').update('cached-weights').digest('hex')}`);
+  const commands = [], probes = [];
+  const runtime = new PackagedRuntime({ data, runtime: runtimeDir, resources, root, model }, { execute: async (_program, args) => commands.push(args) });
+  runtime.inputs = async () => ({ groups });
+  runtime.probe = async (_python, component) => { probes.push(component); };
+  t.mock.method(globalThis, 'fetch', async () => assert.fail('Downloaded a cached model'));
+  await runtime.install({}, new AbortController().signal);
+  assert.equal(commands.length, 6);
+  for (const args of commands) assert.ok(args.includes('--no-python-downloads') || args.includes('--no-index'));
+  assert.deepEqual(probes, ['core', 'memory', 'vision']);
+  assert.equal(JSON.parse(await fs.readFile(path.join(runtimeDir, 'core/boxagent-runtime.json'))).base, path.join(resources, 'python/bin/python3'));
+  assert.equal(await fs.readFile(path.join(model, 'weights'), 'utf8'), 'cached-weights');
+});
+
+test('a runtime linked to an old app is rejected even while the old location still works', async t => {
+  const data = await fs.mkdtemp(path.join(os.tmpdir(), 'boxagent-relocation-'));
+  t.after(() => fs.rm(data, { recursive: true, force: true }));
+  const runtimeDir = path.join(data, 'runtimes');
+  await fs.mkdir(path.join(runtimeDir, 'core'), { recursive: true });
+  await fs.writeFile(path.join(runtimeDir, 'core/boxagent-runtime.json'), JSON.stringify({ base: '/Volumes/BoxAgent/python3' }));
+  const runtime = new PackagedRuntime({ packaged: true, data, runtime: runtimeDir, resources: path.join(data, 'new-resources') });
+  runtime.probe = async () => assert.fail('Must not keep using an old mounted runtime');
+  const result = await runtime.localStatus({}, new AbortController().signal, ['core']);
+  assert.equal(result.core.code, 'component_runtime_relocated');
+  assert.equal(result.core.state, 'unavailable');
+});

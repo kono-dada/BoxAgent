@@ -33,6 +33,9 @@ from boxagent.domain.execution.service import ExecutionService
 from boxagent.domain.interaction.service import InteractionService
 from boxagent.domain.interaction.delegation import delegation_exclusion
 from boxagent.domain.notification import NotificationOutbox
+from boxagent.domain.events.models import EventBatch, EventDecision
+from boxagent.application.event_runs import ExternalEventIntegration
+from boxagent.agent.harness.wechat_tools import WeChatToolGateway
 
 
 class BoxAgentApplication:
@@ -75,12 +78,19 @@ class BoxAgentApplication:
         self.game_news: GameNewsMonitor | None = None
         self._started = False
         self._closed = False
+        self.external_events: ExternalEventIntegration | None = None
+        self.wechat_tools: WeChatToolGateway | None = None
+        self._notification_history_lock = asyncio.Lock()
 
     async def start(self):
         if self._started:
             return
         session = await self.conversation_service.start()
         await self.notification_outbox.start()
+        if self.notification_outbox.repository is not None:
+            for item in self.notification_outbox.repository.list():
+                if item.kind == "external_event" and item.status == "delivered":
+                    await self.conversation_service.append_notification(item)
         if self.skill_authoring is not None:
             self.skill_authoring.recover_interrupted()
         if session:
@@ -91,7 +101,10 @@ class BoxAgentApplication:
         await self.memory.start()
         if self.game_news is not None:
             await self.game_news.start()
+        if self.external_events is not None:
+            await self.external_events.start()
         self._started = True
+        await self.deliver_pending_notifications()
 
     async def announce_game_news(self, game: Game, news: GameNews | None) -> None:
         if news is None:
@@ -198,13 +211,31 @@ class BoxAgentApplication:
 
     async def acknowledge_notification(self, notification_id, channel,
                                        receipt="presented"):
-        item = await self.notification_outbox.acknowledge(
-            notification_id, channel, receipt)
+        async with self._notification_history_lock:
+            item = await self.notification_outbox.acknowledge(
+                notification_id, channel, receipt)
+            if item.kind == "external_event":
+                await self.conversation_service.append_notification(item)
         changes = {}
         if self.state.notification_id == notification_id:
             changes = {"notification_unread": False}
         self.events.emit("notification.delivered", **changes)
         return item.payload()
+
+    async def publish_event_notification(self, batch: EventBatch, decision: EventDecision) -> None:
+        selected = set(decision.source_event_ids)
+        refs = tuple({"source": event.source, "account_id": event.account_id,
+                      "subject_id": event.subject_id, "sender_id": event.sender_id,
+                      "event_id": event.event_id} for event in batch.events if event.event_id in selected)
+        item = await self.notification_outbox.enqueue_event(
+            run_id=batch.run_id, session_id=batch.session_id, summary=decision.summary,
+            source_event_ids=decision.source_event_ids, source_refs=refs)
+        if item.status in {"delivered", "delivering"}:
+            return
+        self.events.emit("notification.pending", notification_id=item.notification_id,
+                         notification_text=item.summary, notification_unread=True)
+        if not await self._deliver_voice_notification(item):
+            self._publish_system_notification(item)
 
     async def deliver_pending_notifications(self):
         for item in await self.notification_outbox.pending():
@@ -598,6 +629,11 @@ class BoxAgentApplication:
                 action = data.get("action") if isinstance(data, dict) else None
                 return self.request_avatar_action(action)
             if name == "run_task":
+                capability = data.get("capability", "desktop")
+                if not isinstance(capability, str) or capability not in {"desktop", "wechat"}:
+                    return {"status": "failed", "message": "Unknown task capability"}
+                if capability == "wechat" and self.wechat_tools is None:
+                    return {"status": "blocked", "message": "微信集成未启用，不能改用 CU 操作微信。"}
                 # The persisted User Final is authoritative. Qwen only decides
                 # whether to delegate; it must not rewrite the request that
                 # becomes the Codex user turn. Keep the argument as a fallback
@@ -614,7 +650,8 @@ class BoxAgentApplication:
                                     "当前是聊天或未明确的请求，未创建新任务。请自然回应或询问用户想做什么。"),
                     }
                 accepted = await self.execution_service.start(
-                    query, interaction=interaction)
+                    query, interaction=interaction,
+                    capability="wechat" if capability == "wechat" else "desktop")
                 return accepted
             if name == "cancel_task":
                 return await self.cancel_task()
@@ -728,6 +765,8 @@ class BoxAgentApplication:
     async def close(self):
         if self._closed:
             return
+        if self.external_events is not None:
+            await self.external_events.close()
         if self.camera is not None:
             await self.camera.close()
         if self.game_news is not None:

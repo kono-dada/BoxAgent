@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const STEPS = ['welcome', 'providers', 'components', 'permissions', 'ready'];
+const STEPS = ['welcome', 'providers', 'components', 'permissions', 'wechat', 'ready'];
 const defaults = () => ({ version: 1, completed: false, step: 'welcome', completedAt: null });
 
 async function readJson(file, fallback) {

@@ -30,11 +30,15 @@ class ExternalEventContext:
         self.environment = environment
         self.sources = sources or {}
 
-    async def prepare(self, batch: EventBatch) -> tuple[str, RuntimeRequest]:
+    async def session_for(self, batch: EventBatch) -> str:
         session = await self.conversation.active_session()
         session_id = batch.session_id or (session.session_id if session else "")
         if not session_id:
             raise RuntimeError("External event run requires a Product Session")
+        return session_id
+
+    async def prepare(self, batch: EventBatch) -> tuple[str, RuntimeRequest]:
+        session_id = await self.session_for(batch)
         turns = await self.conversation.recent_messages(session_id)
         query = "\n".join(event.content[:1000] for event in batch.events)
         memories = await self.memory.evidence(query, session_id=session_id)

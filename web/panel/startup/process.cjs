@@ -1,8 +1,9 @@
 const { spawn } = require('node:child_process');
 
-function run(executable, args, { env = process.env, cwd, signal, timeout = 120000, progress = () => {} } = {}) {
+function run(executable, args, { env = process.env, cwd, signal, timeout = 120000, progress = () => {}, input, killAfter = 2000 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], signal });
+    const child = spawn(executable, args, { cwd, env, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], signal });
+    if (child.stdin) { child.stdin.on('error', () => {}); child.stdin.end(input); }
     let output = '', settled = false, forced, failure;
     const finish = (error) => {
       if (settled) return; settled = true;
@@ -12,7 +13,7 @@ function run(executable, args, { env = process.env, cwd, signal, timeout = 12000
     // Never return raw subprocess stderr: it may contain provider credentials.
     const stop = () => {
       child.kill('SIGTERM');
-      if (!forced) forced = setTimeout(() => child.kill('SIGKILL'), 2000);
+      if (!forced) forced = setTimeout(() => child.kill('SIGKILL'), killAfter);
     };
     const timer = setTimeout(() => { failure = Error('component_process_timeout'); stop(); }, timeout);
     signal?.addEventListener('abort', stop, { once: true });

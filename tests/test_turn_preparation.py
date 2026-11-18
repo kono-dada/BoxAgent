@@ -398,6 +398,72 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(second, return_exceptions=True)
             await session.stop()
 
+    async def test_continuing_speech_keeps_fragments_but_requests_only_latest_response(self) -> None:
+        transcripts: list[str] = []
+        sent: list[dict[str, object]] = []
+
+        async def record(kind: str, payload: dict[str, object]) -> None:
+            if kind == "user_final":
+                text = str(payload["transcript"])
+                transcripts.append(text)
+                await session.respond_to_query("", query_id=text)
+
+        session = QwenRealtimeSession(None, lambda *_a, **_k: None,
+            host_turn_control=True, conversation_event=record, voice_response_grace=.08)
+
+        class Socket:
+            async def send(self, raw: str) -> None:
+                request = json.loads(raw)
+                sent.append(request)
+                if request["type"] == "response.create":
+                    await session.receive({"type": "response.created", "response": {"id": "latest"}})
+
+            async def close(self) -> None:
+                pass
+
+        session.ws = Socket()
+        try:
+            for index, text in enumerate(("帮我看一下", "微信有什么消息", "先读最近那条")):
+                await session.receive({"type": "input_audio_buffer.speech_started"})
+                await session.receive({"type": "input_audio_buffer.speech_stopped"})
+                await session.receive({"type": "conversation.item.input_audio_transcription.completed",
+                                       "item_id": str(index), "transcript": text})
+                await asyncio.sleep(.01)
+            await asyncio.wait_for(session.preparation_task, .5)
+            self.assertEqual(transcripts, ["帮我看一下", "微信有什么消息", "先读最近那条"])
+            self.assertEqual([r["type"] for r in sent], ["response.create"])
+            self.assertEqual(session.response_context["latest"]["query_id"], "先读最近那条")
+            self.assertFalse(session.closed)
+        finally:
+            await session.stop()
+
+    async def test_interruption_cannot_extend_a_missing_response_ack_deadline(self) -> None:
+        trace: list[tuple[str, dict[str, object]]] = []
+
+        def record_trace(event: str, **data: object) -> None:
+            trace.append((event, data))
+
+        session = QwenRealtimeSession(None, lambda *_a, **_k: None,
+            host_turn_control=True, response_ack_timeout=.2, trace=record_trace)
+        session.ws = AsyncMock()
+        session.begin_query("first")
+        first = asyncio.create_task(session._create_response({"kind": "user", "query_id": "first"}))
+        session.preparation_task = first
+        await asyncio.sleep(.01)
+        original_deadline = session.response_ack_deadline
+        await session.receive({"type": "input_audio_buffer.speech_started"})
+        await asyncio.gather(first, return_exceptions=True)
+        # The next fragment arrives after the request's original deadline.
+        await asyncio.sleep(.21)
+        session.begin_query("second")
+        with self.assertRaises(TimeoutError):
+            await asyncio.wait_for(session._create_response({"kind": "user", "query_id": "second"}), .1)
+        self.assertEqual(session.response_ack_deadline, original_deadline)
+        self.assertTrue(session.closed)
+        self.assertIn(("response.ack_timeout", {"product_session_id": "", "phase": "previous_request"}), trace)
+        requests = [json.loads(call.args[0]) for call in session.ws.send.call_args_list]
+        self.assertEqual([r["type"] for r in requests], ["response.create"])
+
     async def test_cancel_race_is_nonfatal_but_other_provider_errors_stay_visible(self):
         emitted = []
         session = QwenRealtimeSession(None, lambda kind, **data: emitted.append((kind, data)))

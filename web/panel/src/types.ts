@@ -240,6 +240,7 @@ declare global {
 }
 
 export interface PetFrame {
+  walkDirection?: -1 | 0 | 1;
   scene?: boolean;
   music?: boolean;
   action?: string;

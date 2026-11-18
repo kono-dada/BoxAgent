@@ -49,6 +49,9 @@ class Settings:
     qwen_websocket_proxy: str = "auto"
     aoq_output_device: str = ""
     web_search_enabled: bool = True
+    wechat_enabled: bool = False
+    wechat_notify_all: bool = False
+    game_companion_enabled: bool = False
 
     @property
     def runs_dir(self) -> Path:
@@ -182,8 +185,8 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         root=ROOT,
         data_dir=data,
         log_dir=configured_log,
-        codex_home=Path(os.environ.get(
-            "BOXAGENT_CODEX_HOME", data / "runtimes/codex-home")),
+        codex_home=Path(read_optional_setting("BOXAGENT_CODEX_HOME")
+                        or data / "runtimes/codex-home").expanduser().resolve(),
         builtin_skills_dir=ROOT / "skills/builtin",
         user_skills_dir=Path(os.environ.get(
             "BOXAGENT_SKILLS_DIR", data / "skills")).expanduser().resolve(),
@@ -211,8 +214,8 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
                          or runtime / "aoq-sdk/1.3.0/frameworks").expanduser().resolve(),
         aoq_work_dir=Path(read_optional_setting("BOXAGENT_AOQ_WORK_DIR")
                           or data / "runtimes/aoq").expanduser().resolve(),
-        task_provider=os.environ.get("BOXAGENT_TASK_PROVIDER", "deepseek"),
-        task_model=os.environ.get("BOXAGENT_TASK_MODEL", "gpt-5.6-luna"),
+        task_provider=read_optional_setting("BOXAGENT_TASK_PROVIDER") or "deepseek",
+        task_model=read_optional_setting("BOXAGENT_TASK_MODEL") or "gpt-5.6-luna",
         deepseek_model=os.environ.get("BOXAGENT_DEEPSEEK_MODEL", "deepseek-flash"),
         deepseek_base_url=os.environ.get("BOXAGENT_DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         deepseek_api_key=read_optional_secret("DEEPSEEK_API_KEY"),
@@ -236,4 +239,9 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         engine_watch=read_bool("BOXAGENT_ENGINE_WATCH", default=(ROOT / ".git").exists()),
         intent_reference_enabled=(read_optional_setting("BOXAGENT_INTENT_REFERENCE") or "1").strip().lower()
                                  not in {"0", "false", "no", "off"},
+        wechat_enabled=(read_optional_setting("BOXAGENT_WECHAT_ENABLED") or "0").strip().lower()
+                       not in {"0", "false", "no", "off"},
+        wechat_notify_all=read_bool("BOXAGENT_WECHAT_NOTIFY_ALL", default=False),
+        game_companion_enabled=(read_optional_setting("BOXAGENT_GAME_COMPANION") or "0").strip().lower()
+                               not in {"0", "false", "no", "off"},
     )

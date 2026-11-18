@@ -25,8 +25,10 @@ class PackagedRuntime {
     const inherited = { ...process.env };
     for (const name of ['DASHSCOPE_API_KEY', 'DEEPSEEK_API_KEY', 'TYPESAFE_API_KEY', 'OPENAI_API_KEY',
       'PYTHONHOME', 'PYTHONPATH', 'PYTHONDONTWRITEBYTECODE']) delete inherited[name];
+    for (const name of Object.keys(inherited)) if (name.startsWith('BOXAGENT_WECHAT_')) delete inherited[name];
     return { ...inherited, ...config, BOXAGENT_PACKAGED: '1', BOXAGENT_DATA_DIR: p.data,
       BOXAGENT_RESOURCE_ROOT: p.root, BOXAGENT_ENGINE_WATCH: '0', BOXAGENT_JEV_MEM_BACKEND: 'jev',
+      BOXAGENT_WECHAT_ENABLED: config.BOXAGENT_WECHAT_ENABLED === '1' ? '1' : '0',
       BOXAGENT_JEV_MEM_PYTHON: p.jevPython, BOXAGENT_PERCEPTION_PYTHON: p.visionPython,
       BOXAGENT_PERCEPTION_MODEL: p.model, BOXAGENT_EMBEDDING_MODEL: path.join(p.data, 'models/embedding'),
       BOXAGENT_AOQ_SDK_DIR: path.join(p.resources, 'native/aoq'),
@@ -51,7 +53,11 @@ class PackagedRuntime {
       const desired = { version: 1, id: inputs.groups[group], base: path.join(p.resources, 'python/bin/python3') };
       const previous = await readJson(marker, null).catch(() => null);
       if (previous?.id === desired.id && previous.base === desired.base) {
-        try { await this.probe(python, group === 'jev' ? 'memory' : group, config, signal); continue; } catch { /* repair below */ }
+        try {
+          await this.probe(python, group === 'jev' ? 'memory' : group, config, signal);
+          this.progress({ component: group, phase: 'ready' });
+          continue;
+        } catch { /* repair below */ }
       }
       this.progress({ component: group, phase: 'installing' });
       // Never delete product data. A partial dependency environment has no success marker.
@@ -63,17 +69,26 @@ class PackagedRuntime {
         '--no-index', '--find-links', path.join(p.resources, 'python-dependencies', group, 'wheels'),
         '--require-hashes', path.join(p.resources, 'python-dependencies', group, 'requirements.lock')],
       { env, signal, timeout: 15 * 60 * 1000, progress: () => this.progress({ component: group, phase: 'installing' }) });
+      let checked = false;
       if (group === 'jev') {
-        this.progress({ component: 'embedding', phase: 'downloading' });
-        await this.probe(python, 'prepare-memory', config, signal);
+        try {
+          this.progress({ component: group, phase: 'checking' });
+          await this.probe(python, 'memory', config, signal);
+          checked = true;
+        } catch (error) {
+          if (signal.aborted) throw error;
+          this.progress({ component: 'embedding', phase: 'downloading' });
+          await this.probe(python, 'prepare-memory', config, signal);
+        }
       }
       if (group === 'vision') {
         const manifest = await fs.readFile(path.join(p.root, 'scripts/model-manifests/qwen3.5-0.8b-mlx.manifest.tsv'), 'utf8');
         await downloadModel(manifest, p.model, { signal, progress: this.progress });
       }
       this.progress({ component: group, phase: 'checking' });
-      await this.probe(python, group === 'jev' ? 'memory' : group, config, signal);
+      if (!checked) await this.probe(python, group === 'jev' ? 'memory' : group, config, signal);
       await atomicWrite(marker, desired);
+      this.progress({ component: group, phase: 'ready' });
     }
   }
   async localStatus(config, signal, components = ['core', 'memory', 'vision']) {
@@ -82,6 +97,12 @@ class PackagedRuntime {
     for (const [name, python, component] of [['core', p.python, 'core'], ['memory', p.jevPython, 'memory'], ['vision', p.visionPython, 'vision']]) {
       if (!components.includes(name)) continue;
       try {
+        if (p.packaged) {
+          const group = name === 'memory' ? 'jev' : name;
+          const marker = await readJson(path.join(p.runtime, group, 'boxagent-runtime.json'), null);
+          if (marker?.base && marker.base !== path.join(p.resources, 'python/bin/python3'))
+            throw Error('component_runtime_relocated');
+        }
         if (name === 'vision') {
           const manifest = await fs.readFile(path.join(p.root, 'scripts/model-manifests/qwen3.5-0.8b-mlx.manifest.tsv'), 'utf8');
           if (!await verifyModel(manifest, p.model)) throw Error('vision_model_missing');

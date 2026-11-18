@@ -17,7 +17,7 @@ function inside(frame, area) {
   assert(frame.x >= area.x && frame.y >= area.y && frame.x + frame.width <= area.x + area.width &&
     frame.y + frame.height <= area.y + area.height, `${JSON.stringify(frame)} outside ${JSON.stringify(area)}`);
 }
-async function fixture(t, { preference, position, initialScale = 1,
+async function fixture(t, { preference, position, initialScale = 1, engineOnline = true,
   displays = [display(1, 0, 0, 1440, 900, 2), display(2, -480, -200, 480, 1920)] } = {}) {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'boxagent-displays-'));
   t.after(() => fs.rmSync(data, { recursive: true, force: true }));
@@ -49,6 +49,8 @@ async function fixture(t, { preference, position, initialScale = 1,
     setPosition(x, y) { Object.assign(this.bounds, { x, y }); }
     setVisibleOnAllWorkspaces() {}
     setAlwaysOnTop() {}
+    setSimpleFullScreen(value) { this.simpleFullScreen = value; }
+    isSimpleFullScreen() { return Boolean(this.simpleFullScreen); }
     setIgnoreMouseEvents(ignore) { this.ignoreMouseEvents = ignore; }
     showInactive() { this.visible = true; }
     hide() { this.visible = false; }
@@ -76,7 +78,12 @@ async function fixture(t, { preference, position, initialScale = 1,
     if (method === 'desktop_set_pet_scale') { scale = params.scale; return { scale }; }
     return {};
   } };
-  const host = new module.exports.DesktopHost({ app: {}, data, service, client: { request: async () => [] },
+  const host = new module.exports.DesktopHost({ app: {}, data, service,
+    client: { online: engineOnline, request: async method => {
+      assert(engineOnline, 'offline startup waits for Engine events instead of requesting state');
+      return method === 'state' ? { voice: 'off', task: 'idle' } : [];
+    } },
+    wakeAllowed: () => false,
     broadcast() {}, registerWindow() {}, showPanel() {}, showCamera() {} });
   t.after(() => host.close());
   const starting = host.start();
@@ -86,6 +93,94 @@ async function fixture(t, { preference, position, initialScale = 1,
   host.showBubble();
   return { host, screen, data, calls };
 }
+
+test('desktop startup restores Engine state after the ready event was already emitted', async t => {
+  const { host } = await fixture(t);
+  assert.equal(host.state.voice, 'off');
+  assert.equal(host.engineReady, true);
+});
+
+test('slow Engine startup does not fail avatar startup or open a diagnostic chat', async t => {
+  const { host } = await fixture(t, { engineOnline: false });
+  host.hideBubble();
+  assert.equal(host.current.ready, true);
+  assert.equal(host.engineReady, false);
+  host.stateChanged({ voice: 'off', task: 'idle' }, { type: 'engine.ready' });
+  assert.equal(host.engineReady, true);
+  assert.equal(host.bubbleOpen, false);
+});
+
+test('idle walking waits for animation and stays inside changing screen limits', async t => {
+  const { host, screen } = await fixture(t);
+  clearInterval(host.pointerTimer);
+  host.hideBubble();
+  const pet = host.current;
+  pet.walkEligible = true;
+  host.stepWalk(0, () => 0);
+  assert.equal(pet.walkAt, 15000);
+  assert.equal(pet.walk, null);
+  host.stepWalk(14999, () => 0);
+  assert.equal(pet.walk, null);
+  pet.walkAt = 1000;
+  host.stepWalk(1000, () => 0);
+  assert.equal(pet.walk.direction, -1);
+  const start = pet.origin.x;
+  host.stepWalk(1040, () => 0);
+  assert.equal(pet.origin.x, start, 'no sliding before walking animation starts');
+  pet.walkPlaying = true;
+  host.stepWalk(1080, () => 0);
+  assert(pet.origin.x < start);
+  for (let now = 1120; now <= 60000 && pet.walk; now += 40) host.stepWalk(now, () => 0);
+  assert.equal(pet.walk, null);
+  assert.equal(pet.origin.x, screen.displays[0].workArea.x + 8);
+  assert.equal(pet.walkAt - pet.walkTick, 15000);
+  pet.walk = { target: 9999, direction: 1 };
+  screen.displays[0].workArea.width = pet.viewport.width + 80;
+  for (let now = 60040; now <= 65000 && pet.walk; now += 40) host.stepWalk(now, () => 0);
+  assert(pet.origin.x + pet.viewport.width <= screen.displays[0].workArea.width - 8);
+});
+
+test('walking pauses for conversation, speech, dragging, music, task panels and avatar replacement', async t => {
+  const { host } = await fixture(t);
+  clearInterval(host.pointerTimer);
+  host.hideBubble();
+  const pet = host.current;
+  pet.walkEligible = pet.walkPlaying = true;
+  const pauses = [
+    ['bubbleOpen', true], ['drag', {}], ['pending', {}], ['loading', true],
+    ['musicActive', true], ['tasks', { isVisible: () => true }],
+    ['state', { speaking: true }], ['state', { user_speaking: true }],
+  ];
+  for (const [key, value] of pauses) {
+    const previous = host[key];
+    host[key] = value;
+    const start = pet.origin.x;
+    pet.walk = { target: start + 100, direction: 1 };
+    host.stepWalk(20000, () => 0);
+    assert.equal(pet.walk, null, key);
+    assert.equal(pet.origin.x, start, key);
+    host[key] = previous;
+  }
+});
+
+test('walking on a display with negative coordinates keeps the scene aligned and stops on resize', async t => {
+  const { host, screen } = await fixture(t, { displays: [display(1, 0, 0, 1440, 900), display(2, -1440, -100, 1440, 900)] });
+  clearInterval(host.pointerTimer);
+  host.setPetDisplay('2');
+  host.hideBubble();
+  const pet = host.current;
+  pet.walkEligible = pet.walkPlaying = true;
+  pet.walkAt = 1;
+  host.stepWalk(1000, () => 0);
+  for (let now = 1040; now <= 60000 && pet.walk; now += 40) host.stepWalk(now, () => 0);
+  assert.equal(pet.origin.x, screen.displays[1].bounds.x + 8);
+  host.sendPet(pet);
+  assert.equal(pet.stage.getBounds().x + pet.canvas.x + pet.crop.x, pet.window.getBounds().x);
+  pet.walk = { target: -500, direction: 1 };
+  await host.request('desktop_set_pet_scale', { scale: 2 });
+  assert.equal(pet.walk, null);
+  inside(pet.window.getBounds(), screen.displays[1].workArea);
+});
 
 test('select secondary moves companion, chat, task panels and notifications together', async t => {
   const { host, screen, calls } = await fixture(t);
@@ -113,6 +208,29 @@ function drag(host, window, dx, dy) {
   host.dragWindow(window.webContents, { phase: 'move', buttons: 1, point: { x: point.x + dx, y: point.y + dy } });
   host.dragWindow(window.webContents, { phase: 'end', buttons: 0 });
 }
+
+test('macOS fullscreen stage tracks the avatar after moving to another display', async t => {
+  const { host, screen } = await fixture(t);
+  const { stage, window } = host.current;
+  let rendered;
+  stage.webContents.send = (channel, frame) => { if (channel === 'desktop:pet') rendered = frame; };
+  host.setPetDisplay('2');
+  assert.equal(stage.isSimpleFullScreen(), true);
+  assert.deepEqual(stage.getBounds(), screen.displays[1].bounds);
+
+  const assertAligned = () => {
+    const stageFrame = stage.getBounds();
+    const hit = window.getBounds();
+    assert.equal(stageFrame.x + rendered.canvas.x + rendered.crop.x, hit.x);
+    assert.equal(stageFrame.y + rendered.canvas.y + rendered.crop.y, hit.y);
+  };
+  assertAligned();
+  drag(host, window, 0, -80);
+  assertAligned();
+  host.setPetDisplay('1');
+  assert.equal(stage.isSimpleFullScreen(), false);
+  assertAligned();
+});
 
 test('split dragging is independent and constrained to the assigned screen', async t => {
   const { host, screen } = await fixture(t);

@@ -24,7 +24,7 @@ def check_component(component: Component, *, data: Path, model: Path) -> ProbeRe
     if sys.version_info[:2] != (3, 12):
         return {'state': 'unavailable', 'code': 'python_version_mismatch'}
     if component == 'core':
-        for name in ('ssl', 'sqlite3', 'pyaudio', 'websockets', 'PIL', 'AppKit', 'Quartz'):
+        for name in ('ssl', 'sqlite3', 'pyaudio', 'websockets', 'PIL', 'AppKit', 'Quartz', 'zstandard'):
             importlib.import_module(name)
         return {'state': 'ready', 'code': ''}
     if component == 'prepare-memory':

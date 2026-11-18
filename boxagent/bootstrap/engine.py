@@ -10,6 +10,8 @@ from boxagent.agent.harness.context import RuntimeContextProjector
 from boxagent.agent.harness.instructions import append_persona
 from boxagent.agent.harness.persona import Persona, load_persona
 from boxagent.agent.harness.policies import ComputerUseToolGateway, can_auto_approve_computer_use
+from boxagent.agent.harness.policies.tools import ApplicationTools
+from boxagent.domain.execution.service import TaskCapability
 from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
@@ -74,6 +76,7 @@ def create_voice_factory(app_settings, *, persona=None,
     # Keep realtime audio dependencies out of task-runtime imports and tests.
     from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
     from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession, aoq_preflight
+    from boxagent.agent.harness.wechat_tools import WECHAT_FRONT_INSTRUCTIONS
 
     environment_provider = environment_provider or LocalSystemEnvironmentProvider()
     context_projector = context_projector or RuntimeContextProjector()
@@ -130,7 +133,9 @@ def create_voice_factory(app_settings, *, persona=None,
         session_class,
         model=app_settings.voice_model,
         key=app_settings.qwen_api_key,
-        instructions=append_persona(INSTRUCTIONS, persona),
+        instructions=append_persona(
+            INSTRUCTIONS + (WECHAT_FRONT_INSTRUCTIONS if getattr(app_settings, "wechat_enabled", False) else ""),
+            persona),
         trace=qwen_trace,
         environment_context=lambda: context_projector.environment_packet(
             environment_provider.capture()),
@@ -144,10 +149,15 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
                          request_builder=None, app_settings=None, registry=None,
                          session_id=None, interaction_id=None, prior_messages=(),
                          runtime_binding=None, conversation_service=None,
-                         environment_provider=None, memory=None, session_events=None):
+                         environment_provider=None, memory=None, session_events=None,
+                         application_tools: ApplicationTools | None = None,
+                         capability: TaskCapability = "desktop"):
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)
     selected = registry.runtime(provider or app_settings.task_provider, model)
+    if capability == "wechat" and application_tools is None:
+        raise RuntimeError("微信专用接口未启用；禁止退回 CU")
+    runtime_name = "wechat" if capability == "wechat" else "codex"
     request_builder = request_builder or RuntimeRequestBuilder(
         persona=load_persona(app_settings.soul_file))
     session_factory = session_factory or partial(
@@ -162,19 +172,21 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         from boxagent.infrastructure.persistence.attachments import AttachmentStore
         attachments = AttachmentStore(app_settings.data_dir / "attachments/v1/objects")
         tool_gateway_factory = partial(ComputerUseToolGateway, image_store=attachments.put)
+    if application_tools is not None:
+        tool_gateway_factory = partial(tool_gateway_factory, application_tools=application_tools)
     def record_task(kind, data):
         mapping = {"task_started": "task/start", "task_ended": "task/end",
                    "runtime_request_sent": "context/request", "runtime_reference_removed": "context/expired"}
         if session_events is not None and session_id and kind in mapping:
             session_events.append(session_id, mapping[kind], {
                 **data, "task_id": task_id, "interaction_id": interaction_id,
-                "runtime": "codex", "reference": f"tasks/{task_id}"})
+                    "runtime": runtime_name, "reference": f"tasks/{task_id}"})
     return TaskExecutor(
         task_id,
         provider=selected.provider,
         model=selected.model,
         output=(app_settings.data_dir / "sessions" / session_id / "tasks" / task_id
-                if unified
+                if unified and session_id
                 else app_settings.task_run_dir(task_id)),
         runtime_factory=selected.factory,
         session_factory=session_factory,
@@ -193,12 +205,12 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         event_sink=record_task if session_events is not None else None,
         on_thread_bound=(
             lambda thread_id: conversation_service.bind_runtime(
-                session_id, runtime="codex", provider=selected.provider,
+                session_id, runtime=runtime_name, provider=selected.provider,
                 model=selected.model, thread_id=thread_id)
             if conversation_service and session_id else None),
         on_context_synced=(
             lambda actual: conversation_service.mark_runtime_synced(
-                session_id, "codex", max(
+                session_id, runtime_name, max(
                     [getattr(e, "sequence", 0) for e in actual] + [0]), interaction_id or "",
                 tuple(getattr(e, "event_id", "") for e in actual if getattr(e, "event_id", "")))
             if conversation_service and session_id else None),
@@ -262,6 +274,12 @@ def create_application(publish, *, task_provider=None, task_model=None,
             load_windows_skill, resolve_computer_use_home()))
             if sys.platform == "win32" and not os.environ.get("BOXAGENT_COMPUTER_USE_CLIENT")
             else CodexAppServer),
+    )
+    wechat_runtime_host = CodexRuntimeHost(
+        output=app_settings.log_dir / "runtime/wechat",
+        workspace=app_settings.root, codex_home=app_settings.codex_home,
+        model_profile=selected.profile, permission_check=can_auto_approve_computer_use,
+        server_factory=partial(CodexAppServer, computer_use_enabled=False),
     )
     checkpoint_log_path = app_settings.log_dir / "context/checkpoints.jsonl"
     memory_log_path = app_settings.log_dir / "memory/events.jsonl"
@@ -336,15 +354,17 @@ def create_application(publish, *, task_provider=None, task_model=None,
 
     application = BoxAgentApplication(
         publish,
-        lambda task_id, **context: create_task_executor(
+        lambda task_id, capability="desktop", **context: create_task_executor(
             task_id, provider=task_provider, model=task_model, auto_approve=auto_approve,
-            session_factory=runtime_host.create_session,
+            session_factory=(wechat_runtime_host if capability == "wechat" else runtime_host).create_session,
+            capability=capability,
             request_builder=RuntimeRequestBuilder(
                 persona=current_persona(), context_assembler=context_projector),
             app_settings=app_settings, registry=registry,
             environment_provider=environment_provider,
             memory=memory,
-            conversation_service=conversation_service, session_events=session_events, **context),
+            conversation_service=conversation_service, session_events=session_events,
+            application_tools=application.wechat_tools, **context),
         front_voice_factory,
         memory=memory,
         turn_preparer=turn_preparer if voice_factory is None else None,
@@ -361,13 +381,19 @@ def create_application(publish, *, task_provider=None, task_model=None,
             lambda store, clock: QwenContextRecorder(
                 store, model=app_settings.voice_model, clock=clock),
             memory_log_path=memory_log_path),
-        runtime_resources=(runtime_host, *((conversation_store,) if use_unified else ()),
+        runtime_resources=(runtime_host, wechat_runtime_host, *((conversation_store,) if use_unified else ()),
                            *((intent_reference,) if intent_reference else ()),
                            turn_preparer, checkpoint_coordinator),
         voice_history_builder=partial(
             context_projector.restore_context,
             character_budget=app_settings.qwen_history_character_budget),
     )
+    if app_settings.wechat_enabled:
+        from boxagent.bootstrap.external_events import configure_external_events
+        event_host = configure_external_events(application, app_settings,
+            builder=RuntimeRequestBuilder(persona=current_persona(), context_assembler=context_projector),
+            profile=selected.profile, environment=environment_provider)
+        application.runtime_resources = (*application.runtime_resources, event_host)
     from boxagent.application.camera import CameraInteractionService
 
     if sys.platform == "darwin":
@@ -378,6 +404,9 @@ def create_application(publish, *, task_provider=None, task_model=None,
         steam = SteamGames(Path.home() / "Library/Application Support/Steam/steamapps")
         application.game_news = GameNewsMonitor(steam.running, steam_game_topic,
                                                 application.announce_game_news)
+        if app_settings.game_companion_enabled:
+            from boxagent.bootstrap.game_companion import install_game_companion
+            install_game_companion(application, app_settings)
     application.interaction_service.companion_name = lambda: current_persona().name
     application.camera = CameraInteractionService(application.events, application.interaction_service)
     application.observer = WindowSummary(

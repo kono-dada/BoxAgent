@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "clientVersion": "4.1.15",
+  "build": "270115",
+  "url": null,
+  "sha256": null,
+  "size": null,
+  "note": "Download stays disabled until an exact build archive is independently verified and pinned. Never substitute the mutable 4.1.15 CDN URL."
+}

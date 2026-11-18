@@ -148,6 +148,9 @@ class EngineServer:
                     "protocol_version": PROTOCOL_VERSION}
         if method == "state":
             return self.application.state.payload()
+        if method == "external_events_status":
+            integration = self.application.external_events
+            return await integration.status() if integration else {"enabled": False}
         if method in {"camera_start", "camera_frame", "camera_stop"}:
             camera = self.application.camera
             if camera is None:

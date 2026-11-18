@@ -33,12 +33,13 @@ export function transcript(
     }));
   const lastUser =
     [...rows].reverse().find((row) => row.role === "user")?.content || "";
-  const lastAssistant =
-    [...rows].reverse().find((row) => row.role === "assistant")?.content || "";
   const user = pending || state.user_text;
   if (user && user !== lastUser)
     rows.push({ id: "live-user", role: "user", content: user });
-  if (state.assistant_text && state.assistant_text !== lastAssistant)
+  // Notifications can arrive after a final reply while runtime retains that reply.
+  // Only append text that has not already been committed to this session.
+  if (state.assistant_text && !history.some((row) =>
+      row.type === "message.final" && row.role === "assistant" && row.content === state.assistant_text))
     rows.push({
       id: "live-assistant",
       role: "assistant",

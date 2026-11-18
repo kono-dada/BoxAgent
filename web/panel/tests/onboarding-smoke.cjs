@@ -14,12 +14,28 @@ app.whenReady().then(async () => {
   await fs.rm(path.join(data, 'state'), { recursive: true, force: true });
   let storageUnlocked = true;
   const encryption = { isEncryptionAvailable: () => storageUnlocked, encryptString: value => Buffer.from(value), decryptString: value => value.toString() };
-  let healthy = true, shown = 0, granted = false;
+  let healthy = true, shown = 0, granted = false, speechGranted = false;
   const ready = () => ({ state: 'ready', code: '' });
+  const credentials = new CredentialStore(path.join(data, 'state/credentials.json'), encryption);
+  const wechatChecks = { client: { state: 'missing', code: 'wechat_client_missing' },
+    reading: { state: 'missing', code: 'wechat_keys_missing' }, listening: { state: 'missing', code: 'wechat_keys_missing' },
+    sending: { state: 'missing', code: 'wechat_native_check_required' }, downloadAvailable: true };
+  const wechat = {
+    snapshot: () => ({ ...wechatChecks }), manifest: async () => {}, refresh: async () => {},
+    provision: async () => { wechatChecks.client = ready(); },
+    capture: async () => {
+      wechatChecks.reading = ready(); wechatChecks.listening = ready();
+      await credentials.save({ BOXAGENT_WECHAT_APP: '/fixture/WeChat.app', BOXAGENT_WECHAT_DB_ROOT: '/fixture/db_storage',
+        BOXAGENT_WECHAT_KEY_MATERIAL: JSON.stringify({ keys: { 'message/message_0.db': 'a1'.repeat(32) } }) });
+    },
+    verify: async (_signal, native) => { if (native) wechatChecks.sending = ready(); },
+  };
   let setup;
   coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true },
-    credentials: new CredentialStore(path.join(data, 'state/credentials.json'), encryption),
-    permissions: { snapshot: () => ({ microphone: granted ? 'granted' : 'denied', screen: 'denied', accessibility: false }), request: async () => { granted = true; } },
+    credentials, wechat,
+    detectTools: async () => ({ codex: '/fixture/codex', client: '/fixture/SkyComputerUseClient' }),
+    permissions: { snapshot: () => ({ microphone: granted ? 'granted' : 'denied', speech: speechGranted ? 'granted' : 'not-determined', screen: 'denied', accessibility: false }),
+      request: async permission => { if (permission === 'speech') speechGranted = true; else granted = true; } },
     runtime: { localStatus: async () => ({ core: ready(), memory: ready(), vision: ready() }), environment: value => value,
       install: async (_config, signal) => {
         coordinator.progress = { component: 'vision-model', phase: 'downloading', bytes: 64 * 1024 ** 2, total: 256 * 1024 ** 2 };
@@ -33,11 +49,14 @@ app.whenReady().then(async () => {
   });
   setup = createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot: path.resolve(__dirname, '..'), registerWindow: () => {}, coordinator, shell: { showItemInFolder: () => {} } });
   const window = setup.show();
+  window.webContents.setBackgroundThrottling(false);
   await new Promise(resolve => window.webContents.once('did-finish-load', resolve));
   await coordinator.start();
   assert.deepEqual(window.getContentSize(), [500, 570]);
   const evaluate = script => window.webContents.executeJavaScript(script);
   const capture = async name => {
+    window.webContents.invalidate();
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await new Promise(resolve => setTimeout(resolve, 350));
     await fs.writeFile(path.join(data, `screenshots/${name}.png`), (await window.webContents.capturePage()).toPNG());
   };
@@ -146,6 +165,13 @@ app.whenReady().then(async () => {
   await evaluate(`document.querySelector('footer .setup-primary').click()`);
   await waitFor(`Boolean(document.querySelector('progress'))`);
   assert.equal(await evaluate(`document.querySelector('progress').position`), .25);
+  assert.equal(await evaluate(`document.querySelectorAll('.setup-feature-card').length`), 2);
+  assert.equal(await evaluate(`document.querySelector('.setup-progress-percent').textContent`), '25%');
+  assert.equal(await evaluate(`(() => {
+    const button = document.querySelector('.setup-cancel'), style = getComputedStyle(button);
+    return button.textContent.includes('取消下载') && parseFloat(style.borderTopWidth) >= 1 &&
+      style.borderTopStyle !== 'none' && button.getBoundingClientRect().height >= 32;
+  })()`), true, 'Cancel must look and behave like a button');
   await capture('components-downloading');
   await evaluate(`document.querySelector('.setup-progress button').click()`);
   await waitFor(`document.querySelector('[role=alert]')?.textContent.includes('已取消')`);
@@ -155,14 +181,42 @@ app.whenReady().then(async () => {
   await waitFor(`document.querySelector('footer .setup-primary')?.textContent === '下一步'`);
   await evaluate(`document.querySelector('footer .setup-primary').click()`);
   await waitFor(`document.querySelector('h1')?.textContent === '权限与体验'`);
+  assert.equal(await evaluate(`document.querySelectorAll('.setup-permission').length`), 4);
+  assert.equal(await evaluate(`document.querySelectorAll('.setup-permission h3')[1].textContent`), '语音识别');
   await capture('permissions');
   await checkLayout();
+  assert.equal(await evaluate(`document.querySelector('.setup-desktop-details summary')?.textContent.includes('桌面操作已就绪')`), true);
+  assert.equal(await evaluate(`document.querySelector('.setup-tools-repair').open`), false, 'Manual tool selection is repair-only');
   await evaluate(`document.querySelector('.setup-permission button').click()`);
   await waitFor(`document.querySelector('.setup-permission button')?.textContent === '已授权'`);
+  await evaluate(`document.querySelectorAll('.setup-permission button')[1].click()`);
+  await waitFor(`document.querySelectorAll('.setup-permission button')[1]?.textContent === '已授权'`);
+  await capture('permissions-granted');
   await evaluate(`document.querySelector('.setup-details').open = true; document.querySelector('.setup-content').scrollTop = 1000;`);
   await checkLayout();
   await capture('permissions-tools');
+  await evaluate(`document.querySelector('.setup-tools-repair').open = true; document.querySelector('.setup-content').scrollTop = 1000;`);
+  await checkLayout();
+  await capture('permissions-tools-repair');
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }, { name: 'prefers-contrast', value: 'more' }] });
+  await evaluate(`document.querySelector('footer .setup-primary').click()`);
+  await waitFor(`document.querySelector('h1')?.textContent === '接入微信'`);
+  await checkLayout();
+  assert.equal(await evaluate(`document.querySelectorAll('.setup-wechat-steps > li').length`), 3);
+  assert.equal(await evaluate(`document.querySelector('.setup-page').textContent.includes('同账号登录副本可能让主微信下线')`), true);
+  await capture('wechat');
+  await evaluate(`[...document.querySelectorAll('.setup-wechat-steps button')].find(button => button.textContent === '准备微信副本').click()`);
+  await waitFor(`document.querySelectorAll('.setup-wechat-stage')[1].open`);
+  await capture('wechat-login');
+  await evaluate(`[...document.querySelectorAll('.setup-wechat-steps button')].find(button => button.textContent === '启动并扫码登录').click()`);
+  await waitFor(`document.querySelectorAll('.setup-wechat-stage')[2].open`);
+  await evaluate(`[...document.querySelectorAll('.setup-wechat-steps button')].find(button => button.textContent === '后台发送预检').click()`);
+  await waitFor(`document.querySelectorAll('.setup-status .is-ready').length === 3`);
+  assert.equal(coordinator.summary.wechatEnabled, false, 'Verification alone cannot enable message processing');
+  await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent === '启用微信').click()`);
+  await waitFor(`Boolean([...document.querySelectorAll('button')].find(button => button.textContent === '停用微信'))`);
+  assert.ok(!JSON.stringify(coordinator.snapshot()).includes('a1'.repeat(32)), 'Credentials must never reach renderer snapshots');
+  await capture('wechat-ready');
   await evaluate(`document.querySelector('footer .setup-primary').click()`);
   await waitFor(`document.querySelector('h1')?.textContent === '准备好了'`);
   assert.equal(await evaluate(`document.querySelector('.setup-page').querySelectorAll(':scope > p').length`), 0, 'Ready page should keep technical copy inside details');
@@ -172,7 +226,7 @@ app.whenReady().then(async () => {
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
   await capture('ready');
   await evaluate(`document.querySelectorAll('.setup-language button')[1].click()`);
-  for (const step of ['welcome', 'providers', 'components', 'permissions', 'ready']) {
+  for (const step of ['welcome', 'providers', 'components', 'permissions', 'wechat', 'ready']) {
     await coordinator.request('step', { step });
     await waitFor(`document.querySelector('.setup-shell')?.dataset.step === '${step}'`);
     await checkLayout();
@@ -183,7 +237,7 @@ app.whenReady().then(async () => {
   await capture('ready-no-transparency');
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [] });
   window.webContents.setZoomFactor(2);
-  for (const step of ['welcome', 'providers', 'components', 'permissions', 'ready']) {
+  for (const step of ['welcome', 'providers', 'components', 'permissions', 'wechat', 'ready']) {
     await coordinator.request('step', { step });
     await waitFor(`document.querySelector('.setup-shell')?.dataset.step === '${step}'`);
     await checkLayout();
@@ -196,12 +250,16 @@ app.whenReady().then(async () => {
   assert.equal(shown, 0);
   healthy = true;
   await coordinator.request('refresh');
+  delete coordinator.capabilities.qwen;
+  delete coordinator.capabilities.task;
+  coordinator.emit();
+  await waitFor(`document.querySelector('footer .setup-primary')?.textContent === 'Check and start'`);
   await waitFor(`!document.querySelector('footer .setup-primary').disabled`);
   await evaluate(`document.querySelector('footer .setup-primary').click()`);
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(coordinator.state.completed, true);
   assert.equal(shown, 1);
-  console.log('PASS: real Electron/React, five pages in both languages, compact layout, keyboard submit, save/auth errors, preserved keys, download cancellation, permissions, motion/contrast/transparency preferences, completion gate.');
+  console.log('PASS: real Electron/React, six pages in both languages, WeChat isolation copy, compact layout, keyboard submit, save/auth errors, preserved keys, download cancellation, permissions, motion/contrast/transparency preferences, completion gate.');
   app.quit();
 }).catch(error => { console.error(error); app.exit(1); });
 app.on('before-quit', () => coordinator?.close());

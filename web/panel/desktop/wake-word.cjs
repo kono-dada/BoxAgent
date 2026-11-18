@@ -16,14 +16,18 @@ function wakeReply(state, now = Date.now()) {
 }
 
 class WakeWord {
-  constructor({ onError, onWake }) {
-    Object.assign(this, { onError, onWake });
+  constructor({ onError, onWake, spawnListener = spawn,
+    schedule = setTimeout, cancel = clearTimeout }) {
+    Object.assign(this, { onError, onWake, spawnListener, schedule, cancel });
     this.enabled = true;
+    this.failures = 0;
   }
   setEnabled(enabled) {
     this.enabled = enabled;
     if (!enabled) {
       this.stopListening();
+    } else {
+      this.sync(this.canListen);
     }
   }
   setName(name) {
@@ -35,9 +39,9 @@ class WakeWord {
   sync(canListen) {
     this.canListen = canListen;
     if (!canListen) this.stopListening();
-    if (!this.enabled || !canListen || !this.name || this.listener || this.replying) return;
+    if (!this.enabled || !canListen || !this.name || this.listener || this.replying || this.retry) return;
     const helper = path.join(path.dirname(process.execPath), "BoxAgentWakeListener");
-    const child = spawn(helper, [this.name], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = this.spawnListener(helper, [this.name], { stdio: ["ignore", "pipe", "pipe"] });
     this.listener = child;
     let detected = false;
     let diagnostic = "";
@@ -55,10 +59,18 @@ class WakeWord {
         return;
       }
       if (!detected) {
-        this.setEnabled(false);
         this.onError(diagnostic.trim() || "无法启动本机语音唤醒，请检查麦克风和语音识别权限");
+        if (this.enabled && this.canListen) {
+          const delay = Math.min(30000, 2000 * 2 ** Math.min(this.failures++, 4));
+          this.retry = this.schedule(() => {
+            this.retry = undefined;
+            this.sync(this.canListen);
+          }, delay);
+          this.retry.unref?.();
+        }
         return;
       }
+      this.failures = 0;
       if (!this.enabled || !this.canListen) return;
       this.replying = true;
       Promise.resolve().then(() => this.onWake()).catch((error) => {
@@ -70,6 +82,8 @@ class WakeWord {
     });
   }
   stopListening() {
+    this.cancel(this.retry);
+    this.retry = undefined;
     this.listener?.kill();
   }
 }

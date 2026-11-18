@@ -140,7 +140,7 @@ const server = net.createServer((socket) => {
 const timeout = setTimeout(() => {
   console.error("desktop fixture timed out");
   app.exit(1);
-}, 60000);
+}, process.argv.includes('--walking') ? 90000 : 60000);
 const wait = async (condition, label) => {
   for (let i = 0; i < 300; i++) {
     if (await condition()) return;
@@ -228,6 +228,12 @@ server.listen(path.join(data, "engine.sock"), () => {
       for (const pixel of [0, renderSize.width - 1, (renderSize.height - 1) * renderSize.width])
         assert.equal(renderPixels[pixel * 4 + 3], 0, 'The display render layer must leave desktop corners transparent');
       assert.equal(stage.isFocusable(), false, 'The display render layer cannot take keyboard focus');
+      if (process.argv.includes('--walking')) {
+        await require('./desktop-walk-smoke.cjs').run({ pet, stage, bubble, js, wait });
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
       if (process.argv.includes('--displays')) {
         await require('./desktop-display-smoke.cjs').run({ pet, stage, bubble, js, wait, dragBy, emit });
         clearTimeout(timeout);

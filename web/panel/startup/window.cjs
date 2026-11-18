@@ -25,6 +25,23 @@ function createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot, registerWin
       const patch = await require('./desktop-tools.cjs').chooseDesktopTool(params.kind, selected.filePaths[0]);
       return coordinator.request('save', patch);
     }
+    if (method === 'wechat-choose-client' || method === 'wechat-choose-account') {
+      if (!dialog || coordinator.busy) throw Error('setup_busy');
+      const account = method === 'wechat-choose-account';
+      const selected = await dialog.showOpenDialog(window, account ? {
+        title: '选择微信副本的 db_storage 文件夹',
+        defaultPath: path.join(app.getPath('home'), 'Library/Containers/com.tencent.xinWeChatBoxAgent/Data/Documents/xwechat_files'),
+        properties: ['openDirectory'],
+      } : { title: '选择微信 4.1.15（build 270115）', defaultPath: '/Applications/WeChat.app',
+        properties: ['openFile'], filters: [{ name: '微信应用或安装包', extensions: ['app', 'dmg'] }] });
+      if (selected.canceled || selected.filePaths.length !== 1) return coordinator.snapshot();
+      return coordinator.request(account ? 'wechat-account' : 'wechat-prepare',
+        account ? { root: selected.filePaths[0] } : { source: selected.filePaths[0] });
+    }
+    if (method === 'wechat-developer-tools') {
+      await require('./process.cjs').run('/usr/bin/xcode-select', ['--install'], { timeout: 20000 });
+      return coordinator.snapshot();
+    }
     if (method === 'official-tools') {
       await shell.openExternal('https://github.com/openai/codex/releases');
       return coordinator.snapshot();
@@ -35,6 +52,8 @@ function createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot, registerWin
       await shell.openExternal(urls[params.kind]);
       return coordinator.snapshot();
     }
+    // File paths come from the native picker above, never renderer-provided paths.
+    if (['wechat-prepare', 'wechat-account'].includes(method)) throw Error('invalid_setup_method');
     const result = await coordinator.request(method, params);
     if (method === 'open-logs') shell.showItemInFolder(path.join(coordinator.paths.data, 'logs'));
     if (method === 'complete' && result.onboarding.completed && !result.error) window?.close();

@@ -84,6 +84,12 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 
 `auto` 会在 Workspace ID 和两个 Framework 都就绪时选择 AOQ。WebSocket fallback 只用于开发诊断，不属于当前正式支持配置；降级原因写入 `<BOXAGENT_DATA_DIR>/logs/runtime/qwen/events.jsonl`。AOQ Token 开发期由 Engine 用 API Key 换取；正式发布应改为业务 AppServer 下发短期 Token，不应将 API Key 放入客户端安装包。
 
+`BOXAGENT_TASK_PROVIDER` 选择的是底层模型 API 来源，不是执行器。设为 `deepseek` 时，
+Codex App Server 调用 DeepSeek API；设为 `codex` 时，同一执行器通过 Codex 登录调用 OpenAI。
+微信新消息的 Agent 判断、上下文压缩也使用该来源；实时语音与记忆决策使用各自的配置。
+启动命令的 `--task-provider` 优先于 `.env.local`，所以修改来源后应重启整个桌宠，
+仅重启 Engine 可能继续沿用旧的启动参数。
+
 桌面任务默认要求 `BOXAGENT_TASK_PROVIDER=deepseek` 与 `DEEPSEEK_API_KEY`。Bootstrap 只把密钥以环境变量注入 Codex App Server 子进程；命令行和模型目录不包含真实密钥。Codex 通过仓库内的 DeepSeek 模型目录和 `wire_api="responses"` 调用 `deepseek-flash`，继续复用统一工具循环。
 
 配置完成后，也可以从项目根目录显式启动 DeepSeek 规划路径：
@@ -109,6 +115,25 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 ```
 
 用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 macOS 系统依赖装进视觉环境。
+
+### 《鸣潮》陪玩预览
+
+在 macOS 源码版中设置 `BOXAGENT_GAME_COMPANION=1` 后启动桌宠。打开实时语音，再把《鸣潮》放到前台。预览使用上面的本地视觉环境和屏幕录制权限，麦克风通话关闭或游戏退出前台时暂停。
+
+本机已通过桌面安装向导准备模型时，可以让源码版直接使用这份视觉环境。
+
+```sh
+BOXAGENT_GAME_COMPANION=1 \
+  BOXAGENT_PERCEPTION_PYTHON="$HOME/Library/Application Support/BoxAgent/runtimes/vision/bin/python" \
+  BOXAGENT_PERCEPTION_MODEL="$HOME/Library/Application Support/BoxAgent/models/qwen3.5-0.8b-mlx" \
+  ./scripts/run-pet.sh
+```
+
+陪玩每半秒尝试采一帧，在最近约六秒的画面里判断交手是否已经结束。模型能指出有画面依据的操作时，桌宠才会挑空闲时说一句。实际开始播放后的 20 秒内，你可以追问「哪一下？」。截图由本地模型处理，语音会话使用短评和追问所需的文字。
+
+语音和文字对话也会使用当前通话中仍有效的游戏画面观察。你可以直接说「好吓人」或「刚才跑过去的是什么」，模型会根据对话和画面判断能确认到哪一步。画面观察包含时间范围和所见内容，切走游戏后停止提供新的画面上下文。
+
+进入游戏时，本机 Vision 会读取任务追踪栏。连续两次读到相同的任务目标后，陪玩保存进度，并在语音空闲时问候一次。下次启动游戏读到相同的目标时，问候会提到上次的进度。进度保存在 BoxAgent 数据目录的 `games/wuwa-progress.json`。日志中的 `wuwa.entry.playback` 记录从首次读清任务栏的采样帧到语音开始播放的时间。
 
 ## 电脑操作执行器
 

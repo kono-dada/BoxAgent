@@ -39,7 +39,7 @@ def clean_summary(text):
     return "".join(kept)
 
 
-def focused_window() -> WindowInfo | None:
+def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
     """选择前台应用最上层的普通窗口；不截整屏，也不改变焦点。"""
     if sys.platform == "win32":
         from boxagent.infrastructure.perception.windows import focused_window as windows_focused_window
@@ -49,7 +49,8 @@ def focused_window() -> WindowInfo | None:
     import AppKit as AK
     import Quartz as Q
     app = AK.NSWorkspace.sharedWorkspace().frontmostApplication()
-    if not app or app.processIdentifier() == os.getpid():
+    if (not app or app.processIdentifier() == os.getpid()
+            or (bundle_id is not None and app.bundleIdentifier() != bundle_id)):
         return None
     windows = Q.CGWindowListCopyWindowInfo(
         Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements,
@@ -123,17 +124,28 @@ class WindowSummary:
             env={**os.environ, "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"})
         await self.reply(120)
 
-    async def _infer(self, path: Path, question: str = "") -> dict:
+    async def _infer(self, path: Path, question: str = "", *, analysis_prompt: str = "") -> dict:
         async with self.inference_lock:
             try:
                 await self._ensure_model()
-                self.process.stdin.write((json.dumps({"image": str(path), "question": question}) + "\n").encode())
+                request = {"image": str(path), "question": question}
+                if analysis_prompt:
+                    request["analysis_prompt"] = analysis_prompt
+                self.process.stdin.write((json.dumps(request) + "\n").encode())
                 await self.process.stdin.drain()
                 return await self.reply(60)
             except (asyncio.CancelledError, TimeoutError, RuntimeError, OSError):
                 # An unread reply must never become the next request's answer.
                 await self._stop_model()
                 raise
+
+    async def analyze_image(self, image: bytes, prompt: str) -> str:
+        """Return the raw local answer to a host-supplied visual analysis prompt."""
+        with tempfile.TemporaryDirectory(prefix="boxagent-game-review-") as directory:
+            path = Path(directory) / "clip.jpg"
+            path.write_bytes(image)
+            result = await self._infer(path, analysis_prompt=prompt)
+        return str(result.get("summary", "")).strip()
 
     async def describe(self, image: bytes, question: str) -> str:
         """Reread saved bytes locally; no new desktop capture or image upload."""

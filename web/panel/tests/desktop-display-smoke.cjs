@@ -26,6 +26,15 @@ exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
   inside(pet.getBounds(), currentArea(secondary));
   inside(bubble.getBounds(), currentArea(secondary));
   assert.deepEqual(stage.getBounds(), secondary.bounds, 'secondary scene covers the full physical display');
+  const assertAvatarAligned = async () => {
+    const { canvas, crop } = await js(stage, `new Promise(resolve => {
+      const stop = boxagent.onPet(({ canvas, crop }) => { stop(); resolve({ canvas, crop }); });
+    })`);
+    const stageFrame = stage.getBounds(), hitFrame = pet.getBounds();
+    assert(Math.abs(stageFrame.x + canvas.x + crop.x - hitFrame.x) <= 1, 'avatar and hit window share the same horizontal origin');
+    assert(Math.abs(stageFrame.y + canvas.y + crop.y - hitFrame.y) <= 1, 'avatar and hit window share the same vertical origin');
+  };
+  await assertAvatarAligned();
   await wait(() => separated(pet.getBounds(), bubble.getBounds()), 'chat clear of companion');
   await wait(() => js(stage, "Boolean(document.querySelector('.pet-stage-bg')?.complete && document.querySelector('.pet-stage-bg')?.naturalWidth)"), 'secondary scene background');
   stage.webContents.invalidate();
@@ -42,6 +51,7 @@ exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
   await wait(() => js(bubble, "document.querySelector('.companion-display').dataset.active==='true'"), 'active button');
   const chat = bubble.getBounds();
   await dragBy(pet, 0, -80);
+  await assertAvatarAligned();
   assert.deepEqual(bubble.getBounds(), chat, 'dragging pet does not move chat');
   await dragBy(bubble, -70, -30);
   assert.equal(screen.getDisplayMatching(pet.getBounds()).id, secondary.id);

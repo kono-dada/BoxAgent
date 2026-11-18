@@ -7,7 +7,9 @@ from boxagent.bootstrap.settings import load_settings
 from boxagent.bootstrap.electron_launch import run_electron
 
 
-def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("platform", ["darwin", "win32"])
+def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monkeypatch, platform: str):
+    monkeypatch.setattr("boxagent.bootstrap.electron_launch.sys.platform", platform)
     panel = tmp_path / "web/panel"
     executable = panel / "node_modules/electron/dist" / (
         "electron.exe" if __import__("sys").platform == "win32" else "Electron.app/Contents/MacOS/Electron")
@@ -25,9 +27,17 @@ def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monke
     child.wait.return_value = 0
     launch = Mock(return_value=child)
     monkeypatch.setattr("boxagent.bootstrap.electron_launch.subprocess.Popen", launch)
+    mac_launch = Mock(return_value=0)
+    monkeypatch.setattr("boxagent.bootstrap.electron_launch._launch_macos", mac_launch)
     assert run_electron(settings, ["--pet", "a path with spaces"]) == 0
-    assert launch.call_args.args[0] == [str(executable), str(panel), "--desktop"]
-    env = launch.call_args.kwargs["env"]
+    if platform == "darwin":
+        launch.assert_not_called()
+        assert mac_launch.call_args.args[:2] == (executable, panel)
+        env = mac_launch.call_args.args[2]
+    else:
+        mac_launch.assert_not_called()
+        assert launch.call_args.args[0] == [str(executable), str(panel), "--desktop"]
+        env = launch.call_args.kwargs["env"]
     assert json.loads(env["BOXAGENT_DESKTOP_ARGS"]) == ["--pet", "a path with spaces"]
     assert env["BOXAGENT_DATA_DIR"] == str(settings.data_dir)
 

@@ -143,6 +143,19 @@ function startDesktop() {
       showCamera: () => camera.show(),
       broadcast,
       registerWindow,
+      wakeAllowed: () => {
+        if (!setupEnabled) return true;
+        const permissions = startup?.permissions.snapshot();
+        const signature = JSON.stringify(permissions);
+        if (host && host.lastWakePermissions !== signature) {
+          host.lastWakePermissions = signature;
+          try {
+            fs.appendFileSync(path.join(data, 'logs/wake-permissions.jsonl'),
+              JSON.stringify({ at: new Date().toISOString(), permissions }) + '\n', { mode: 0o600 });
+          } catch { /* Diagnostics must not prevent voice startup. */ }
+        }
+        return permissions?.speech === 'granted' && permissions.microphone === 'granted';
+      },
     });
     await host.start();
     await app.dock?.show();
@@ -280,9 +293,13 @@ app.whenReady().then(async () => {
     const { StartupCoordinator } = require('./startup/coordinator.cjs');
     const { CredentialStore } = require('./startup/credentials.cjs');
     const { Permissions } = require('./startup/permissions.cjs');
+    const { SpeechPermissions } = require('./startup/speech.cjs');
     startup = new StartupCoordinator({ paths,
       credentials: new CredentialStore(path.join(data, 'state/credentials.json'), safeStorage),
-      permissions: new Permissions(systemPreferences, shell, { requestScreen: async () => {
+      permissions: new Permissions(systemPreferences, shell, {
+        speech: new SpeechPermissions(),
+        onVoiceGranted: () => { host?.wakeWord?.setEnabled(true); host?.syncWakeWord(); },
+        requestScreen: async () => {
         await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false });
       } }),
       ensureEngine: async environment => {
