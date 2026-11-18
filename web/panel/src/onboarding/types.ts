@@ -7,6 +7,7 @@ export interface StartupSnapshot {
   wechat?: { client: Capability; reading: Capability; listening: Capability; sending: Capability; downloadAvailable: boolean };
   capabilities: Record<string, Capability>;
   permissions: { microphone: string; speech: string; screen: string; accessibility: boolean };
+  permissionRepair?: boolean;
   busy: boolean; error: string; canComplete: boolean; packaged: boolean;
   progress: { component: string; phase?: string; file?: string; bytes?: number; total?: number | null } | null;
 }

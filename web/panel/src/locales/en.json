@@ -1,4 +1,8 @@
 {
+  "当前版本需要重新核对系统权限。已有 Key、模型和微信配置已保留；请按需授权，或选择稍后处理。": "This version needs a system permission review. Your keys, models, and WeChat setup are preserved. Grant access as needed, or continue for now.",
+  "重启并检查权限": "Restart and check permissions",
+  "继续使用": "Continue",
+  "稍后授权并继续": "Continue without granting access",
   "在阿里云百炼创建 API Key，复制该 Key 对应业务空间的 ID。请确认所需模型服务已开通。": "Create an API key in Alibaba Cloud Model Studio and copy the ID of the workspace associated with that key. Make sure the required model services are enabled.",
   "打开百炼控制台": "Open Model Studio",
   "获取 DeepSeek Key": "Get a DeepSeek Key",

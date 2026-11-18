@@ -58,6 +58,8 @@ bash scripts/build-dist-mac.sh --reuse-resources
 
 升级测试包时退出旧实例，将新 App 覆盖到同一个 `/Applications/BoxAgent.app`，再从 Applications 打开。引导进度与加密凭据位于用户数据目录，替换 App 不清除它们；macOS 权限由系统另外维护，不由引导完成标记推断。临时签名变动后需要以当前 App 的实际权限检查为准，不能承诺每次构建自动继承旧授权。
 
+0.1.2 起，启动检查会比较当前代码签名的 designated requirement 与上次完成权限检查的身份。已完成引导的用户遇到新身份且权限缺失时，会直接进入权限修复页，保留原有 Key、模型与微信配置。用户可逐项请求授权、重启检查，或明确选择稍后授权继续；同一身份的明确跳过会保存，状态仍如实显示未授权。授权页重新获得焦点时只刷新实际状态，不自动申请权限。菜单「设置与权限…」（⌘,）可随时重新进入，不需要操作人物或唤醒。此流程只处理重新授权的引导，不能代替稳定的 Developer ID 签名，也不重置整个 TCC 数据库。
+
 正式签名需要自己的 Developer ID 和已配置的 notarytool Keychain profile：
 
 ```sh

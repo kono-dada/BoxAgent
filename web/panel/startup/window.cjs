@@ -11,13 +11,21 @@ function createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot, registerWin
     registerWindow(window);
     window.loadFile(path.join(panelRoot, 'dist/setup.html'));
     window.on('closed', () => { window = null; if (!coordinator.state.completed) app.quit(); });
-    window.on('focus', () => coordinator.emit());
+    window.on('focus', () => {
+      if (coordinator.busy) coordinator.emit();
+      else void coordinator.request('refresh-permissions').catch(() => {});
+    });
     return window;
   };
   ipcMain.handle('setup:request', async (event, method, params) => {
     if (!window || window.isDestroyed() || event.sender !== window.webContents ||
         typeof method !== 'string' || (params !== undefined && (!params || typeof params !== 'object' || Array.isArray(params))))
       throw Error('untrusted_setup_request');
+    if (method === 'restart-for-permissions') {
+      if (coordinator.busy) throw Error('setup_busy');
+      setImmediate(() => { app.relaunch(); app.quit(); });
+      return coordinator.snapshot();
+    }
     if (method === 'choose-tool') {
       if (!dialog || !['codex', 'computer-use'].includes(params?.kind)) throw Error('invalid_setup_method');
       const selected = await dialog.showOpenDialog(window, { properties: ['openDirectory', 'treatPackageAsDirectory'] });
@@ -57,6 +65,7 @@ function createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot, registerWin
     const result = await coordinator.request(method, params);
     if (method === 'open-logs') shell.showItemInFolder(path.join(coordinator.paths.data, 'logs'));
     if (method === 'complete' && result.onboarding.completed && !result.error) window?.close();
+    if (method === 'finish-permission-review' && !result.error) window?.close();
     return result;
   });
   return { show, hide: () => window?.hide(), send: snapshot => { if (window && !window.isDestroyed()) window.webContents.send('setup:state', snapshot); } };

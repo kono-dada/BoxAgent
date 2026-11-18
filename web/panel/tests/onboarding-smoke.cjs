@@ -259,6 +259,27 @@ app.whenReady().then(async () => {
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(coordinator.state.completed, true);
   assert.equal(shown, 1);
+  const savedCredentials = await credentials.summary();
+  coordinator.permissionReviewIdentity = 'a'.repeat(64);
+  await coordinator.request('repair-permissions');
+  const repairWindow = setup.show();
+  await new Promise(resolve => repairWindow.webContents.once('did-finish-load', resolve));
+  const repairEvaluate = source => repairWindow.webContents.executeJavaScript(source);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await repairEvaluate(`document.querySelector('[role=status]')?.textContent.includes('This version needs')`)) break;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.equal(await repairEvaluate(`document.querySelector('.setup-shell').dataset.step`), 'permissions');
+  assert.equal(await repairEvaluate(`document.querySelectorAll('input[type=password]').length`), 0);
+  assert.equal(await repairEvaluate(`document.querySelector('footer .setup-primary').textContent`), 'Continue without granting access');
+  await fs.writeFile(path.join(data, 'screenshots/permissions-upgrade-repair.png'), (await repairWindow.webContents.capturePage()).toPNG());
+  await repairEvaluate(`document.querySelector('footer .setup-primary').click()`);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.equal(coordinator.state.completed, true);
+  assert.equal(shown, 2);
+  assert.deepEqual(await credentials.summary(), savedCredentials);
+  assert.equal(coordinator.permissions.snapshot().screen, 'denied');
+  console.log('PASS: completed-user permission repair, explicit deferral, preserved keys and honest grant status.');
   console.log('PASS: real Electron/React, six pages in both languages, WeChat isolation copy, compact layout, keyboard submit, save/auth errors, preserved keys, download cancellation, permissions, motion/contrast/transparency preferences, completion gate.');
   app.quit();
 }).catch(error => { console.error(error); app.exit(1); });

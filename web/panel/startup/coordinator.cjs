@@ -13,11 +13,13 @@ function canComplete(snapshot) {
     (!snapshot.credentials.wechatEnabled || ['reading', 'listening'].every(name => snapshot.wechat?.[name]?.state === 'ready'));
 }
 class StartupCoordinator {
-  constructor({ paths, credentials, permissions, ensureEngine, stopEngine, enterDesktop, broadcast, validate = validateProviders, runtime, wechat, detectTools = detectDesktopTools }) {
+  constructor({ paths, credentials, permissions, ensureEngine, stopEngine, enterDesktop, broadcast, validate = validateProviders, runtime, wechat, detectTools = detectDesktopTools, permissionReviewIdentity = '' }) {
     Object.assign(this, { paths, credentials, permissions, ensureEngine, stopEngine, enterDesktop, broadcast, validate, detectTools });
     this.stateFile = path.join(paths.data, 'state/onboarding.json');
     this.state = defaults(); this.capabilities = {}; this.busy = false; this.error = ''; this.progress = null;
     this.mode = 'checking'; this.abort = new AbortController(); this.closed = false;
+    this.permissionReviewIdentity = permissionReviewIdentity;
+    this.permissionRepair = false;
     this.runtime = runtime || new PackagedRuntime(paths, { progress: value => {
       if (value.phase === 'ready') {
         const name = value.component === 'jev' ? 'memory' : value.component;
@@ -30,7 +32,8 @@ class StartupCoordinator {
   }
   snapshot() {
     return { mode: this.mode, onboarding: this.state, credentials: this.summary, capabilities: this.capabilities,
-      permissions: this.permissions.snapshot(), busy: this.busy, error: this.error, progress: this.progress,
+      permissions: this.permissions.snapshot(), permissionRepair: this.permissionRepair,
+      busy: this.busy, error: this.error, progress: this.progress,
       wechat: this.wechat.snapshot(),
       canComplete: canComplete({ capabilities: this.capabilities, credentials: this.summary, wechat: this.wechat.snapshot() }), packaged: this.paths.packaged };
   }
@@ -58,7 +61,16 @@ class StartupCoordinator {
       await this.refreshLocal(signal, this.state.completed ? ['core'] : undefined);
       // No API calls or permission requests until the user chooses to validate.
       if (this.state.completed && configured && this.capabilities.engine?.state === 'ready') {
-        this.mode = 'degraded'; await this.enterDesktop();
+        const permissions = this.permissions.snapshot();
+        const missing = ['microphone', 'speech', 'screen', 'accessibility']
+          .some(name => permissions[name] !== 'granted' && permissions[name] !== true);
+        if (missing && this.permissionReviewIdentity && this.state.permissionReviewIdentity !== this.permissionReviewIdentity) {
+          this.permissionRepair = true;
+          this.state = { ...this.state, step: 'permissions' };
+          await atomicWrite(this.stateFile, this.state);
+        } else {
+          this.mode = 'degraded'; await this.enterDesktop();
+        }
       }
     });
   }
@@ -111,6 +123,21 @@ class StartupCoordinator {
         await this.refreshLocal(signal);
       } else if (method === 'refresh-permissions') {
         await this.permissions.refresh?.();
+      } else if (method === 'repair-permissions') {
+        this.permissionRepair = this.state.completed;
+        this.mode = 'repair';
+        this.state = { ...this.state, step: 'permissions' };
+        await this.permissions.refresh?.();
+        await atomicWrite(this.stateFile, this.state);
+      } else if (method === 'finish-permission-review') {
+        if (!this.state.completed || !this.permissionRepair) throw Error('invalid_setup_method');
+        await this.permissions.refresh?.();
+        await this.enterDesktop();
+        this.state = { ...this.state, step: 'ready',
+          ...(this.permissionReviewIdentity ? { permissionReviewIdentity: this.permissionReviewIdentity } : {}) };
+        await atomicWrite(this.stateFile, this.state);
+        this.permissionRepair = false;
+        this.mode = 'degraded';
       } else if (method.startsWith('wechat-')) {
         if (!['wechat-disable', 'wechat-account'].includes(method)) {
           const checks = await this.runtime.localStatus(await this.credentials.load(), signal, ['core']);
@@ -153,7 +180,8 @@ class StartupCoordinator {
         if (signal.aborted || !canComplete({ capabilities: this.capabilities, credentials: this.summary, wechat: this.wechat.snapshot() })) throw Error('capabilities_not_ready');
         // Persist completion only after the desktop itself successfully opens.
         await this.enterDesktop();
-        this.state = { ...this.state, completed: true, step: 'ready', completedAt: new Date().toISOString() };
+        this.state = { ...this.state, completed: true, step: 'ready', completedAt: new Date().toISOString(),
+          ...(this.permissionReviewIdentity ? { permissionReviewIdentity: this.permissionReviewIdentity } : {}) };
         await atomicWrite(this.stateFile, this.state);
         this.mode = this.capabilities.task?.state === 'ready' && this.capabilities.desktop?.state === 'ready' ? 'ready' : 'degraded';
       } else if (method === 'repair') {

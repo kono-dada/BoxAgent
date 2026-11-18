@@ -8,6 +8,7 @@ const { CredentialStore } = require('../startup/credentials.cjs');
 const { readState, atomicWrite } = require('../startup/store.cjs');
 const { StartupCoordinator } = require('../startup/coordinator.cjs');
 const { validateProviders } = require('../startup/providers.cjs');
+const { permissionIdentity } = require('../startup/permission-identity.cjs');
 
 const encryption = { isEncryptionAvailable: () => true, encryptString: value => Buffer.from(value.split('').reverse().join('')),
   decryptString: value => value.toString().split('').reverse().join('') };
@@ -16,6 +17,71 @@ async function fixture(t) {
   t.after(() => fs.rm(data, { recursive: true, force: true }));
   return { data, credentials: new CredentialStore(path.join(data, 'credentials.json'), encryption) };
 }
+
+test('permission review identity follows the designated code requirement, not the display name', () => {
+  const identity = hash => permissionIdentity('/fixture/BoxAgent.app/Contents/MacOS/BoxAgent', '0.1.2', {
+    platform: 'darwin', execute: () => ({ status: 0, stdout: '', stderr: `# designated => cdhash H"${hash}"\n` }),
+  });
+  assert.match(identity('old'), /^[a-f0-9]{64}$/);
+  assert.notEqual(identity('old'), identity('new'));
+  assert.equal(permissionIdentity('/unused', '0.1.2', { platform: 'win32', execute: () => assert.fail('codesign on Windows') }), '');
+});
+
+test('upgraded completed users review missing permissions without repeating keys, models or WeChat setup', async t => {
+  const { data, credentials } = await fixture(t);
+  await credentials.save({ DASHSCOPE_API_KEY: 'qwen', DEEPSEEK_API_KEY: 'task',
+    BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test', BOXAGENT_TASK_PROVIDER: 'deepseek' });
+  const current = 'a'.repeat(64), next = 'b'.repeat(64);
+  const checked = [];
+  let entered = 0, validations = 0;
+  const options = {
+    paths: { data, root: data, packaged: true }, credentials,
+    permissionReviewIdentity: current,
+    permissions: { snapshot: () => ({ microphone: 'not-determined', speech: 'denied', screen: 'denied', accessibility: false }), refresh: async () => {} },
+    runtime: { localStatus: async (_config, _signal, names) => { checked.push(names); return { core: { state: 'ready', code: '' } }; }, environment: value => value },
+    detectTools: async () => ({}), wechat: { snapshot: () => ({}), manifest: async () => {} },
+    ensureEngine: async () => {}, enterDesktop: async () => { entered++; }, broadcast() {},
+    validate: async () => { validations++; throw Error('must not call cloud validation'); },
+  };
+  const first = new StartupCoordinator(options);
+  const saved = { version: 1, completed: true, step: 'ready', completedAt: '2026-11-18T00:00:00Z' };
+  await atomicWrite(first.stateFile, saved);
+  const review = await first.start();
+  assert.equal(review.onboarding.completed, true);
+  assert.equal(review.onboarding.step, 'permissions');
+  assert.equal(review.permissionRepair, true);
+  assert.equal(entered, 0, 'no silent entry with invalidated permissions');
+  assert.deepEqual(checked, [['core']]);
+  const finished = await first.request('finish-permission-review');
+  assert.equal(finished.error, '');
+  assert.equal(entered, 1);
+  assert.equal(validations, 0);
+  assert.equal(finished.permissions.screen, 'denied', 'deferral must not fabricate a grant');
+  assert.equal(finished.onboarding.completedAt, saved.completedAt);
+  assert.equal((await readState(first.stateFile)).permissionReviewIdentity, current);
+  const reopened = new StartupCoordinator(options);
+  assert.equal((await reopened.start()).permissionRepair, false, 'explicit deferral survives restart of the same build');
+  assert.equal(entered, 2);
+  const upgraded = new StartupCoordinator({ ...options, permissionReviewIdentity: next });
+  assert.equal((await upgraded.start()).permissionRepair, true, 'a changed identity is checked again');
+  assert.equal(entered, 2);
+  assert.equal((await credentials.summary()).deepseek, true);
+});
+
+test('a completed app with effective permissions resumes directly and a fresh install cannot bypass setup', async t => {
+  const { data, credentials } = await fixture(t);
+  await credentials.save({ DASHSCOPE_API_KEY: 'qwen', DEEPSEEK_API_KEY: 'task', BOXAGENT_DASHSCOPE_WORKSPACE_ID: 'test', BOXAGENT_TASK_PROVIDER: 'deepseek' });
+  let entered = 0;
+  const coordinator = new StartupCoordinator({ paths: { data, root: data, packaged: true }, credentials,
+    permissionReviewIdentity: 'a'.repeat(64), permissions: { snapshot: () => ({ microphone: 'granted', speech: 'granted', screen: 'granted', accessibility: true }) },
+    runtime: { localStatus: async () => ({ core: { state: 'ready', code: '' } }), environment: value => value },
+    detectTools: async () => ({}), wechat: { snapshot: () => ({}), manifest: async () => {} },
+    ensureEngine: async () => {}, enterDesktop: async () => { entered++; }, broadcast() {} });
+  assert.equal((await coordinator.request('finish-permission-review')).error, 'invalid_setup_method');
+  await atomicWrite(coordinator.stateFile, { version: 1, completed: true, step: 'ready', completedAt: null });
+  assert.equal((await coordinator.start()).permissionRepair, false);
+  assert.equal(entered, 1);
+});
 test('published paths do not depend on source or inherit .runtime user storage', () => {
   const paths = resolvePaths({ packaged: true, resources: '/Applications/Box Agent.app/Contents/Resources', appData: '/Users/example/Library/Application Support', env: {} });
   assert.equal(paths.data, '/Users/example/Library/Application Support/BoxAgent');

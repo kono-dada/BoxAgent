@@ -26,6 +26,10 @@ async function readState(file) {
   const state = await readJson(file, defaults());
   if (state?.version !== 1 || typeof state.completed !== 'boolean' || !STEPS.includes(state.step) ||
       !(state.completedAt === null || typeof state.completedAt === 'string')) throw Error('configuration_unreadable');
-  return { version: 1, completed: state.completed, step: state.step, completedAt: state.completedAt };
+  if (state.permissionReviewIdentity !== undefined &&
+      (typeof state.permissionReviewIdentity !== 'string' || !/^[a-f0-9]{64}$/.test(state.permissionReviewIdentity)))
+    throw Error('configuration_unreadable');
+  return { version: 1, completed: state.completed, step: state.step, completedAt: state.completedAt,
+    ...(state.permissionReviewIdentity ? { permissionReviewIdentity: state.permissionReviewIdentity } : {}) };
 }
 module.exports = { STEPS, defaults, readJson, readState, atomicWrite };

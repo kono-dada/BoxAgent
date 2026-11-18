@@ -183,6 +183,7 @@ export function OnboardingPage({ bridge }: { bridge: SetupBridge }) {
         </details>
       </>}
       {step === 'permissions' && <>
+        {state?.permissionRepair && <p className="setup-note" role="status">{t('当前版本需要重新核对系统权限。已有 Key、模型和微信配置已保留；请按需授权，或选择稍后处理。')}</p>}
         <div className="setup-permissions">{(['microphone', 'speech', 'accessibility', 'screen'] as const).map(permission => {
           const value = state?.permissions[permission], granted = value === true || value === 'granted';
           const labels = { microphone: '麦克风', speech: '语音识别', accessibility: '辅助功能', screen: '屏幕录制' };
@@ -206,6 +207,7 @@ export function OnboardingPage({ bridge }: { bridge: SetupBridge }) {
           <p>{t('屏幕录制授权后可能需要重启 BoxAgent。Computer Use 首次使用时可能另需系统授权。')}</p>
         </details>
         <button className="setup-link setup-centered-action" disabled={busy} onClick={() => void action('refresh-permissions')}>{t('刷新权限状态')}</button>
+        <button className="setup-link setup-centered-action" disabled={busy} onClick={() => void action('restart-for-permissions')}>{t('重启并检查权限')}</button>
       </>}
       {step === 'wechat' && <>
         <p className="setup-note">{t('BoxAgent 使用独立的微信副本，避免改动你原来的微信安装和聊天数据。请在副本中扫码登录，让 BoxAgent 能读取消息并代你操作。')}</p>
@@ -252,8 +254,9 @@ export function OnboardingPage({ bridge }: { bridge: SetupBridge }) {
       </div>
       </div>
       <footer className="setup-footer">
-        <div className="setup-footer-start">{index > 0 && step !== 'ready' && <button className="setup-link" disabled={busy} onClick={() => void action('step', { step: steps[index - 1].id })}><ChevronLeft size={14} aria-hidden="true" />{t('上一步')}</button>}</div>
-        {step === 'providers' && !nextAllowed ? <button className="setup-primary setup-provider-submit" type="submit" form="setup-provider-form" disabled={busy || !state || !providerComplete}>{t(busy ? '正在验证…' : '保存并验证')}</button> :
+        <div className="setup-footer-start">{index > 0 && step !== 'ready' && !state?.permissionRepair && <button className="setup-link" disabled={busy} onClick={() => void action('step', { step: steps[index - 1].id })}><ChevronLeft size={14} aria-hidden="true" />{t('上一步')}</button>}</div>
+        {step === 'permissions' && state?.permissionRepair ? <button className="setup-primary" disabled={busy} onClick={() => void action('finish-permission-review')}>{t(Object.values(state.permissions).every(value => value === true || value === 'granted') ? '继续使用' : '稍后授权并继续')}</button> :
+          step === 'providers' && !nextAllowed ? <button className="setup-primary setup-provider-submit" type="submit" form="setup-provider-form" disabled={busy || !state || !providerComplete}>{t(busy ? '正在验证…' : '保存并验证')}</button> :
           step === 'components' && !nextAllowed ? <button className="setup-primary" disabled={busy || !state} onClick={() => void action('install')}>{t(busy ? '正在准备…' : '准备或修复组件')}</button> :
           index < steps.length - 1 ? <button className="setup-primary" disabled={busy || !state || !nextAllowed} onClick={() => void action('step', { step: steps[index + 1].id })}>{t(step === 'wechat' && !state?.credentials.wechatEnabled ? '暂不接入微信' : '下一步')}</button> :
           <button className="setup-primary" disabled={busy || !(state?.canComplete || canCheckCompletion)} onClick={() => void action('complete')}>{t(busy ? '正在检查…' : state?.onboarding.completed ? '完成修复' : canCheckCompletion ? '检查并开始' : '开始使用')}</button>}

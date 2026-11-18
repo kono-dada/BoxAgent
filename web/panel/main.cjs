@@ -199,6 +199,10 @@ app.whenReady().then(async () => {
         label: "BoxAgent",
         submenu: [
           { label: "关于 BoxAgent", role: "about" },
+          { label: '设置与权限…', accelerator: 'CmdOrCtrl+,', click: () => {
+            if (!startup || !setupWindow) return;
+            void startup.request('repair-permissions').then(() => setupWindow.show());
+          } },
           { type: "separator" },
           { role: "hide" },
           { role: "hideOthers" },
@@ -295,6 +299,7 @@ app.whenReady().then(async () => {
     const { Permissions } = require('./startup/permissions.cjs');
     const { SpeechPermissions } = require('./startup/speech.cjs');
     startup = new StartupCoordinator({ paths,
+      permissionReviewIdentity: require('./startup/permission-identity.cjs').permissionIdentity(process.execPath, app.getVersion()),
       credentials: new CredentialStore(path.join(data, 'state/credentials.json'), safeStorage),
       permissions: new Permissions(systemPreferences, shell, {
         speech: new SpeechPermissions(),

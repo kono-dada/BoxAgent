@@ -3,7 +3,7 @@
   "productName": "BoxAgent",
   "private": true,
   "packageManager": "pnpm@10.33.2",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "main": "main.cjs",
   "scripts": {
     "start": "node scripts/launch.cjs",
