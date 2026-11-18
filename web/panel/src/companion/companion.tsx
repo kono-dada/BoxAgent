@@ -430,6 +430,22 @@ function Companion() {
                   <p>{runtime.context_text || runtime.context_status}</p>
                 </details>
               )}
+            {runtime.game_news_text && (
+              <p className="companion-notice" role="status">
+                {runtime.game_news_text}
+                {runtime.game_news_url && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void bridge.request("desktop_open_game_news")
+                        .catch((error: Error) => action.setStatus(error.message));
+                    }}
+                  >
+                    {t("查看来源")}
+                  </button>
+                )}
+              </p>
+            )}
             {runtime.notification_unread && runtime.notification_text && (
               <p className="companion-notice" role="status">
                 {runtime.notification_text}

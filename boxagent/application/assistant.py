@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 from boxagent.core.events import StateEvents
 from boxagent.core.ids import new_event_id
 from boxagent.application.camera import CameraInteractionService
+from boxagent.application.game_news import GameNewsMonitor
+from boxagent.domain.proactivity.game_news import Game, GameNews
 from boxagent.application.memory import DisabledMemoryModule
 from boxagent.application.web_research import WebResearchService
 from boxagent.application.skill_authoring import (
@@ -70,6 +72,7 @@ class BoxAgentApplication:
             context_observer=context_observer)
         self.runtime_resources = tuple(runtime_resources)
         self.skill_jobs = set()
+        self.game_news: GameNewsMonitor | None = None
         self._started = False
         self._closed = False
 
@@ -86,7 +89,24 @@ class BoxAgentApplication:
         for resource in self.runtime_resources:
             await resource.start()
         await self.memory.start()
+        if self.game_news is not None:
+            await self.game_news.start()
         self._started = True
+
+    async def announce_game_news(self, game: Game, news: GameNews | None) -> None:
+        if news is None:
+            headline = f"《{game.name}》打开了，暂时没有查到近期动态。"
+        elif news.community_topic:
+            headline = f"《{game.name}》的 Steam 社区讨论：{news.title}"
+        else:
+            headline = f"《{game.name}》打开了。{news.source}：{news.title}"
+        self.events.emit("game.news", game_news_text=headline,
+                         game_news_url=news.url if news else "")
+        try:
+            await self.interaction_service.announce_game_news(
+                headline, community_topic=bool(news and news.community_topic))
+        except Exception:
+            logger.warning("Game news voice announcement failed", exc_info=True)
 
     @property
     def state(self):
@@ -129,6 +149,9 @@ class BoxAgentApplication:
     async def toggle_voice(self):
         await self.interaction_service.toggle()
         await self.deliver_pending_notifications()
+
+    async def wake_voice(self, greeting: str) -> None:
+        await self.interaction_service.wake(greeting)
 
     async def start_task(self, goal, *, from_text=False):
         return await self.execution_service.start(goal, from_text=from_text)
@@ -707,6 +730,8 @@ class BoxAgentApplication:
             return
         if self.camera is not None:
             await self.camera.close()
+        if self.game_news is not None:
+            await self.game_news.close()
         await self.perception_service.close()
         await self.execution_service.close()
         for job in tuple(self.skill_jobs):

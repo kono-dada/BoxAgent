@@ -143,6 +143,8 @@ export interface RuntimeState {
   task_queue?: { task_id: string; goal: string }[];
   task_ended_at?: number;
   task_activity_at?: number;
+  game_news_text?: string;
+  game_news_url?: string;
   notification_id?: string;
   notification_text?: string;
   notification_unread?: boolean;

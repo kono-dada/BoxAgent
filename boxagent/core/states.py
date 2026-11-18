@@ -76,6 +76,8 @@ class Snapshot:
     context_app: str = ""
     context_window_id: int = 0
     context_at: float = 0
+    game_news_text: str = ""
+    game_news_url: str = ""
     notification_id: str = ""
     notification_text: str = ""
     notification_unread: bool = False

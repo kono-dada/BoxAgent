@@ -24,6 +24,42 @@ from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
 
 
 class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
+    async def test_only_user_voice_farewell_closes_the_session(self) -> None:
+        class Voice:
+            def __init__(self) -> None:
+                self.ready = asyncio.Event()
+                self.closed = asyncio.Event()
+
+            async def run(self) -> None:
+                self.ready.set()
+                await self.closed.wait()
+
+            async def stop(self) -> None:
+                self.closed.set()
+
+        events = StateEvents(lambda _event: None)
+        service = InteractionService(events, lambda *_a, **_k: Voice(), None)
+        try:
+            for farewell in ("书书，没事了，谢谢！", "嗯，聊天结束了。", "好，先这样吧。"):
+                with self.subTest(farewell=farewell):
+                    await service.toggle()
+                    await service._conversation_event("assistant_final", {"transcript": farewell})
+                    await service._conversation_event(
+                        "user_final", {"transcript": "会议结束了，帮我整理纪要。"})
+                    await service._conversation_event(
+                        "user_final", {"transcript": "这就结束了吗？"})
+                    self.assertTrue(service.is_connected)
+                    self.assertIsNone(service.voice_end_task)
+                    await service._conversation_event("user_final", {"transcript": farewell})
+                    assert service.voice_end_task is not None
+                    await asyncio.wait_for(service.voice_end_task, 1)
+                    self.assertFalse(service.is_connected)
+                    self.assertFalse(service.voice_requested)
+                    self.assertEqual(events.state.voice, "off")
+                    service.voice_end_task = None
+        finally:
+            await service.close()
+
     async def test_voice_startup_timeout_cleans_up_before_retry(self) -> None:
         voices = []
 

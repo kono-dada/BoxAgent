@@ -3,8 +3,11 @@
 import asyncio
 import contextlib
 import logging
+import re
 import time
+from collections.abc import Callable
 
+from boxagent.core.states import Voice
 from boxagent.domain.context.contracts import NullContextObserver
 from boxagent.domain.conversation.models import InteractionContext
 from boxagent.domain.interaction.delegation import DecisionAdvice
@@ -29,6 +32,30 @@ def _is_reconnectable_voice_disconnect(message):
     return "aoq" in text and any(marker in text for marker in (
         "连接已断开", "连接失败", "connection closed", "connection failed",
     ))
+
+
+_VOICE_END_PHRASE = re.compile(
+    r"(?:(?:嗯+|啊+|哦+|好(?:的|啦|了)?|行(?:了)?|可以了|谢谢(?:你|啦|了)?)"
+    r"|(?:没事(?:儿)?了|没别的(?:事|问题)?了|没有(?:别的)?(?:事|问题)了"
+    r"|不用(?:了|帮忙了|继续了)|不需要了|先这样(?:吧|了)?|就这样(?:吧|了)?"
+    r"|(?:对话|聊天|语音)?结束(?:了|吧)|到这(?:里|儿)(?:了|吧)?"
+    r"|(?:关掉|关闭|退出|停止|结束)(?:这次|当前)?(?:语音(?:对话|会话)?|麦克风|通话)"
+    r"|拜拜|再见))+"
+)
+_VOICE_END_INTENT = re.compile(
+    r"没事|没别的|没有|不用|不需要|先这样|就这样|结束|到这|语音|麦克风|通话|拜拜|再见"
+)
+
+
+def _is_voice_end_request(transcript: str, companion_name: str) -> bool:
+    punctuation = r"[\s，。！、,.!~～]+"
+    text = re.sub(punctuation, "", transcript).casefold()
+    name = re.sub(punctuation, "", companion_name).casefold()
+    addressed = text.removeprefix(name)
+    if name == "书书":
+        addressed = addressed.removeprefix("叔叔")
+    return any(len(phrase) <= 48 and _VOICE_END_INTENT.search(phrase)
+               and _VOICE_END_PHRASE.fullmatch(phrase) for phrase in (text, addressed))
 
 
 class InteractionService:
@@ -59,8 +86,10 @@ class InteractionService:
         self.toggle_lock = asyncio.Lock()
         self.text_lock = asyncio.Lock()
         self.voice_requested = False
+        self.companion_name: Callable[[], str] = lambda: "书书"
         self.reconnect_delays = tuple(reconnect_delays)
         self.reconnect_task = None
+        self.voice_end_task: asyncio.Task[None] | None = None
         self.camera_feed: CameraFeed | None = None
         self.camera_owns_voice = False
 
@@ -124,6 +153,22 @@ class InteractionService:
                 await self._connect(microphone=True)
             except BaseException:
                 self.voice_requested = False
+                raise
+
+    async def wake(self, greeting: str) -> None:
+        async with self.toggle_lock:
+            if self.voice_requested or (self.is_connected and self.connection_microphone):
+                return
+            if self.is_connected:
+                await self.stop()
+            self.voice_requested = True
+            try:
+                await self._connect(microphone=True)
+                if self.voice is None:
+                    raise RuntimeError("语音唤醒连接已断开")
+                await self.voice.greet_on_wake(greeting)
+            except BaseException:
+                await self.stop()
                 raise
 
     async def submit_text(self, text):
@@ -256,10 +301,14 @@ class InteractionService:
             except Exception:
                 logger.warning("stable memory profile unavailable", exc_info=True)
                 stable_memory_context = ""
-        self.voice = self.voice_factory(
+        async def conversation_event(kind: str, payload: dict[str, object]) -> None:
+            if self.voice is voice:
+                await self._conversation_event(kind, payload)
+
+        voice = self.voice = self.voice_factory(
             self._handle_tool, self.events.emit,
             microphone=microphone, playback=True,
-            conversation_event=self._conversation_event,
+            conversation_event=conversation_event,
             notification_event=self._notification_event,
             conversation_history=conversation_history,
             conversation_checkpoint=conversation_checkpoint,
@@ -298,6 +347,14 @@ class InteractionService:
                 await asyncio.gather(waiter, return_exceptions=True)
 
     async def _conversation_event(self, kind, payload):
+        transcript = ""
+        if kind == "user_final":
+            transcript = str(payload.get("transcript") or "").strip()
+            if self.voice is not None and self.connection_microphone and _is_voice_end_request(transcript, self.companion_name()):
+                if self.voice_end_task is None or self.voice_end_task.done():
+                    # The provider may be awaiting this callback. Close it from a separate task.
+                    self.voice_end_task = asyncio.create_task(self._end_voice_from_transcript(self.voice))
+                return
         if not self.conversation or not self.conversation.store:
             return
         if kind == "user_final":
@@ -305,7 +362,6 @@ class InteractionService:
                 await self.conversation.finish_interaction(
                     self.interaction, status="interrupted", runtime="qwen_realtime")
                 self._close_interaction(self.interaction)
-            transcript = str(payload.get("transcript") or "").strip()
             if transcript:
                 self.interaction = await self.conversation.begin_interaction(
                     transcript, source="voice",
@@ -372,6 +428,24 @@ class InteractionService:
                     context, status="succeeded", runtime="qwen_realtime")
                 self._close_interaction(context)
                 self.events.emit("conversation.updated")
+
+    async def _end_voice_from_transcript(self, voice: Voice) -> None:
+        async with self.toggle_lock:
+            if self.voice is not voice or not self.connection_microphone:
+                return
+            self.voice_requested = False
+            self.events.emit("voice.stopping", voice="stopping",
+                             speaking=False, user_speaking=False)
+            try:
+                if self.interaction is not None and self.conversation and self.conversation.store:
+                    await self.conversation.finish_interaction(
+                        self.interaction, status="interrupted", runtime="qwen_realtime")
+                    self._close_interaction(self.interaction)
+                    self.events.emit("conversation.updated")
+            except Exception:
+                logger.exception("Could not finalize the interrupted voice turn")
+            finally:
+                await self.stop()
 
     def _response_interaction(self, payload):
         response_id = payload.get("response_id")
@@ -506,6 +580,14 @@ class InteractionService:
             context.user_event.content or "", reply, context=self._decision_context(context))
         # A new utterance may have interrupted while the model was reviewing.
         return bool(approved and self._response_interaction({"response_id": response_id}) is context)
+
+    async def announce_game_news(self, headline: str, *, community_topic: bool = False) -> None:
+        async with self.toggle_lock:
+            if not self.is_connected and self.voice_requested:
+                return
+            await self._connect(microphone=False)
+            if self.voice is not None:
+                await self.voice.announce_game_news(headline, community_topic=community_topic)
 
     async def deliver_notification(self, item):
         if not self.is_connected:
