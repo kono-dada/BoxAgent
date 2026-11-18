@@ -6,6 +6,8 @@ const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
 const { spawn } = require("node:child_process");
+// Window tests use a fake Engine and must not start system microphone capture.
+require("node:test").mock.method(require("../desktop/wake-word.cjs").WakeWord.prototype, "sync", () => {});
 const root = path.resolve(__dirname, "../../..");
 const fixture =
   process.env.BOXAGENT_DESKTOP_FIXTURE ||
