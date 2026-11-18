@@ -17,7 +17,6 @@ body,
 .pet-stage {
   position: relative;
 }
-/* 桌宠所在屏幕的全屏背景，整屏渲染层铺满工作区。 */
 .pet-stage-bg {
   position: absolute;
   inset: 0;

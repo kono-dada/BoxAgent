@@ -55,7 +55,7 @@ function petPlacement(pet, scale, area, center = false, fitVisible = true) {
   return { viewport, crop, origin: constrainPetOrigin(origin, limit, area) };
 }
 
-function primaryBubbleFrame(previous, area, requestedHeight) {
+function displayBubbleFrame(previous, area, requestedHeight) {
   const width = Math.min(440, area.width - 16);
   const height = Math.min(Math.max(228, Math.min(600, requestedHeight)), area.height - 32);
   const onScreen = previous.x >= area.x && previous.y >= area.y &&
@@ -67,4 +67,21 @@ function primaryBubbleFrame(previous, area, requestedHeight) {
   }, { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
 }
 
-module.exports = { targetDisplay, petAnchor, petPlacement, constrainPetOrigin, primaryBubbleFrame };
+function companionDisplayAreas(pet, scale, area, requestedHeight) {
+  const chat = displayBubbleFrame({ x: area.x, y: area.y }, area, requestedHeight);
+  const desired = petPlacement(pet, scale, area);
+  const panelWidth = Math.min(chat.width, Math.max(320, Math.round(desired.crop.width * 1.2))) + 16;
+  if (desired.crop.width + 16 + panelWidth + 12 <= area.width) {
+    return {
+      pet: { ...area, width: area.width - panelWidth - 12 },
+      panel: { ...area, x: area.x + area.width - panelWidth, width: panelWidth },
+    };
+  }
+  const panelHeight = Math.min(chat.height, Math.max(228, Math.floor(area.height / 2))) + 32;
+  return {
+    pet: { ...area, y: area.y + panelHeight + 12, height: Math.max(17, area.height - panelHeight - 12) },
+    panel: { ...area, height: panelHeight },
+  };
+}
+
+module.exports = { targetDisplay, petAnchor, petPlacement, constrainPetOrigin, displayBubbleFrame, companionDisplayAreas };

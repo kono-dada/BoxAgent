@@ -55,12 +55,7 @@ function Stage() {
   }, [frame]);
   return (
     <div className="pet-stage">
-      <img
-        className="pet-stage-bg"
-        src="backgrounds/bg-c.png"
-        alt=""
-        aria-hidden="true"
-      />
+      {frame?.scene && <img className="pet-stage-bg" src="backgrounds/bg-c.png" alt="" aria-hidden="true" />}
       {frame && (
         <iframe
           ref={iframe}

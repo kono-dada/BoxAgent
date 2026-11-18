@@ -333,8 +333,8 @@ function Companion() {
         <div className="companion-controls">
         <button
           className="icon-button companion-display"
-          title={t('小人显示屏')}
-          aria-label={t('小人显示屏')}
+          title={t('伙伴与聊天显示屏')}
+          aria-label={t('伙伴与聊天显示屏')}
           aria-haspopup="menu"
           data-active={desktop.separate_windows || false}
           onClick={() => bridge.desktopAction('display-menu')}

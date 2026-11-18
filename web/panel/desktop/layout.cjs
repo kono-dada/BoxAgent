@@ -84,6 +84,17 @@ function taskFrame(anchor, area, expanded) {
   }, { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
 }
 function linkedFrames(bubble, tasks, area) {
+  if (bubble.width + tasks.width + 12 > area.width) {
+    // Narrow displays use a vertical task popover instead of spilling onto another screen.
+    const chat = clampFrame(bubble, area);
+    const panel = { ...tasks, x: chat.x + chat.width - tasks.width,
+      y: chat.y - tasks.height - 12 };
+    if (chat.height + panel.height + 12 <= area.height) {
+      const [placedChat, placedPanel] = clampFrames([chat, panel], area);
+      return { bubble: placedChat, tasks: placedPanel };
+    }
+    return { bubble: chat, tasks: clampFrame(panel, area) };
+  }
   const [chat, panel] = clampFrames([bubble, tasks], area);
   return { bubble: chat, tasks: panel };
 }

@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createRequire } = require('node:module');
 const { EventEmitter } = require('node:events');
-const { targetDisplay, petAnchor, petPlacement, primaryBubbleFrame } = require('../desktop/displays.cjs');
+const { targetDisplay, petAnchor, petPlacement, displayBubbleFrame } = require('../desktop/displays.cjs');
 const sourceFile = path.join(__dirname, '../desktop/host.cjs');
 const localRequire = createRequire(sourceFile);
 
@@ -87,13 +87,13 @@ async function fixture(t, { preference, position, initialScale = 1,
   return { host, screen, data, calls };
 }
 
-test('select secondary keeps chat, task panels and notifications on primary', async t => {
+test('select secondary moves companion, chat, task panels and notifications together', async t => {
   const { host, screen, calls } = await fixture(t);
   const chat = host.bubble.getBounds();
   const result = await host.request('desktop_set_pet_display', { id: '2' });
   assert.equal(result.pet_display_id, '2');
   assert.equal(result.separate_windows, true);
-  assert.deepEqual(host.bubble.getBounds(), chat);
+  assert.notDeepEqual(host.bubble.getBounds(), chat);
   const pet = host.current.window.getBounds();
   inside(pet, screen.displays[1].workArea);
   host.resizeBubble(host.bubble.webContents, 570);
@@ -103,7 +103,7 @@ test('select secondary keeps chat, task panels and notifications on primary', as
   host.collapseTasks();
   host.showBubble();
   assert.deepEqual(host.current.window.getBounds(), pet);
-  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+  inside(host.bubble.getBounds(), screen.displays[1].workArea);
   assert(!calls.includes('desktop_set_pet_display'), 'window choice never goes to Python or voice');
 });
 
@@ -126,8 +126,8 @@ test('split dragging is independent and constrained to the assigned screen', asy
   const pet = host.current.window.getBounds();
   drag(host, host.bubble, -5000, -200);
   assert.deepEqual(host.current.window.getBounds(), pet);
-  inside(host.bubble.getBounds(), screen.displays[0].workArea);
-  inside(host.tasks.getBounds(), screen.displays[0].workArea);
+  inside(host.bubble.getBounds(), screen.displays[1].workArea);
+  inside(host.tasks.getBounds(), screen.displays[1].workArea);
   drag(host, host.tasks, 80, 30);
   assert.deepEqual(host.current.window.getBounds(), pet);
 });
@@ -145,7 +145,7 @@ test('unplug falls back to primary; reconnect restores target and updates menus'
   screen.emit('display-added');
   assert.equal(host.sendDesktop().pet_display_id, '2');
   inside(host.current.window.getBounds(), secondary.workArea);
-  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+  inside(host.bubble.getBounds(), secondary.workArea);
 });
 
 test('portrait rotation, negative coordinates and scale changes preserve full viewport', async t => {
@@ -158,7 +158,7 @@ test('portrait rotation, negative coordinates and scale changes preserve full vi
   screen.displays[1] = display(2, 1440, 200, 1920, 480);
   screen.emit('display-metrics-changed');
   inside({ ...host.current.origin, ...host.current.viewport }, screen.displays[1].workArea);
-  assert.deepEqual(host.bubble.getBounds(), chat);
+  inside(host.bubble.getBounds(), screen.displays[1].workArea);
 });
 
 test('display preference survives startup and avatar replacement', async t => {
@@ -196,7 +196,7 @@ test('startup restores the named secondary when its ID changed', async t => {
   });
   assert.equal(host.sendDesktop().pet_display_id, '3');
   inside(host.current.window.getBounds(), secondary.workArea);
-  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+  inside(host.bubble.getBounds(), secondary.workArea);
   await reportCrop(host);
   await host.request('desktop_set_pet_scale', { scale: 6 });
   inside(host.current.window.getBounds(), secondary.workArea);
@@ -220,7 +220,7 @@ test('hotplug restores the named display after renumbering, including a pending 
   await host.report(host.pending.window.webContents, { type: 'ready' });
   await loading;
   inside(host.current.window.getBounds(), secondary.workArea);
-  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+  inside(host.bubble.getBounds(), secondary.workArea);
 });
 
 test('a reused display ID cannot override the saved name; ambiguous or missing names fall back', () => {
@@ -249,12 +249,12 @@ test('topology changes during avatar loading also move pending renderer', async 
   inside(host.current.window.getBounds(), screen.displays[0].workArea);
 });
 
-test('primary reassignment moves chat but retains selected physical pet display', async t => {
+test('primary reassignment keeps chat and companion on the selected physical display', async t => {
   const { host, screen } = await fixture(t);
   host.setPetDisplay('2');
   screen.displays = [display(3, 0, -900, 1440, 900), ...screen.displays];
   screen.emit('display-metrics-changed');
-  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+  inside(host.bubble.getBounds(), screen.displays.find(item => item.id === 2).workArea);
   assert.equal(host.sendDesktop().pet_display_id, '2');
 });
 
@@ -288,12 +288,12 @@ test('shutdown removes display listeners', async t => {
   assert.equal(screen.listenerCount('display-metrics-changed'), 0);
 });
 
-test('placement uses logical work area, not Retina pixels; chat fits resized primary', () => {
+test('placement uses logical work area, not Retina pixels; chat fits the selected work area', () => {
   const area = { x: -480, y: 24, width: 480, height: 1896 };
   const result = petPlacement({ origin: { x: 0, y: 0 } }, 6, area, true);
   inside({ ...result.origin, ...result.viewport }, area);
   assert.equal(result.viewport.width, 464);
-  inside(primaryBubbleFrame({ x: 600, y: 300 }, { x: 0, y: 0, width: 400, height: 500 }, 600), { x: 0, y: 0, width: 400, height: 500 });
+  inside(displayBubbleFrame({ x: 600, y: 300 }, { x: 0, y: 0, width: 400, height: 500 }, 600), { x: 0, y: 0, width: 400, height: 500 });
 });
 
 async function reportCrop(host, pet = host.current, width = .36, height = .74) {
@@ -317,10 +317,12 @@ test('measured portrait pet uses visible bounds, not transparent canvas, at maxi
   assert(large.width > 440, 'uses nearly all the 480px portrait width');
   assert(host.current.viewport.width > screen.displays[1].workArea.width, 'transparent viewport may extend beyond display');
   inside(large, screen.displays[1].workArea);
-  assert.deepEqual(host.bubble.getBounds(), chat);
+  const grownChat = host.bubble.getBounds();
+  assert(grownChat.width >= chat.width, 'Chat adapts to the larger companion within the available screen');
+  inside(grownChat, screen.displays[1].workArea);
   drag(host, host.current.window, 5000, -5000);
   inside(host.current.window.getBounds(), screen.displays[1].workArea);
-  assert.deepEqual(host.bubble.getBounds(), chat);
+  assert.deepEqual(host.bubble.getBounds(), grownChat);
   screen.displays[1] = display(2, 1440, 0, 1920, 480);
   screen.emit('display-metrics-changed');
   await reportCrop(host);
@@ -390,7 +392,78 @@ test('split resize and drag share geometry tracking for avatar, chat and task wi
     assert.equal(window.getBounds().height, before.height);
   }
   inside(host.current.window.getBounds(), screen.displays[1].workArea);
-  inside(host.bubble.getBounds(), screen.displays[0].workArea);
+  inside(host.bubble.getBounds(), screen.displays[1].workArea);
+});
+
+test('full-display render windows always pass through clicks; unmeasured hit windows do too', async t => {
+  const { host, screen } = await fixture(t);
+  assert.equal(host.current.stage.ignoreMouseEvents, true);
+  assert.equal(host.current.window.ignoreMouseEvents, true);
+  assert.ok(host.current.window.getBounds().width < screen.displays[0].workArea.width);
+  await reportCrop(host);
+  assert.equal(host.current.window.ignoreMouseEvents, false);
+  assert.equal(host.current.window.getBounds().width, host.current.crop.width);
+  host.setPetDisplay('2');
+  screen.emit('display-metrics-changed');
+  assert.equal(host.current.stage.ignoreMouseEvents, true);
+  inside(host.current.window.getBounds(), screen.displays[1].workArea);
+});
+
+test('scene background is enabled on the assigned secondary, never over the working primary', async t => {
+  const { host } = await fixture(t);
+  let scene;
+  host.current.stage.webContents.send = (channel, payload) => { if (channel === 'desktop:pet') scene = payload.scene; };
+  host.setPetDisplay('2');
+  assert.equal(scene, true);
+  host.setPetDisplay('1');
+  assert.equal(scene, false);
+  host.setPetDisplay(null);
+  assert.equal(scene, false);
+});
+
+test('renderer failure and late shutdown callbacks cannot position destroyed avatar windows', async t => {
+  const { host } = await fixture(t);
+  await reportCrop(host);
+  host.setPetDisplay('2');
+  host.showTasks();
+  const lost = host.current;
+  lost.window.destroy();
+  assert.doesNotThrow(() => host.failAvatar(lost, 'renderer crashed'));
+  assert.equal(host.current, null);
+  assert.equal(host.bubble.isVisible(), true, 'Failure feedback remains available');
+  host.close();
+  assert.doesNotThrow(() => host.failAvatar(lost, 'late renderer exit'));
+  assert.doesNotThrow(() => host.stateChanged({}, { type: 'task.failed' }));
+});
+
+test('chat and task display never cover the companion after growth, scaling or dragging', async t => {
+  const { host, screen } = await fixture(t);
+  await reportCrop(host);
+  host.setPetDisplay('2');
+  const separated = () => {
+    const pet = host.current.window.getBounds();
+    for (const window of [host.bubble, host.tasks].filter(Boolean)) {
+      const frame = window.getBounds();
+      inside(frame, screen.displays[1].workArea);
+      assert(frame.x + frame.width <= pet.x || pet.x + pet.width <= frame.x ||
+        frame.y + frame.height <= pet.y || pet.y + pet.height <= frame.y, 'Chat/task panel covers the visible companion');
+    }
+  };
+  host.resizeBubble(host.bubble.webContents, 570);
+  host.showTasks();
+  assert.equal(host.bubble.getBounds().height, 570, 'The reserved area must keep the requested chat height');
+  separated();
+  await host.request('desktop_set_pet_scale', { scale: 6 });
+  separated();
+  drag(host, host.current.window, -5000, -5000);
+  drag(host, host.bubble, 5000, 5000);
+  separated();
+  for (const shape of [display(2, -1470, 33, 1470, 923), display(2, -720, 0, 720, 1000)]) {
+    screen.displays[1] = shape;
+    screen.emit('display-metrics-changed');
+    separated();
+    assert.equal(host.snapshot.scale, 6, 'Screen fitting must not overwrite the saved scale');
+  }
 });
 
 test('avatar actions and music survive camera state updates while the avatar is on secondary', async t => {

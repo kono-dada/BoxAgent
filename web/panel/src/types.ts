@@ -218,6 +218,7 @@ declare global {
 }
 
 export interface PetFrame {
+  scene?: boolean;
   music?: boolean;
   action?: string;
   actionId?: string;

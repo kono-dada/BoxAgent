@@ -12,6 +12,7 @@ class WindowGeometry {
     return { ...window.getBounds(), ...this.sizes.get(window) };
   }
   setBounds(window, bounds) {
+    if (window.isDestroyed?.()) return;
     const size = this.sizes.get(window) || window.getBounds();
     const frame = {
       ...bounds,

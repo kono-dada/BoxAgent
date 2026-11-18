@@ -7,8 +7,12 @@ function inside(frame, area) {
   assert(frame.x >= area.x && frame.y >= area.y && frame.x + frame.width <= area.x + area.width &&
     frame.y + frame.height <= area.y + area.height, `${JSON.stringify(frame)} outside ${JSON.stringify(area)}`);
 }
+function separated(first, second) {
+  return first.x + first.width <= second.x || second.x + second.width <= first.x ||
+    first.y + first.height <= second.y || second.y + second.height <= first.y;
+}
 
-exports.run = async ({ pet, bubble, js, wait, dragBy, emit }) => {
+exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
   const primary = screen.getPrimaryDisplay();
   const secondary = screen.getAllDisplays().find(display => display.id !== primary.id);
   assert(secondary, 'Connect an extended second display for this hardware smoke test');
@@ -19,20 +23,33 @@ exports.run = async ({ pet, bubble, js, wait, dragBy, emit }) => {
   assert.equal(selected.pet_display_id, String(secondary.id));
   await wait(() => screen.getDisplayMatching(pet.getBounds()).id === secondary.id, 'pet on secondary');
   inside(pet.getBounds(), secondary.workArea);
-  inside(bubble.getBounds(), primary.workArea);
+  inside(bubble.getBounds(), secondary.workArea);
+  await wait(() => separated(pet.getBounds(), bubble.getBounds()), 'chat clear of companion');
+  await wait(() => js(stage, "Boolean(document.querySelector('.pet-stage-bg')?.complete && document.querySelector('.pet-stage-bg')?.naturalWidth)"), 'secondary scene background');
+  stage.webContents.invalidate();
+  await js(stage, 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const sceneCapture = await stage.webContents.capturePage();
+  const scenePixels = sceneCapture.toBitmap();
+  let opaque = 0;
+  for (let index = 3; index < scenePixels.length; index += 4) if (scenePixels[index] > 0) opaque++;
+  if (process.env.BOXAGENT_DISPLAY_SCREENSHOTS) {
+    fs.mkdirSync(process.env.BOXAGENT_DISPLAY_SCREENSHOTS, { recursive: true });
+    fs.writeFileSync(path.join(process.env.BOXAGENT_DISPLAY_SCREENSHOTS, 'secondary-scene.png'), sceneCapture.toPNG());
+  }
+  assert(opaque > scenePixels.length / 4 * .8, 'The selected secondary must show its scene background');
   await wait(() => js(bubble, "document.querySelector('.companion-display').dataset.active==='true'"), 'active button');
   const chat = bubble.getBounds();
   await dragBy(pet, 0, -80);
   assert.deepEqual(bubble.getBounds(), chat, 'dragging pet does not move chat');
   await dragBy(bubble, -70, -30);
   assert.equal(screen.getDisplayMatching(pet.getBounds()).id, secondary.id);
-  emit('front.assistant_text', { assistant_text: '分屏测试：小人在副屏，对话在主屏。' });
+  emit('front.assistant_text', { assistant_text: '副屏测试：伙伴、对话与任务展示都在副屏。' });
   await js(bubble, "boxagent.desktopAction('show-tasks')");
   await wait(() => BrowserWindow.getAllWindows().some(window => window.webContents.getURL().endsWith('/tasks.html')), 'task panel');
   const tasks = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/tasks.html'));
   await wait(() => tasks.isVisible(), 'tasks visible');
-  inside(tasks.getBounds(), primary.workArea);
-  inside(bubble.getBounds(), primary.workArea);
+  inside(tasks.getBounds(), secondary.workArea);
+  inside(bubble.getBounds(), secondary.workArea);
   inside(pet.getBounds(), secondary.workArea);
   await js(bubble, "boxagent.request('desktop_set_pet_scale', {scale:2})");
   await new Promise(resolve => setTimeout(resolve, 800));
@@ -52,6 +69,7 @@ exports.run = async ({ pet, bubble, js, wait, dragBy, emit }) => {
   };
   await choose(String(primary.id));
   inside(pet.getBounds(), primary.workArea);
+  await wait(() => js(stage, "!document.querySelector('.pet-stage-bg')"), 'primary remains transparent');
   await choose(String(secondary.id));
   inside(pet.getBounds(), secondary.workArea);
   await new Promise(resolve => setTimeout(resolve, 800));
@@ -61,6 +79,8 @@ exports.run = async ({ pet, bubble, js, wait, dragBy, emit }) => {
   const larger = pet.getBounds();
   console.log('Actual avatar window at 200% / 600%:', { smaller, larger });
   inside(larger, secondary.workArea);
+  assert(separated(larger, bubble.getBounds()), 'A large companion must remain clear of chat');
+  assert(separated(larger, tasks.getBounds()), 'Task display must remain clear of companion');
   if (secondary.workArea.height > secondary.workArea.width * 2) {
     assert(larger.height > smaller.height * 1.8, 'portrait pet visibly grows past the old canvas-width limit');
     assert(larger.width > smaller.width * 1.8, 'portrait width is no longer limited by transparent margins');

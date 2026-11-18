@@ -11,7 +11,7 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
     <>
       <section className="feature-card control-settings">
         <div>
-          <section><h2><label htmlFor="pet-display">{t('小人显示屏')}</label></h2></section>
+          <section><h2><label htmlFor="pet-display">{t('伙伴与聊天显示屏')}</label></h2><p>{t('伙伴、聊天与任务展示一起放在所选屏幕。')}</p></section>
           <select
             id="pet-display"
             className="pet-display-select"
@@ -21,7 +21,7 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
               id: event.target.value === 'together' ? null : event.target.value,
             }).then(setDesktop))}
           >
-            <option value="together">{t('小人与聊天同屏')}</option>
+            <option value="together">{t('随拖动切换屏幕')}</option>
             {desktop.displays?.map(display => (
               <option key={display.id} value={display.id}>
                 {t(display.primary ? '主屏' : '副屏')} · {display.label}

@@ -221,8 +221,13 @@ server.listen(path.join(data, "engine.sock"), () => {
         w.webContents.getURL().endsWith("/companion.html"),
       );
       await wait(() => pet.isVisible(), "VRM ready and committed");
+      const renderCapture = await stage.webContents.capturePage();
+      const renderPixels = renderCapture.toBitmap(), renderSize = renderCapture.getSize();
+      for (const pixel of [0, renderSize.width - 1, (renderSize.height - 1) * renderSize.width])
+        assert.equal(renderPixels[pixel * 4 + 3], 0, 'The display render layer must leave desktop corners transparent');
+      assert.equal(stage.isFocusable(), false, 'The display render layer cannot take keyboard focus');
       if (process.argv.includes('--displays')) {
-        await require('./desktop-display-smoke.cjs').run({ pet, bubble, js, wait, dragBy, emit });
+        await require('./desktop-display-smoke.cjs').run({ pet, stage, bubble, js, wait, dragBy, emit });
         clearTimeout(timeout);
         app.quit();
         return;

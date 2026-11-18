@@ -10,7 +10,7 @@ const {
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
-const { targetDisplay, petAnchor, petPlacement, primaryBubbleFrame } = require('./displays.cjs');
+const { targetDisplay, petAnchor, petPlacement, displayBubbleFrame, companionDisplayAreas } = require('./displays.cjs');
 const {
   clampFrame,
   petSize,
@@ -241,7 +241,7 @@ class DesktopHost {
     const state = this.displayState();
     const enabled = Boolean(this.current?.ready) && !this.pending && !this.loading;
     return [
-      { label: '小人与聊天同屏', type: 'radio', checked: !state.separate_windows, enabled,
+      { label: '随拖动切换屏幕', type: 'radio', checked: !state.separate_windows, enabled,
         click: () => this.changeDisplayFromMenu(null) },
       ...state.displays.map(display => ({
         label: `${display.primary ? '主屏' : '副屏'} · ${display.label}`,
@@ -266,7 +266,7 @@ class DesktopHost {
     this.menu = Menu.buildFromTemplate([
       { label: "伙伴控制台…", click: this.showPanel },
       { label: "摄像头互动…", click: this.showCamera },
-      { label: '小人显示屏', submenu: displayItems },
+      { label: '伙伴与聊天显示屏', submenu: displayItems },
       {
         label: "新建会话…",
         click: () => {
@@ -280,7 +280,9 @@ class DesktopHost {
     this.tray.setContextMenu(this.menu);
   }
   placePet(pet, display, center = false) {
-    const placement = petPlacement(pet, this.snapshot.scale || 1, display.workArea, center, Boolean(this.displayTarget));
+    if (this.closed || !pet || pet.window.isDestroyed()) return;
+    const area = this.displayTarget ? companionDisplayAreas(pet, this.snapshot.scale || 1, display.workArea, this.bubbleHeight).pet : display.workArea;
+    const placement = petPlacement(pet, this.snapshot.scale || 1, area, center, Boolean(this.displayTarget));
     if (placement.viewport.width !== pet.viewport.width || placement.viewport.height !== pet.viewport.height) {
       if (pet.dockInsetY !== undefined) pet.dockInsetY *= placement.viewport.height / pet.viewport.height;
     }
@@ -353,6 +355,7 @@ class DesktopHost {
     this.sendDesktop();
   }
   feedback(message) {
+    if (this.closed) return;
     this.snapshot.feedback = message;
     this.sendDesktop();
     this.showBubble();
@@ -431,7 +434,9 @@ class DesktopHost {
       "stage",
     );
     stage.setIgnoreMouseEvents(true, { forward: true });
-    const window = this.createWindow({ ...origin, focusable: false }, "pet");
+    const window = this.createWindow({ ...origin, ...viewport, focusable: false }, "pet");
+    // Never intercept clicks until the renderer supplies measured character bounds.
+    window.setIgnoreMouseEvents(true);
     const candidate = {
       window,
       stage,
@@ -474,6 +479,7 @@ class DesktopHost {
         viewport: pet.viewport,
         crop: pet.crop,
         canvas: pet.canvas,
+        scene: Boolean(this.displayTarget) && this.preferredDisplay().id !== screen.getPrimaryDisplay().id,
         state: this.state.speaking && !this.state.user_speaking ? "speaking" : "idle",
         pointer: this.pointerValue || [0, 0],
         action: this.state.avatar_action,
@@ -500,6 +506,7 @@ class DesktopHost {
         height: bounds.height,
       };
       pet.hasBounds = true;
+      pet.window.setIgnoreMouseEvents(!pet.ready);
       pet.initialCrop = { crop: { ...pet.crop }, viewport: { ...pet.viewport } };
       // Keep the first-frame crop for both split-display scaling and linked docking.
       pet.dockInsetY ??= pet.crop.y;
@@ -533,6 +540,7 @@ class DesktopHost {
         this.current = pet;
         this.pending = null;
         pet.ready = true;
+        pet.window.setIgnoreMouseEvents(!pet.hasBounds);
         if (this.displayTarget && pet.hasBounds) this.savePosition();
         this.snapshot = { ...this.snapshot, ...snapshot };
         if (this.snapshot.feedback === this.error) this.snapshot.feedback = "";
@@ -551,6 +559,7 @@ class DesktopHost {
       this.failAvatar(pet, String(message.message || "模型加载失败"));
   }
   failAvatar(pet, message) {
+    if (this.closed) return;
     if (pet !== this.pending && pet !== this.current) return;
     const feedback = this.avatarFailure(
       message,
@@ -565,6 +574,11 @@ class DesktopHost {
         .request("desktop_cancel_avatar", { token: pet.token })
         .catch(() => {});
       pet.reject(Error(feedback));
+    } else {
+      this.current = null;
+      pet.ready = false;
+      if (!pet.window.isDestroyed()) pet.window.destroy();
+      if (pet.stage && !pet.stage.isDestroyed()) pet.stage.destroy();
     }
     this.feedback(feedback);
   }
@@ -608,9 +622,12 @@ class DesktopHost {
     this.sendPet(pet);
   }
   positionBubble(preserveTop = false) {
-    if (!this.bubble || !this.current) return;
+    if (this.closed || !this.bubble || this.bubble.isDestroyed() || !this.current || this.current.window.isDestroyed()) return;
     if (this.displayTarget) {
-      this.geometry.setBounds(this.bubble, primaryBubbleFrame(this.geometry.getBounds(this.bubble), screen.getPrimaryDisplay().workArea, this.bubbleHeight));
+      const display = this.preferredDisplay();
+      this.placePet(this.current, display);
+      const area = companionDisplayAreas(this.current, this.snapshot.scale || 1, display.workArea, this.bubbleHeight).panel;
+      this.geometry.setBounds(this.bubble, displayBubbleFrame(this.geometry.getBounds(this.bubble), area, this.bubbleHeight));
       if (this.tasks?.isVisible()) this.positionTasks();
       return;
     }
@@ -646,7 +663,7 @@ class DesktopHost {
     this.positionBubble(this.bubbleOpen);
   }
   showBubble() {
-    if (!this.bubble) return;
+    if (this.closed || !this.bubble || this.bubble.isDestroyed()) return;
     this.bubbleOpen = true;
     this.syncTasksVisibility();
     this.positionBubble();
@@ -664,6 +681,7 @@ class DesktopHost {
     this.bubbleOpen ? this.hideBubble() : this.showBubble();
   }
   showTasks(expanded = true) {
+    if (this.closed) return;
     const changed = Boolean(this.tasksExpanded) !== expanded;
     this.tasksExpanded = expanded;
     if (!this.tasks || this.tasks.isDestroyed()) {
@@ -705,7 +723,10 @@ class DesktopHost {
       ? this.geometry.getBounds(this.bubble)
       : this.current ? { ...this.current.origin, ...this.current.viewport }
       : { x: this.area.x + this.area.width - 280, y: this.area.y + this.area.height - 210, width: 252, height: 182 };
-    const area = screen.getDisplayMatching(anchor).workArea;
+    const displayArea = screen.getDisplayMatching(anchor).workArea;
+    const area = this.displayTarget && this.current
+      ? companionDisplayAreas(this.current, this.snapshot.scale || 1, this.preferredDisplay().workArea, this.bubbleHeight).panel
+      : displayArea;
     const frame = taskFrame(anchor, area, this.tasksExpanded);
     this.taskSide ||= anchor.x - frame.width - 12 >= area.x + 8 ? "left" : "right";
     frame.x = this.taskSide === "left" ? anchor.x - frame.width - 12 : anchor.x + anchor.width + 12;
@@ -800,7 +821,10 @@ class DesktopHost {
       drag.moved = true;
       const visible = drag.frames.filter(item => item.visible);
       if (!visible.length) return;
-      const area = this.displayTarget ? (pet ? this.area : screen.getPrimaryDisplay().workArea) : screen.getDisplayNearestPoint(point).workArea;
+      const assigned = this.displayTarget
+        ? companionDisplayAreas(this.current, this.snapshot.scale || 1, this.preferredDisplay().workArea, this.bubbleHeight)
+        : null;
+      const area = assigned ? (pet ? assigned.pet : assigned.panel) : screen.getDisplayNearestPoint(point).workArea;
       const clamped = clampFrames(visible.map(item => ({ ...item.limit, x: item.limit.x + dx, y: item.limit.y + dy })),
         { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
       const moveX = clamped[0].x - visible[0].limit.x, moveY = clamped[0].y - visible[0].limit.y;
@@ -864,6 +888,7 @@ class DesktopHost {
     fs.renameSync(file + ".tmp", file);
   }
   stateChanged(state, event) {
+    if (this.closed) return;
     if (/Engine (?:未连接|已断开)|^connect (?:ENOENT|ECONNREFUSED)/.test(this.snapshot.feedback || "")) {
       this.snapshot.feedback = "";
       this.sendDesktop();
@@ -910,8 +935,8 @@ class DesktopHost {
     let channel = "ui";
     if (Notification.isSupported()) {
       new Notification({
-        title: `${this.snapshot.name} 任务提醒`,
-        body: text || "后台任务已经结束",
+        title: `${this.snapshot.name} 提醒`,
+        body: text || "有一条新提醒",
       }).show();
       channel = "system";
     }
