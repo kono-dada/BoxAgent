@@ -15,6 +15,7 @@ function separated(first, second) {
 exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
   const primary = screen.getPrimaryDisplay();
   const secondary = screen.getAllDisplays().find(display => display.id !== primary.id);
+  const currentArea = display => screen.getAllDisplays().find(item => item.id === display.id).workArea;
   assert(secondary, 'Connect an extended second display for this hardware smoke test');
   console.log('Physical displays:', screen.getAllDisplays().map(({ id, label, workArea, scaleFactor }) => ({ id, label, workArea, scaleFactor })));
   await js(bubble, "boxagent.request('desktop_toggle_bubble')");
@@ -22,8 +23,9 @@ exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
   const selected = await js(bubble, `boxagent.request('desktop_set_pet_display', {id:${JSON.stringify(String(secondary.id))}})`);
   assert.equal(selected.pet_display_id, String(secondary.id));
   await wait(() => screen.getDisplayMatching(pet.getBounds()).id === secondary.id, 'pet on secondary');
-  inside(pet.getBounds(), secondary.workArea);
-  inside(bubble.getBounds(), secondary.workArea);
+  inside(pet.getBounds(), currentArea(secondary));
+  inside(bubble.getBounds(), currentArea(secondary));
+  assert.deepEqual(stage.getBounds(), secondary.bounds, 'secondary scene covers the full physical display');
   await wait(() => separated(pet.getBounds(), bubble.getBounds()), 'chat clear of companion');
   await wait(() => js(stage, "Boolean(document.querySelector('.pet-stage-bg')?.complete && document.querySelector('.pet-stage-bg')?.naturalWidth)"), 'secondary scene background');
   stage.webContents.invalidate();
@@ -48,12 +50,12 @@ exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
   await wait(() => BrowserWindow.getAllWindows().some(window => window.webContents.getURL().endsWith('/tasks.html')), 'task panel');
   const tasks = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/tasks.html'));
   await wait(() => tasks.isVisible(), 'tasks visible');
-  inside(tasks.getBounds(), secondary.workArea);
-  inside(bubble.getBounds(), secondary.workArea);
-  inside(pet.getBounds(), secondary.workArea);
+  inside(tasks.getBounds(), currentArea(secondary));
+  inside(bubble.getBounds(), currentArea(secondary));
+  inside(pet.getBounds(), currentArea(secondary));
   await js(bubble, "boxagent.request('desktop_set_pet_scale', {scale:2})");
   await new Promise(resolve => setTimeout(resolve, 800));
-  inside(pet.getBounds(), secondary.workArea);
+  inside(pet.getBounds(), currentArea(secondary));
   await js(bubble, "boxagent.desktopAction('show-panel')");
   await wait(() => BrowserWindow.getAllWindows().some(window => window.webContents.getURL().endsWith('/index.html')), 'console');
   const panel = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'));
@@ -68,26 +70,26 @@ exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
     await wait(() => js(panel, `document.getElementById('pet-display').value===${JSON.stringify(id)}&&!document.getElementById('pet-display').disabled`), 'applied display');
   };
   await choose(String(primary.id));
-  inside(pet.getBounds(), primary.workArea);
+  inside(pet.getBounds(), currentArea(primary));
   await wait(() => js(stage, "!document.querySelector('.pet-stage-bg')"), 'primary remains transparent');
   await choose(String(secondary.id));
-  inside(pet.getBounds(), secondary.workArea);
+  inside(pet.getBounds(), currentArea(secondary));
   await new Promise(resolve => setTimeout(resolve, 800));
   const smaller = pet.getBounds();
   await js(bubble, "boxagent.request('desktop_set_pet_scale', {scale:6})");
   await new Promise(resolve => setTimeout(resolve, 1800));
   const larger = pet.getBounds();
   console.log('Actual avatar window at 200% / 600%:', { smaller, larger });
-  inside(larger, secondary.workArea);
+  inside(larger, currentArea(secondary));
   assert(separated(larger, bubble.getBounds()), 'A large companion must remain clear of chat');
   assert(separated(larger, tasks.getBounds()), 'Task display must remain clear of companion');
-  if (secondary.workArea.height > secondary.workArea.width * 2) {
+  if (currentArea(secondary).height > currentArea(secondary).width * 2) {
     assert(larger.height > smaller.height * 1.8, 'portrait pet visibly grows past the old canvas-width limit');
     assert(larger.width > smaller.width * 1.8, 'portrait width is no longer limited by transparent margins');
   }
   const chatBeforeLargeDrag = bubble.getBounds();
   await dragBy(pet, 0, -100);
-  inside(pet.getBounds(), secondary.workArea);
+  inside(pet.getBounds(), currentArea(secondary));
   assert.deepEqual(bubble.getBounds(), chatBeforeLargeDrag);
 
   // Optional Playwright screenshots use the bundled tool runtime, not a production dependency.
@@ -135,7 +137,7 @@ exports.run = async ({ pet, stage, bubble, js, wait, dragBy, emit }) => {
   await js(bubble, "boxagent.request('desktop_set_pet_scale', {scale:2})");
   await new Promise(resolve => setTimeout(resolve, 500));
   await choose('together');
-  inside(pet.getBounds(), primary.workArea);
+  inside(pet.getBounds(), currentArea(primary));
   assert.equal((await js(bubble, "boxagent.request('desktop_snapshot')")).separate_windows, false);
   console.log('Real dual-display placement, independent drag, notifications, tasks, scale, controls and legacy restore passed');
 };

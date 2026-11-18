@@ -10,7 +10,7 @@ const {
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
-const { targetDisplay, petAnchor, petPlacement, displayBubbleFrame, companionDisplayAreas } = require('./displays.cjs');
+const { targetDisplay, petAnchor, petPlacement, constrainPetOrigin, displayBubbleFrame, companionDisplayAreas } = require('./displays.cjs');
 const {
   clampFrame,
   petSize,
@@ -105,12 +105,15 @@ class DesktopHost {
     this.registerWindow(window);
     this.windows.add(window);
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    window.setAlwaysOnTop(true, "floating");
+    window.setAlwaysOnTop(true, this.isSceneDisplay() ? "screen-saver" : "floating", page === "stage" ? 0 : 1);
     window.on("closed", () => this.windows.delete(window));
     window.loadFile(path.join(__dirname, `../dist/${page}.html`));
     return window;
   }
-  // 整屏渲染层覆盖人物所在屏幕的工作区，角色按真实屏幕坐标绘制，不再被小窗口裁掉。
+  isSceneDisplay() {
+    return Boolean(this.displayTarget) && this.preferredDisplay().id !== screen.getPrimaryDisplay().id;
+  }
+  // 指定副屏的场景包含菜单栏区域，角色按真实屏幕坐标绘制。
   stageBounds(pet) {
     const anchor = pet?.hasBounds
       ? petAnchor(pet)
@@ -119,6 +122,7 @@ class DesktopHost {
       ? this.preferredDisplay()
       : screen.getDisplayNearestPoint(anchor);
     const area = display.workArea, bounds = display.bounds;
+    if (this.isSceneDisplay()) return { ...bounds };
     // 背景铺到屏幕底边，Windows 任务栏一并覆盖；顶部保留 macOS 菜单栏。
     return {
       x: area.x,
@@ -130,7 +134,26 @@ class DesktopHost {
   syncStage(pet) {
     const stage = pet?.stage;
     if (!stage || stage.isDestroyed()) return;
+    const scene = this.isSceneDisplay();
+    if (this.sceneMode !== scene) {
+      this.sceneMode = scene;
+      for (const window of this.windows) {
+        if (!window.isDestroyed()) window.setAlwaysOnTop(true, scene ? "screen-saver" : "floating", window === stage ? 0 : 1);
+      }
+    }
     const bounds = this.stageBounds(pet);
+    if (process.platform === "darwin" && stage.setSimpleFullScreen) {
+      if (scene) {
+        if (!stage.isSimpleFullScreen() || screen.getDisplayMatching(stage.getBounds()).id !== this.preferredDisplay().id) {
+          if (stage.isSimpleFullScreen()) stage.setSimpleFullScreen(false);
+          stage.setBounds(bounds);
+          stage.setSimpleFullScreen(true);
+        }
+        this.geometry.remember(stage, stage.getBounds());
+        return;
+      }
+      if (stage.isSimpleFullScreen()) stage.setSimpleFullScreen(false);
+    }
     const current = stage.getBounds();
     if (
       current.x !== bounds.x ||
@@ -439,7 +462,7 @@ class DesktopHost {
     // 渲染层先建、命中层后建，保证命中层在层之上，鼠标事件落在人物身上。
     const stageBounds = this.stageBounds({ origin });
     const stage = this.createWindow(
-      { ...stageBounds, focusable: false },
+      { ...stageBounds, focusable: false, fullscreenable: true },
       "stage",
     );
     stage.setIgnoreMouseEvents(true, { forward: true });
@@ -488,7 +511,7 @@ class DesktopHost {
         viewport: pet.viewport,
         crop: pet.crop,
         canvas: pet.canvas,
-        scene: Boolean(this.displayTarget) && this.preferredDisplay().id !== screen.getPrimaryDisplay().id,
+        scene: this.isSceneDisplay(),
         state: this.state.speaking && !this.state.user_speaking ? "speaking" : "idle",
         pointer: this.pointerValue || [0, 0],
         action: this.state.avatar_action,
@@ -772,7 +795,7 @@ class DesktopHost {
     const tasks = this.tasks?.isVisible() ? this.geometry.getBounds(this.tasks) : null;
     const frames = clampFrames([origin, bubble, ...(tasks ? [tasks] : [])],
       { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
-    pet.origin = { x: frames[0].x, y: frames[0].y };
+    pet.origin = constrainPetOrigin(frames[0], pet.crop, area);
     this.geometry.setPosition(pet.window, Math.round(pet.origin.x + pet.crop.x), Math.round(pet.origin.y + pet.crop.y));
     this.sendPet(pet);
     this.geometry.setBounds(this.bubble, frames[1]);
