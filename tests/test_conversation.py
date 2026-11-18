@@ -86,16 +86,18 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
                 await service.toggle()
             self.assertTrue(voices[0].closed.is_set())
             self.assertFalse(service.is_connected)
-            self.assertFalse(service.voice_requested)
-            self.assertEqual(events.state.voice, "off")
+            self.assertTrue(service.voice_requested)
+            self.assertEqual(events.state.voice, "connecting")
             service.connection_timeout = .2
-            await service.toggle()
+            async with asyncio.timeout(2):
+                while len(voices) < 2 or not voices[1].ready.is_set():
+                    await asyncio.sleep(.001)
             self.assertTrue(service.is_connected)
             self.assertTrue(voices[1].ready.is_set())
         finally:
             await service.close()
 
-    async def test_voice_startup_failure_does_not_launch_background_reconnect(self) -> None:
+    async def test_voice_startup_failure_preserves_request_until_user_stops(self) -> None:
         class Voice:
             ready = asyncio.Event()
             stop = AsyncMock()
@@ -105,11 +107,17 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
 
         service = InteractionService(StateEvents(lambda _event: None),
                                      lambda *_a, **_k: Voice(), None, reconnect_delays=(0,))
-        with self.assertRaisesRegex(RuntimeError, "AOQ 连接失败"):
+        try:
+            with self.assertRaisesRegex(RuntimeError, "AOQ 连接失败"):
+                await service.toggle()
+            self.assertIsNotNone(service.reconnect_task)
+            self.assertTrue(service.voice_requested)
             await service.toggle()
-        self.assertIsNone(service.reconnect_task)
-        self.assertFalse(service.is_connected)
-        self.assertFalse(service.voice_requested)
+            self.assertIsNone(service.reconnect_task)
+            self.assertFalse(service.is_connected)
+            self.assertFalse(service.voice_requested)
+        finally:
+            await service.close()
 
     async def test_existing_call_retries_after_one_reconnect_startup_failure(self) -> None:
         voices = []
@@ -294,7 +302,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("new-response", service.response_interactions)
         self.assertNotIn("voice.off", [event["type"] for event in events])
 
-    async def test_current_voice_disconnect_clears_requested_flag(self):
+    async def test_current_voice_disconnect_preserves_requested_flag(self):
         class Voice:
             async def run(self):
                 return None
@@ -307,9 +315,10 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
 
         await service._run(voice, microphone=True)
 
-        self.assertFalse(service.voice_requested)
+        self.assertTrue(service.voice_requested)
         self.assertIsNone(service.voice)
-        self.assertEqual(service.events.state.voice, "off")
+        self.assertEqual(service.events.state.voice, "connecting")
+        await service.close()
 
     async def test_provider_response_idle_close_is_silent_for_open_microphone(self):
         events = []
