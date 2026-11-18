@@ -22,6 +22,7 @@ module.exports = {
       NSSpeechRecognitionUsageDescription: 'BoxAgent recognizes your companion’s name on this Mac for hands-free voice wake.',
       NSScreenCaptureUsageDescription: 'BoxAgent reads screen content when you enable desktop vision or request a desktop task.',
       NSAccessibilityUsageDescription: 'BoxAgent controls apps for desktop tasks you request.',
+      NSAppleEventsUsageDescription: 'BoxAgent communicates with the desktop execution component to operate apps for tasks you request.',
       NSCameraUsageDescription: 'BoxAgent shares camera frames with Qwen only while you enable video conversation.',
     },
   },

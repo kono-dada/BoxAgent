@@ -47,6 +47,7 @@ function prepare() {
     execFileSync("/usr/libexec/PlistBuddy", [
       "-c", "Add :NSSpeechRecognitionUsageDescription string 语音唤醒开启时，在本机识别当前角色名称。",
       "-c", "Set :NSMicrophoneUsageDescription 使用麦克风进行本机语音唤醒和语音对话。",
+      "-c", "Add :NSAppleEventsUsageDescription string 通过桌面执行组件完成你请求的应用操作。",
       info,
     ]);
     fs.renameSync(
