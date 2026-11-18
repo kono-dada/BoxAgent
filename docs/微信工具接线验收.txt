@@ -1,0 +1,35 @@
+微信工具接线验收（2026-11-18）
+
+原始问题
+语音入口回答不能读取微信；后台任务虽然在 request.json 写了 wechat_*，却继续调用窗口工具。
+实机协议检查发现：本机 App Server 的 ThreadStartParams 支持 dynamicTools，ThreadResumeParams 不支持。
+旧进程重启后恢复产品绑定的旧线程时，动态工具字段被忽略，宿主的“已注册”记录不能证明模型实际可调用。
+
+最终实现
+1. 已启用微信的语音入口说明后台具备读取、历史、搜索与发送能力，微信请求使用 run_task(capability=wechat)。
+2. 微信任务进入独立 App Server Host，computer_use_enabled=False，MCP 配置为空，不加载 CU 或 shell。
+3. 普通桌面任务维持官方 CU 客户端直连。曾试验的 stdio 拦截代理会影响官方认证，已撤除，不在最终安装包中。
+4. 动态工具线程在进程重启后重新创建，并从产品会话恢复历史；同进程内配置不变时仍复用线程。
+5. 专用流程先查未读、再读正文；重名列候选，发送与读取授权分开，实际发送需要明确文案、对象及回执核验。
+6. 任务进度文案改为“后台规划中”。
+
+真实安装版验收
+应用路径：/Applications/BoxAgent.app。
+原句：微信有什么新消息吗？
+任务：ac26dd738c53，outcome=completed。
+实际工具：wechat_unread，wechat_history，wechat_history，wechat_history，wechat_history。
+任务工具列表仅含 8 个 wechat_*，没有桌面工具；本轮没有 CU 调用，没有发送消息。
+微信监听 running=true，来源与 worker 无错误，pending=0、processing=0。
+真实普通桌面直连另做只读 list_apps 验证，成功、无认证错误。
+证据：.runtime/private/artifacts/wechat-workflow-2026-11-18/installed-workflow-result.json。
+
+检查
+完整 Python 回归：591 passed，13 skipped，102 subtests passed。
+Pyright：0 errors、1 条已有 pyaudio 源码解析警告。
+另有生产 Host 组装回归，确认微信与普通桌面选择不同 Host，微信 Host 不加载 CU。
+
+权限与视频的实际范围
+当前 onboarding 检查麦克风、辅助功能、屏幕录制，没有包含语音识别。语音识别仍由唤醒组件在首次使用时请求，尚未补入 onboarding。
+已有模型 Key、微信凭据和完成引导的记录均继续复用。临时签名更新可能影响 macOS 对应用身份的信任，不能承诺所有更新都不会再次确认。
+forbidden 是选错 CU 路线时的内部边界错误，不是用户需要再授权；微信运行器本身不提供 CU。
+视频截图对应摄像头绑定的语音会话断开或切换。日志存在语音断开后重连记录，摄像头旧连接校验会停止帧传输。该视频恢复机制本轮没有改动，不能宣称已修好；更新重启也会断开现有通话。
