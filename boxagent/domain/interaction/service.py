@@ -33,16 +33,19 @@ def _is_reconnectable_voice_disconnect(message):
     ))
 
 
-_VOICE_END_PHRASE = re.compile(
-    r"(?:(?:嗯+|啊+|哦+|好(?:的|啦|了)?|行(?:了)?|可以了|谢谢(?:你|啦|了)?)"
-    r"|(?:没事(?:儿)?了|没别的(?:事|问题)?了|没有(?:别的)?(?:事|问题)了"
+_VOICE_DISMISSAL_ACTION = r"(?:下去|退下|走(?:开)?|(?:去)?休息(?:一下|一会儿?|会儿)?)"
+# Conversational lead-ins can accompany a command, but do not end a call by themselves.
+_VOICE_END_UTTERANCE = re.compile(
+    r"(?:[嗯啊哦呃欸诶哎]|那(?:就)?|好(?:的|啦|了|吧)?|行(?:了|吧)?|可以了|谢谢(?:你|啦|了)?"
+    r"|没(?:什么|啥)?(?:别的)?事(?:儿)?"
+    r"|(?P<command>没事(?:儿)?了|没(?:什么|啥)(?:别的)?(?:事(?:儿)?|问题)了"
+    r"|没别的(?:事|问题)?了|没有(?:别的)?(?:事|问题)了"
     r"|不用(?:了|帮忙了|继续了)|不需要了|先这样(?:吧|了)?|就这样(?:吧|了)?"
     r"|(?:对话|聊天|语音)?结束(?:了|吧)|到这(?:里|儿)(?:了|吧)?"
     r"|(?:关掉|关闭|退出|停止|结束)(?:这次|当前)?(?:语音(?:对话|会话)?|麦克风|通话)"
-    r"|拜拜|再见))+"
-)
-_VOICE_END_INTENT = re.compile(
-    r"没事|没别的|没有|不用|不需要|先这样|就这样|结束|到这|语音|麦克风|通话|拜拜|再见"
+    rf"|(?:你(?:就|可以)?(?:先)?|先){_VOICE_DISMISSAL_ACTION}(?:吧|了|啦|啊)?"
+    rf"|{_VOICE_DISMISSAL_ACTION}(?:吧|了|啦|啊)"
+    r"|下去|退下|拜拜|再见))+"
 )
 
 
@@ -50,11 +53,16 @@ def _is_voice_end_request(transcript: str, companion_name: str) -> bool:
     punctuation = r"[\s，。！、,.!~～]+"
     text = re.sub(punctuation, "", transcript).casefold()
     name = re.sub(punctuation, "", companion_name).casefold()
-    addressed = text.removeprefix(name)
-    if name == "书书":
-        addressed = addressed.removeprefix("叔叔")
-    return any(len(phrase) <= 48 and _VOICE_END_INTENT.search(phrase)
-               and _VOICE_END_PHRASE.fullmatch(phrase) for phrase in (text, addressed))
+    names = (name, "叔叔") if name == "书书" else (name,)
+    phrases = [text]
+    for vocative in names:
+        if vocative:
+            phrases.append(text.removeprefix(vocative).removesuffix(vocative))
+    for phrase in phrases:
+        match = _VOICE_END_UTTERANCE.fullmatch(phrase) if len(phrase) <= 48 else None
+        if match is not None and match["command"] is not None:
+            return True
+    return False
 
 
 class InteractionService:
@@ -62,7 +70,7 @@ class InteractionService:
                  history_builder=None, notification_event=None,
                  memory=None, reconnect_delays=(.5, 1.5, 3.0),
                  context_observer=None, turn_preparer=None,
-                 connection_timeout: float = 45.0):
+                 connection_timeout: float = 45.0, voice_idle_timeout: float = 60.0):
         self.events = events
         self.context_observer = context_observer or NullContextObserver()
         self.voice_factory = voice_factory
@@ -89,6 +97,9 @@ class InteractionService:
         self.reconnect_delays = tuple(reconnect_delays)
         self.reconnect_task = None
         self.voice_end_task: asyncio.Task[None] | None = None
+        self.voice_idle_task: asyncio.Task[None] | None = None
+        self.voice_idle_timeout = voice_idle_timeout
+        self.user_speaking = False
         self.camera_feed: CameraFeed | None = None
         self.camera_owns_voice = False
 
@@ -166,6 +177,11 @@ class InteractionService:
                 if self.voice is None:
                     raise RuntimeError("语音唤醒连接已断开")
                 await self.voice.greet_on_wake(greeting)
+            except TimeoutError as exc:
+                await self.stop()
+                if not str(exc):
+                    raise TimeoutError("千问唤醒问候超时，请再叫我一次。") from exc
+                raise
             except BaseException:
                 await self.stop()
                 raise
@@ -340,16 +356,54 @@ class InteractionService:
             finally:
                 waiter.cancel()
                 await asyncio.gather(waiter, return_exceptions=True)
+        if microphone and self.voice is voice and self.voice_idle_task is None:
+            self._arm_voice_idle_timer(voice)
+
+    def _cancel_voice_idle_timer(self) -> None:
+        task, self.voice_idle_task = self.voice_idle_task, None
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
+
+    def _arm_voice_idle_timer(self, voice: Voice) -> None:
+        self._cancel_voice_idle_timer()
+        if not self.user_speaking and self.voice_end_task is None:
+            self.voice_idle_task = asyncio.create_task(self._end_idle_voice(voice))
+
+    async def _end_idle_voice(self, voice: Voice) -> None:
+        await asyncio.sleep(self.voice_idle_timeout)
+        while True:
+            async with self.toggle_lock:
+                if self.voice is not voice or self.user_speaking or self.voice_end_task is not None:
+                    return
+                # Let speech already in progress finish, including proactive speech.
+                if not getattr(voice, "playback_pending", False):
+                    self.voice_idle_task = None
+                    await self._finish_voice("voice.idle_closed")
+                    return
+            await asyncio.sleep(.1)
 
     async def _conversation_event(self, kind, payload):
         transcript = ""
+        if self.voice is not None and self.connection_microphone and self.voice_requested:
+            if kind == "user_speech_started":
+                self.user_speaking = True
+                self._cancel_voice_idle_timer()
+                return
+            if kind == "user_speech_stopped":
+                self.user_speaking = False
+                self._arm_voice_idle_timer(self.voice)
+                return
         if kind == "user_final":
             transcript = str(payload.get("transcript") or "").strip()
-            if self.voice is not None and self.connection_microphone and _is_voice_end_request(transcript, self.companion_name()):
-                if self.voice_end_task is None or self.voice_end_task.done():
-                    # The provider may be awaiting this callback. Close it from a separate task.
-                    self.voice_end_task = asyncio.create_task(self._end_voice_from_transcript(self.voice))
-                return
+            if self.voice is not None and self.connection_microphone and self.voice_requested:
+                if self.voice_end_task is not None:
+                    return
+                if _is_voice_end_request(transcript, self.companion_name()):
+                    self._cancel_voice_idle_timer()
+                    self.events.emit("voice.farewell_requested")
+                    # Keep the provider's receive loop free to deliver the farewell audio.
+                    self.voice_end_task = asyncio.create_task(self._say_farewell_and_close(self.voice))
+                    return
         if not self.conversation or not self.conversation.store:
             return
         if kind == "user_final":
@@ -423,23 +477,29 @@ class InteractionService:
                 self._close_interaction(context)
                 self.events.emit("conversation.updated")
 
-    async def _end_voice_from_transcript(self, voice: Voice) -> None:
+    async def _say_farewell_and_close(self, voice: Voice) -> None:
+        try:
+            await asyncio.wait_for(voice.say_farewell(), timeout=15.0)
+        except Exception:
+            logger.warning("Voice farewell could not finish", exc_info=True)
         async with self.toggle_lock:
-            if self.voice is not voice or not self.connection_microphone:
-                return
-            self.voice_requested = False
-            self.events.emit("voice.stopping", voice="stopping",
-                             speaking=False, user_speaking=False)
-            try:
-                if self.interaction is not None and self.conversation and self.conversation.store:
-                    await self.conversation.finish_interaction(
-                        self.interaction, status="interrupted", runtime="qwen_realtime")
-                    self._close_interaction(self.interaction)
-                    self.events.emit("conversation.updated")
-            except Exception:
-                logger.exception("Could not finalize the interrupted voice turn")
-            finally:
-                await self.stop()
+            if self.voice is voice and self.connection_microphone:
+                await self._finish_voice("voice.farewell_closed")
+
+    async def _finish_voice(self, closed_event: str) -> None:
+        self.voice_requested = False
+        self.events.emit("voice.stopping", voice="stopping",
+                         speaking=False, user_speaking=False)
+        try:
+            if self.interaction is not None and self.conversation and self.conversation.store:
+                await self.conversation.finish_interaction(
+                    self.interaction, status="interrupted", runtime="qwen_realtime")
+                self._close_interaction(self.interaction)
+                self.events.emit("conversation.updated")
+        except Exception:
+            logger.exception("Could not finalize the interrupted voice turn")
+        finally:
+            await self.stop(closed_event=closed_event)
 
     def _response_interaction(self, payload):
         response_id = payload.get("response_id")
@@ -606,7 +666,7 @@ class InteractionService:
             message = str(exc) or "语音连接失败"
             ready = getattr(voice, "ready", None)
             reconnect = (
-                microphone and self.voice_requested
+                microphone and self.voice_requested and self.voice_end_task is None
                 and (not isinstance(ready, asyncio.Event) or ready.is_set())
                 and (self.camera_feed is not voice or not self.camera_owns_voice)
                 and _is_reconnectable_voice_disconnect(message)
@@ -623,6 +683,8 @@ class InteractionService:
                 self.events.emit("voice.error", error=message)
         finally:
             if self.voice is voice:
+                farewell_pending = self.voice_end_task is not None
+                self._reset_voice_timers()
                 self._clear_response_tracking()
                 self.voice = None
                 self.connection_microphone = False
@@ -630,7 +692,8 @@ class InteractionService:
                     self._schedule_voice_reconnect()
                 elif microphone:
                     self.voice_requested = False
-                    self.events.emit("voice.off", voice="off", speaking=False,
+                    self.events.emit("voice.farewell_closed" if farewell_pending else "voice.off",
+                                     voice="off", speaking=False,
                                      user_speaking=False)
 
     def _schedule_voice_reconnect(self):
@@ -672,8 +735,16 @@ class InteractionService:
 
         task.add_done_callback(clear)
 
-    async def stop(self):
+    def _reset_voice_timers(self) -> None:
+        self._cancel_voice_idle_timer()
+        task, self.voice_end_task = self.voice_end_task, None
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
+        self.user_speaking = False
+
+    async def stop(self, *, closed_event: str = "voice.off") -> None:
         self.voice_requested = False
+        self._reset_voice_timers()
         reconnect_task, self.reconnect_task = self.reconnect_task, None
         if reconnect_task and reconnect_task is not asyncio.current_task():
             reconnect_task.cancel()
@@ -696,7 +767,7 @@ class InteractionService:
         # The explicit stop owns its terminal state, after resources are closed.
         if self.voice is None:
             self._clear_response_tracking()
-            self.events.emit("voice.off", voice="off", speaking=False,
+            self.events.emit(closed_event, voice="off", speaking=False,
                              user_speaking=False, voice_input_level=-1)
 
     async def close(self):

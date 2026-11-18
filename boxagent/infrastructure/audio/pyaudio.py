@@ -68,6 +68,11 @@ class AudioIO:
         with self.lock:
             self.playback_finished = True
 
+    @property
+    def has_pending_playback(self) -> bool:
+        with self.lock:
+            return self.playing or bool(self.buffer)
+
     def clear(self):
         with self.lock:
             self.buffer.clear()
