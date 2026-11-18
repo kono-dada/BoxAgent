@@ -881,7 +881,10 @@ class DesktopHost {
     await this.client.request("wake_voice", { greeting: wakeReply(this.state) });
   }
   stateChanged(state, event) {
-    if (/Engine (?:未连接|已断开)|^connect (?:ENOENT|ECONNREFUSED)/.test(this.snapshot.feedback || "")) {
+    const feedback = this.snapshot.feedback || "";
+    const staleWakeError = event?.type === "voice.ready" &&
+      /^(?:TimeoutError|千问唤醒问候超时，请再叫我一次。)$/.test(feedback);
+    if (staleWakeError || /Engine (?:未连接|已断开)|^connect (?:ENOENT|ECONNREFUSED)/.test(feedback)) {
       this.snapshot.feedback = "";
       this.sendDesktop();
     }
@@ -889,6 +892,9 @@ class DesktopHost {
     if (!this.tasks && this.hasTaskStatus() && !this.bubbleOpen) this.showTasks(false);
     else this.syncTasksVisibility();
     if (event?.type === "task.approval") this.showTasks(true);
+    if (event?.type === "voice.idle_closed" || event?.type === "voice.farewell_closed") {
+      this.hideBubble();
+    }
     if (this.current) this.sendPet(this.current);
     if (event?.type === "engine.ready") {
       this.engineReady = true;

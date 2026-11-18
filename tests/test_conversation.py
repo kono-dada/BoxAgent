@@ -29,6 +29,8 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             def __init__(self) -> None:
                 self.ready = asyncio.Event()
                 self.closed = asyncio.Event()
+                self.farewell_started = asyncio.Event()
+                self.farewell_played = asyncio.Event()
 
             async def run(self) -> None:
                 self.ready.set()
@@ -37,26 +39,99 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             async def stop(self) -> None:
                 self.closed.set()
 
-        events = StateEvents(lambda _event: None)
-        service = InteractionService(events, lambda *_a, **_k: Voice(), None)
+            async def say_farewell(self) -> None:
+                self.farewell_started.set()
+                await self.farewell_played.wait()
+
+        published = []
+        events = StateEvents(published.append)
+        voices = []
+
+        def voice_factory(*_args, **_kwargs) -> Voice:
+            voice = Voice()
+            voices.append(voice)
+            return voice
+
+        service = InteractionService(events, voice_factory, None)
         try:
-            for farewell in ("书书，没事了，谢谢！", "嗯，聊天结束了。", "好，先这样吧。"):
+            for name, farewell in (
+                ("书书", "书书，没事了，谢谢！"), ("书书", "嗯，聊天结束了。"),
+                ("书书", "没事了，你先下去吧。"), ("书书", "下去吧。"),
+                ("地瓜", "地瓜，你下去吧。"), ("书书", "退下啦。"),
+                ("书书", "呃，没什么事了，你先下去吧。"), ("书书", "你走吧。"),
+                ("地瓜", "下去吧，地瓜。"), ("地瓜", "你下去，地瓜。"),
+                ("地瓜", "嗯，没什么事儿，你先去休息吧。"),
+                ("地瓜", "那没事，下去吧。"), ("地瓜", "那就先休息吧，地瓜。"),
+                ("地瓜", "行吧，没事了。"),
+            ):
                 with self.subTest(farewell=farewell):
+                    service.companion_name = lambda: name
                     await service.toggle()
                     await service._conversation_event("assistant_final", {"transcript": farewell})
                     await service._conversation_event(
                         "user_final", {"transcript": "会议结束了，帮我整理纪要。"})
                     await service._conversation_event(
                         "user_final", {"transcript": "这就结束了吗？"})
+                    await service._conversation_event(
+                        "user_final", {"transcript": "继续说下去吧。"})
+                    await service._conversation_event(
+                        "user_final", {"transcript": "你走吧，这句怎么翻译？"})
+                    await service._conversation_event(
+                        "user_final", {"transcript": "地瓜，你先去休息吧这句话是什么意思？"})
+                    await service._conversation_event(
+                        "user_final", {"transcript": "那没事，我还有个问题。"})
+                    await service._conversation_event(
+                        "user_final", {"transcript": "那没事。"})
                     self.assertTrue(service.is_connected)
                     self.assertIsNone(service.voice_end_task)
                     await service._conversation_event("user_final", {"transcript": farewell})
+                    self.assertEqual(published[-1]["type"], "voice.farewell_requested")
+                    self.assertIsNone(service.voice_idle_task)
                     assert service.voice_end_task is not None
+                    voice = voices[-1]
+                    await asyncio.wait_for(voice.farewell_started.wait(), 1)
+                    self.assertTrue(service.is_connected)
+                    self.assertFalse(voice.closed.is_set())
+                    voice.farewell_played.set()
                     await asyncio.wait_for(service.voice_end_task, 1)
                     self.assertFalse(service.is_connected)
                     self.assertFalse(service.voice_requested)
                     self.assertEqual(events.state.voice, "off")
-                    service.voice_end_task = None
+                    self.assertEqual(published[-1]["type"], "voice.farewell_closed")
+        finally:
+            await service.close()
+
+    async def test_silence_closes_voice_and_new_speech_resets_the_timer(self) -> None:
+        voice = AsyncMock()
+        voice.ready = asyncio.Event()
+        voice.playback_pending = False
+        closed = asyncio.Event()
+
+        async def run() -> None:
+            voice.ready.set()
+            await closed.wait()
+
+        voice.run.side_effect = run
+        voice.stop.side_effect = closed.set
+        published = []
+        events = StateEvents(published.append)
+        service = InteractionService(events, lambda *_a, **_k: voice, None,
+                                     voice_idle_timeout=.03)
+        try:
+            await service.toggle()
+            first_timer = service.voice_idle_task
+            await service._conversation_event("user_speech_started", {})
+            self.assertIsNone(service.voice_idle_task)
+            assert first_timer is not None
+            await asyncio.gather(first_timer, return_exceptions=True)
+            self.assertTrue(first_timer.cancelled())
+            self.assertTrue(service.is_connected)
+            await service._conversation_event("user_speech_stopped", {})
+            assert service.voice_idle_task is not None
+            await asyncio.wait_for(service.voice_idle_task, 1)
+            self.assertFalse(service.voice_requested)
+            self.assertFalse(service.is_connected)
+            self.assertEqual(published[-1]["type"], "voice.idle_closed")
         finally:
             await service.close()
 
