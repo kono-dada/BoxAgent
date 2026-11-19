@@ -152,6 +152,13 @@ class ConversationService:
             data={"notification_id": item.notification_id, "source_event_ids": list(item.source_event_ids),
                   "source_refs": [dict(ref) for ref in item.source_refs]}))
 
+    async def append_game_comment(self, session_id: str, receipt: str, content: str) -> ProductEvent:
+        self._require_store()
+        return await self.store.append_event(ProductEvent(
+            sequence=0, event_id=receipt, type="message.final", session_id=session_id,
+            occurred_at=time.time(), runtime="qwen_realtime", role="assistant",
+            content=content, source="game"))
+
     async def for_runtime(self, context: InteractionContext, runtime: str):
         binding = await self.store.runtime_binding(context.session.session_id, runtime)
         messages = await self.recent_messages(context.session.session_id, limit=None)

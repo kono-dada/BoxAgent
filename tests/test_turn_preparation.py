@@ -4,7 +4,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.turn_preparation import TurnPreparer
@@ -17,6 +17,7 @@ from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContex
 from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 from boxagent.domain.interaction.delegation import DecisionAdvice
+from boxagent.agent.harness.wechat_tools import WeChatToolGateway
 
 
 class Memory:
@@ -25,6 +26,97 @@ class Memory:
 
 
 class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_waiting_wechat_answer_repairs_missed_call_without_switching_to_cu(self) -> None:
+        """A short reply continues the verified WeChat thread, even after a false chat score."""
+        with tempfile.TemporaryDirectory() as directory:
+            goals: list[str] = []
+            scopes: list[object] = []
+
+            class Executor:
+                async def run(self, goal: str, progress: object, approve: object) -> dict[str, object]:
+                    goals.append(goal)
+                    if len(goals) == 1:
+                        return {"outcome": "needs_input", "summary": "给测试联系人回复什么内容？"}
+                    return {"outcome": "completed", "summary": "测试回执已核验"}
+
+                async def cancel(self) -> None:
+                    pass
+
+            def factory(task_id: str, **kwargs: object) -> Executor:
+                scopes.append(kwargs.get("capability"))
+                return Executor()
+
+            app = BoxAgentApplication(lambda _: None, factory, None,
+                conversation_service=ConversationService(JsonlSessionStore(Path(directory))))
+            app.wechat_tools = WeChatToolGateway(Mock())
+            intent = AsyncMock()
+            intent.review_delegation.return_value = {"p_delegation": .99}
+            preparer = TurnPreparer(Memory(), intent=intent)
+            try:
+                await app.start()
+                service = app.interaction_service
+                await service._conversation_event("user_final", {"transcript": "帮我回复测试联系人"})
+                await service._handle_tool("run_task", '{"capability":"wechat"}')
+                await app.job
+                self.assertEqual(app.state.task, "needs_input")
+                await service._conversation_event("user_final", {"transcript": "回个很可爱"})
+                context = service.interaction
+                reference = service.task_reference(context)
+                self.assertIn("给测试联系人回复什么内容", reference)
+                self.assertIn('"capability": "wechat"', reference)
+                self.assertIn(reference, service._decision_context(context))
+                service.turn_preparer = preparer
+                service.decisions[context.interaction_id] = DecisionAdvice(.02, .01, .97)
+                voice = QwenRealtimeSession(service._handle_tool, app.events.emit,
+                    host_turn_control=True, conversation_event=service._conversation_event,
+                    delegation_review=service._review_delegation)
+                voice.current_query_id = context.interaction_id
+                voice.response_context["reply"] = {"kind": "user", "query_id": context.interaction_id}
+                service.response_interactions["reply"] = context
+                voice.response_transcripts["reply"] = "我这就给她回很可爱。"
+                await voice._finalize_response("reply", source="provider")
+                await asyncio.gather(*tuple(voice.deliveries))
+                await app.job
+                self.assertEqual(goals, ["帮我回复测试联系人", "回个很可爱"])
+                self.assertEqual(scopes, ["wechat", "wechat"])
+                self.assertEqual(app.state.task, "succeeded")
+                self.assertEqual(service.task_reference(context), "")
+            finally:
+                await app.close()
+                await preparer.close()
+
+    async def test_waiting_task_does_not_authorize_status_queries_or_other_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executor = AsyncMock()
+            executor.run.return_value = {"outcome": "needs_input", "summary": "回复什么？"}
+            app = BoxAgentApplication(lambda _: None, lambda *_args, **_kwargs: executor, None,
+                conversation_service=ConversationService(JsonlSessionStore(Path(directory))))
+            intent = AsyncMock()
+            intent.review_delegation.return_value = {"p_delegation": .01}
+            preparer = TurnPreparer(Memory(), intent=intent)
+            try:
+                await app.start()
+                service = app.interaction_service
+                await service._conversation_event("user_final", {"transcript": "帮我回消息"})
+                await service._handle_tool("run_task", "{}")
+                await app.job
+                original_job = app.job
+                await service._conversation_event("user_final", {"transcript": "你回了吗？"})
+                context = service.interaction
+                service.turn_preparer = preparer
+                service.decisions[context.interaction_id] = DecisionAdvice(.01, .99, 0)
+                service.response_interactions["status"] = context
+                self.assertFalse(await service._review_delegation("status", "我看一下进度。"))
+                self.assertIs(app.job, original_job)
+                executor.run.assert_awaited_once()
+                await app.conversation_service.create_session("其他会话")
+                other = await app.conversation_service.begin_interaction("好")
+                self.assertEqual(service.task_reference(other), "")
+                self.assertIsNone(app.execution_service.clarification_capability(other))
+            finally:
+                await app.close()
+                await preparer.close()
+
     async def test_default_budget_admits_network_backed_memory(self) -> None:
         class NetworkMemory:
             async def context_packet(self, query: str, *, session_id: str, top_k: int) -> str:

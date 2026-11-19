@@ -86,6 +86,7 @@ class EventRuns:
         self.notify = notify
         self.batch_wait = batch_wait
         self.direct_notices = direct_notices if direct_notices is not None else {}
+        self.direct_deliveries: dict[str, EventNotification] = {}
         self._wake = asyncio.Event()
         self._job: asyncio.Task[None] | None = None
         self._closing = False
@@ -128,7 +129,8 @@ class EventRuns:
                 validate_decision(decision, batch.events)
             await asyncio.to_thread(self.inbox.renew, batch)
             if decision.action == "notify":
-                await self.notify(batch, decision)
+                deliver = self.direct_deliveries.get(batch.events[0].source, self.notify)
+                await deliver(batch, decision)
             await asyncio.to_thread(self.inbox.complete, batch)
             self.completed_runs += 1
             self.last_error = ""

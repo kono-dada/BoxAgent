@@ -1,6 +1,7 @@
 """Application task service: acceptance, execution, approval, and cancellation."""
 
 import asyncio
+import json
 import re
 import time
 from collections import deque
@@ -34,6 +35,7 @@ class ExecutionService:
         self.on_terminal = on_terminal
         self.job = None
         self.executor: Executor | None = None
+        self.capability: TaskCapability = "desktop"
         self.interaction = None
         self.approval_future = None
         self.approved_requests = set()
@@ -45,6 +47,25 @@ class ExecutionService:
     @property
     def state(self):
         return self.events.state
+
+    def clarification_capability(self, context: InteractionContext | None) -> TaskCapability | None:
+        """Only the same product session may refer to an unfinished question."""
+        if (self.state.task != "needs_input" or self.interaction is None or context is None
+                or self.interaction.session.session_id != context.session.session_id):
+            return None
+        return self.capability
+
+    def clarification_reference(self, context: InteractionContext) -> str:
+        capability = self.clarification_capability(context)
+        if capability is None:
+            return ""
+        return "\n<boxagent_pending_task>\n" + json.dumps({
+            "task_id": self.state.task_id,
+            "capability": capability,
+            "goal": self.state.task_goal[:600],
+            "question": self.state.task_text[:1000],
+            "status": "needs_input",
+        }, ensure_ascii=False) + "\n</boxagent_pending_task>\n"
 
     async def start(self, goal, *, from_text=False, interaction=None,
                     capability: TaskCapability = "desktop"):
@@ -76,6 +97,7 @@ class ExecutionService:
                          task_id=None, capability: TaskCapability = "desktop"):
         task_id = task_id or new_task_id()
         self.interaction = interaction
+        self.capability = capability
         context = {}
         if self.conversation and self.conversation.store and self.interaction is None:
             self.interaction = await self.conversation.begin_interaction(

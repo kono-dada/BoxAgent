@@ -34,3 +34,14 @@ Pyright：0 errors、1 条已有 pyaudio 源码解析警告。
 双钥匙串弹窗实机日志：16:30:14.944 与 16:30:18.744，同一 /Applications/BoxAgent.app 进程 PID 75002，分别为 DECRYPT(24) 和 PARTITION_ID(65538)。这是系统对密钥访问和应用身份的两步校验。日志授权中旧 cdhash 与当前临时签名 cdhash 不同，不能将此直接归因于重复初始化或并发读取。没有删除或放宽钥匙串访问控制。
 forbidden 是选错 CU 路线时的内部边界错误，不是用户需要再授权；微信运行器本身不提供 CU。
 视频截图对应摄像头绑定的语音会话断开或切换。日志存在语音断开后重连记录，摄像头旧连接校验会停止帧传输。该视频恢复机制本轮没有改动，不能宣称已修好；更新重启也会断开现有通话。
+
+2026-11-18 17:45 后续：全量提醒、长查询依据与副本路径
+用户选择所有新微信消息都提醒，保存为 BOXAGENT_WECHAT_NOTIFY_ALL=1。该模式跳过事件决策模型筛选，使用联系人显示名和有界消息引用生成提醒；仍经过原有 Inbox 租约、持久决策、Outbox 幂等投递，保留批内每条事件来源。其他来源仍可使用模型决策，不重置监听游标、不重放已完成批次，也不执行消息中的指令。
+17:17 查询任务 81e0419f1c59 的 history 返回 8377 字符，所需最新消息位于末尾；旧结果整理只保留前 1800 字符，丢掉了完成依据。改为短结果完整保留、长结果保留开头和末尾各 1800 字符并标注省略。合成 300 条旧消息加末尾最新消息，经真实 DS/App Server 格式整理和原校验器验证，outcome=completed，evidence_steps=[3]，没有调用工具。自动审批拒绝了真实历史聊天的额外外发重放，因此该云端回归只用了合成数据。
+17:31、17:32 发送失败的实际原因：配置指向 Application Support 内副本，运行中的副本却在 ~/Applications/WeChat-4.1.15-BoxAgent.app，replica_process 无匹配 PID。发送在 transport 构造时被拒绝，未提交；不是网络波动或模型审批。配置已改为当前验证通过的运行路径。缺失配置进程现在返回 ReplicaNotRunning，health 也检查实际进程，避免仅检查磁盘版本便报告可用。
+当前已登录副本 PID 42936；隽石目标原生 dry-run 8.55 秒通过；onboarding 相同 filehelper 目标与文案 dry-run 9.12 秒通过；均未写文本、未提交发送、未激活窗口。此次没有重发“收到了”。这不等价于这轮实际发送已验收，也不等价于引导页面已自动更新其内存状态。
+聊天底部旧回复重复：新通知成为最后一条 assistant 消息后，companion transcript 误把 runtime 保留的旧 assistant_text 再次追加为 live-assistant。现检查当前历史中是否已提交同一回复，避免伪造末尾实时消息；保留未提交流式回复。
+重复图标来源为 Spotlight 同时索引 /Applications/BoxAgent.app 和 dist/mac/mac-arm64/BoxAgent.app。已注销并清理旧解包构建，今后解包 App 放 .runtime/package-build，公开 DMG 路径不变，保留正式安装版和原始回滚副本。
+检查：完整 Python 594 passed、13 skipped、102 subtests passed；Pyright 0 errors、1 条原有 pyaudio warning；Node 116 passed；签名及 2645 项资源清单验证通过。
+证据：.runtime/private/artifacts/wechat-notify-all/format-replay-result.json、onboarding-native-check.json，以及 native-preflight/native-onboarding 下的原生任务记录。
+安装版切换后 RPC 验收：微信 running=true，worker_error/source_errors 为空，Inbox done=820、pending=0、processing=0；本次进程已处理 7 批提醒。最近 5 批决策均为 notify、reason=user_notify_all，分别包含 1/1/3/1/2 条来源事件，证明实机已使用全量提醒分支。语音和摄像头当前关闭，故该轮证明消息捕获与提醒投递，未证明语音实际播放。CU 仅查看 BoxAgent 运行界面，没有操作微信，也未通过引导页按钮重复预检。

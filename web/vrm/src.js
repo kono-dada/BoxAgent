@@ -35,13 +35,15 @@ if (previewTheme) {
 }
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 configureRenderer(renderer);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Large transparent stages otherwise render four physical pixels per CSS pixel on Retina.
+renderer.setPixelRatio(1);
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 configureLights(scene);
 const camera = new THREE.OrthographicCamera();
 let vrm, animator, physics, height = 1, width = 1, state = 'idle', elapsed = 0;
 let disposed = false, frames = 0, last = 0, started = 0, suspended = false;
+let frameTimer;
 let musicDance, musicActive = false;
 let walkDirection = 0, locomotionStatus = '';
 const walkNames = { '-1':'PET_LOCOMOTION/PET_WALK_LEFT', '1':'PET_LOCOMOTION/PET_WALK_RIGHT' };
@@ -90,7 +92,8 @@ function update(dt) {
     report('locomotion', {eligible, walking:Boolean(b.walkMotion)});
   }
   physics.beginFrame();
-  const steps = Math.max(1, Math.ceil(dt * 60)), step = dt / steps;
+  const active = state === 'speaking' || b.dragging || b.gesture || b.musicGesture || b.walkMotion;
+  const steps = Math.max(1, Math.ceil(dt * (active ? 60 : 30))), step = dt / steps;
   for (let i = 0; i < steps; i++) {
     animator.update(step);
     vrm.humanoid.update(); vrm.scene.updateMatrixWorld(true);
@@ -100,14 +103,24 @@ function update(dt) {
 }
 function frame(now) {
   if (disposed) return;
-  requestAnimationFrame(frame);
-  if (document.hidden || suspended) { last = now; return; }
-  const interval = animator?.behavior.dragging ? 1000 / 60 : 1000 / 30;
-  if (now - last < interval - 0.7) return;
+  if (document.hidden || suspended) {
+    last = now;
+    frameTimer = setTimeout(() => requestAnimationFrame(frame), 250);
+    return;
+  }
+  const behavior = animator?.behavior;
+  const active = state === 'speaking' || behavior?.dragging || behavior?.gesture ||
+    behavior?.musicGesture || behavior?.walkMotion;
+  const interval = 1000 / (active ? 30 : 15);
   const delta = Math.min((now - (last || now)) / 1000, 0.08);
   last = now;
-  if (!animator) return;
-  update(delta); renderer.render(scene, camera); frames++;
+  if (animator) {
+    update(delta); renderer.render(scene, camera); frames++;
+  }
+  // Skipping renders inside a perpetual rAF still wakes Chromium's compositor
+  // at the display refresh rate. Request the next frame only when it is due.
+  frameTimer = setTimeout(() => requestAnimationFrame(frame),
+    Math.max(0, interval - (performance.now() - now)));
 }
 function snapshot() {
   renderer.render(scene, camera);
@@ -198,6 +211,7 @@ window.pet = {
   resume() { suspended = false; last = performance.now(); },
   screenshot() { renderer.render(scene, camera); reportBounds(); return renderer.domElement.toDataURL('image/png'); },
   dispose() {
+    clearTimeout(frameTimer);
     musicDance?.dispose();
     shadow?.dispose(); shadow = null;
     disposed = true; physics?.dispose(); animator?.dispose();

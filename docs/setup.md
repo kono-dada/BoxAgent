@@ -61,6 +61,16 @@ zsh scripts/set-key.zsh
 ./scripts/run-pet.sh
 ```
 
+已在这台 Mac 的安装版里准备好模型和用户数据时，开发期间可以直接运行：
+
+```sh
+sh scripts/run-local.sh
+```
+
+此入口从仓库读取源码和 `.env.local`，复用 `~/Library/Application Support/BoxAgent` 中的会话、微信状态和已下载模型；也可以通过 `BOXAGENT_DATA_DIR` 指定数据目录。不要同时运行安装版，以免抢占麦克风和 Engine。它不制作 DMG、不重新执行 onboarding；Python 改动由源码监听重启后端，前端改动在下次启动时自动构建。缓存的 Electron 宿主仍在 `.runtime/desktop/`，普通 Python、React 和界面脚本修改不改变其签名；不要把该目录当作旧安装包删除。
+
+本地脚本启动后，通过菜单「BoxAgent → 设置与权限…」检查当前进程的麦克风、语音识别、屏幕录制和辅助功能状态。检查不会弹出授权请求；点击相应权限按钮才会申请。状态也写入 `<BOXAGENT_DATA_DIR>/logs/local-permissions.json`，不包含凭据或画面。系统设置中的同名条目不代表当前运行进程一定已有授权；录屏／辅助功能变更后可能需要退出，再执行同一个启动脚本。
+
 源码 checkout 默认将 Agent 后端运行在独立 Engine 进程，并监视后端 Python 文件。
 后端变更会触发 Engine 重启，Electron 窗口和菜单栏保持不变。正在执行的任务、语音和
 审批会被中断；JSONL Product Session、Jev-Mem 长期记忆和本地配置仍可在新 Engine 中恢复。修改原生 UI 或 IPC

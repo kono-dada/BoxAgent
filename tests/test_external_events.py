@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 import time
 import unittest
+from collections.abc import Callable
 from unittest.mock import AsyncMock, Mock, patch
 
 from boxagent.agent.harness.context import RuntimeContextProjector
@@ -18,11 +19,12 @@ from boxagent.agent.runtime.models import RuntimeRequest
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.event_context import ExternalEventContext
 from boxagent.application.event_runs import EventRuns
+from boxagent.application.game_entry import GAME_ENTRY_SOURCE, GameEntryInbox
 from boxagent.application.wechat.event_context import WeChatEventContext
 from boxagent.application.memory import DisabledMemoryModule
 from boxagent.domain.conversation.service import ConversationService
 from boxagent.domain.environment import EnvironmentContext
-from boxagent.domain.events.models import EventBatch, EventDecision, EventEnvelope
+from boxagent.domain.events.models import EventBatch, EventDecision, EventEnvelope, EventReceipt
 from boxagent.domain.notification import NotificationOutbox
 from boxagent.domain.wechat.models import Contact
 from boxagent.infrastructure.persistence import JsonlSessionStore, JsonNotificationRepository
@@ -116,6 +118,44 @@ class EventRunTests(unittest.IsolatedAsyncioTestCase):
         await self.runs.close()
         await self.app.close()
         self.temporary.cleanup()
+
+    async def test_game_entry_uses_the_inbox_and_drops_an_expired_greeting(self) -> None:
+        visible = True
+        spoken: list[tuple[str, str]] = []
+        enqueued = asyncio.Event()
+
+        async def accept(item: EventEnvelope) -> EventReceipt:
+            nonlocal visible
+            accepted = await self.runs.accept(item)
+            if item.event_id == "game-entry:expired":
+                visible = False
+            enqueued.set()
+            return accepted
+
+        async def speak(receipt: str, text: str, still_current: Callable[[], bool]) -> bool:
+            self.assertTrue(still_current())
+            spoken.append((receipt, text))
+            return True
+
+        route = GameEntryInbox(accept, self.context.session_for, speak)
+        self.runs.direct_notices = {GAME_ENTRY_SOURCE: route.decide}
+        self.runs.direct_deliveries[GAME_ENTRY_SOURCE] = route.deliver
+        async def publish(event_id: str, line: str) -> bool:
+            enqueued.clear()
+            publication = asyncio.create_task(route.publish(event_id, line, lambda: visible))
+            try:
+                await enqueued.wait()
+                self.assertTrue(await self.runs.process_once())
+                return await publication
+            finally:
+                publication.cancel()
+                await asyncio.gather(publication, return_exceptions=True)
+
+        self.assertTrue(await publish("game-entry:first", "接着去中枢信标？"))
+        self.assertFalse(await publish("game-entry:expired", "已经过期"))
+        self.assertEqual(self.inbox.status()["done"], 2)
+        self.assertEqual(spoken, [("game-entry:first", "接着去中枢信标？")])
+        self.assertEqual(self.agent.requests, [])
 
     async def test_durable_handoff_then_delivery_enters_assistant_history_once(self) -> None:
         receipt = await self.runs.accept(event())
@@ -299,11 +339,15 @@ class EventRunTests(unittest.IsolatedAsyncioTestCase):
             source = Source(event_sink)
             return source
         settings = replace(load_settings(), data_dir=self.root / "boot", log_dir=self.root / "boot/logs",
-                           wechat_enabled=True, qwen_api_key="", codex_home=self.root / "codex")
+                           wechat_enabled=True, game_companion_enabled=False,
+                           qwen_api_key="", codex_home=self.root / "codex")
         self.enterContext(patch("boxagent.bootstrap.external_events.build_wechat_module", side_effect=module))
         self.enterContext(patch("boxagent.bootstrap.external_events.CodexEventAgent", return_value=self.agent))
         self.enterContext(patch("boxagent.bootstrap.engine.create_memory_module", return_value=DisabledMemoryModule()))
         application = create_application(self.published.append, app_settings=settings, task_provider="codex")
+        from boxagent.application.game_companion import GameCompanion
+        self.assertFalse(any(isinstance(resource, GameCompanion) for resource in application.runtime_resources),
+                         "Enabling WeChat alone must not start game capture")
         self.assertIsNone(source, "WeChat must be constructed lazily during application startup")
         try:
             await application.start()
@@ -319,7 +363,10 @@ class EventRunTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNot(wechat_session.host, desktop_session.host)
             self.assertFalse(wechat_session.host.server_factory.keywords["computer_use_enabled"])
             async with asyncio.timeout(3):
-                while not await application.list_notifications():
+                # Publishing a notification precedes committing the inbox run.
+                # Await both observable outcomes before asserting completion.
+                while (not await application.list_notifications()
+                       or (await application.external_events.status())["completed_runs"] < 1):
                     await asyncio.sleep(.01)
             self.assertEqual((await application.external_events.status())["completed_runs"], 1)
         finally:

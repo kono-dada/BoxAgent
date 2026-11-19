@@ -77,6 +77,7 @@ class InteractionService:
         self.response_interactions = {}
         self.tool_interactions = {}
         self.decisions: dict[str, DecisionAdvice] = {}
+        self.reviewed_delegations: set[str] = set()
         self.pending_user_responses = []
         self.closed_interactions = set()
         self.toggle_lock = asyncio.Lock()
@@ -89,6 +90,7 @@ class InteractionService:
         self.camera_feed: CameraFeed | None = None
         self.camera_owns_voice = False
         self.game_reference: Callable[[], str] = lambda: ""
+        self.task_reference: Callable[[InteractionContext], str] = lambda _: ""
         self.game_playback_started: Callable[[str], None] | None = None
         self.game_entry_playback_started: Callable[[str], None] | None = None
 
@@ -185,7 +187,6 @@ class InteractionService:
     async def _submit_text(self, text):
         if not isinstance(text, str) or not text.strip():
             return {"status": "failed", "message": "请输入想说的话"}
-        game_reference = self.game_reference()
         async with self.toggle_lock:
             await self._connect(microphone=False)
         if self.conversation and self.conversation.store:
@@ -222,12 +223,16 @@ class InteractionService:
                     query_id=context.interaction_id, context=self._decision_context(context))
                 if self.interaction is not context or self.voice is not voice:
                     return {"status": "interrupted", "message": "本轮已被新的输入打断"}
+                game_reference = self.game_reference()
+                report["game"] = {"status": "ready" if game_reference else "empty",
+                                  "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference}
                 self.context_observer.turn_prepared(context.session.session_id, **report)
                 self._store_decision(context, report)
-                reference = game_clarification_reference(text) + game_reference + packet
+                reference = (self.task_reference(context) + game_clarification_reference(text)
+                             + game_reference + packet)
                 await submit(text, reference=reference, query_id=context.interaction_id)
             else:
-                clarification = game_clarification_reference(text)
+                clarification = (self.task_reference(self.interaction) if self.interaction else "") + game_clarification_reference(text)
                 if clarification and self.interaction is not None:
                     await submit(text, reference=clarification, query_id=self.interaction.interaction_id)
                 else:
@@ -378,15 +383,18 @@ class InteractionService:
                 if self.turn_preparer is not None:
                     context = self.interaction
                     voice = self.voice
-                    game_reference = self.game_reference()
                     packet, report = await self.turn_preparer.prepare(
                         transcript, session_id=context.session.session_id,
                         query_id=context.interaction_id, context=self._decision_context(context))
                     if self.interaction is not context or self.voice is not voice or voice is None:
                         return
+                    game_reference = self.game_reference()
+                    report["game"] = {"status": "ready" if game_reference else "empty",
+                                      "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference}
                     self.context_observer.turn_prepared(context.session.session_id, **report)
                     self._store_decision(context, report)
-                    reference = game_clarification_reference(transcript) + game_reference + packet
+                    reference = (self.task_reference(context) + game_clarification_reference(transcript)
+                                 + game_reference + packet)
                     await voice.respond_to_query(reference, query_id=context.interaction_id)
                 else:
                     await self._inject_memory_context(transcript, self.interaction)
@@ -509,6 +517,7 @@ class InteractionService:
         self.response_interactions.clear()
         self.tool_interactions.clear()
         self.decisions.clear()
+        self.reviewed_delegations.clear()
 
     def _close_interaction(self, context):
         self.closed_interactions.add(context.interaction_id)
@@ -517,6 +526,7 @@ class InteractionService:
             self.events.emit("web.research.updated", web_research={
                 **research, "stage": "cancelled", "message": "本轮已打断"})
         self.decisions.pop(context.interaction_id, None)
+        self.reviewed_delegations.discard(context.interaction_id)
         if self.interaction is context:
             self.interaction = None
         for response_id, item in tuple(self.response_interactions.items()):
@@ -537,8 +547,9 @@ class InteractionService:
             # with the stricter query+reply semantic reviewer. This repairs
             # false negatives such as “关闭计算器” while punctuation, chat and
             # status questions remain rejected when review is absent or fails.
-            approved = await self._review_explicit_delegation(
-                interaction, str(metadata.get("reply") or ""))
+            approved = (interaction.interaction_id in self.reviewed_delegations or
+                        await self._review_explicit_delegation(
+                            interaction, str(metadata.get("reply") or "")))
             if approved:
                 result = await self.handle_tool(
                     name, arguments, interaction=interaction)
@@ -567,12 +578,12 @@ class InteractionService:
         return bool(approved and self.interaction is interaction
                     and interaction.interaction_id not in self.closed_interactions)
 
-    @staticmethod
-    def _decision_context(context: InteractionContext) -> str:
+    def _decision_context(self, context: InteractionContext) -> str:
         # Stable chronological suffix; excludes ephemeral references and old
         # decision scores. Short confirmations can refer to the last exchange.
-        return "\n".join(f"{event.role}: {event.content}" for event in context.prior_messages[-8:]
-                         if event.content)[-2400:]
+        history = "\n".join(f"{event.role}: {event.content}" for event in context.prior_messages[-8:]
+                            if event.content)[-2400:]
+        return history + self.task_reference(context)
 
     def _store_decision(self, context: InteractionContext, report: dict[str, object]) -> None:
         advice = DecisionAdvice.from_payload(report.get("jev"))
@@ -584,12 +595,15 @@ class InteractionService:
         if context is None or self.turn_preparer is None:
             return False
         advice = self.decisions.get(context.interaction_id)
-        if advice is None or advice.exclusion is not None:
+        if advice is None or (advice.exclusion is not None and not self.task_reference(context)):
             return False
         approved = await self.turn_preparer.review_delegation(
             context.user_event.content or "", reply, context=self._decision_context(context))
         # A new utterance may have interrupted while the model was reviewing.
-        return bool(approved and self._response_interaction({"response_id": response_id}) is context)
+        current = bool(approved and self._response_interaction({"response_id": response_id}) is context)
+        if current:
+            self.reviewed_delegations.add(context.interaction_id)
+        return current
 
     async def announce_game_news(self, headline: str, *, community_topic: bool = False) -> None:
         async with self.toggle_lock:
@@ -611,12 +625,25 @@ class InteractionService:
         voice = self.game_voice()
         return await voice.announce_game_highlight(highlight, still_current) if voice else False
 
+    async def prepare_game_audio(self) -> None:
+        if self.voice_requested or self.voice_factory is None:
+            return
+        async with self.toggle_lock:
+            if not self.voice_requested:
+                await self._connect(microphone=False)
+
     async def announce_game_line(self, receipt: str, text: str,
                                  still_current: Callable[[], bool]) -> bool:
         voice = self.game_voice()
         if isinstance(voice, GameLineVoice):
             return await voice.announce_game_line(receipt, text, still_current)
-        return False
+        if not still_current() or self.voice_requested or self.voice_factory is None:
+            return False
+        await self.prepare_game_audio()
+        voice = self.voice
+        if not isinstance(voice, GameLineVoice) or not still_current():
+            return False
+        return await voice.announce_game_line(receipt, text, still_current)
 
     async def deliver_notification(self, item):
         if not self.is_connected:
@@ -627,15 +654,19 @@ class InteractionService:
         await notify(item)
         return True
 
-    async def _notification_event(self, kind, payload):
+    async def _notification_event(self, kind: str, payload: dict[str, object]) -> None:
         receipt = payload.get("notification_id")
-        if isinstance(receipt, str) and receipt.startswith(ENTRY_RECEIPT_PREFIX):
-            if kind == "playback_started" and self.game_entry_playback_started is not None:
-                self.game_entry_playback_started(receipt)
-            return
-        if isinstance(receipt, str) and receipt.startswith(HIGHLIGHT_RECEIPT_PREFIX):
-            if kind == "playback_started" and self.game_playback_started is not None:
-                self.game_playback_started(receipt)
+        if isinstance(receipt, str) and receipt.startswith((ENTRY_RECEIPT_PREFIX, HIGHLIGHT_RECEIPT_PREFIX)):
+            if kind == "playback_started":
+                playback_started = (self.game_entry_playback_started if receipt.startswith(ENTRY_RECEIPT_PREFIX)
+                                    else self.game_playback_started)
+                if playback_started is not None:
+                    playback_started(receipt)
+                line, session_id = payload.get("game_line"), payload.get("session_id")
+                if (self.conversation and self.conversation.store and isinstance(line, str) and line.strip()
+                        and isinstance(session_id, str) and session_id):
+                    await self.conversation.append_game_comment(session_id, receipt, line)
+                    self.events.emit("conversation.updated")
             return
         if self.notification_event is None:
             return

@@ -25,3 +25,14 @@ Before completing Python changes, run:
 uvx --from pyright==1.1.414 pyright
 UV_CACHE_DIR=/tmp/uvcache uv run --with pytest python -m pytest -q
 ```
+
+## Performance Records
+
+- Record every quantified performance improvement in `docs/BoxAgent-实践记录.md`.
+- Include the date, baseline and changed behavior, measurement conditions,
+  before/after values and units, sampling method, validation results, and
+  remaining limitations. Distinguish configured targets from measured results.
+- Keep supporting measurements and test logs under `experiments/performance/`;
+  identify transcribed observations separately from original machine output.
+- Do not infer GPU utilization, battery savings, or game stability from a GPU
+  helper process's CPU usage. Mark short uncontrolled measurements as preliminary.

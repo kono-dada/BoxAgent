@@ -1,0 +1,85 @@
+{
+  "date": "2026-11-19",
+  "timezone": "Asia/Shanghai",
+  "status": "preliminary_uncontrolled_observation",
+  "provenance": "Transcribed from top tool outputs in this session; these rows are not original top output files.",
+  "unit": "CPU percent per logical core (100% = one fully occupied core)",
+  "conditions": {
+    "platform": "macOS arm64, 16 GB memory, 10 CPU cores",
+    "game": "Wuthering Waves was not running during these samples",
+    "voice": "off",
+    "avatar": "visible on secondary display",
+    "recording": "no task recording process observed",
+    "method": "top -l 3 -s 1 -n 12 -o cpu -stats pid,command,cpu,mem before; top -l 6 -s 3 -n 10 -o cpu -stats pid,command,cpu,mem after; first cumulative sample omitted",
+    "limitations": [
+      "Short samples, different sampling intervals, no controlled repeated A/B run",
+      "Other applications and system load varied",
+      "No wattage, battery discharge rate, measured avatar FPS, or game stability comparison"
+    ]
+  },
+  "approximate_session_summary": {
+    "gpu_helper_cpu_before": 13,
+    "gpu_helper_cpu_after": 9,
+    "absolute_change_percentage_points": -4,
+    "approximate_relative_change_percent": -31,
+    "interpretation": "Rough session summary, not an average computed from the rows below and not a battery or GPU utilization result"
+  },
+  "before": [
+    {
+      "time": "12:01:52",
+      "main_cpu": 36.4,
+      "stage_renderer_cpu": 22.8,
+      "avatar_renderer_cpu": 17.1,
+      "gpu_helper_cpu": 9.8
+    },
+    {
+      "time": "12:01:53",
+      "main_cpu": 51.3,
+      "stage_renderer_cpu": 32.5,
+      "avatar_renderer_cpu": 24.9,
+      "gpu_helper_cpu": 14
+    }
+  ],
+  "after": [
+    {
+      "time": "12:13:03",
+      "main_cpu": 46.5,
+      "stage_renderer_cpu": 28.7,
+      "avatar_renderer_cpu": 19.5,
+      "gpu_helper_cpu": 8.4
+    },
+    {
+      "time": "12:13:06",
+      "main_cpu": 52.1,
+      "stage_renderer_cpu": 32.3,
+      "avatar_renderer_cpu": 21.9,
+      "gpu_helper_cpu": 9
+    },
+    {
+      "time": "12:13:09",
+      "main_cpu": 52,
+      "stage_renderer_cpu": 32.3,
+      "avatar_renderer_cpu": 21.4,
+      "gpu_helper_cpu": 9.2
+    },
+    {
+      "time": "12:13:12",
+      "main_cpu": 52,
+      "stage_renderer_cpu": 32.3,
+      "avatar_renderer_cpu": 21.4,
+      "gpu_helper_cpu": 9.7
+    },
+    {
+      "time": "12:13:16",
+      "main_cpu": 52.1,
+      "stage_renderer_cpu": 32.6,
+      "avatar_renderer_cpu": 22,
+      "gpu_helper_cpu": 9.5
+    }
+  ],
+  "validation": {
+    "panel_tests": 133,
+    "vrm_tests": 44,
+    "total_tests": 177
+  }
+}

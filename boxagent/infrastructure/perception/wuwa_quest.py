@@ -42,17 +42,20 @@ def _vision_classes() -> tuple[Any, Any]:
     return objc.lookUpClass("VNRecognizeTextRequest"), objc.lookUpClass("VNImageRequestHandler")
 
 
-def read_quest(data: bytes) -> TrackedQuest | None:
-    import objc
-    from Foundation import NSData, NSDictionary
-
+def quest_region(data: bytes) -> bytes:
     with Image.open(BytesIO(data)) as source, BytesIO() as encoded:
         width, height = source.size
         crop = source.crop((0, round(height * .14), round(width * .30), round(height * .48)))
         crop.thumbnail((800, 735))
         crop.save(encoded, format="PNG")
-        pixels = encoded.getvalue()
+        return encoded.getvalue()
 
+
+def read_quest(data: bytes) -> TrackedQuest | None:
+    import objc
+    from Foundation import NSData, NSDictionary
+
+    pixels = quest_region(data)
     request_class, handler_class = _vision_classes()
     with objc.autorelease_pool():
         request = request_class.alloc().init()

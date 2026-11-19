@@ -15,6 +15,7 @@ from boxagent.infrastructure.memory import JevMemWorker
 from boxagent.infrastructure.persistence import JsonMemoryJobStore
 from boxagent.bootstrap.settings import Settings
 from boxagent.infrastructure.context.intent import IntentReference
+from boxagent.infrastructure.context.task_continuation import TaskContinuationReviewer
 from boxagent.application.visual_memory import VisualMemoryCoordinator
 from boxagent.domain.memory.visual import VisualEvidence, VisualMemorySource, VisualEpisodeBackend
 from boxagent.infrastructure.persistence.visual_evidence import LocalVisualEvidenceStore
@@ -34,7 +35,10 @@ def create_intent_reference(app_settings: Settings) -> IntentReference:
         decision_base_url=app_settings.decision_base_url,
         decision_model=app_settings.decision_model,
         log_path=app_settings.log_dir / "intent-worker.log")
-    return IntentReference(worker)
+    reviewer = TaskContinuationReviewer(
+        api_key=app_settings.deepseek_api_key, base_url=app_settings.deepseek_base_url,
+        model=app_settings.deepseek_model) if app_settings.deepseek_api_key else None
+    return IntentReference(worker, pending_reviewer=reviewer)
 
 
 def create_memory_module(*, app_settings, conversation_store, runtime_host,

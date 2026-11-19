@@ -52,6 +52,8 @@ class Settings:
     wechat_enabled: bool = False
     wechat_notify_all: bool = False
     game_companion_enabled: bool = False
+    wuwa_cloud_vision_enabled: bool = False
+    wuwa_scene_vision_enabled: bool = False
 
     @property
     def runs_dir(self) -> Path:
@@ -244,4 +246,8 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         wechat_notify_all=read_bool("BOXAGENT_WECHAT_NOTIFY_ALL", default=False),
         game_companion_enabled=(read_optional_setting("BOXAGENT_GAME_COMPANION") or "0").strip().lower()
                                not in {"0", "false", "no", "off"},
+        wuwa_cloud_vision_enabled=(read_optional_setting("BOXAGENT_WUWA_CLOUD_VISION") or "0").strip().lower()
+                                   not in {"0", "false", "no", "off"},
+        wuwa_scene_vision_enabled=(read_optional_setting("BOXAGENT_WUWA_SCENE_VISION") or "0").strip().lower()
+                                   not in {"0", "false", "no", "off"},
     )

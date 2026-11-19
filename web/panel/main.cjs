@@ -68,7 +68,7 @@ let client,
   disposed = false,
   reconnect,
   shuttingDown = false;
-let startup, setupWindow, serviceEnvironment = process.env;
+let startup, setupWindow, localPermissions, serviceEnvironment = process.env;
 const windows = new Set();
 const broadcast = (channel, value) => {
   for (const window of windows)
@@ -144,8 +144,8 @@ function startDesktop() {
       broadcast,
       registerWindow,
       wakeAllowed: () => {
-        if (!setupEnabled) return true;
-        const permissions = startup?.permissions.snapshot();
+        if (!setupEnabled && !localPermissions) return true;
+        const permissions = setupEnabled ? startup?.permissions.snapshot() : localPermissions?.snapshot();
         const signature = JSON.stringify(permissions);
         if (host && host.lastWakePermissions !== signature) {
           host.lastWakePermissions = signature;
@@ -200,6 +200,7 @@ app.whenReady().then(async () => {
         submenu: [
           { label: "关于 BoxAgent", role: "about" },
           { label: '设置与权限…', accelerator: 'CmdOrCtrl+,', click: () => {
+            if (localPermissions) { void localPermissions.show().catch(console.error); return; }
             if (!startup || !setupWindow) return;
             void startup.request('repair-permissions').then(() => setupWindow.show());
           } },
@@ -293,6 +294,26 @@ app.whenReady().then(async () => {
       throw error;
     }
   });
+  if (!setupEnabled && process.platform === 'darwin') {
+    const { Permissions } = require('./startup/permissions.cjs');
+    const { SpeechPermissions } = require('./startup/speech.cjs');
+    const { LocalPermissions } = require('./desktop/local-permissions.cjs');
+    localPermissions = new LocalPermissions({ dialog,
+      permissions: new Permissions(systemPreferences, shell, {
+        speech: new SpeechPermissions(),
+        onVoiceGranted: () => { host?.wakeWord?.setEnabled(true); host?.syncWakeWord(); },
+        requestScreen: () => desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false }),
+      }),
+      record: permissions => {
+        fs.mkdirSync(path.join(data, 'logs'), { recursive: true });
+        fs.writeFileSync(path.join(data, 'logs/local-permissions.json'), JSON.stringify({
+          at: new Date().toISOString(), executable: process.execPath, permissions,
+        }, null, 2), { mode: 0o600 });
+      },
+    });
+    await localPermissions.refresh();
+    app.on('browser-window-focus', () => { void localPermissions.refresh().catch(console.error); });
+  }
   if (setupEnabled) {
     const { StartupCoordinator } = require('./startup/coordinator.cjs');
     const { CredentialStore } = require('./startup/credentials.cjs');
@@ -358,6 +379,7 @@ app.whenReady().then(async () => {
   } else if (companionMode) {
     try {
       await startDesktop();
+      if (localPermissions?.missing()) void localPermissions.show().catch(console.error);
     } catch (error) {
       console.error(error);
       host?.feedback(error.message);
@@ -374,6 +396,15 @@ app.whenReady().then(async () => {
         app.exit(1);
       }
     });
+}).catch(error => {
+  console.error(error);
+  try {
+    fs.mkdirSync(path.join(data, 'logs'), { recursive: true });
+    fs.appendFileSync(path.join(data, 'logs/desktop-startup-errors.log'),
+      `${new Date().toISOString()} ${error.stack || error.message}\n`, { mode: 0o600 });
+  } catch { /* Show startup errors even when the log directory is unavailable. */ }
+  void dialog.showMessageBox({ type: 'error', message: 'BoxAgent 启动未完成',
+    detail: `${error.message}\n请查看数据目录中的 logs/desktop-startup-errors.log。` });
 });
 app.on("window-all-closed", () => {
   if (!companionMode) app.quit();
@@ -384,6 +415,7 @@ app.on("before-quit", (event) => {
   shuttingDown = true;
   disposed = true;
   startup?.close();
+  localPermissions?.close();
   clearTimeout(reconnect);
   host?.close();
   void camera?.stop();

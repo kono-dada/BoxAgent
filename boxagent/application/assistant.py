@@ -73,6 +73,7 @@ class BoxAgentApplication:
             memory=self.memory,
             turn_preparer=turn_preparer,
             context_observer=context_observer)
+        self.interaction_service.task_reference = self.execution_service.clarification_reference
         self.runtime_resources = tuple(runtime_resources)
         self.skill_jobs = set()
         self.game_news: GameNewsMonitor | None = None
@@ -629,7 +630,7 @@ class BoxAgentApplication:
                 action = data.get("action") if isinstance(data, dict) else None
                 return self.request_avatar_action(action)
             if name == "run_task":
-                capability = data.get("capability", "desktop")
+                capability = data.get("capability", self.execution_service.clarification_capability(interaction) or "desktop")
                 if not isinstance(capability, str) or capability not in {"desktop", "wechat"}:
                     return {"status": "failed", "message": "Unknown task capability"}
                 if capability == "wechat" and self.wechat_tools is None:

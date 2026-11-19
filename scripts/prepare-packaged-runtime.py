@@ -133,7 +133,7 @@ def copy_source(stage: Path) -> None:
         shutil.copytree(ROOT / directory, target / directory, ignore=ignored)
     scripts = target / 'scripts'
     scripts.mkdir()
-    for name in ('jev_mem_worker.py', 'window_summary_worker.py', 'intent_worker.py', 'codex_computer_use.py',
+    for name in ('jev_mem_worker.py', 'window_summary_worker.py', 'game-window-stream.swift', 'intent_worker.py', 'codex_computer_use.py',
                  'computer_use.py', 'computer-use-mcp-client.mjs', 'verify-computer-use.mjs'):
         shutil.copy2(ROOT / 'scripts' / name, scripts / name)
     shutil.copytree(ROOT / 'scripts/model-manifests', scripts / 'model-manifests')

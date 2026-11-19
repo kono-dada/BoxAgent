@@ -16,6 +16,8 @@ class GameCapture:
     image: bytes
     quest: TrackedQuest | None = None
     captured_at: float | None = None
+    quest_image: bytes | None = None
+    scene_signature: bytes = b""
 
 
 @dataclass(frozen=True)

@@ -99,7 +99,7 @@ class DesktopHost {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        backgroundThrottling: false,
+        backgroundThrottling: true,
       },
       ...options,
     });
@@ -243,7 +243,7 @@ class DesktopHost {
       )
     )
       this.feedback("快捷键已被占用，请使用小窗的语音按钮");
-    this.pointerTimer = setInterval(() => this.pointer(), 40);
+    this.pointerTimer = setInterval(() => this.pointer(), 100);
     if (process.platform === 'win32') {
       this.musicMonitor = new MusicMonitor(active => {
         this.musicActive = active;
@@ -670,25 +670,33 @@ class DesktopHost {
       Math.round(point.x - pet.origin.x - pet.viewport.width / 2),
       Math.round(pet.origin.y + pet.viewport.height / 2 - point.y),
     ];
+    const signature = JSON.stringify([
+      ...this.pointerValue, pet.origin.x, pet.origin.y, pet.walk?.direction || 0,
+    ]);
+    if (signature === this.pointerSignature) return;
+    this.pointerSignature = signature;
     this.sendPet(pet);
   }
   stepWalk(now = Date.now(), random = Math.random) {
     const pet = this.current;
     if (this.closed || !pet || pet.window.isDestroyed()) return;
-    const dt = Math.min(0.08, Math.max(0, (now - (pet.walkTick ?? now)) / 1000));
+    const dt = Math.min(0.15, Math.max(0, (now - (pet.walkTick ?? now)) / 1000));
     pet.walkTick = now;
     const allowed = pet.walkEligible && !this.drag && !this.pending && !this.loading &&
       !this.bubbleOpen && !this.tasks?.isVisible() && !this.musicActive &&
       !this.state.speaking && !this.state.user_speaking;
     const postpone = () => { pet.walk = null; pet.walkAt = now + 15000 + random() * 15000; };
     if (!allowed) { postpone(); return; }
+    // Waiting for the next walk needs no native display enumeration.
+    if (!pet.walk) {
+      if (!pet.walkAt) postpone();
+      if (now < pet.walkAt) return;
+    }
     const area = this.stageBounds(pet);
     // Keep the full animation canvas inside the display, including arm motion.
     const min = area.x + 8, max = area.x + area.width - pet.viewport.width - 8;
     if (max <= min) { postpone(); return; }
     if (!pet.walk) {
-      if (!pet.walkAt) postpone();
-      if (now < pet.walkAt) return;
       const target = min + random() * (max - min);
       if (Math.abs(target - pet.origin.x) < 24) { postpone(); return; }
       pet.walk = { target, direction: target < pet.origin.x ? -1 : 1 };
@@ -985,11 +993,14 @@ class DesktopHost {
       this.snapshot.feedback = "";
       this.sendDesktop();
     }
-    this.state = { ...this.state, ...state };
+    const previous = this.state;
+    this.state = { ...previous, ...state };
     if (!this.tasks && this.hasTaskStatus() && !this.bubbleOpen) this.showTasks(false);
     else this.syncTasksVisibility();
     if (event?.type === "task.approval") this.showTasks(true);
-    if (this.current) this.sendPet(this.current);
+    if (this.current && (event?.type === "engine.ready" ||
+        ["speaking", "user_speaking", "avatar_action", "avatar_action_id"]
+          .some(key => previous[key] !== this.state[key]))) this.sendPet(this.current);
     if (event?.type === "engine.ready") {
       this.engineReady = true;
       if (this.bubbleReady) void this.recoverNotifications();

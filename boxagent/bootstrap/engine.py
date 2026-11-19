@@ -388,11 +388,13 @@ def create_application(publish, *, task_provider=None, task_model=None,
             context_projector.restore_context,
             character_budget=app_settings.qwen_history_character_budget),
     )
-    if app_settings.wechat_enabled:
+    game_enabled = sys.platform == "darwin" and app_settings.game_companion_enabled
+    game_entry_inbox = None
+    if app_settings.wechat_enabled or game_enabled:
         from boxagent.bootstrap.external_events import configure_external_events
-        event_host = configure_external_events(application, app_settings,
+        event_host, game_entry_inbox = configure_external_events(application, app_settings,
             builder=RuntimeRequestBuilder(persona=current_persona(), context_assembler=context_projector),
-            profile=selected.profile, environment=environment_provider)
+            profile=selected.profile, environment=environment_provider, game_enabled=game_enabled)
         application.runtime_resources = (*application.runtime_resources, event_host)
     from boxagent.application.camera import CameraInteractionService
 
@@ -404,9 +406,9 @@ def create_application(publish, *, task_provider=None, task_model=None,
         steam = SteamGames(Path.home() / "Library/Application Support/Steam/steamapps")
         application.game_news = GameNewsMonitor(steam.running, steam_game_topic,
                                                 application.announce_game_news)
-        if app_settings.game_companion_enabled:
+        if game_enabled and game_entry_inbox is not None:
             from boxagent.bootstrap.game_companion import install_game_companion
-            install_game_companion(application, app_settings)
+            install_game_companion(application, app_settings, game_entry_inbox)
     application.interaction_service.companion_name = lambda: current_persona().name
     application.camera = CameraInteractionService(application.events, application.interaction_service)
     application.observer = WindowSummary(

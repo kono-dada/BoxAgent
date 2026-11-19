@@ -386,6 +386,20 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(receipts, [("playback_started", {"notification_id": "notice-1"})])
         self.assertNotIn("notice-1", session.pending_notifications)
 
+    async def test_game_caption_appears_when_native_audio_arrives_first(self) -> None:
+        emit = Mock()
+        session = AoqRealtimeSession(
+            lambda *_args: None, emit,
+            workspace_id="workspace", sdk_dir="/sdk", work_dir="/work")
+        line = "这片金黄草地看着挺亮眼。"
+        session.response_origins.append({
+            "kind": "game_highlight", "notification_id": "game-highlight:scene",
+            "game_line": line, "game_check": lambda: True})
+        session.playback_changed(True)
+        emit.assert_called_once_with("voice.playback", speaking=True)
+        await session.receive({"type": "response.created", "response": {"id": "scene-response"}})
+        emit.assert_any_call("front.assistant_text", assistant_text=line)
+
     async def test_unrelated_response_cannot_acknowledge_a_stale_notification(self) -> None:
         receipts = []
         session = AoqRealtimeSession(

@@ -31,6 +31,13 @@ REVIEW_PROMPT = (
 class GameFrame:
     captured_at: float
     image: bytes
+    scene_signature: bytes = b""
+
+    def same_scene(self, other: "GameFrame") -> bool:
+        if not self.scene_signature or len(self.scene_signature) != len(other.scene_signature):
+            return self.image == other.image
+        difference = sum(abs(a - b) for a, b in zip(self.scene_signature, other.scene_signature))
+        return difference / (len(self.scene_signature) * 255) < .12
 
 
 @dataclass(frozen=True)
@@ -69,11 +76,12 @@ def _frame_numbers(value: object, total: int, minimum: int) -> tuple[int, ...]:
 
 @dataclass(frozen=True)
 class HighlightReview:
-    scene: Literal["fighting", "settled", "unclear"]
+    scene: Literal["fighting", "settled", "moment", "unclear"]
     praise: str = ""
     detail: str = ""
     frames: tuple[int, ...] = ()
     observation: GameObservation | None = None
+    timing: Literal["current", "urgent", "recollection"] = "current"
 
     @classmethod
     def parse(cls, raw: str, frames: tuple[GameFrame, ...]) -> "HighlightReview":
@@ -94,7 +102,7 @@ class HighlightReview:
         if scene == "fighting":
             return cls("fighting", observation=observation)
         unclear = cls("unclear", observation=observation)
-        if scene != "settled":
+        if scene not in ("settled", "moment"):
             return unclear
         praise, detail, cited = result.get("praise"), result.get("detail"), result.get("frames")
         if not isinstance(praise, str) or not isinstance(detail, str):
@@ -102,14 +110,25 @@ class HighlightReview:
         praise, detail = praise.strip(), detail.strip()
         if not 0 < len(praise) <= 35 or not 0 < len(detail) <= 100 or "\n" in praise:
             return unclear
-        numbers = _frame_numbers(cited, len(frames), 2)
+        numbers = _frame_numbers(cited, len(frames), 1 if scene == "moment" else 2)
         if not numbers:
+            return unclear
+        timing = result.get("timing", "current")
+        if timing not in ("current", "urgent", "recollection"):
+            return unclear
+        if timing == "recollection" and (
+                not praise.startswith("刚才") or len(numbers) < 2
+                or len({frames[number - 1].image for number in numbers}) < 2):
+            return unclear
+        if scene == "moment" and observation is not None and numbers[-1] == len(frames):
+            return cls("moment", praise, detail, numbers, observation, timing)
+        if scene != "settled":
             return unclear
         if frames[numbers[-1] - 1].captured_at - frames[numbers[0] - 1].captured_at < .2:
             return unclear
         if len({frames[number - 1].image for number in numbers}) < 2:
             return unclear
-        return cls("settled", praise, detail, numbers, observation)
+        return cls("settled", praise, detail, numbers, observation, timing)
 
 
 @dataclass(frozen=True)
@@ -120,7 +139,8 @@ class GameHighlight:
 
     @property
     def expires_at(self) -> float:
-        return self.latest_frame_at + REVIEW_DEADLINE
+        duration = {"current": 6.0, "urgent": 2.0, "recollection": 10.0}[self.review.timing]
+        return self.latest_frame_at + duration
 
     def reference(self) -> str:
         data = {"comment": self.review.praise, "observed_change": self.review.detail}

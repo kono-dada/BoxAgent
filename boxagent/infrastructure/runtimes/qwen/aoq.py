@@ -673,11 +673,9 @@ class AoqRealtimeSession(QwenRealtimeSession):
             # never arrive. Bind the notification before the first native
             # frame as well as handling a frame that preceded response.created.
             self.playing_notification_id = notification_id
-            if notification_id and self.playing:
+            if notification_id and self.playing and self._game_playback_valid(response_id):
                 self.playing_notification_id = None
-                self.pending_notifications.discard(notification_id)
-                self._dispatch_notification_event(
-                    "playback_started", notification_id=notification_id)
+                self._notification_playback_started(notification_id)
 
     async def feed_audio(self, _chunk):
         # Native capture/AEC is owned by AOQ.

@@ -100,6 +100,22 @@ test('desktop startup restores Engine state after the ready event was already em
   assert.equal(host.engineReady, true);
 });
 
+test('stationary pointer and audio levels do not repeatedly resend avatar state', async t => {
+  const { host } = await fixture(t);
+  clearInterval(host.pointerTimer);
+  let updates = 0;
+  host.sendPet = () => { updates++; };
+  host.pointer();
+  host.pointer();
+  host.pointer();
+  assert.equal(updates, 1);
+  host.stateChanged({ voice_input_level: .2 }, { type: 'voice.input_level' });
+  host.stateChanged({ voice_input_level: .5 }, { type: 'voice.input_level' });
+  assert.equal(updates, 1);
+  host.stateChanged({ speaking: true }, { type: 'voice.playback' });
+  assert.equal(updates, 2);
+});
+
 test('slow Engine startup does not fail avatar startup or open a diagnostic chat', async t => {
   const { host } = await fixture(t, { engineOnline: false });
   host.hideBubble();
