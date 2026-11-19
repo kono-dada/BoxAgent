@@ -989,7 +989,10 @@ class DesktopHost {
   }
   stateChanged(state, event) {
     if (this.closed) return;
-    if (/Engine (?:未连接|已断开)|^connect (?:ENOENT|ECONNREFUSED)/.test(this.snapshot.feedback || "")) {
+    const feedback = this.snapshot.feedback || "";
+    const staleWakeError = event?.type === "voice.ready" &&
+      /^(?:TimeoutError|千问唤醒问候超时，请再叫我一次。)$/.test(feedback);
+    if (staleWakeError || /Engine (?:未连接|已断开)|^connect (?:ENOENT|ECONNREFUSED)/.test(feedback)) {
       this.snapshot.feedback = "";
       this.sendDesktop();
     }
@@ -998,6 +1001,9 @@ class DesktopHost {
     if (!this.tasks && this.hasTaskStatus() && !this.bubbleOpen) this.showTasks(false);
     else this.syncTasksVisibility();
     if (event?.type === "task.approval") this.showTasks(true);
+    if (event?.type === "voice.idle_closed" || event?.type === "voice.farewell_closed") {
+      this.hideBubble();
+    }
     if (this.current && (event?.type === "engine.ready" ||
         ["speaking", "user_speaking", "avatar_action", "avatar_action_id"]
           .some(key => previous[key] !== this.state[key]))) this.sendPet(this.current);

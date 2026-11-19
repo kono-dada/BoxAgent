@@ -110,6 +110,8 @@ class Voice(Protocol):
 
     async def stop(self) -> None: ...
 
+    async def say_farewell(self) -> None: ...
+
 
 def presentation_state(state: Snapshot) -> str:
     """交互优先；后台任务状态仍独立保存在快照里。"""

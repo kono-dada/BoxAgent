@@ -116,6 +116,17 @@ test('stationary pointer and audio levels do not repeatedly resend avatar state'
   assert.equal(updates, 2);
 });
 
+test('idle and farewell close the chat bubble while preserving a background task', async t => {
+  const { host } = await fixture(t);
+  for (const type of ['voice.idle_closed', 'voice.farewell_closed']) {
+    host.showBubble();
+    host.stateChanged({ voice: 'off', task: 'running' }, { type });
+    assert.equal(host.bubbleOpen, false);
+    assert.equal(host.state.task, 'running');
+    assert.equal(host.current.ready, true);
+  }
+});
+
 test('slow Engine startup does not fail avatar startup or open a diagnostic chat', async t => {
   const { host } = await fixture(t, { engineOnline: false });
   host.hideBubble();

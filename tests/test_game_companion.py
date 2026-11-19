@@ -105,6 +105,16 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
         self.vision.window = 42
         self.assertEqual(self.game.reference(), "")
 
+    async def test_active_companionship_requires_fresh_captured_frames(self) -> None:
+        self.assertFalse(self.game.is_active())
+        await self.tick()
+        self.assertTrue(self.game.is_active())
+        self.now += 1.6
+        self.assertFalse(self.game.is_active())
+        self.vision.window = None
+        await self.tick()
+        self.assertFalse(self.game.is_active())
+
     async def test_silent_scene_supplies_conversation_context_until_expired(self) -> None:
         # This observation is available even though there is no proactive line.
         self.vision.result = HighlightReview(

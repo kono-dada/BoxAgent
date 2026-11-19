@@ -12,6 +12,7 @@ import ctypes
 import json
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -158,6 +159,7 @@ class AoqFramework:
         self._classes = {}
         self._closed = False
         self._playback_observed = False
+        self.last_playback_frame_at = 0.0
         self._media_enabled = False
         self._owns_singleton = False
 
@@ -291,6 +293,7 @@ class AoqFramework:
             except Exception as exc:
                 self.output_failed(str(exc))
                 return
+        self.last_playback_frame_at = time.monotonic()
         if not self._playback_observed:
             self._playback_observed = True
             self.playback_callback(True)
@@ -681,18 +684,26 @@ class AoqRealtimeSession(QwenRealtimeSession):
         # Native capture/AEC is owned by AOQ.
         return None
 
+    @property
+    def playback_pending(self) -> bool:
+        return (super().playback_pending or
+                bool(self.playback_finish_task and not self.playback_finish_task.done()))
+
     def _schedule_playback_idle(self, response_id, delay=1.0):
         """Allow AOQ's media track to deliver frames lagging data-track done."""
+        if response_id and self.response_id != response_id:
+            return
         if self.playback_finish_task:
             self.playback_finish_task.cancel()
 
         async def finish():
-            try:
-                await asyncio.sleep(delay)
-                if not response_id or self.response_id == response_id:
+            await asyncio.sleep(delay)
+            while not response_id or self.response_id == response_id:
+                quiet_for = time.monotonic() - getattr(self.transport, "last_playback_frame_at", 0.0)
+                if quiet_for >= delay:
                     self.transport.mark_playback_idle()
-            except asyncio.CancelledError:
-                raise
+                    return
+                await asyncio.sleep(delay - quiet_for)
 
         self.playback_finish_task = asyncio.create_task(finish())
 

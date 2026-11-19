@@ -502,6 +502,25 @@ class FakeSocket:
 
 
 class VoiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_farewell_waits_for_provider_and_local_playback(self) -> None:
+        voice = QwenRealtimeSession(lambda *_args: None, lambda *_args, **_kw: None)
+        socket = FakeSocket()
+        voice.ws = socket
+        farewell = asyncio.create_task(voice.say_farewell())
+        try:
+            await asyncio.sleep(0)
+            self.assertEqual(json.loads(socket.sent[-1])["type"], "response.create")
+            await voice.receive({"type": "response.created", "response": {"id": "farewell-1"}})
+            voice.playback_changed(True)
+            await voice.receive({"type": "response.done", "response": {"id": "farewell-1"}})
+            self.assertTrue(voice.playback_pending)
+            self.assertFalse(farewell.done())
+            voice.playback_changed(False)
+            await asyncio.wait_for(farewell, 1)
+        finally:
+            farewell.cancel()
+            await asyncio.gather(farewell, return_exceptions=True)
+
     async def test_audio_done_finishes_current_playback_without_stale_response_interference(self):
         voice = QwenRealtimeSession(lambda *_args: None, lambda *_args, **_kw: None)
         audio = Mock()
@@ -576,17 +595,20 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         })
 
         self.assertIn(("voice.user_text_delta", {"user_text": "打开音乐播放"}), emitted)
-        self.assertEqual(recorded, [])
+        self.assertEqual(recorded, [("user_speech_started", {})])
 
+        await voice.receive({"type": "input_audio_buffer.speech_stopped"})
         await voice.receive({
             "type": "conversation.item.input_audio_transcription.completed",
             "item_id": "item-1", "transcript": "打开音乐播放一首歌",
         })
 
         self.assertIn(("voice.user_text", {"user_text": "打开音乐播放一首歌"}), emitted)
-        self.assertEqual(recorded, [("user_final", {
-            "transcript": "打开音乐播放一首歌", "item_id": "item-1",
-        })])
+        self.assertEqual(recorded, [
+            ("user_speech_started", {}),
+            ("user_speech_stopped", {}),
+            ("user_final", {"transcript": "打开音乐播放一首歌", "item_id": "item-1"}),
+        ])
 
     async def test_session_policy_history_current_query_and_response_are_ordered(self):
         from boxagent.agent.runtime.models import RuntimeMessage

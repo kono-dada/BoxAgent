@@ -365,3 +365,8 @@ class GameCompanion:
             if now - started <= FOLLOWUP_WINDOW:
                 context += highlight.reference()
         return context
+
+    def is_active(self) -> bool:
+        """Use the capture loop's fresh state without extra native window polling."""
+        return bool(self.source is not None and self.frames
+                    and 0 <= self.clock() - self.frames[-1].captured_at <= 1.5)
