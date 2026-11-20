@@ -102,3 +102,29 @@ test('a runtime linked to an old app is rejected even while the old location sti
   assert.equal(result.core.code, 'component_runtime_relocated');
   assert.equal(result.core.state, 'unavailable');
 });
+
+test('equivalent paths to the same packaged Python reuse installed components', async t => {
+  const data = await fs.mkdtemp(path.join(os.tmpdir(), 'boxagent-runtime-alias-'));
+  t.after(() => fs.rm(data, { recursive: true, force: true }));
+  const resources = path.join(data, 'resources'), alias = path.join(data, 'resource-alias');
+  const runtimeDir = path.join(data, 'runtimes');
+  const groups = { core: 'c', jev: 'j', vision: 'v' };
+  await fs.mkdir(path.join(resources, 'python/bin'), { recursive: true });
+  await fs.writeFile(path.join(resources, 'python/bin/python3'), 'bundled interpreter');
+  await fs.symlink(resources, alias, 'junction');
+  for (const [group, id] of Object.entries(groups)) {
+    await fs.mkdir(path.join(runtimeDir, group), { recursive: true });
+    await fs.writeFile(path.join(runtimeDir, group, 'boxagent-runtime.json'), JSON.stringify({
+      version: 1, id, base: path.join(alias, 'python/bin/python3'),
+    }));
+  }
+  const runtime = new PackagedRuntime({ packaged: true, data, runtime: runtimeDir, resources },
+    { execute: async () => assert.fail('The same runtime should not be reinstalled') });
+  runtime.inputs = async () => ({ groups });
+  const probes = [];
+  runtime.probe = async (_python, component) => probes.push(component);
+  const status = await runtime.localStatus({}, new AbortController().signal, ['core']);
+  assert.equal(status.core.state, 'ready');
+  await runtime.install({}, new AbortController().signal);
+  assert.deepEqual(probes, ['core', 'core', 'memory', 'vision']);
+});

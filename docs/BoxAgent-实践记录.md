@@ -2807,3 +2807,9 @@ passed
 - **背景与问题**　用户点静音后，LoL 短评继续播完尾巴。一次现场日志中，静音状态更新到这句播放结束间隔约 0.68 秒。后续普通对话仍按原设定播放。
 - **决策与做法**　语音运行时保留正在输出的游戏回应身份，静音时立即清空该游戏音频并取消仍在生成的回应，撤销已排队的短评。已生成完但仍在播放的 AOQ 音频也调用本地中断。对话和微信走原播报链路，悬浮球提示说明静音范围。 [语音中断](../boxagent/infrastructure/runtimes/qwen/realtime.py) · [悬浮球提示](../web/panel/src/companion/game-dock.tsx)
 - **效果**　Electron 模拟陪玩测试通过关麦与静音，运行时测试覆盖正在生成、已生成完的 AOQ 播放、排队短评和微信、普通对话互不影响。145 项桌面、681 项 Python 测试和前端构建通过，Pyright 无错误，保留一条既有 PyAudio 警告。脚本版已重启，真实对局中修复后的停声时点待复测。 [播放回归](../tests/test_lol_companion.py) · [AOQ 回归](../tests/test_aoq.py)
+
+### 2026-11-21 · 陪玩版 macOS 安装验收
+
+- **背景与问题**　验证陪玩版从源码构建到 DMG 安装的流程。首次验收发现 `/var` 与 `/private/var` 的路径差异会被误判为移动 App，导致已安装的本地组件无法复用，重启时 Engine 无法启动。
+- **决策与做法**　比较随包 Python 的实际路径，App 移到不同来源时仍要求修复组件。复用依赖时重建 VRM 和面板，测试包可分别存放，SHA-256 清单可以随 DMG 复制后直接校验。冒烟脚本设定请求超时，提供隔离的测试钥匙串选项。 [打包入口](../scripts/build-dist-mac.sh) · [路径回归](../web/panel/tests/packaged-runtime.test.cjs) · [成品冒烟](../scripts/smoke-packaged-app.mjs)
+- **效果**　Apple Silicon 0.1.2 测试 DMG 通过摘要和镜像校验。推出镜像后，复制安装的 App 通过严格签名检查、首次启动、离线安装 core/Jev/vision、本地模型加载、Engine 重启及微信客户端准备。微信准备阶段使用 Chromium 测试钥匙串，系统钥匙串授权、账号登录和跨机器验收仍待实测。146 项桌面、45 项 VRM、681 项 Python 测试通过，Python 另有 13 项跳过，Pyright 无错误且保留一条既有 PyAudio 警告。 [发包指南](macos-distribution.md)

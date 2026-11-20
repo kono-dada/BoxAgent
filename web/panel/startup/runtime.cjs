@@ -5,6 +5,18 @@ const { hashFile, downloadModel, verifyModel } = require('./download.cjs');
 const { readJson, atomicWrite } = require('./store.cjs');
 const GROUPS = ['core', 'jev', 'vision'];
 
+async function sameRuntimeBase(previous, current) {
+  if (typeof previous !== 'string' || !previous) return false;
+  if (previous === current) return true;
+  // macOS can report /private/var for an app reached through /var.
+  try {
+    const [oldPath, newPath] = await Promise.all([fs.realpath(previous), fs.realpath(current)]);
+    return oldPath === newPath;
+  } catch {
+    return false;
+  }
+}
+
 class PackagedRuntime {
   constructor(paths, { execute = run, progress = () => {} } = {}) { this.paths = paths; this.execute = execute; this.progress = progress; }
   async inputs() {
@@ -52,7 +64,7 @@ class PackagedRuntime {
       const marker = path.join(directory, 'boxagent-runtime.json');
       const desired = { version: 1, id: inputs.groups[group], base: path.join(p.resources, 'python/bin/python3') };
       const previous = await readJson(marker, null).catch(() => null);
-      if (previous?.id === desired.id && previous.base === desired.base) {
+      if (previous?.id === desired.id && await sameRuntimeBase(previous.base, desired.base)) {
         try {
           await this.probe(python, group === 'jev' ? 'memory' : group, config, signal);
           this.progress({ component: group, phase: 'ready' });
@@ -100,7 +112,7 @@ class PackagedRuntime {
         if (p.packaged) {
           const group = name === 'memory' ? 'jev' : name;
           const marker = await readJson(path.join(p.runtime, group, 'boxagent-runtime.json'), null);
-          if (marker?.base && marker.base !== path.join(p.resources, 'python/bin/python3'))
+          if (marker?.base && !await sameRuntimeBase(marker.base, path.join(p.resources, 'python/bin/python3')))
             throw Error('component_runtime_relocated');
         }
         if (name === 'vision') {

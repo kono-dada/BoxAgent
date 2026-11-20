@@ -7,6 +7,9 @@ import net from 'node:net';
 import { spawn } from 'node:child_process';
 
 const source = path.resolve(process.argv[2] || '.runtime/package-build/mac-arm64/BoxAgent.app');
+const mockKeychain = process.argv.includes('--mock-keychain');
+const wechatLogin = process.argv.includes('--wechat-login');
+assert.ok(!(mockKeychain && wechatLogin), 'Real WeChat login requires the system Keychain');
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'boxagent-artifact-'));
 const bundle = path.join(directory, 'Moved App/BoxAgent.app');
 const data = path.join(directory, 'User Data');
@@ -43,7 +46,8 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
 await new Promise(resolve => server.close(resolve));
 const log = await fs.open(path.join(directory, expectedEngine ? 'engine-app.log' : 'app.log'), 'w');
-const application = spawn(executable, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'],
+const application = spawn(executable, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1',
+  ...(mockKeychain ? ['--use-mock-keychain'] : [])],
   { env: environment, cwd: directory, stdio: ['ignore', log.fd, log.fd] });
 const exited = new Promise(resolve => application.once('exit', resolve));
 let websocket;
@@ -62,15 +66,19 @@ try {
   websocket.onmessage = event => {
     const message = JSON.parse(event.data);
     const item = pending.get(message.id);
-    if (item) { pending.delete(message.id); message.error ? item.reject(Error(message.error.message)) : item.resolve(message.result); }
+    if (item) { pending.delete(message.id); clearTimeout(item.timer); message.error ? item.reject(Error(message.error.message)) : item.resolve(message.result); }
   };
-  const send = (method, params = {}) => new Promise((resolve, reject) => {
+  const send = (method, params = {}, timeout = 30000) => new Promise((resolve, reject) => {
     const id = ++sequence;
-    pending.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(Error(`Timed out waiting for ${method} in the packaged app`));
+    }, timeout);
+    pending.set(id, { resolve, reject, timer });
     websocket.send(JSON.stringify({ id, method, params }));
   });
-  const evaluate = async expression => {
-    const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  const evaluate = async (expression, timeout) => {
+    const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, timeout);
     if (result.exceptionDetails) throw Error('Renderer evaluation failed');
     return result.result.value;
   };
@@ -89,7 +97,7 @@ try {
   assert.equal(state.credentials.dashscope, false);
   assert.equal(state.canComplete, false);
   if (expectedEngine) {
-    assert.equal(state.capabilities.core.state, 'ready');
+    assert.equal(state.capabilities.core.state, 'ready', `Packaged core unavailable: ${state.capabilities.core.code}`);
     assert.equal(state.capabilities.engine.state, 'ready', 'Real packaged Engine failed to start');
   }
   if (!await evaluate(`document.querySelectorAll('input[type=password]').length`)) {
@@ -139,17 +147,17 @@ try {
     const supplied = await evaluate(`window.boxagentSetup.request('snapshot')`);
     assert.equal(supplied.wechat.downloadAvailable, true, 'Installer must provide the exact verified client');
     const began = Date.now();
-    const prepared = await evaluate(`window.boxagentSetup.request('wechat-provision')`);
-    assert.equal(prepared.error, '', 'Automatic replica provisioning failed in the packaged app');
+    const prepared = await evaluate(`window.boxagentSetup.request('wechat-provision')`, 300000);
+    assert.equal(prepared.error, '', `Automatic replica provisioning failed in the packaged app: ${prepared.error}`);
     assert.equal(prepared.wechat.client.state, 'ready');
     assert.equal(prepared.credentials.wechatEnabled, false);
     assert.equal(prepared.credentials.wechatConfigured, false);
     const image = await send('Page.captureScreenshot', { format: 'png' });
     await fs.writeFile(path.join(directory, 'wechat-provisioned.png'), Buffer.from(image.data, 'base64'));
     console.log('PASS: actual packaged fixed-build replica provisioning, no login, ' + (Date.now() - began) + ' ms');
-    if (process.argv.includes('--wechat-login')) {
+    if (wechatLogin) {
       console.log('ACTION: complete QR sign-in in the new WeChat copy; no messages will be sent.');
-      const captured = await evaluate(`window.boxagentSetup.request('wechat-capture')`);
+      const captured = await evaluate(`window.boxagentSetup.request('wechat-capture')`, 420000);
       assert.equal(captured.error, '', 'Real sign-in and encrypted credential acquisition failed');
       assert.equal(captured.credentials.wechatConfigured, true);
       assert.equal(captured.credentials.wechatEnabled, false, 'Capture alone must not enable model message processing');

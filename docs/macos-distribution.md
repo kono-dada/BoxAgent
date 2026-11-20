@@ -19,7 +19,7 @@
 
 升级替换 App 不会删除 `~/Library/Application Support/BoxAgent` 中的配置、模型、微信凭据和引导状态。已完成引导直接启动；未完成则恢复上次步骤。组件输入摘要和 App 路径不变时复用已通过检查的环境；从 DMG 搬到 Applications 等路径变化可能需要点击「准备或修复组件」，从安装包内的 wheel 离线重建环境。已有且校验通过的视觉模型不再下载，已有记忆模型通过本地检查后跳过下载准备；缺失或损坏的模型才需补齐。取消后留下的未完成单文件不保证断点续传。
 
-运行环境检查会比对 marker 中的 Python 来源路径和当前 App 的资源路径；来源变化时返回 `component_runtime_relocated`，即使旧 DMG 尚在挂载也不继续依赖它。微信操作前单独复查 core，失败返回 `wechat_runtime_unavailable` 并提供「修复本地组件」入口。仅删除旧 DMG 而未迁移 venv 会导致 `process_start_failed`；升级验收必须覆盖「从 DMG 运行过 → 拖到 Applications → 推出旧卷 → 修复组件 → 准备微信」。这些检测属于源码修复，已发布的旧测试包仍需通过组件页手动修复。
+运行环境检查会比对 marker 中的 Python 来源路径和当前 App 的资源路径。`/var` 和 `/private/var` 等指向同一解释器的路径会通过检查。来源变化时返回 `component_runtime_relocated`，即使旧 DMG 尚在挂载也会要求修复。微信操作前单独复查 core，失败返回 `wechat_runtime_unavailable` 并提供「修复本地组件」入口。升级验收覆盖「从 DMG 运行过 → 拖到 Applications → 推出旧卷 → 修复组件 → 准备微信」。
 
 录屏按钮先由 BoxAgent 本身调用 Electron `desktopCapturer.getSources` 请求权限，再按实际状态打开系统设置；仅打开设置不会使 App 出现在录屏列表。此次请求关闭缩略图且不保存帧。授权后系统可能要求重启 App；Computer Use 是另一个执行程序，可能另有权限条目。测试包采用 ad-hoc 签名，不能承诺跨构建沿用全部系统权限；正式升级应保持 Developer ID、Bundle ID 和安装位置稳定。
 
@@ -47,14 +47,19 @@ pnpm --dir web/panel dist:mac
 
 入口构建 VRM 和 React，准备可迁移 CPython、三个隔离环境的 wheel 和摘要，修复非系统动态库路径，检查原生代码，制作 app 与 DMG。制作缓存位于 `.runtime/package-cache`，按输入锁、制作配方、Python 和签名身份隔离；完整摘要验证后才复用。`input-wheels.json` 保存制作前 wheel 摘要；由源代码构建的 PyAudio wheel 属于制作输入，不冒充上游原始 wheel。
 
-产物位于 `dist/mac/`，新版图形安装镜像为 `BoxAgent-<version>-macos-arm64-setup.dmg`。
-安装窗口由 `scripts/build-dmg-mac.cjs` 复用已签名 App 制作，写入 Finder 图标坐标、600×400 窗口和 Retina 拖拽说明背景。
-该步骤不重新打包 App，不修改用户已挂载的旧 `BoxAgent` 卷；同名 `BoxAgent Installer` 已挂载时会停止，避免强制卸载。
-测试默认 ad-hoc 签名，**不是 Developer ID 签名公证发行包**。源码变化、依赖未变化时可复用已检查的制作资源：
+产物默认位于 `dist/mac/`，安装镜像为 `BoxAgent-<version>-macos-arm64-setup.dmg`。安装窗口由 `scripts/build-dmg-mac.cjs` 复用已签名 App 制作，写入 Finder 图标坐标、600×400 窗口和 Retina 拖拽说明背景。同名 `BoxAgent Installer` 已挂载时会停止制作。
+
+制作同版本的多个测试候选时，可通过 `BOXAGENT_PACKAGE_OUTPUT_DIR` 指定独立产物目录。App 的中间产物仍共用 `.runtime/package-build/mac-arm64/BoxAgent.app`。依赖未变化时，`--reuse-resources` 复用已检查的 Python、wheel 和 AOQ 制作资源，VRM 和 Electron 前端仍会重新构建。以下命令使用 0.1.2 的文件名。
 
 ```sh
-bash scripts/build-dist-mac.sh --reuse-resources
+BOXAGENT_PACKAGE_OUTPUT_DIR="$PWD/dist/mac/companion-check" \
+  bash scripts/build-dist-mac.sh --reuse-resources
+cd dist/mac/companion-check
+shasum -a 256 -c BoxAgent-0.1.2-macos-arm64-setup.dmg.sha256
+hdiutil verify BoxAgent-0.1.2-macos-arm64-setup.dmg
 ```
+
+测试默认使用 ad-hoc 签名。正式分发走下方 Developer ID 签名与公证流程。
 
 升级测试包时退出旧实例，将新 App 覆盖到同一个 `/Applications/BoxAgent.app`，再从 Applications 打开。引导进度与加密凭据位于用户数据目录，替换 App 不清除它们；macOS 权限由系统另外维护，不由引导完成标记推断。临时签名变动后需要以当前 App 的实际权限检查为准，不能承诺每次构建自动继承旧授权。
 
@@ -88,10 +93,14 @@ Electron smoke 使用隔离目录和模拟 Provider/Engine，验证五个真实�
 
 `smoke-packaged-app.mjs` 将 app 复制到制作机器的临时目录（含空格），仅保留系统 PATH，以实际成品打开 Key 表单，使用成品内的 Electron、uv 和 CPython 离线安装三个环境，并检查真实 Engine。`--models` 另下载模型并初始化真实 Jev/MLX；合成配置只用于本地 Jev 初始化，不进行云推理。此检查保留临时用户目录和截图以便诊断，需要图形会话，不能代替干净机器与真实凭据验收。
 
-重复制作检查可添加 `--model-cache "/path/to/previous-test/User Data/models"`，复用之前测试下载的公开模型文件；依赖环境、状态和 Key 存储仍从新的隔离目录开始，模型继续执行摘要与加载检查。
+验收最终 DMG 时，先校验摘要并挂载镜像，确认安装窗口有 App 和 Applications 快捷方式。把 App 复制到临时安装目录，推出镜像，再对复制件运行 `codesign --verify --deep --strict` 和上述两个 Node 脚本。这样可以核对实际交付文件，以及离开镜像后启动本地组件和 Engine 的能力。
+
+重复制作检查可添加 `--model-cache "/path/to/previous-test/User Data/models"`，复用之前测试下载的公开模型文件。依赖环境、状态和 Key 存储仍从新的隔离目录开始，模型继续执行摘要与加载检查。
+
+在已安装 BoxAgent 的机器上测试新 ad-hoc 签名时，系统钥匙串可能等待用户授权。自动冒烟可加 `--mock-keychain`，仅在隔离目录用 Chromium 测试钥匙串验证准备流程。真实钥匙串和微信登录验收需要单独运行，`--wechat-login` 禁止与此参数并用。 [Electron 签名说明](https://www.electronjs.org/docs/latest/tutorial/code-signing#macos-apis-that-require-code-signing)
 
 随包 `third-party-notices` 提供实际 Python wheel 的许可文本、版本清单，以及 Electron/Chromium、uv 和被打入音频 wheel 的 PortAudio notices。AOQ 只复制两个官方 framework，忽略 ZIP 的 `__MACOSX` 元数据。重型环境明确选择 macOS 14 wheel；MLX 与相同版本的 `mlx-metal` 保留上游共享命名空间布局，由实际环境加载检查验证其依赖。
 
 Git 分支发布只包含源码、锁、配置和文档；wheel、模型、SDK、用户数据、Key 和二进制产物不提交 Git。二进制外部分发和自动更新渠道是独立发布动作。
 
-本次实际结果与未覆盖项见 [2026-11-17 验证记录](macos-validation-2026-11-17.md)。
+陪玩版的验收见 [实践记录](BoxAgent-实践记录.md#2026-11-21--陪玩版-macos-安装验收)，此前的引导测试见 [2026-11-17 验证记录](macos-validation-2026-11-17.md)。

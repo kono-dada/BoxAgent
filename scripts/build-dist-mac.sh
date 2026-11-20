@@ -3,13 +3,16 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 identity="${BOXAGENT_SIGN_IDENTITY:--}"
+output_dir="${BOXAGENT_PACKAGE_OUTPUT_DIR:-$repo_root/dist/mac}"
 wechat_source="${BOXAGENT_WECHAT_SOURCE:-$repo_root/.runtime/package-resources/wechat/4.1.15.270115.dmg}"
 if [[ ! -e "$wechat_source" ]]; then wechat_source='/Applications/WeChat.app'; fi
 if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
   echo 'Build on Apple Silicon macOS.' >&2; exit 1
 fi
+mkdir -p "$output_dir"
+output_dir="$(cd "$output_dir" && pwd)"
+pnpm --dir web/vrm build
 if [[ "${1:-}" != '--reuse-resources' ]]; then
-  pnpm --dir web/vrm build
   uv run --python 3.12.9 --script scripts/prepare-packaged-runtime.py \
     --aoq-dir "${BOXAGENT_AOQ_SDK_DIR:?Set BOXAGENT_AOQ_SDK_DIR to the official frameworks directory}" \
     --wechat-source "$wechat_source" \
@@ -49,12 +52,13 @@ codesign "${args[@]}" --entitlements "$entitlements" "$app_bundle"
 codesign --verify --deep --strict "$app_bundle"
 node scripts/verify-packaged-app.mjs "$app_bundle"
 if [[ "$identity" != '-' ]]; then
-  ditto -c -k --keepParent "$app_bundle" "$repo_root/dist/mac/BoxAgent-notary.zip"
-  xcrun notarytool submit "$repo_root/dist/mac/BoxAgent-notary.zip" --keychain-profile "${BOXAGENT_NOTARY_PROFILE:?Set BOXAGENT_NOTARY_PROFILE}" --wait
+  ditto -c -k --keepParent "$app_bundle" "$output_dir/BoxAgent-notary.zip"
+  xcrun notarytool submit "$output_dir/BoxAgent-notary.zip" --keychain-profile "${BOXAGENT_NOTARY_PROFILE:?Set BOXAGENT_NOTARY_PROFILE}" --wait
   xcrun stapler staple "$app_bundle"
 fi
 version="$(node -p 'require("./web/panel/package.json").version')"
-artifact="$repo_root/dist/mac/BoxAgent-${version}-macos-arm64-setup.dmg"
+artifact_name="BoxAgent-${version}-macos-arm64-setup.dmg"
+artifact="$output_dir/$artifact_name"
 node scripts/build-dmg-mac.cjs "$app_bundle" "$artifact"
 if [[ "$identity" != '-' ]]; then
   codesign --sign "$identity" --timestamp "$artifact"
@@ -63,5 +67,5 @@ if [[ "$identity" != '-' ]]; then
   xcrun stapler validate "$artifact"
   spctl --assess --verbose "$app_bundle"
 fi
-shasum -a 256 "$artifact" >"$artifact.sha256"
+(cd "$output_dir" && shasum -a 256 "$artifact_name" >"$artifact_name.sha256")
 echo "Built $artifact (signing identity: $identity)"
