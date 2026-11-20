@@ -1,6 +1,6 @@
 # 微信首次接入与自动副本准备
 
-从源码开发请看下节，有已制作的 macOS 安装包可直接走 [安装向导中的微信步骤](#用户流程)。本轮分支与验收范围见 [2026-11-21 集成交接](integration-handoff-2026-11-21.md)。
+从源码开发请看下节，有 macOS 安装包可直接走 [Onboarding 中的微信步骤](#用户流程)。本轮分支与验收范围见 [2026-11-21 集成交接](integration-handoff-2026-11-21.md)。
 
 ## 同事从仓库本地运行（2026-11-20）
 
@@ -31,7 +31,7 @@ shasum -a 256 .runtime/package-resources/wechat/4.1.15.270115.dmg
 
 当前没有发布固定资源的下载地址，仓库内下载清单刻意保持禁用。不能用最新版微信或相同版本号的其他热修构建替代。不要复制开发者的微信副本、账号数据库、密钥报告、`.env.local` 或整个用户数据目录。
 
-没有配套运行资源的新机器，只有上述两个文件仍不足以运行完整首次引导。可在本机准备引导需要的 Python、wheel、AOQ 与微信资源，不制作 DMG：
+新机器需要准备 Onboarding 使用的 Python、wheel、AOQ 与微信资源。下列命令只准备资源。
 
 ```sh
 uv run --python 3.12 --script scripts/prepare-packaged-runtime.py \
@@ -41,7 +41,7 @@ uv run --python 3.12 --script scripts/prepare-packaged-runtime.py \
 
 这是较重的一次性准备，会下载依赖并占用额外磁盘空间。已有完整、可信的构建资源也可复用；仅分享微信归档不会自动补齐其他组件。
 
-退出其他 BoxAgent 实例后，从源码开启首次引导：
+退出其他 BoxAgent 实例后，从源码打开 Onboarding。
 
 ```sh
 BOXAGENT_DATA_DIR="$HOME/Library/Application Support/BoxAgent" \
@@ -165,7 +165,7 @@ UI 采用逐阶段展开、说明数据用途及可取消等待，对照已安�
 - SHA256：`94f98556f1bb2f81e8c5e3e3cf9ca5ec8e5a6baf2c1a040d93165320adc6fe45`。
 - 实际准备了 CPython 3.12.9、core/Jev/vision 原生 wheel、AOQ SDK 和固定微信归档。
 - 2625 个资源摘要与微信固定构建清单检查通过；App 严格签名校验、DMG CRC 校验通过。
-- 实际 App 复制至含空格的独立临时路径，设为只读、只用系统 PATH，首次引导及必填 Key 表单启动通过。
+- 实际 App 复制至含空格的独立临时路径，设为只读、只用系统 PATH，Onboarding 及必填 Key 表单启动通过。
 - 本机没有 Developer ID identity，本包为 ad-hoc 签名，未公证，不等同于正式发行完成。
 - 按用户要求直接交付本地安装试用，尚未执行此安装包的真实扫码、凭据冷启动恢复或完整模型准备验收。
 

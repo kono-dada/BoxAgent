@@ -76,7 +76,7 @@ flowchart LR
 
 ## 快速开始
 
-下面是日常源码开发的步骤。要从源码打开首次引导并接入自己的微信，见 [微信源码接入](docs/wechat-onboarding.md#同事从仓库本地运行2026-11-20)。要验证独立 App 的首次引导或自己构建 DMG，见 [macOS 安装与发包](docs/macos-distribution.md)。
+下面是日常源码开发的步骤。要从源码打开 Onboarding 并配置自己的微信，见 [微信源码接入](docs/wechat-onboarding.md#同事从仓库本地运行2026-11-20)。要测试独立 App 的 Onboarding 或自己构建 DMG，见 [macOS 安装与发包](docs/macos-distribution.md)。
 
 ### 1. 准备环境
 
@@ -116,7 +116,7 @@ zsh scripts/set-key.zsh
 
 启动时只显示 3D 桌宠，默认形象为 Zome。聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从伙伴控制台的「设置 → 语音与桌面」开启，开启后默认每 15 秒检查前台窗口。
 
-已在这台 Mac 上使用安装向导准备好账号和模型时，可以运行 `./scripts/run-local.sh`，让源码版复用本机数据和模型。
+在这台 Mac 上完成 Onboarding 后，可以运行 `./scripts/run-local.sh`，让源码版复用本机数据和模型。
 
 ### 5. 开始使用
 
@@ -184,13 +184,13 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 本地 MLX 前台窗口总结
 - 有来源的关键画面记忆、后台经历提取、同主题历史链与按问题回看原图；默认用一两句播报，来源不足时说明不确定
 - LoL 与《鸣潮》陪玩、透明桌宠与副屏舞台、微信来信提醒及明确指令后代回
-- macOS 首次引导、配置修复与独立安装包构建。0.1.2 已通过本机成品冒烟，验收范围见 [团队交接](docs/integration-handoff-2026-11-21.md)
+- macOS Onboarding、配置修复与独立安装包构建。0.1.2 已通过本机成品冒烟，验收范围见 [团队交接](docs/integration-handoff-2026-11-21.md)
 
 视觉记忆的使用方法、源码对照和验证范围见 [PersonOS 多模态记忆接入](docs/PersonOS-多模态记忆接入评估.md)。
 
 ### 仍在推进
 
-- 新 Mac 首次引导与权限验收、微信凭据冷启动恢复、正式签名与公证分发
+- 新 Mac 的 Onboarding 和权限验收、微信凭据冷启动恢复、正式签名与公证分发
 - 桌面任务队列、并发调度和更稳定的第三方应用适配
 - 记忆冲突消歧、画像质量评测与多尺度 consolidation
 - 《鸣潮》真实素材的视觉记忆准确率与语音延迟验收；连续视频、人物身份关联尚未接入
@@ -250,7 +250,7 @@ uvx --from pyright==1.1.414 pyright
 | 主题 | 文档 |
 | --- | --- |
 | 团队接续开发 | [2026-11-21 集成分支交接](docs/integration-handoff-2026-11-21.md) · [代码架构导览](docs/BoxAgent-代码架构导览.md) |
-| 源码运行、安装与配置 | [本机环境准备](docs/setup.md) · [macOS 安装引导与打包](docs/macos-distribution.md) · [Windows 使用说明](docs/windows.md) |
+| 源码运行、安装与配置 | [本机环境准备](docs/setup.md) · [macOS Onboarding 与打包](docs/macos-distribution.md) · [Windows 使用说明](docs/windows.md) |
 | 微信接入与使用 | [微信首次接入](docs/wechat-onboarding.md) · [微信模块设计](docs/wechat-模块设计.md) |
 | 当前架构与前后端连接 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
 | 伙伴控制台与界面偏好 | [Panel README](web/panel/README.md) |

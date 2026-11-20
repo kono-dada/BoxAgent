@@ -1,4 +1,4 @@
-# macOS 首次引导与安装包
+# macOS Onboarding 与安装包
 
 首版面向 Apple Silicon macOS 14 及以上。应用使用固定 Python 3.12.9；用户不需要安装 Python、uv、Node、pnpm 或 Homebrew。需要联网配置云模型和准备记忆、视觉模型。声明的最低系统版本不等于整个系统版本矩阵已实机验收。
 
@@ -7,7 +7,7 @@
 ## 新用户
 
 打开 DMG 后，按窗口中箭头把左侧 `BoxAgent.app` 拖到右侧 Applications；复制完成后从“应用程序”打开 BoxAgent。
-拖拽复制本身不会自动启动应用。首次引导依次显示欢迎、模型服务、本地组件、权限、微信和就绪摘要。
+拖拽复制本身不会自动启动应用。Onboarding 依次显示欢迎、模型服务、本地组件、权限、微信和就绪摘要。
 
 - 填写自己的 DashScope API Key 和该 Key 对应的百炼业务空间 ID。默认记忆决策复用这组配置。
 - DeepSeek API Key 用于桌面任务，首版必填。两组 Key 保存后执行受限鉴权验证，错误时保留配置并提示重试。
