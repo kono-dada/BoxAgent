@@ -75,7 +75,7 @@ app.whenReady().then(async () => {
     }, 'JPEG camera frames accepted by the conversation adapter');
     assert(await js(camera, 'document.querySelector("video").videoWidth > 0'));
     assert.equal((await js(bubble, "boxagent.request('state')")).camera_status, 'active');
-    await wait(() => js(bubble, 'document.querySelector(".companion-camera.active")?.textContent === "关闭摄像头"'), 'camera state reflected in chat');
+    await wait(() => js(bubble, 'document.querySelector(".companion-camera.active")?.getAttribute("aria-label") === "关闭摄像头"'), 'camera state reflected in chat');
     assert.equal(await js(bubble, 'document.querySelector(".companion-camera").getAttribute("aria-pressed")'), 'true');
     assert.equal((await js(bubble, "boxagent.request('state')")).assistant_text, '', 'frames alone must not trigger replies');
     const pixels = await js(camera, `(() => {
@@ -157,7 +157,7 @@ app.whenReady().then(async () => {
     await wait(async () => (await js(bubble, "boxagent.request('state')")).camera_status === 'off', 'close cleans up');
     assert.equal((await js(bubble, "boxagent.request('state')")).voice, 'off');
     // A pre-existing call is borrowed, not owned, by the camera window.
-    await wait(() => js(bubble, 'document.querySelector(".companion-camera").textContent === "开启摄像头"'), 'camera button reset');
+    await wait(() => js(bubble, 'document.querySelector(".companion-camera").getAttribute("aria-label") === "开启摄像头"'), 'camera button reset');
     await js(bubble, 'document.querySelector(".companion-voice").click()');
     await wait(async () => (await js(bubble, "boxagent.request('state')")).voice === 'ready', 'original voice button');
     await wait(() => js(bubble, '!document.querySelector(".companion-camera").disabled'), 'camera launch available during voice');

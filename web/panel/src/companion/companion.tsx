@@ -8,12 +8,14 @@ import {
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Camera, Mic, Monitor } from "lucide-react";
+import { Camera, Mic, Monitor, Gamepad2 } from "lucide-react";
 import { t } from "../i18n";
 import { locale, startPreferences } from "../preferences";
 import { useAction, run, runtimeLabel } from "../hooks/useAction";
 import { useWindowDrag } from "../hooks/useWindowDrag";
 import { transcript } from "./model";
+import { researchByInteraction } from '../web-research/model';
+import { WebResearchCard, WebResearchStatus } from '../web-research/WebResearchCard';
 import type { AvatarSnapshot, CameraSnapshot, ProductMessage, RuntimeState } from "../types";
 import "../../style.css";
 import "./companion.css";
@@ -29,6 +31,7 @@ function Companion() {
     [title, setTitle] = useState("");
   const [away, setAway] = useState(false),
     [, revise] = useState(0);
+  const [composing, setComposing] = useState(false);
   const drafts = useRef<Record<string, string>>({}),
     liveDraft = useRef("");
   const session = useRef(""),
@@ -42,6 +45,10 @@ function Companion() {
   const cameraActive = camera.status !== "off";
   const cameraStarting = camera.status === "starting";
   const drag = useWindowDrag(bridge);
+  useEffect(() => {
+    bridge.desktopAction("chat-hold", Boolean(composing || text.trim() || pending ||
+      creating || away || desktop.tasks_expanded));
+  }, [composing, text, pending, creating, away, desktop.tasks_expanded]);
   const refresh = useCallback(async () => {
     const id = session.current,
       mine = ++request.current;
@@ -108,6 +115,7 @@ function Companion() {
             "conversation.updated",
             "session.ready",
             "front.user_text",
+            "web.research.updated",
             "task.succeeded",
             "task.failed",
             "task.cancelled",
@@ -150,6 +158,10 @@ function Companion() {
     };
   }, [refresh]);
   const entries = transcript(history, runtime, pending);
+  const research = researchByInteraction(history, runtime);
+  const lastAssistant = new Map(entries.filter(row => row.role === 'assistant' && row.interactionId)
+    .map(row => [row.interactionId, row.id]));
+  const activeResearch = runtime.web_research?.session_id === runtime.session_id ? runtime.web_research : null;
   const queued = runtime.task_queue?.length || 0;
   const taskActive = queued > 0 || ["accepted", "running", "cancelling", "awaiting_approval"].includes(runtime.task || "");
   const taskLabel = runtime.approval ? t("需要你的确认") : runtimeLabel(runtime.task || "idle");
@@ -275,6 +287,19 @@ function Companion() {
     setTitle("");
     await refresh();
   }
+  const playing = runtime.lol_companion_enabled || runtime.game_companion_enabled;
+  const voiceLabel = t(runtime.voice === "ready" ? "结束语音"
+    : runtime.voice === "connecting" ? "连接中…"
+      : runtime.voice === "stopping" ? "关闭中…" : "开启语音");
+  const cameraLabel = t(cameraStarting ? "连接中…" : cameraActive ? "关闭摄像头" : "开启摄像头");
+  const status = t(!online ? "等待 Engine 连接"
+    : runtime.speaking ? "回复中"
+      : runtime.user_speaking ? "聆听中"
+        : runtime.voice === "ready" ? "麦克风已开启"
+          : runtime.voice === "connecting" ? "连接中…"
+            : playing ? "麦克风已关闭" : "在这里陪你");
+  const lolAction = t(runtime.lol_companion_enabled ? "关闭 LOL 陪玩" : "开启 LOL 陪玩");
+  const wuwaAction = t(runtime.game_companion_enabled ? "退出鸣潮陪玩" : "开启鸣潮陪玩");
   return (
     <section
       ref={shell}
@@ -290,6 +315,8 @@ function Companion() {
               : "idle"
       }
       data-visible={visible}
+      data-display-profile={desktop.active_display_profile || "desktop"}
+      data-dock-edge={desktop.chat_dock_edge}
     >
       <div className="companion-ambient" aria-hidden="true">
         <i />
@@ -302,17 +329,9 @@ function Companion() {
       >
         <div className="companion-heading">
           <strong>{desktop.name || t("伙伴")}</strong>
-          <span>
-            <i className={`companion-dot ${online ? "online" : ""}`} />
-            {online
-              ? runtime.speaking
-                ? t("回复中")
-                : runtime.user_speaking
-                  ? t("聆听中")
-                  : runtime.voice === "ready"
-                    ? t("全双工语音已开启")
-                    : t("在这里陪你")
-              : t("等待 Engine 连接")}
+          <span role="status" title={status}>
+            <i className={`companion-dot ${online ? "online" : ""}`} aria-hidden="true" />
+            <span className="companion-status-text">{status}</span>
           </span>
         </div>
         <button
@@ -333,10 +352,10 @@ function Companion() {
         <div className="companion-controls">
         <button
           className="icon-button companion-display"
-          title={t('小人显示屏')}
-          aria-label={t('小人显示屏')}
+          title={t('伙伴与聊天显示屏')}
+          aria-label={t('伙伴与聊天显示屏')}
           aria-haspopup="menu"
-          data-active={desktop.separate_windows || false}
+          data-active={Boolean(desktop.selected_display_id) || desktop.display_profile === 'hardware'}
           onClick={() => bridge.desktopAction('display-menu')}
         >
           <Monitor size={16} aria-hidden="true" />
@@ -409,8 +428,11 @@ function Companion() {
                     {row.content}
                   </ReactMarkdown>
                 </div>
+                {row.role === 'assistant' && row.interactionId && lastAssistant.get(row.interactionId) === row.id && research[row.interactionId] &&
+                  <WebResearchCard view={research[row.interactionId]} bridge={bridge} />}
               </article>
             ))}
+            <WebResearchStatus view={activeResearch} />
             {runtime.context_enabled &&
               (runtime.context_text || runtime.context_status) && (
                 <details className="companion-context">
@@ -485,6 +507,8 @@ function Companion() {
           aria-label={t("对话消息")}
           rows={2}
           value={text}
+          onFocus={() => setComposing(true)}
+          onBlur={() => setComposing(false)}
           onChange={(event) => {
             liveDraft.current = event.target.value;
             drafts.current[session.current] = event.target.value;
@@ -511,9 +535,32 @@ function Companion() {
         </button>
       </form>
       <footer className="companion-footer">
+        <div className="companion-games" role="group" aria-label={t("陪玩模式")}>
+          <Gamepad2 size={16} aria-hidden="true" />
+          <button type="button" className={`companion-game ${runtime.lol_companion_enabled ? "active" : ""}`}
+            role="switch" aria-label={t("LOL 游戏陪玩")}
+            aria-checked={Boolean(runtime.lol_companion_enabled)}
+            title={[lolAction, runtime.lol_companion_enabled ? runtime.lol_companion_text : t("开启陪玩时同时开启麦克风")].filter(Boolean).join("\n")}
+            disabled={!online || action.busy || runtime.voice === "stopping"}
+            onClick={() => run(action.act("set_companion_session", { game: "lol", enabled: !runtime.lol_companion_enabled }))}>
+            LoL
+          </button>
+          {runtime.game_companion_available && (
+            <button type="button" className={`companion-game ${runtime.game_companion_enabled ? "active" : ""}`}
+              role="switch" aria-label={t("鸣潮陪玩")}
+              aria-checked={Boolean(runtime.game_companion_enabled)}
+              title={runtime.game_companion_enabled ? wuwaAction : `${wuwaAction}\n${t("开启陪玩时同时开启麦克风")}`}
+              disabled={!online || action.busy || runtime.voice === "stopping"}
+              onClick={() => run(action.act("set_companion_session", { game: "wuwa", enabled: !runtime.game_companion_enabled }))}>
+              {t("鸣潮")}
+            </button>
+          )}
+        </div>
         <button
+          type="button"
           className={`companion-voice ${runtime.voice === "ready" ? "active" : ""}`}
-          title={`${t("全双工")} · ⌃⌥${t("空格")}`}
+          title={`${voiceLabel} · ⌃⌥${t("空格")}`}
+          aria-label={voiceLabel}
           aria-pressed={runtime.voice === "ready"}
           disabled={
             !online ||
@@ -523,29 +570,23 @@ function Companion() {
           onClick={() => run(action.act("toggle_voice"))}
         >
           <Mic size={16} aria-hidden="true" />
-          {runtime.voice === "ready"
-            ? t("结束语音")
-            : runtime.voice === "connecting"
-              ? t("连接中…")
-              : runtime.voice === "stopping"
-                ? t("关闭中…")
-                : t("开启语音")}
-          <i className="voice-switch" aria-hidden="true" />
         </button>
         <button
           type="button"
           className={`companion-camera ${cameraActive ? "active" : ""}`}
-          title={cameraActive ? t("关闭摄像头") : t("开启摄像头并开始视频通话")}
+          title={cameraStarting || cameraActive ? cameraLabel : t("开启摄像头并开始视频通话")}
+          aria-label={cameraLabel}
           aria-pressed={cameraActive}
           disabled={!online || action.busy}
           onClick={() => run(action.act("desktop_toggle_camera"))}
         >
           <Camera size={16} aria-hidden="true" />
-          <span>{cameraStarting ? t("连接中…") : cameraActive ? t("关闭摄像头") : t("开启摄像头")}</span>
-          <i className="voice-switch" aria-hidden="true" />
         </button>
         <button
+          type="button"
           className="companion-session-button"
+          title={t("新会话")}
+          aria-label={t("新会话")}
           aria-expanded={creating}
           aria-controls={creating ? "companion-new-session" : undefined}
           onClick={() => setCreating((value) => !value)}
@@ -559,7 +600,6 @@ function Companion() {
               strokeLinecap="round"
             />
           </svg>
-          {t("新会话")}
         </button>
       </footer>
       {creating && (

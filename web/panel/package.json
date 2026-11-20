@@ -3,20 +3,23 @@
   "productName": "BoxAgent",
   "private": true,
   "packageManager": "pnpm@10.33.2",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "main": "main.cjs",
   "scripts": {
     "start": "node scripts/launch.cjs",
     "dev": "pnpm run build && pnpm start",
     "test": "node --test tests/*.test.cjs",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "setup": "node scripts/launch.cjs --setup",
+    "dist:mac": "bash ../../scripts/build-dist-mac.sh"
   },
   "devDependencies": {
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "4.7.0",
     "electron": "^38.0.0",
+    "electron-builder": "25.1.8",
     "typescript": "5.7.3",
     "vite": "6.4.1"
   },

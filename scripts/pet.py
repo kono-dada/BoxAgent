@@ -6,6 +6,7 @@
 #   "pyobjc-framework-Cocoa>=11,<13; sys_platform == 'darwin'",
 #   "pyobjc-framework-Quartz>=11,<13; sys_platform == 'darwin'",
 #   "pillow>=11.2.1,<13",
+#   "zstandard>=0.23,<1",
 # ]
 # ///
 """uv 直接启动桌宠；不生成 .app，不修改已有 MLX 环境。"""

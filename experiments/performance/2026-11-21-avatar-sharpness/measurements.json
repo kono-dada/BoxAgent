@@ -1,0 +1,45 @@
+{
+  "date_local": "2026-11-21",
+  "method": "Read devicePixelRatio and the VRM WebGL canvas attributes from the real Electron iframe before and after the renderer change. Same Mac, same VRM and same initial 252 × 182 CSS-pixel viewport. The test uses a fake Engine with real display and rendering code.",
+  "samples": [
+    {
+      "display": "Built-in Liquid Retina",
+      "profile": "desktop",
+      "device_pixel_ratio": 2,
+      "viewport_css_px": [252, 182],
+      "before_buffer_px": [252, 182],
+      "after_buffer_px": [504, 364],
+      "before_pixels": 45864,
+      "after_pixels": 183456
+    },
+    {
+      "display": "12.3FHD at 1920 × 720",
+      "profile": "hardware",
+      "device_pixel_ratio": 1,
+      "viewport_css_px": [252, 182],
+      "before_buffer_px": [252, 182],
+      "after_buffer_px": [252, 182],
+      "before_pixels": 45864,
+      "after_pixels": 45864
+    },
+    {
+      "display": "Built-in Liquid Retina after switching back",
+      "profile": "desktop fallback",
+      "device_pixel_ratio": 2,
+      "viewport_css_px": [504, 364],
+      "before_buffer_px": [504, 364],
+      "after_buffer_px": [1008, 728]
+    }
+  ],
+  "validation": {
+    "panel_tests_passed": 137,
+    "vrm_tests_passed": 44,
+    "panel_build_passed": true,
+    "vrm_build_passed": true,
+    "physical_dual_display_smoke_passed": true,
+    "physical_hardware_walking_and_chat_pause_passed": true
+  },
+  "local_raw_logs": ["before.log", "after.log", "walking.log"],
+  "shared_test_logs": "Original test-run output with local repository paths replaced by <repo>.",
+  "limitations": "Drawing-buffer dimensions measure render density. This run did not measure game frame rates, GPU load, power or perceived sharpness on the physical panel."
+}

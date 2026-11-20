@@ -261,6 +261,13 @@ class MemoryWorkerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(env["TEMP"], "C:\\Temp")
         self.assertEqual(env["PYTHONUTF8"], "1")
 
+    def test_worker_does_not_write_bytecode_into_the_signed_application(self) -> None:
+        worker = JevMemWorker(decision_api_key="test-key")
+        with patch.dict(os.environ, {"PYTHONPYCACHEPREFIX": "/tmp/boxagent-runtime-cache"}):
+            env = worker._environment()
+        self.assertEqual(env["PYTHONPYCACHEPREFIX"], "/tmp/boxagent-runtime-cache")
+        self.assertEqual(env["PYTHONDONTWRITEBYTECODE"], "1")
+
     def test_forget_removes_graph_vector_and_keyword_indexes(self):
         worker = Worker.__new__(Worker)
         worker.system = FakeSystem()

@@ -1,0 +1,491 @@
+{
+  "date": "2026-11-21",
+  "timezone": "Asia/Shanghai",
+  "units": "ms",
+  "method": "Parsed JSON records from local tool output. Physical-output tests use synthetic text and the local audio device callback. The callback is not an acoustic recording.",
+  "start": "Arrival of a synthetic LoL line in the voice dispatch path. Game polling time is outside the measurement window.",
+  "end": [
+    "client response.create trace",
+    "device playback callback",
+    "identified LoL playback receipt when available"
+  ],
+  "before_method": "Unmodified direct announce_lol call, same short synthetic line, Qwen WebSocket with local device output enabled.",
+  "interleaved_method": "Direct and scheduled dispatch use the same current AOQ connection, request code, synthetic line and output device. Order alternates each pair, excluding one warmup per mode.",
+  "runs": {
+    "websocket_before": {
+      "machine_output": "before.jsonl",
+      "json_records": [
+        {
+          "phase": "before",
+          "model": "qwen3.8-omni-flash-realtime",
+          "transport": "websocket",
+          "mic": false,
+          "output": "default device",
+          "n_measured": 8,
+          "warmup": 1
+        },
+        {
+          "sample": 0,
+          "warmup": true,
+          "sent_ms": 78.658,
+          "play_ms": 1364.566
+        },
+        {
+          "sample": 1,
+          "warmup": false,
+          "sent_ms": 220.848,
+          "play_ms": 830.77
+        },
+        {
+          "sample": 2,
+          "warmup": false,
+          "sent_ms": 243.175,
+          "play_ms": 1086.972
+        },
+        {
+          "sample": 3,
+          "warmup": false,
+          "sent_ms": 183.725,
+          "play_ms": 878.251
+        },
+        {
+          "sample": 4,
+          "warmup": false,
+          "sent_ms": 181.634,
+          "play_ms": 928.452
+        },
+        {
+          "sample": 5,
+          "warmup": false,
+          "sent_ms": 160.09,
+          "play_ms": 877.996
+        },
+        {
+          "sample": 6,
+          "warmup": false,
+          "sent_ms": 344.149,
+          "play_ms": 982.508
+        },
+        {
+          "sample": 7,
+          "warmup": false,
+          "sent_ms": 239.423,
+          "play_ms": 1031.126
+        },
+        {
+          "sample": 8,
+          "warmup": false,
+          "sent_ms": 223.858,
+          "play_ms": 841.032
+        },
+        {
+          "sent_ms": {
+            "median": 222.353,
+            "max": 344.149
+          },
+          "play_ms": {
+            "median": 903.3515,
+            "max": 1086.972
+          }
+        }
+      ]
+    },
+    "websocket_after": {
+      "machine_output": "final-websocket.jsonl",
+      "json_records": [
+        {
+          "transport": "websocket",
+          "model": "qwen3.8-omni-flash-realtime",
+          "samples": 8,
+          "warmups": 1,
+          "microphone": false,
+          "output": "system default"
+        },
+        {
+          "i": 0,
+          "warmup": true,
+          "response_create_ms": 77.363,
+          "lol_receipt_ms": 1342.444,
+          "device_callback_ms": 1342.467
+        },
+        {
+          "i": 1,
+          "warmup": false,
+          "response_create_ms": 154.055,
+          "lol_receipt_ms": 1628.407,
+          "device_callback_ms": 1628.414
+        },
+        {
+          "i": 2,
+          "warmup": false,
+          "response_create_ms": 186.782,
+          "lol_receipt_ms": 1240.12,
+          "device_callback_ms": 1240.125
+        },
+        {
+          "i": 3,
+          "warmup": false,
+          "response_create_ms": 191.352,
+          "lol_receipt_ms": 824.983,
+          "device_callback_ms": 825.007
+        },
+        {
+          "i": 4,
+          "warmup": false,
+          "response_create_ms": 220.814,
+          "lol_receipt_ms": 1029.815,
+          "device_callback_ms": 1029.839
+        },
+        {
+          "i": 5,
+          "warmup": false,
+          "response_create_ms": 156.922,
+          "lol_receipt_ms": 1147.375,
+          "device_callback_ms": 1147.39
+        },
+        {
+          "i": 6,
+          "warmup": false,
+          "response_create_ms": 155.914,
+          "lol_receipt_ms": 839.568,
+          "device_callback_ms": 839.592
+        },
+        {
+          "i": 7,
+          "warmup": false,
+          "response_create_ms": 158.215,
+          "lol_receipt_ms": 1135.611,
+          "device_callback_ms": 1135.639
+        },
+        {
+          "i": 8,
+          "warmup": false,
+          "response_create_ms": 187.51,
+          "lol_receipt_ms": 888.124,
+          "device_callback_ms": 888.148
+        },
+        {
+          "case": "both_ready",
+          "device_receipts": [
+            "lol",
+            "wechat"
+          ]
+        },
+        {
+          "summary": {
+            "device_callback_ms": {
+              "p50": 1082.739,
+              "max": 1628.414
+            },
+            "lol_receipt_ms": {
+              "p50": 1082.7130000000002,
+              "max": 1628.407
+            },
+            "response_create_ms": {
+              "p50": 172.4985,
+              "max": 220.814
+            }
+          }
+        }
+      ]
+    },
+    "aoq_after": {
+      "machine_output": "final-aoq.jsonl",
+      "json_records": [
+        {
+          "transport": "aoq",
+          "model": "qwen3.8-omni-flash-realtime",
+          "samples": 5,
+          "warmups": 1,
+          "microphone": false,
+          "output": "system default"
+        },
+        {
+          "i": 0,
+          "warmup": true,
+          "response_create_ms": 96.696,
+          "lol_receipt_ms": 1139.877,
+          "device_callback_ms": 1139.89
+        },
+        {
+          "i": 1,
+          "warmup": false,
+          "response_create_ms": 280.901,
+          "lol_receipt_ms": 917.017,
+          "device_callback_ms": 917.042
+        },
+        {
+          "i": 2,
+          "warmup": false,
+          "response_create_ms": 259.249,
+          "lol_receipt_ms": 1312.454,
+          "device_callback_ms": 1312.479
+        },
+        {
+          "i": 3,
+          "warmup": false,
+          "response_create_ms": 195.858,
+          "lol_receipt_ms": 1176.525,
+          "device_callback_ms": 1176.554
+        },
+        {
+          "i": 4,
+          "warmup": false,
+          "response_create_ms": 196.915,
+          "lol_receipt_ms": 846.161,
+          "device_callback_ms": 846.193
+        },
+        {
+          "i": 5,
+          "warmup": false,
+          "response_create_ms": 197.249,
+          "lol_receipt_ms": 836.163,
+          "device_callback_ms": 836.195
+        },
+        {
+          "case": "both_ready",
+          "device_receipts": [
+            "lol",
+            "wechat"
+          ]
+        },
+        {
+          "summary": {
+            "device_callback_ms": {
+              "p50": 917.042,
+              "max": 1312.479
+            },
+            "lol_receipt_ms": {
+              "p50": 917.017,
+              "max": 1312.454
+            },
+            "response_create_ms": {
+              "p50": 197.249,
+              "max": 280.901
+            }
+          }
+        }
+      ]
+    },
+    "aoq_interleaved": {
+      "machine_output": "paired-aoq.jsonl",
+      "json_records": [
+        {
+          "transport": "aoq",
+          "model": "qwen3.8-omni-flash-realtime",
+          "samples": 8,
+          "paired": true,
+          "warmups": 1,
+          "microphone": false,
+          "output": "system default"
+        },
+        {
+          "i": 0,
+          "mode": "direct",
+          "warmup": true,
+          "response_create_ms": 104.701,
+          "lol_receipt_ms": 1130.781,
+          "device_callback_ms": 1130.811
+        },
+        {
+          "i": 0,
+          "mode": "scheduled",
+          "warmup": true,
+          "response_create_ms": 292.175,
+          "lol_receipt_ms": 935.185,
+          "device_callback_ms": 935.218
+        },
+        {
+          "i": 1,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 244.25,
+          "lol_receipt_ms": 955.241,
+          "device_callback_ms": 955.266
+        },
+        {
+          "i": 1,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 203.933,
+          "lol_receipt_ms": 885.766,
+          "device_callback_ms": 885.795
+        },
+        {
+          "i": 2,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 204.676,
+          "lol_receipt_ms": 927.034,
+          "device_callback_ms": 927.061
+        },
+        {
+          "i": 2,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 284.102,
+          "lol_receipt_ms": 950.005,
+          "device_callback_ms": 950.033
+        },
+        {
+          "i": 3,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 215.313,
+          "lol_receipt_ms": 924.501,
+          "device_callback_ms": 924.533
+        },
+        {
+          "i": 3,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 273.113,
+          "lol_receipt_ms": 951.465,
+          "device_callback_ms": 951.493
+        },
+        {
+          "i": 4,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 216.196,
+          "lol_receipt_ms": 1014.653,
+          "device_callback_ms": 1014.682
+        },
+        {
+          "i": 4,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 206.447,
+          "lol_receipt_ms": 1070.265,
+          "device_callback_ms": 1070.294
+        },
+        {
+          "i": 5,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 204.784,
+          "lol_receipt_ms": 1018.983,
+          "device_callback_ms": 1019.014
+        },
+        {
+          "i": 5,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 261.624,
+          "lol_receipt_ms": 1009.204,
+          "device_callback_ms": 1009.236
+        },
+        {
+          "i": 6,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 229.782,
+          "lol_receipt_ms": 807.87,
+          "device_callback_ms": 807.903
+        },
+        {
+          "i": 6,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 283.711,
+          "lol_receipt_ms": 822.702,
+          "device_callback_ms": 822.73
+        },
+        {
+          "i": 7,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 238.49,
+          "lol_receipt_ms": 865.915,
+          "device_callback_ms": 865.94
+        },
+        {
+          "i": 7,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 274.971,
+          "lol_receipt_ms": 869.825,
+          "device_callback_ms": 869.85
+        },
+        {
+          "i": 8,
+          "mode": "direct",
+          "warmup": false,
+          "response_create_ms": 292.559,
+          "lol_receipt_ms": 874.883,
+          "device_callback_ms": 874.917
+        },
+        {
+          "i": 8,
+          "mode": "scheduled",
+          "warmup": false,
+          "response_create_ms": 204.997,
+          "lol_receipt_ms": 809.565,
+          "device_callback_ms": 809.59
+        },
+        {
+          "case": "both_ready",
+          "device_receipts": [
+            "lol",
+            "wechat"
+          ]
+        },
+        {
+          "mode": "scheduled",
+          "summary": {
+            "device_callback_ms": {
+              "p50": 937.283,
+              "max": 1070.294
+            },
+            "lol_receipt_ms": {
+              "p50": 937.2529999999999,
+              "max": 1070.265
+            },
+            "response_create_ms": {
+              "p50": 226.9015,
+              "max": 284.102
+            }
+          }
+        },
+        {
+          "mode": "direct",
+          "summary": {
+            "device_callback_ms": {
+              "p50": 906.428,
+              "max": 1014.682
+            },
+            "lol_receipt_ms": {
+              "p50": 906.4,
+              "max": 1014.653
+            },
+            "response_create_ms": {
+              "p50": 245.70300000000003,
+              "max": 292.559
+            }
+          }
+        }
+      ]
+    },
+    "local_mock_provider": {
+      "machine_output": "local-routing.jsonl",
+      "json_records": [
+        {
+          "units": "ms",
+          "scope": "same idle session, mock provider handshake, arrival to local response creation",
+          "warmup_per_mode": 10,
+          "samples_per_mode": 1000,
+          "direct": {
+            "p50": 0.00125,
+            "p95": 0.00325,
+            "max": 0.022041
+          },
+          "scheduled": {
+            "p50": 0.01575,
+            "p95": 0.032917,
+            "max": 0.468125
+          }
+        }
+      ]
+    }
+  }
+}

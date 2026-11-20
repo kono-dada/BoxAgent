@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, protocol } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, protocol, safeStorage, systemPreferences, shell, dialog, desktopCapturer } = require("electron");
 const { CameraWindow } = require("./camera/window.cjs");
 protocol.registerSchemesAsPrivileged([{ scheme: 'boxagent-camera', privileges: {
   standard: true, secure: true, supportFetchAPI: true, corsEnabled: true,
@@ -8,13 +8,16 @@ const path = require("node:path");
 const { EngineClient } = require("./engine-client.cjs");
 const { ServiceClient } = require("./desktop/service-client.cjs");
 const { DesktopHost } = require("./desktop/host.cjs");
-const root = path.resolve(__dirname, "../..");
+const { publicSourceUrl } = require('./desktop/web-links.cjs');
+const { resolvePaths } = require('./startup/paths.cjs');
+const packaged = app.isPackaged && !process.defaultApp;
+const paths = resolvePaths({ packaged, panel: __dirname, appData: app.getPath('appData') });
+const root = paths.root;
 app.setName("BoxAgent");
 const productIcon = path.join(__dirname, "public/brand/boxagent-icon.png");
-const data = path.resolve(
-  process.env.BOXAGENT_DATA_DIR || path.join(root, ".runtime/pet"),
-);
-let companionMode = process.argv.includes("--desktop");
+const data = paths.data;
+const setupEnabled = packaged || process.argv.includes('--setup');
+let companionMode = packaged || process.argv.includes("--desktop");
 const smoke = process.argv.includes("--smoke");
 const methods = new Set([
   "state",
@@ -24,12 +27,17 @@ const methods = new Set([
   "session_timeline",
   "session_events",
   "memory_snapshot",
+  "memory_evidence",
   "delete_memory_node",
   "create_session",
   "activate_session",
   "archive_session",
   "toggle_voice",
   "toggle_context",
+  "set_game_companion_mode",
+  "toggle_lol_companion",
+  "set_companion_session",
+  "set_companion_audio",
   "submit_text",
   "cancel_task",
   "cancel_all_tasks",
@@ -44,6 +52,8 @@ const desktopMethods = new Set([
   "desktop_snapshot",
   "desktop_set_pet_scale",
   "desktop_set_pet_display",
+  "desktop_set_display_profile",
+  "desktop_set_stage_background",
   "desktop_toggle_bubble",
   "desktop_avatars",
   "desktop_preview_avatar",
@@ -64,6 +74,7 @@ let client,
   disposed = false,
   reconnect,
   shuttingDown = false;
+let startup, setupWindow, localPermissions, serviceEnvironment = process.env;
 const windows = new Set();
 const broadcast = (channel, value) => {
   for (const window of windows)
@@ -84,6 +95,7 @@ function showPanel() {
   panel = new BrowserWindow({
     width: 1200,
     height: 820,
+    show: false,
     minWidth: 740,
     minHeight: 560,
     title: "BoxAgent · 伙伴控制台",
@@ -96,30 +108,46 @@ function showPanel() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      additionalArguments: setupEnabled ? ['--boxagent-setup'] : [],
     },
   });
   registerWindow(panel);
+  // A foreground console must sit above both the pet renderer and its mouse window.
+  if (process.platform === 'darwin') {
+    const consoleWindow = panel;
+    consoleWindow.on('focus', () => consoleWindow.setAlwaysOnTop(true, 'floating', 3));
+    consoleWindow.on('blur', () => consoleWindow.setAlwaysOnTop(false));
+  }
   panel.on("closed", () => {
     panel = null;
   });
   panel.loadFile(path.join(__dirname, "dist/index.html"));
+  panel.show();
   return panel;
 }
 let startingDesktop;
+function startService() {
+  if (service && service.child.exitCode === null && service.child.signalCode === null) return;
+  service = undefined;
+  fs.mkdirSync(path.join(data, 'logs'), { recursive: true });
+  const log = fs.openSync(path.join(data, 'logs/desktop-service.log'), 'a');
+  try {
+    const args = setupEnabled ? ['--task-provider', serviceEnvironment.BOXAGENT_TASK_PROVIDER || 'deepseek'] :
+      JSON.parse(process.env.BOXAGENT_DESKTOP_ARGS || '[]');
+    service = new ServiceClient({ root, data, log, args, python: setupEnabled ? paths.python : undefined, environment: serviceEnvironment });
+  } finally { fs.closeSync(log); }
+  service.on('diagnostic', message => { broadcast('engine:diagnostic', message); host?.feedback(message); });
+}
+async function stopService() {
+  host?.close(); host = undefined; startingDesktop = undefined;
+  const previous = service; service = undefined;
+  await previous?.close();
+}
 function startDesktop() {
   if (startingDesktop) return startingDesktop;
   companionMode = true;
-  app.dock?.hide();
   startingDesktop = (async () => {
-    fs.mkdirSync(path.join(data, "logs"), { recursive: true });
-    const log = fs.openSync(path.join(data, "logs/desktop-service.log"), "a");
-    const args = JSON.parse(process.env.BOXAGENT_DESKTOP_ARGS || "[]");
-    service = new ServiceClient({ root, data, log, args });
-    fs.closeSync(log);
-    service.on("diagnostic", (message) => {
-      broadcast("engine:diagnostic", message);
-      host?.feedback(message);
-    });
+    startService();
     host = new DesktopHost({
       app,
       service,
@@ -129,9 +157,23 @@ function startDesktop() {
       showCamera: () => camera.show(),
       broadcast,
       registerWindow,
+      wakeAllowed: () => {
+        if (!setupEnabled && !localPermissions) return true;
+        const permissions = setupEnabled ? startup?.permissions.snapshot() : localPermissions?.snapshot();
+        const signature = JSON.stringify(permissions);
+        if (host && host.lastWakePermissions !== signature) {
+          host.lastWakePermissions = signature;
+          try {
+            fs.appendFileSync(path.join(data, 'logs/wake-permissions.jsonl'),
+              JSON.stringify({ at: new Date().toISOString(), permissions }) + '\n', { mode: 0o600 });
+          } catch { /* Diagnostics must not prevent voice startup. */ }
+        }
+        return permissions?.speech === 'granted' && permissions.microphone === 'granted';
+      },
     });
     await host.start();
-  })();
+    await app.dock?.show();
+  })().catch(error => { startingDesktop = undefined; throw error; });
   return startingDesktop;
 }
 // Lock identity includes data directory so isolated fixtures cannot steal the live app.
@@ -165,13 +207,17 @@ app.on("second-instance", (_event, _argv, _cwd, info) => {
 app.whenReady().then(async () => {
   if (!smoke && !app.hasSingleInstanceLock()) return;
   app.dock?.setIcon(productIcon);
-  if (companionMode) app.dock?.hide();
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
         label: "BoxAgent",
         submenu: [
           { label: "关于 BoxAgent", role: "about" },
+          { label: '设置与权限…', accelerator: 'CmdOrCtrl+,', click: () => {
+            if (localPermissions) { void localPermissions.show().catch(console.error); return; }
+            if (!startup || !setupWindow) return;
+            void startup.request('repair-permissions').then(() => setupWindow.show());
+          } },
           { type: "separator" },
           { role: "hide" },
           { role: "hideOthers" },
@@ -195,7 +241,7 @@ app.whenReady().then(async () => {
     ]),
   );
   client = new EngineClient(path.join(data, "engine.sock"));
-  camera = new CameraWindow({ root, client, registerWindow,
+  camera = new CameraWindow({ root, panelRoot: __dirname, client, registerWindow,
     onState: (state) => broadcast('desktop:camera', state) });
   ipcMain.handle('camera:request', (event, method, params) => camera.request(event, method, params));
   client.on("state", (state, event) => {
@@ -203,10 +249,14 @@ app.whenReady().then(async () => {
     broadcast("engine:event", event);
     host?.stateChanged(state, event);
   });
-  client.on("online", () => broadcast("engine:diagnostic", "Engine 已连接"));
+  client.on("online", () => {
+    host?.updateMenu();
+    broadcast("engine:diagnostic", "Engine 已连接");
+  });
   client.on("diagnostic", (message) => broadcast("engine:diagnostic", message));
   client.on("offline", () => {
     host?.syncWakeWord();
+    host?.updateMenu();
     camera.disconnected();
     broadcast("engine:diagnostic", "Engine 已断开");
     if (!disposed) reconnect = setTimeout(() => client.connect(), 1000);
@@ -214,6 +264,10 @@ app.whenReady().then(async () => {
   ipcMain.handle("engine:request", (event, method, params) => {
     if (!windows.has(BrowserWindow.fromWebContents(event.sender)))
       throw Error("未知窗口");
+    if (method === 'desktop_open_web_source') {
+      const url = publicSourceUrl(params?.url);
+      return shell.openExternal(url).then(() => ({ status: 'opened' }));
+    }
     if (method === 'desktop_open_camera') { camera.show(); return { status: 'opened' }; }
     if (method === 'desktop_toggle_camera') return camera.toggle();
     if (method === 'desktop_camera_state') return camera.snapshot();
@@ -258,6 +312,57 @@ app.whenReady().then(async () => {
       throw error;
     }
   });
+  if (!setupEnabled && process.platform === 'darwin') {
+    const { Permissions } = require('./startup/permissions.cjs');
+    const { SpeechPermissions } = require('./startup/speech.cjs');
+    const { LocalPermissions } = require('./desktop/local-permissions.cjs');
+    localPermissions = new LocalPermissions({ dialog,
+      permissions: new Permissions(systemPreferences, shell, {
+        speech: new SpeechPermissions(),
+        onVoiceGranted: () => host?.syncWakeWord(),
+        requestScreen: () => desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false }),
+      }),
+      record: permissions => {
+        fs.mkdirSync(path.join(data, 'logs'), { recursive: true });
+        fs.writeFileSync(path.join(data, 'logs/local-permissions.json'), JSON.stringify({
+          at: new Date().toISOString(), executable: process.execPath, permissions,
+        }, null, 2), { mode: 0o600 });
+      },
+    });
+    await localPermissions.refresh();
+    app.on('browser-window-focus', () => { void localPermissions.refresh().catch(console.error); });
+  }
+  if (setupEnabled) {
+    const { StartupCoordinator } = require('./startup/coordinator.cjs');
+    const { CredentialStore } = require('./startup/credentials.cjs');
+    const { Permissions } = require('./startup/permissions.cjs');
+    const { SpeechPermissions } = require('./startup/speech.cjs');
+    startup = new StartupCoordinator({ paths,
+      permissionReviewIdentity: require('./startup/permission-identity.cjs').permissionIdentity(process.execPath, app.getVersion()),
+      credentials: new CredentialStore(path.join(data, 'state/credentials.json'), safeStorage),
+      permissions: new Permissions(systemPreferences, shell, {
+        speech: new SpeechPermissions(),
+        onVoiceGranted: () => host?.syncWakeWord(),
+        requestScreen: async () => {
+        await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false });
+      } }),
+      ensureEngine: async environment => {
+        serviceEnvironment = environment; startService(); client.connect();
+        const deadline = Date.now() + 30000;
+        while (Date.now() < deadline) {
+          try { const health = await client.request('health'); if (health?.status === 'ready') return; }
+          catch { /* Bounded, read-only retries while the socket is being created. */ }
+          await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        throw Error('engine_start_failed');
+      }, stopEngine: stopService, enterDesktop: startDesktop,
+      broadcast: snapshot => setupWindow?.send(snapshot),
+    });
+    setupWindow = require('./startup/window.cjs').createSetupWindow({ app, BrowserWindow, ipcMain, panelRoot: __dirname, registerWindow, coordinator: startup, shell, dialog });
+    ipcMain.on('setup:open', event => {
+      if (windows.has(BrowserWindow.fromWebContents(event.sender))) { void startup.request('repair'); setupWindow.show(); }
+    });
+  }
   ipcMain.on("desktop:action", (event, action, params) => {
     if (!host || !windows.has(BrowserWindow.fromWebContents(event.sender)))
       return;
@@ -267,10 +372,13 @@ app.whenReady().then(async () => {
     else if (action === "collapse-tasks") host.collapseTasks();
     else if (action === "pin-tasks") host.pinTasks();
     else if (action === "hide-bubble") host.hideBubble();
+    else if (action === "chat-hold") host.holdChat(event.sender, params);
+    else if (action === "game-dock-toggle") host.toggleGameDock(event.sender);
     else if (action === "dismiss-feedback") host.dismissFeedback();
     else if (action === "resize-bubble")
       host.resizeBubble(event.sender, params);
     else if (action === "drag") host.dragWindow(event.sender, params);
+    else if (action === "pet-pointer") host.petPointer(event.sender);
     else if (action === "pet-perform")
       host.performPet(event.sender, params?.name ?? params);
     else if (action === "pet-ready") {
@@ -283,9 +391,16 @@ app.whenReady().then(async () => {
       host.menu?.popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
   client.connect();
-  if (companionMode) {
+  if (setupEnabled) {
+    setupWindow.show();
+    void startup.start().then(snapshot => {
+      if (snapshot.onboarding.completed && ['ready', 'degraded'].includes(snapshot.mode) &&
+          snapshot.capabilities.engine?.state === 'ready' && !snapshot.error) setupWindow.hide();
+    });
+  } else if (companionMode) {
     try {
       await startDesktop();
+      if (localPermissions?.missing()) void localPermissions.show().catch(console.error);
     } catch (error) {
       console.error(error);
       host?.feedback(error.message);
@@ -302,6 +417,15 @@ app.whenReady().then(async () => {
         app.exit(1);
       }
     });
+}).catch(error => {
+  console.error(error);
+  try {
+    fs.mkdirSync(path.join(data, 'logs'), { recursive: true });
+    fs.appendFileSync(path.join(data, 'logs/desktop-startup-errors.log'),
+      `${new Date().toISOString()} ${error.stack || error.message}\n`, { mode: 0o600 });
+  } catch { /* Show startup errors even when the log directory is unavailable. */ }
+  void dialog.showMessageBox({ type: 'error', message: 'BoxAgent 启动未完成',
+    detail: `${error.message}\n请查看数据目录中的 logs/desktop-startup-errors.log。` });
 });
 app.on("window-all-closed", () => {
   if (!companionMode) app.quit();
@@ -311,6 +435,8 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   shuttingDown = true;
   disposed = true;
+  startup?.close();
+  localPermissions?.close();
   clearTimeout(reconnect);
   host?.close();
   void camera?.stop();

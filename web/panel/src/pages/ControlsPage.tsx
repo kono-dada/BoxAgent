@@ -7,26 +7,57 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
   const { data, runtime, busy, act } = props;
   const [desktop, setDesktop] = useState<AvatarSnapshot>(data);
   useEffect(() => window.boxagent.onDesktop(setDesktop), []);
+  const displayDisabled = busy || Boolean(data.unavailable) || !desktop.appearance_ready || desktop.switching;
+  const displayTarget = desktop.selected_display_id ?? 'together';
+  const missingDisplay = displayTarget !== 'together' && !desktop.displays?.some(display => display.id === displayTarget);
   return (
     <>
       <section className="feature-card control-settings">
         <div>
-          <section><h2><label htmlFor="pet-display">{t('小人显示屏')}</label></h2></section>
+          <section>
+            <h2><label htmlFor="display-profile">{t('展示形态')}</label></h2>
+            <p>{desktop.display_profile === 'hardware' && desktop.active_display_profile !== 'hardware'
+              ? t('选择一块副屏后启用硬件展示。')
+              : t('桌宠透出桌面。无触屏硬件在指定副屏铺满角色舞台。')}</p>
+          </section>
+          <select id="display-profile" className="pet-display-select" value={desktop.display_profile || 'desktop'}
+            disabled={displayDisabled} onChange={(event) => run(act<AvatarSnapshot>('desktop_set_display_profile', {
+              profile: event.target.value,
+            }).then(setDesktop))}>
+            <option value="desktop">{t('桌宠')}</option>
+            <option value="hardware">{t('无触屏硬件')}</option>
+          </select>
+        </div>
+        <div>
+          <section><h2><label htmlFor="pet-display">{t('伙伴与聊天显示屏')}</label></h2><p>{t('伙伴、聊天与任务展示一起放在所选屏幕。')}</p></section>
           <select
             id="pet-display"
             className="pet-display-select"
-            value={desktop.separate_windows ? desktop.pet_display_id : 'together'}
-            disabled={busy || Boolean(data.unavailable) || !desktop.appearance_ready || desktop.switching}
+            value={displayTarget}
+            disabled={displayDisabled}
             onChange={(event) => run(act<AvatarSnapshot>('desktop_set_pet_display', {
               id: event.target.value === 'together' ? null : event.target.value,
             }).then(setDesktop))}
           >
-            <option value="together">{t('小人与聊天同屏')}</option>
+            <option value="together">{t('随拖动切换屏幕')}</option>
+            {missingDisplay && <option value={displayTarget} disabled>{t('所选屏幕已断开')}</option>}
             {desktop.displays?.map(display => (
               <option key={display.id} value={display.id}>
                 {t(display.primary ? '主屏' : '副屏')} · {display.label}
               </option>
             ))}
+          </select>
+        </div>
+        <div>
+          <section><h2><label htmlFor="stage-background">{t('副屏背景')}</label></h2>
+            <p>{t('在无触屏硬件形态下使用。')}</p>
+          </section>
+          <select id="stage-background" className="pet-display-select" value={desktop.stage_background || 'purple'}
+            disabled={busy || Boolean(data.unavailable)} onChange={(event) => run(act<AvatarSnapshot>('desktop_set_stage_background', {
+              background: event.target.value,
+            }).then(setDesktop))}>
+            <option value="purple">{t('雾紫')}</option>
+            <option value="pink">{t('经典粉红')}</option>
           </select>
         </div>
         <div>
@@ -72,7 +103,32 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
             {runtime.context_enabled ? t('关闭屏幕总结') : t('开启屏幕总结')}
           </button>
         </div>
+        <div>
+          <section>
+            <h2>{t('鸣潮陪玩')}</h2>
+            <p>{t('开启陪玩时同时开启麦克风')}</p>
+            {!runtime.game_companion_available && <p>{t('当前运行环境尚未启用陪玩功能')}</p>}
+          </section>
+          <button className="button" role="switch" aria-label={t('鸣潮陪玩')}
+            aria-checked={Boolean(runtime.game_companion_enabled)}
+            disabled={busy || !runtime.game_companion_available}
+            onClick={() => run(act('set_companion_session', { game: 'wuwa', enabled: !runtime.game_companion_enabled }))}>
+            {runtime.game_companion_enabled ? t('退出鸣潮陪玩') : t('开启鸣潮陪玩')}
+          </button>
+        </div>
         {runtime.context_text && <p className="context-summary">{runtime.context_text}</p>}
+        <div>
+          <section>
+            <h2>{t('LOL 游戏陪玩')}</h2>
+            <p>{runtime.lol_companion_text || t('开启后进入对局，保持语音连接即可听到陪伴提醒。')}</p>
+            <p>{t('读取本机公开对局数据；已开启的屏幕总结会作为补充。')}</p>
+          </section>
+          <button className="button" role="switch" aria-label={t('LOL 游戏陪玩')}
+            aria-checked={Boolean(runtime.lol_companion_enabled)} disabled={busy}
+            onClick={() => run(act('set_companion_session', { game: 'lol', enabled: !runtime.lol_companion_enabled }))}>
+            {runtime.lol_companion_enabled ? t('关闭 LOL 陪玩') : t('开启 LOL 陪玩')}
+          </button>
+        </div>
         <div>
           <section>
             <h2>{t('诊断日志目录')}</h2>

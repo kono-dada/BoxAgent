@@ -54,6 +54,24 @@ class NotificationOutbox:
             return [item for item in self.repository.list()
                     if item.status in {"pending", "delivering"}]
 
+    async def enqueue_event(self, *, run_id: str, session_id: str, summary: str,
+                            source_event_ids: tuple[str, ...],
+                            source_refs: tuple[dict[str, str], ...]) -> NotificationItem:
+        if self.repository is None or not session_id or not source_event_ids or not summary.strip():
+            raise ValueError("External notification requires durable storage, session and sources")
+        dedupe_key = "external:" + run_id
+        async with self.lock:
+            existing = next((item for item in self.repository.list() if item.dedupe_key == dedupe_key), None)
+            if existing:
+                return existing
+            now = time.time()
+            return self.repository.save(NotificationItem(
+                notification_id=new_notification_id(), dedupe_key=dedupe_key,
+                session_id=session_id, interaction_id="", task_id="", outcome="received",
+                summary=summary.strip(), policy="always_notify", status="pending", attempts=(),
+                created_at=now, updated_at=now, kind="external_event",
+                source_event_ids=source_event_ids, source_refs=source_refs))
+
     async def claim(self, notification_id: str, channel: str) -> NotificationItem:
         async with self.lock:
             item = self._get(notification_id)
@@ -61,7 +79,7 @@ class NotificationOutbox:
                 return item
             attempt = {"channel": channel, "status": "delivering",
                        "occurred_at": time.time()}
-            return self.repository.save(replace(
+            return self._repository().save(replace(
                 item, status="delivering",
                 attempts=(*item.attempts, attempt), updated_at=time.time()))
 
@@ -73,7 +91,7 @@ class NotificationOutbox:
                 return item
             attempt = {"channel": channel, "status": "delivered",
                        "receipt": receipt, "occurred_at": time.time()}
-            return self.repository.save(replace(
+            return self._repository().save(replace(
                 item, status="delivered",
                 attempts=(*item.attempts, attempt), updated_at=time.time()))
 
@@ -85,7 +103,7 @@ class NotificationOutbox:
                 return item
             attempt = {"channel": channel, "status": "failed", "error": error,
                        "occurred_at": time.time()}
-            return self.repository.save(replace(
+            return self._repository().save(replace(
                 item, status="pending",
                 attempts=(*item.attempts, attempt), updated_at=time.time()))
 
@@ -97,3 +115,8 @@ class NotificationOutbox:
         if item is None:
             raise FileNotFoundError(f"通知不存在：{notification_id}")
         return item
+
+    def _repository(self) -> NotificationRepository:
+        if self.repository is None:
+            raise RuntimeError("Notification Outbox 未配置")
+        return self.repository

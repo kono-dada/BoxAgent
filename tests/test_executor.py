@@ -54,6 +54,18 @@ class FakeSession:
 
 
 class ExecutorTests(unittest.IsolatedAsyncioTestCase):
+    def test_long_history_evidence_retains_latest_message_and_step_identity(self):
+        text = '{"messages":[' + '"old message",' * 800 + '"latest: 今晚吃什么"]}'
+        self.executor.observations[3] = {"tool": "wechat_history", "success": True}
+        (self.executor.output / "step-3.txt").write_text(text, encoding="utf-8")
+        evidence = json.loads(self.executor.result_evidence())
+        self.assertEqual(evidence[0]["step"], 3)
+        self.assertTrue(evidence[0]["truncated"])
+        self.assertTrue(evidence[0]["text"].startswith(text[:100]))
+        self.assertTrue(evidence[0]["text"].endswith(text[-100:]))
+        self.assertIn("今晚吃什么", evidence[0]["text"])
+        self.assertLess(len(evidence[0]["text"]), 3700)
+
     async def test_recorded_calculator_element_indices_are_repaired_from_one_observation(self):
         case = json.loads((Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text())
         observation = case["observations"][0]
@@ -707,9 +719,9 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, ("thread-new", "started"))
         self.assertEqual(session.rpc.await_args.args[0], "thread/start")
 
-    async def test_bound_thread_is_resumed_instead_of_replaying_history(self):
+    async def test_bound_thread_without_dynamic_tools_can_be_resumed(self):
         session = self.make_session()
-        session.tools = [{"name": "click"}]
+        session.tools = []
         session.rpc = AsyncMock(return_value={"thread": {"id": "thread-old"}})
 
         result = await session.ensure_thread(

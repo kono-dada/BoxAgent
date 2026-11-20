@@ -148,6 +148,9 @@ class EngineServer:
                     "protocol_version": PROTOCOL_VERSION}
         if method == "state":
             return self.application.state.payload()
+        if method == "external_events_status":
+            integration = self.application.external_events
+            return await integration.status() if integration else {"enabled": False}
         if method in {"camera_start", "camera_frame", "camera_stop"}:
             camera = self.application.camera
             if camera is None:
@@ -162,6 +165,24 @@ class EngineServer:
             return await camera.send_frame(params)
         if method == "toggle_context":
             await self.application.toggle_context()
+            return {"status": "succeeded"}
+        if method == "set_game_companion_mode":
+            enabled = params.get("enabled")
+            if type(enabled) is not bool:
+                raise ValueError("陪玩模式开关必须为布尔值")
+            return self.application.set_game_companion_mode(enabled)
+        if method == "toggle_lol_companion":
+            return await self.application.toggle_lol_companion()
+        if method == "set_companion_session":
+            game, enabled = params.get("game"), params.get("enabled")
+            if game not in ("lol", "wuwa") or type(enabled) is not bool:
+                raise ValueError("请选择有效的陪玩游戏和开关状态")
+            return await self.application.set_companion_session(game, enabled)
+        if method == "set_companion_audio":
+            control, enabled = params.get("control"), params.get("enabled")
+            if control not in ("microphone", "speech") or type(enabled) is not bool:
+                raise ValueError("请选择有效的陪玩音频开关")
+            await self.application.set_companion_audio(control, enabled)
             return {"status": "succeeded"}
         if method == "toggle_voice":
             await self.application.toggle_voice()
@@ -216,6 +237,11 @@ class EngineServer:
                 str(params.get("session_id") or ""), int(params.get("seq") or 0))
         if method == "memory_snapshot":
             return await self.application.memory_snapshot(**params)
+        if method == "memory_evidence":
+            memory_id = params.get("memory_id")
+            if not isinstance(memory_id, str) or not memory_id.strip() or len(memory_id) > 200:
+                raise ValueError("memory_id 必须是有效的记忆 ID")
+            return await self.application.memory_evidence(memory_id)
         if method == "delete_memory_node":
             return await self.application.delete_memory_node(params.get("memory_id", ""))
         if method == "list_skills":

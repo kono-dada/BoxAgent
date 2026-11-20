@@ -1,22 +1,102 @@
 """验证过时上下文丢弃、临时图片清理和独立生命周期。"""
 
 import asyncio
+import time
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from PIL import Image
-from boxagent.infrastructure.perception.qwen_mlx import WindowSummary
+from boxagent.infrastructure.perception.qwen_mlx import WindowSummary, foreground_game
 from boxagent.application.assistant import BoxAgentApplication
 
 
 class ContextTests(unittest.IsolatedAsyncioTestCase):
+    def test_foreground_dock_recognizes_only_the_real_lol_shield_window(self) -> None:
+        bundle = Mock(return_value="com.riotgames.LeagueofLegends.GameClient")
+        front = SimpleNamespace(bundleIdentifier=bundle, processIdentifier=lambda: 42, localizedName=lambda: "League Of Legends")
+        appkit = SimpleNamespace(NSWorkspace=Mock())
+        appkit.NSWorkspace.sharedWorkspace.return_value.frontmostApplication.return_value = front
+        quartz = SimpleNamespace(CGShieldingWindowLevel=lambda: 2147483628,
+                                 CGWindowLevelForKey=lambda _: 1000, kCGScreenSaverWindowLevelKey=13)
+        rect = {"x": 0, "y": 0, "width": 1920, "height": 1200}
+        with (patch.dict("sys.modules", {"AppKit": appkit, "Quartz": quartz}),
+              patch("boxagent.infrastructure.perception.qwen_mlx.sys.platform", "darwin"),
+              patch("boxagent.infrastructure.perception.qwen_mlx._mac_window", return_value={
+                  "id": 7, "layer": 2147483628, "bounds": rect}) as window):
+            self.assertEqual(foreground_game(), {"game": "lol", "bounds": rect, "shield_offset": 2147482629})
+            window.assert_called_once_with(42, "League Of Legends", bundle(), {0, 2147483628})
+            bundle.return_value = "com.riotgames.LeagueofLegends.LeagueClientUx"
+            window.return_value = None
+            self.assertIsNone(foreground_game())
+            self.assertEqual(window.call_args.args[-1], {0})
+
+    async def test_lol_mode_rejects_previously_captured_browser_reference(self) -> None:
+        from boxagent.bootstrap.engine import current_screen_reference
+        from boxagent.core.states import Snapshot
+
+        window = {"id": 1, "app": "Browser"}
+        state = Snapshot(context_enabled=True, context_text="浏览器页面",
+                         context_at=time.time(), context_app="Browser", context_window_id=1,
+                         lol_companion_enabled=True)
+        with patch("boxagent.infrastructure.perception.focused_window", return_value=window):
+            self.assertEqual(current_screen_reference(state), "")
+            state.lol_companion_enabled = False
+            self.assertIn("浏览器页面", current_screen_reference(state))
+
+    async def test_lol_mode_never_captures_other_foreground_windows(self) -> None:
+        events = []
+        observer = WindowSummary(lambda kind, **data: events.append((kind, data)),
+            window_allowed=lambda w: w["app"] == "League of Legends")
+        observer.capture = AsyncMock()
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value={"id": 1, "app": "Browser"}):
+            await observer.observe()
+        observer.capture.assert_not_awaited()
+        self.assertEqual(events[-1][0], "context.waiting")
+        self.assertEqual(events[-1][1]["context_text"], "")
+
+    async def test_lol_scope_change_during_inference_discards_other_window(self) -> None:
+        events = []
+        game_only = False
+        observer = WindowSummary(lambda kind, **data: events.append((kind, data)),
+            window_allowed=lambda w: not game_only or w["app"] == "League of Legends")
+        observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+
+        async def reply(timeout):
+            nonlocal game_only
+            game_only = True
+            return {"summary": "浏览器文字。"}
+
+        async def capture(window_id, path):
+            Image.new("RGB", (100, 100)).save(path)
+
+        observer.capture, observer.reply = capture, reply
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value={"id": 1, "app": "Browser"}):
+            await observer.observe()
+        self.assertEqual(events[-1][0], "context.stale")
+        self.assertFalse(any(kind == "context.updated" for kind, _ in events))
+
+    async def test_companion_chat_cannot_recycle_previous_screen_claims(self) -> None:
+        events = []
+        observer = WindowSummary(lambda kind, **fields: events.append((kind, fields)))
+        observer.capture = AsyncMock()
+        window = {"id": 7, "app": "electron", "title": "BoxAgent · 对话"}
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window", return_value=window):
+            await observer.observe()
+        observer.capture.assert_not_awaited()
+        kind, fields = events[-1]
+        self.assertEqual(kind, "context.updated")
+        self.assertIn("桌宠自身窗口", fields["context_text"])
+        self.assertEqual(fields["context_window_id"], 7)
+
     async def test_capture_is_deleted_and_switched_window_result_discarded(self):
         for switched in (False, True):
             events, paths = [], []
             observer = WindowSummary(lambda kind, **fields: events.append((kind, fields)))
-            observer.process = SimpleNamespace(stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+            observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
             observer.reply = AsyncMock(return_value={"summary": "正在阅读代码"})
 
             async def capture(*args):
@@ -49,7 +129,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_capture_timeout_is_retried_and_process_is_reaped(self):
         events = []
         observer = WindowSummary(lambda kind, **fields: events.append(kind))
-        observer.process = SimpleNamespace(stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+        observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
         observer.reply = AsyncMock(return_value={"summary": "正在阅读代码。"})
         process = SimpleNamespace(returncode=None, communicate=AsyncMock(),
                                   kill=Mock(), wait=AsyncMock())
@@ -121,7 +201,7 @@ class CaptureFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_successful_capture_resets_failure_count(self):
         observer = WindowSummary(lambda kind, **fields: None)
-        observer.process = SimpleNamespace(stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+        observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
         observer.reply = AsyncMock(return_value={"summary": "正在阅读代码。"})
         failures = [RuntimeError("could not create image from window")]
 

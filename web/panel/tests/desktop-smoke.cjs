@@ -1,11 +1,39 @@
 // Full production Electron host + real VRM/resource service, isolated fake Engine.
-const { app, BrowserWindow, nativeImage } = require("electron");
+const { app, BrowserWindow, nativeImage, screen } = require("electron");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
-const { spawn } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
+// The isolated window fixture uses a fake Engine, without permission prompts or capture.
+const { mock } = require("node:test");
+mock.method(require("../desktop/wake-word.cjs").WakeWord.prototype, "sync", () => {});
+mock.method(require("../desktop/local-permissions.cjs").LocalPermissions.prototype, "missing", () => false);
+const testPetInput = process.argv.includes('--pet-input');
+const testCompanionPresentation = process.argv.includes('--companion-presentation');
+if (testCompanionPresentation) {
+  const { DesktopHost } = require('../desktop/host.cjs');
+  const refreshGameDisplay = DesktopHost.prototype.refreshGameDisplay;
+  mock.method(DesktopHost.prototype, 'refreshGameDisplay', function () {
+    if (!this.testForegroundInstalled) {
+      this.testForegroundInstalled = true;
+      const request = this.service.request.bind(this.service);
+      this.service.request = (method, params) => method === 'desktop_foreground_game'
+        ? Promise.resolve({ game: 'lol', bounds: this.current.stage.getBounds() })
+        : request(method, params);
+    }
+    return refreshGameDisplay.call(this);
+  });
+}
+const ignoresMouse = new WeakMap();
+if (testPetInput) {
+  const setIgnore = BrowserWindow.prototype.setIgnoreMouseEvents;
+  mock.method(BrowserWindow.prototype, 'setIgnoreMouseEvents', function (value, options) {
+    ignoresMouse.set(this, value);
+    return setIgnore.call(this, value, options);
+  });
+}
 const root = path.resolve(__dirname, "../../..");
 const fixture =
   process.env.BOXAGENT_DESKTOP_FIXTURE ||
@@ -42,6 +70,7 @@ const state = {
   assistant_text: "",
   task_text: "",
   approval: "",
+  game_companion_available: true,
 };
 let events = Array.from({ length: 32 }, (_, index) => ({
   event_id: `row${index}`,
@@ -103,6 +132,15 @@ const server = net.createServer((socket) => {
             voice: state.voice === "off" ? "ready" : "off",
           });
           break;
+        case "set_companion_audio":
+          result = { status: "succeeded" };
+          if (params.control === "microphone") emit("voice.ready", { voice: params.enabled ? "ready" : "off" });
+          else emit("companion.speech", { companion_speech_muted: !params.enabled });
+          break;
+        case "set_companion_session":
+          result = { status: "succeeded" };
+          emit("lol.companion", { lol_companion_enabled: params.enabled });
+          break;
         case "answer_approval":
           result = { status: "succeeded" };
           emit("task.running", { task: "running", approval: "" });
@@ -138,7 +176,7 @@ const server = net.createServer((socket) => {
 const timeout = setTimeout(() => {
   console.error("desktop fixture timed out");
   app.exit(1);
-}, 60000);
+}, process.argv.includes('--walking') ? 90000 : 60000);
 const wait = async (condition, label) => {
   for (let i = 0; i < 300; i++) {
     if (await condition()) return;
@@ -152,9 +190,11 @@ const js = async (window, source) => {
 };
 const footerFits = `(() => {
   const buttons = [...document.querySelectorAll('.companion-footer button')].map(button => button.getBoundingClientRect());
-  return buttons.length === 3 && buttons.every((rect, i) =>
+  const center = (rect) => rect.top + rect.height / 2;
+  return buttons.length === 5 && buttons.every((rect, i) =>
     rect.left >= 8 && rect.right <= innerWidth - 8 && rect.bottom <= innerHeight &&
-    buttons.slice(i + 1).every(other => rect.right <= other.left || other.right <= rect.left || rect.bottom <= other.top || other.bottom <= rect.top));
+    Math.abs(center(rect) - center(buttons[0])) < 1 &&
+    (i === 0 || rect.left >= buttons[i - 1].right));
 })()`;
 const dragBy = async (window, dx, dy, inspect = () => {}) => {
   const bounds = window.getBounds(), start = { x: bounds.x + 24, y: bounds.y + 24 };
@@ -221,8 +261,234 @@ server.listen(path.join(data, "engine.sock"), () => {
         w.webContents.getURL().endsWith("/companion.html"),
       );
       await wait(() => pet.isVisible(), "VRM ready and committed");
+      const renderCapture = await stage.webContents.capturePage();
+      const renderPixels = renderCapture.toBitmap(), renderSize = renderCapture.getSize();
+      for (const pixel of [0, renderSize.width - 1, (renderSize.height - 1) * renderSize.width])
+        assert.equal(renderPixels[pixel * 4 + 3], 0, 'The display render layer must leave desktop corners transparent');
+      assert.equal(stage.isFocusable(), false, 'The display render layer cannot take keyboard focus');
+      if (process.argv.includes('--pet-overlays')) {
+        await js(bubble, "boxagent.desktopAction('hide-bubble')");
+        await js(stage, `addEventListener('message', event => {
+          if (event.data?.value?.type === 'overlay-anchors') window.fixtureAnchors = event.data.value.anchors;
+        })`);
+        emit('task.running', { task: 'running', task_text: '正在整理对照表' });
+        emit('front.assistant_text', { assistant_text: '我在呢。' });
+        const viewer = stage.webContents.mainFrame.frames[0];
+        const firstFrame = () => js(stage, `new Promise(resolve => {
+          const stop = boxagent.onPet(frame => { stop(); resolve(frame); });
+          boxagent.desktopAction('pet-ready');
+        })`);
+        const measure = () => js(stage, `(() => {
+          const caption = document.querySelector('.pet-caption');
+          const foot = document.querySelector('.pet-foot-status');
+          if (!caption || !foot) return null;
+          const { x, y, width, right } = caption.getBoundingClientRect();
+          const toes = foot.getBoundingClientRect();
+          return { x, y, width, right, text: foot.textContent, tone: foot.dataset.tone,
+            center: toes.x + toes.width / 2, footTop: toes.y, fontSize: getComputedStyle(caption).fontSize,
+            side: caption.classList.contains('pet-caption-left') ? 'left' : 'right' };
+        })()`);
+        await wait(async () => (await measure())?.tone === 'working', 'visible task status');
+        const snapshots = [];
+        for (const scale of [1, 3.41]) {
+          await js(bubble, `boxagent.request('desktop_set_pet_scale', {scale:${scale}})`);
+          const frame = await firstFrame();
+          await viewer.executeJavaScript(`window.pet.preview('idle', .35); void 0`);
+          await wait(() => js(stage, "Boolean(window.fixtureAnchors)"), 'pose reaches stage');
+          const anchors = await js(stage, 'window.fixtureAnchors');
+          assert(anchors, 'the real VRM publishes face and shoe anchors');
+          const overlay = await measure();
+          assert.equal(overlay.text, '正在整理对照表');
+          const faceEdge = frame.canvas.x + anchors.face[overlay.side] * frame.viewport.width;
+          const faceGap = overlay.side === 'left' ? faceEdge - overlay.right : overlay.x - faceEdge;
+          const footGap = overlay.footTop - (frame.canvas.y + anchors.feet.y * frame.viewport.height);
+          assert(Math.abs(faceGap - 9) <= 1 && Math.abs(footGap - 6) <= 1, JSON.stringify({scale, faceGap, footGap}));
+          const image = nativeImage.createFromDataURL(await viewer.executeJavaScript('window.pet.screenshot()'));
+          const bitmap = image.toBitmap(), size = image.getSize();
+          let bootRow = size.height - 1;
+          while (bootRow >= 0) {
+            let visible = false;
+            for (let x = 0; x < size.width && !visible; x++)
+              visible = bitmap[(bootRow * size.width + x) * 4 + 3] >= 192;
+            if (visible) break;
+            bootRow--;
+          }
+          const boot = frame.canvas.y + (bootRow + 1) * frame.viewport.height / size.height;
+          assert(Math.abs(overlay.footTop - boot - 6) < 12, JSON.stringify({
+            scale, actualGap: overlay.footTop - boot, size, bootRow, anchor: anchors.feet, viewport: frame.viewport,
+          }));
+          snapshots.push({ scale, faceGap, footGap, actualBootGap: overlay.footTop - boot,
+            width: overlay.width, fontSize: overlay.fontSize });
+        }
+        assert.equal(snapshots[0].fontSize, snapshots[1].fontSize);
+        assert.equal(snapshots[0].width, snapshots[1].width);
+        assert(snapshots[0].width < 120, 'a short bubble stays compact');
+        if (process.env.BOXAGENT_PET_OVERLAY_PREVIEW) {
+          await viewer.executeJavaScript('window.pet.resume(); void 0');
+          await new Promise(resolve => setTimeout(resolve, 180));
+          const preview = await stage.webContents.capturePage();
+          fs.writeFileSync(process.env.BOXAGENT_PET_OVERLAY_PREVIEW, preview.toPNG());
+        }
+        await js(bubble, "boxagent.request('desktop_toggle_bubble')");
+        await wait(() => js(stage, "!document.querySelector('.pet-foot-status')"), 'open chat uses the task island');
+        console.log('Native pet overlays:', JSON.stringify(snapshots));
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
+      if (testCompanionPresentation) {
+        await js(bubble, "boxagent.desktopAction('hide-bubble')");
+        emit("front.assistant_text", { assistant_text: "刚才那下闪得漂亮。" });
+        await wait(() => js(stage, "document.querySelector('.pet-caption')?.textContent.includes('闪得漂亮')"), 'character caption');
+        assert.equal(bubble.isVisible(), false);
+        emit("lol.companion", { lol_companion_enabled: true, voice: "ready" });
+        const findDock = () => BrowserWindow.getAllWindows().find(w => w.webContents.getURL().endsWith("/game-dock.html"));
+        await wait(() => findDock()?.isVisible(), 'game dock opened on the game monitor');
+        const dock = findDock();
+        assert.equal(dock.getBounds().width, 28);
+        assert.equal(dock.isFocusable(), false);
+        assert.equal(pet.isVisible(), false);
+        await wait(() => js(dock, "Boolean(document.querySelector('.game-dock-avatar img')?.complete)"), 'live portrait');
+        await js(dock, "document.querySelector('.game-dock-avatar').click()");
+        await wait(() => js(dock, "document.querySelectorAll('.game-dock-controls button').length === 3"), 'single-row controls expanded');
+        await js(dock, "document.querySelectorAll('.game-dock-controls button')[0].click()");
+        await wait(() => js(dock, "document.querySelectorAll('.game-dock-controls button')[0]?.getAttribute('aria-pressed') === 'false'"), 'mic off without closing the controls');
+        assert.equal(state.companion_speech_muted, undefined);
+        await js(dock, "document.querySelectorAll('.game-dock-controls button')[1].click()");
+        await wait(() => js(dock, "document.querySelectorAll('.game-dock-controls button')[1]?.getAttribute('aria-pressed') === 'false'"), 'game speech muted with the controls still open');
+        assert.equal(state.voice, 'off');
+        emit("notification.pending", { notification_id: "wx", notification_source: "wechat",
+          notification_sender: "小林", notification_body: "我到地铁口了。", notification_text: "你有一条微信。" });
+        await wait(() => js(stage, "document.querySelector('.pet-caption-game')?.textContent === '微信 · 小林我到地铁口了。'"), 'WeChat still appears beside the dock');
+        await js(dock, "document.querySelector('.game-dock-avatar').click()");
+        await wait(() => dock.getBounds().width === 28, 'only avatar click collapses the game controls');
+        await js(dock, "document.querySelector('.game-dock-avatar').click()");
+        await wait(() => js(dock, "Boolean(document.querySelectorAll('.game-dock-controls button')[2])"), 'reopen controls');
+        await js(dock, "document.querySelectorAll('.game-dock-controls button')[2].click()");
+        await wait(() => !dock.isVisible() && pet.isVisible(), 'ending companion restores full character');
+        console.log('Native companion caption, avatar and independent dock controls passed');
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
+      if (process.argv.includes('--fullscreen-desktop')) {
+        await require('./desktop-fullscreen-smoke.cjs').run({ pet, stage, bubble, js, wait });
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
+      if (testPetInput) {
+        const viewer = stage.webContents.mainFrame.frames[0];
+        const mask = await viewer.executeJavaScript('window.pet.bounds().hitMask');
+        assert(mask?.cells.includes('1'), 'the actual 3D model supplies a hit mask');
+        const frame = await js(stage, `new Promise(resolve => {
+          const stop = boxagent.onPet(frame => { stop(); resolve(frame); });
+          boxagent.desktopAction('pet-ready');
+        })`);
+        const scene = stage.getBounds(), hitWindow = pet.getBounds();
+        const pointInCell = index => ({
+          x: Math.round(scene.x + frame.canvas.x + frame.viewport.width * (index % mask.size + .5) / mask.size),
+          y: Math.round(scene.y + frame.canvas.y + frame.viewport.height * (Math.floor(index / mask.size) + .5) / mask.size),
+        });
+        const inside = point => point.x >= hitWindow.x && point.x < hitWindow.x + hitWindow.width &&
+          point.y >= hitWindow.y && point.y < hitWindow.y + hitWindow.height;
+        const pointOf = value => Array.from(mask.cells, (cell, index) => [cell, pointInCell(index)])
+          .filter(([cell, point]) => cell === value && inside(point))
+          .sort(([, first], [, second]) => {
+            const distance = point => Math.hypot(point.x - hitWindow.x - hitWindow.width / 2,
+              point.y - hitWindow.y - hitWindow.height / 2);
+            return distance(first) - distance(second);
+          })[0]?.[1];
+        const body = pointOf('1'), transparent = pointOf('0');
+        assert(body && transparent, 'test both visible and transparent cells within the click window');
+        let pointer = body;
+        const { DesktopHost } = require('../desktop/host.cjs');
+        const updatePetInput = DesktopHost.prototype.updatePetInput;
+        mock.method(DesktopHost.prototype, 'updatePetInput', function (current) {
+          return updatePetInput.call(this, current, pointer);
+        });
+        await wait(() => ignoresMouse.get(pet) === false, `body receives native mouse events: ${JSON.stringify({ body, hitWindow, canvas: frame.canvas })}`);
+        pointer = transparent;
+        await wait(() => ignoresMouse.get(pet) === true, 'the transparent cell passes native mouse events');
+        const levelsSource = path.join(fixture, 'levels.swift');
+        const levelsProbe = path.join(fixture, 'levels');
+        fs.writeFileSync(levelsSource, `
+          import CoreGraphics
+          import Foundation
+          let pid = Int(CommandLine.arguments[1])!
+          let rows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as! [[String: Any]]
+          let windows = rows.filter { ($0[kCGWindowOwnerPID as String] as? Int) == pid }
+          print(String(data: try! JSONSerialization.data(withJSONObject: windows.map {
+            [$0[kCGWindowBounds as String] as! [String: Any], $0[kCGWindowLayer as String] as! Int] as [Any]
+          }), encoding: .utf8)!)`);
+        execFileSync('/usr/bin/swiftc', [levelsSource, '-o', levelsProbe]);
+        await js(bubble, "boxagent.desktopAction('show-panel')");
+        await wait(() => BrowserWindow.getAllWindows().some(window => window.webContents.getURL().endsWith('/index.html')), 'console');
+        const panel = BrowserWindow.getAllWindows().find(window => window.webContents.getURL().endsWith('/index.html'));
+        await wait(() => js(panel, "Boolean(document.getElementById('settings-button'))"), 'console loaded');
+        const area = screen.getPrimaryDisplay().workArea;
+        panel.setBounds({ ...area, height: area.height - 24 });
+        app.focus({ steal: true });
+        panel.show();
+        await wait(() => panel.isFocused() && panel.isAlwaysOnTop(), 'foreground console level set');
+        const levels = JSON.parse(execFileSync(levelsProbe, [String(process.pid)], { encoding: 'utf8' }));
+        const levelOf = window => {
+          const {x, y, width, height} = window.getBounds();
+          return levels.find(([bounds]) => bounds.X === x && bounds.Y === y &&
+            bounds.Width === width && bounds.Height === height)?.[1];
+        };
+        const [[consoleBounds, consoleLevel]] = levels;
+        const petLevel = levelOf(pet), stageLevel = levelOf(stage);
+        assert(body.x >= consoleBounds.X && body.x < consoleBounds.X + consoleBounds.Width &&
+          body.y >= consoleBounds.Y && body.y < consoleBounds.Y + consoleBounds.Height, 'console actually covers the avatar test point');
+        assert(consoleLevel > petLevel && consoleLevel > stageLevel, JSON.stringify({ consoleLevel, petLevel, stageLevel, levels }));
+        assert.equal(petLevel, stageLevel, 'desktop hit and render windows are on the same layer');
+        bubble.show();
+        bubble.focus();
+        await wait(() => !panel.isAlwaysOnTop(), 'the console returns to its normal level on blur');
+        console.log('Native pet click-through and foreground console stacking passed:', { consoleLevel, petLevel, stageLevel });
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
+      if (process.argv.includes('--walking')) {
+        await require('./desktop-walk-smoke.cjs').run({ pet, stage, bubble, js, wait });
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
       if (process.argv.includes('--displays')) {
-        await require('./desktop-display-smoke.cjs').run({ pet, bubble, js, wait, dragBy, emit });
+        await require('./desktop-display-smoke.cjs').run({ pet, stage, bubble, js, wait, dragBy, emit });
+        clearTimeout(timeout);
+        app.quit();
+        return;
+      }
+      if (process.argv.includes('--desktop-dock')) {
+        await js(bubble, "boxagent.request('desktop_set_pet_scale', {scale:3.41})");
+        await js(bubble, "boxagent.request('desktop_toggle_bubble')");
+        await wait(() => bubble.isVisible(), 'desktop chat visible');
+        const viewer = stage.webContents.mainFrame.frames[0];
+        const shoulder = await viewer.executeJavaScript('window.pet.bounds().chatAnchor');
+        assert(shoulder, 'loaded VRM supplies an upper-body anchor');
+        const {canvas, viewport} = await js(stage, `new Promise(resolve => {
+          const stop = boxagent.onPet(({canvas, viewport}) => { stop(); resolve({canvas, viewport}); });
+          boxagent.desktopAction('pet-ready');
+        })`);
+        const scene = stage.getBounds(), chat = bubble.getBounds();
+        const shoulderX = scene.x + canvas.x + viewport.width * shoulder.left;
+        const shoulderY = scene.y + canvas.y + viewport.height * shoulder.y;
+        assert(Math.abs(chat.x + chat.width - shoulderX + 4) <= 2, 'chat docks next to the avatar upper body');
+        assert(Math.abs(chat.y + 28 - shoulderY) <= 2, 'window header lines up with the shoulder');
+        await wait(() => js(bubble, "document.querySelector('.companion-shell')?.dataset.dockEdge === 'right'"), 'chat arrow points to avatar');
+        const output = process.env.BOXAGENT_DISPLAY_SCREENSHOTS;
+        if (output) {
+          await wait(() => viewer.executeJavaScript("window.pet.debug().behavior.transitionKind === 'idle'"), 'avatar welcome animation completed');
+          fs.mkdirSync(output, { recursive: true });
+          for (const [window, name] of [[stage, 'avatar'], [bubble, 'chat']]) {
+            fs.writeFileSync(path.join(output, `${name}.png`), (await window.webContents.capturePage()).toPNG());
+          }
+        }
+        console.log(JSON.stringify({ scene, chat, pet: pet.getBounds(), shoulderX, shoulderY }));
         clearTimeout(timeout);
         app.quit();
         return;
@@ -242,7 +508,7 @@ server.listen(path.join(data, "engine.sock"), () => {
         await js(tasks, "boxagent.desktopAction('pin-tasks')");
         await js(bubble, "localStorage.setItem('boxagent.interface-preferences',JSON.stringify({theme:'dark',language:'zh-CN'}));window.dispatchEvent(new StorageEvent('storage',{key:'boxagent.interface-preferences'}))");
         const area = require('electron').screen.getPrimaryDisplay().workArea;
-        const chatX = area.x + Math.round((area.width - 440) / 2) + 160;
+        const chatX = area.x + Math.round((area.width - bubble.getBounds().width) / 2) + 160;
         await dragBy(bubble, chatX - bubble.getBounds().x, area.y + 110 - bubble.getBounds().y);
         await wait(() => tasks.getBounds().y === bubble.getBounds().y, 'linked preview windows');
         bubble.setTitle('BoxAgent · 前端预览');tasks.setTitle('BoxAgent · 任务前端预览');
@@ -258,8 +524,8 @@ server.listen(path.join(data, "engine.sock"), () => {
         await js(tasks, "boxagent.desktopAction('collapse-tasks')");
         await wait(() => !tasks.isVisible(), 'preview summary replaces separate pill');
         const windows = [bubble, pet], frames = windows.map(window => window.getBounds());
-        const gap = frames[1].y - frames[0].y - frames[0].height;
-        assert(gap >= -20 && gap <= 48, 'preview has no stale gap below chat: ' + gap);
+        assert(frames[0].x + frames[0].width <= frames[1].x || frames[1].x + frames[1].width <= frames[0].x,
+          'preview keeps chat beside the avatar');
         const x = Math.min(...frames.map(frame => frame.x)), y = Math.min(...frames.map(frame => frame.y));
         const width = Math.max(...frames.map(frame => frame.x + frame.width)) - x;
         const height = Math.max(...frames.map(frame => frame.y + frame.height)) - y;
@@ -286,13 +552,12 @@ server.listen(path.join(data, "engine.sock"), () => {
       const fixedPetFrame = pet.getBounds();
       const animation = stage.webContents.mainFrame.frames[0];
       const stageFrame = stage.getBounds();
-      const stageDisplay = require('electron').screen.getDisplayNearestPoint(stageFrame);
-      const stageArea = stageDisplay.workArea;
-      assert.equal(stageFrame.width, stageArea.width, "整屏渲染层覆盖所在屏幕宽度");
-      assert.equal(stageFrame.height, stageDisplay.bounds.y + stageDisplay.bounds.height - stageArea.y,
-        "渲染层从工作区顶部延伸到屏幕底边");
-      assert.equal(await js(stage, "document.querySelector('.pet-stage img') === null"), true,
-        "整屏渲染层不显示背景图片");
+      const display = require('electron').screen.getDisplayMatching(fixedPetFrame);
+      assert.equal(stageFrame.x, display.workArea.x);
+      assert.equal(stageFrame.y, display.workArea.y);
+      assert.equal(stageFrame.width, display.workArea.width, "整屏渲染层覆盖所在屏幕宽度");
+      assert.equal(stageFrame.y + stageFrame.height, display.bounds.y + display.bounds.height,
+        "背景从工作区顶部铺到屏幕底边");
       assert(stageFrame.width > fixedPetFrame.width, "渲染层不小于人物命中窗口");
       const firstBounds = await animation.executeJavaScript("pet.bounds().bounds");
       assert.equal(fixedPetFrame.width, firstBounds.width, "首帧决定紧凑窗口宽度");
@@ -304,8 +569,13 @@ server.listen(path.join(data, "engine.sock"), () => {
       assert.equal(afterAnimation.windowSizing.checks, beforeAnimation.windowSizing.checks,
         "日常动画不再扫描边界");
       assert.deepEqual(pet.getBounds(), fixedPetFrame, "动画播放期间窗口保持首帧边界");
-      assert(bubble.getBounds().height <= 600, "long history stays bounded");
-      assert.equal(bubble.getBounds().width, 440);
+      assert(bubble.getBounds().height <= 345, "long history stays bounded");
+      assert.equal(bubble.getBounds().width, 414);
+      const waitingProfile = await js(bubble, "boxagent.request('desktop_set_display_profile', {profile:'hardware'})");
+      assert.equal(waitingProfile.display_profile, 'hardware');
+      assert.equal(waitingProfile.active_display_profile, 'desktop');
+      assert.equal(await js(stage, "Boolean(document.querySelector('.pet-stage-bg'))"), false);
+      await js(bubble, "boxagent.request('desktop_set_display_profile', {profile:'desktop'})");
       assert.equal(app.getName(), "BoxAgent");
       assert.equal(
         BrowserWindow.getAllWindows().length,
@@ -360,9 +630,11 @@ server.listen(path.join(data, "engine.sock"), () => {
       await wait(() => js(bubble, "document.querySelector('.companion-feedback')?.textContent.includes('Engine 已断开')"), 'disconnect feedback again');
       emit('engine.ready');
       await wait(() => js(bubble, "!document.querySelector('.companion-feedback')"), 'connection recovered again');
+      await js(bubble, "{ const history = document.querySelector('.companion-history'); history.scrollTop = history.scrollHeight; }");
+      await wait(() => js(bubble, "document.querySelector('.companion-history').scrollTop > 50"), 'scrollable history starts near latest');
       await js(
         bubble,
-        "document.querySelector('.companion-history').scrollTop=0",
+        "{ const history = document.querySelector('.companion-history'); history.scrollTop = 0; history.dispatchEvent(new Event('scroll')); }",
       );
       await wait(
         () =>
@@ -437,7 +709,7 @@ server.listen(path.join(data, "engine.sock"), () => {
           });
       })()`), 'approval controls remain visible in compact panel');
       assert.deepEqual(await js(bubble, "Array.from(document.querySelectorAll('.companion-header .icon-button'), button => button.getAttribute('aria-label'))"),
-        ['小人显示屏', '打开伙伴控制台', '收起对话'], 'chat keeps display, console and close controls');
+        ['伙伴与聊天显示屏', '打开伙伴控制台', '收起对话'], 'chat keeps display, console and close controls');
       assert.equal(await js(tasks, "Boolean(document.querySelector('.task-menu'))"), false, 'task controls are direct buttons');
       await js(tasks, "document.querySelector('.task-actions [aria-pressed]').click()");
       await wait(() => js(tasks, "document.querySelector('[aria-pressed]').getAttribute('aria-pressed')==='true'"), 'task pin');
@@ -556,15 +828,12 @@ server.listen(path.join(data, "engine.sock"), () => {
       await js(tasks, "Array.from(document.querySelectorAll('.task-actions button')).find(b=>b.textContent.trim()==='取消全部任务').click()");
       await wait(() => js(tasks, "!document.querySelector('.task-queue')"), 'queue cleared in float');
       await js(tasks, "boxagent.desktopAction('collapse-tasks')");
-      await wait(() => js(tasks, "Boolean(document.querySelector('.task-chip'))"), 'task pill');
-      assert.equal(tasks.getBounds().height,54);
-      const collapsedRelation = relation();
+      await wait(() => !tasks.isVisible(), 'collapsed task panel does not overlap the character');
       const closedChat = bubble.getBounds();
       await js(bubble, "boxagent.request('desktop_toggle_bubble')");
       await wait(() => bubble.isVisible(), 'reopen linked chat');
       assert.equal(bubble.getBounds().x, closedChat.x, 'reopen preserves chat x');
       assert.equal(bubble.getBounds().y, closedChat.y, 'reopen preserves chat y');
-      assert.deepEqual(relation(), collapsedRelation, 'reopen preserves task attachment');
       assert(!tasks.isVisible(), 'reopened chat removes duplicate floating pill');
       await js(bubble, "document.querySelector('.companion-task-summary').click()");
       await wait(() => tasks.isVisible() && tasks.getBounds().height === 280, 'header summary opens task list');
@@ -605,24 +874,25 @@ server.listen(path.join(data, "engine.sock"), () => {
         "shared preferences",
       );
       assert.equal(await js(panel, "getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()"), '#171717', 'console neutral dark background');
-      assert.equal(await js(bubble, "getComputedStyle(document.querySelector('.companion-shell')).getPropertyValue('--canvas').trim()"), '#192231', 'mini chat retains its existing dark palette');
+      assert.equal(await js(bubble, "getComputedStyle(document.querySelector('.companion-shell')).getPropertyValue('--canvas').trim()"), '#32283b', 'mini chat uses the approved purple dark palette');
       assert(await js(bubble, `(() => {
         const heading = document.querySelector('.companion-heading').getBoundingClientRect();
         const summary = document.querySelector('.companion-task-summary').getBoundingClientRect();
         const controls = document.querySelector('.companion-header .icon-button').getBoundingClientRect();
-        return heading.right <= summary.left && summary.right <= controls.left && controls.right < innerWidth;
+        return summary.left - heading.right >= 10 && controls.left - summary.right >= 10 && controls.right < innerWidth;
       })()`), 'English task summary fits between companion and controls');
       fs.mkdirSync(path.join(root, "artifacts/electron-desktop"), {
         recursive: true,
       });
       await new Promise((r) => setTimeout(r, 250));
-      assert(
-        await js(
-          bubble,
-          "document.querySelector('.companion-history').clientHeight >= 240",
-        ),
-        "long history has reading space",
-      );
+      const readingLayout = await js(bubble, `(() => {
+        const history = document.querySelector('.companion-history');
+        return { history: history.clientHeight, content: history.scrollHeight, viewport: innerHeight,
+          sections: Array.from(document.querySelector('.companion-shell').children,
+            element => [element.className, Math.round(element.getBoundingClientRect().height)]) };
+      })()`);
+      assert(readingLayout.history >= 120 && readingLayout.content > readingLayout.history,
+        'the compact window leaves room to read long history: ' + JSON.stringify(readingLayout));
       assert(
         await js(
           bubble,
@@ -738,14 +1008,11 @@ server.listen(path.join(data, "engine.sock"), () => {
         "new session excludes old history",
       );
       await js(bubble, "boxagent.desktopAction('dismiss-feedback')");
-      await wait(() => beforeCompact.chat.height - bubble.getBounds().height > 100, "empty chat shrinks with the current footer controls");
+      await wait(() => js(bubble, "document.querySelector('.companion-composer').getBoundingClientRect().bottom <= innerHeight"), "the composer stays visible in the compact window");
       await new Promise(resolve => setTimeout(resolve, 200));
       const compactChat = bubble.getBounds(), compactPet = pet.getBounds();
-      const avatarGap = compactPet.y - compactChat.y - compactChat.height;
-      assert(beforeCompact.chat.height - compactChat.height > 100, 'regression covers a substantial chat shrink');
-      assert.equal(compactChat.y, beforeCompact.chat.y, 'shrinking chat keeps header in place');
-      assert(beforeCompact.pet.y - compactPet.y > 100, 'avatar follows the shorter chat instead of leaving the old height empty');
-      assert(avatarGap >= -20 && avatarGap <= 48, 'avatar stays close below compact chat: ' + avatarGap);
+      assert(compactChat.height <= 345, 'desktop chat stays compact');
+      assert.deepEqual(compactPet, beforeCompact.pet, 'chat changes leave the desktop pet in place');
       assert.equal(tasks.getBounds().y, compactChat.y, 'task header stays aligned after chat shrinks');
       assert(
         await js(
@@ -821,7 +1088,8 @@ server.listen(path.join(data, "engine.sock"), () => {
       });
       await wait(() => bubble.isVisible(), "pet tap toggles bubble");
       bubble.hide();
-      const windowCount = BrowserWindow.getAllWindows().length;
+      const windowIds = () => BrowserWindow.getAllWindows().map(window => window.id).sort((first, second) => first - second);
+      const originalWindows = windowIds();
       const reopened = new Promise((resolve) =>
         app.once("second-instance", resolve),
       );
@@ -831,7 +1099,7 @@ server.listen(path.join(data, "engine.sock"), () => {
       });
       await reopened;
       assert(bubble.isVisible());
-      assert.equal(BrowserWindow.getAllWindows().length, windowCount);
+      assert.deepEqual(windowIds(), originalWindows, "second launch reuses the existing windows");
       child.on("exit", () => {});
       console.log(
         "Electron desktop: real VRM ready/crop/scale, failed avatar rollback, lazy console, shared theme/language, history/Markdown/latest, text/approval/cancel/voice IPC, bubble close/tap/reopen, single instance passed",

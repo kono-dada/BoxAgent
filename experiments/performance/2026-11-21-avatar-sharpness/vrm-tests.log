@@ -1,0 +1,281 @@
+
+> boxagent-vrm@ test <repo>/web/vrm
+> node --test tests/*.test.js
+
+TAP version 13
+# Subtest: 连续请求相同表演从头播放，不冻结在上次结束帧
+ok 1 - 连续请求相同表演从头播放，不冻结在上次结束帧
+  ---
+  duration_ms: 4.659208
+  type: 'test'
+  ...
+# Subtest: 持续拖动保留动画中的躯干与手臂姿势，不被程序放松姿势覆盖
+ok 2 - 持续拖动保留动画中的躯干与手臂姿势，不被程序放松姿势覆盖
+  ---
+  duration_ms: 5.806083
+  type: 'test'
+  ...
+# Subtest: 保留髋部位移和脚部旋转，脚能随动作移动且跨帧不累积附加位移
+ok 3 - 保留髋部位移和脚部旋转，脚能随动作移动且跨帧不累积附加位移
+  ---
+  duration_ms: 20.328917
+  type: 'test'
+  ...
+# Subtest: 摆动在动画后附加，下一帧移除，不能积累到骨骼姿势里
+ok 4 - 摆动在动画后附加，下一帧移除，不能积累到骨骼姿势里
+  ---
+  duration_ms: 3.5405
+  type: 'test'
+  ...
+# Subtest: 动画求值使用素材独立速度，0.4 倍不会退回 1 倍
+ok 5 - 动画求值使用素材独立速度，0.4 倍不会退回 1 倍
+  ---
+  duration_ms: 2.783459
+  type: 'test'
+  ...
+# Subtest: walking loops during idle, pauses idle selection and yields to interactions
+ok 6 - walking loops during idle, pauses idle selection and yields to interactions
+  ---
+  duration_ms: 2.147833
+  type: 'test'
+  ...
+# Subtest: 显式表演跨说话状态保留，结束恢复说话，拖动可中断
+ok 7 - 显式表演跨说话状态保留，结束恢复说话，拖动可中断
+  ---
+  duration_ms: 0.209583
+  type: 'test'
+  ...
+# Subtest: Talking 复用连续待机身体，脸部说话，停止后口型归零
+ok 8 - Talking 复用连续待机身体，脸部说话，停止后口型归零
+  ---
+  duration_ms: 2.16275
+  type: 'test'
+  ...
+# Subtest: 说话结束清除聊天情绪动作并恢复待机，明确表演仍可独立完成
+ok 9 - 说话结束清除聊天情绪动作并恢复待机，明确表演仍可独立完成
+  ---
+  duration_ms: 1.2735
+  type: 'test'
+  ...
+# Subtest: 待机每十秒抽样，允许继续当前动作，拖动中计时暂停
+ok 10 - 待机每十秒抽样，允许继续当前动作，拖动中计时暂停
+  ---
+  duration_ms: 22.796958
+  type: 'test'
+  ...
+# Subtest: 收到实际拖拽事件后进入 Drag，快速释放也保持至少 0.3 秒
+ok 11 - 收到实际拖拽事件后进入 Drag，快速释放也保持至少 0.3 秒
+  ---
+  duration_ms: 0.132625
+  type: 'test'
+  ...
+# Subtest: Drag 覆盖说话但不丢失业务状态，持续移动不会重置最短保持计时
+ok 12 - Drag 覆盖说话但不丢失业务状态，持续移动不会重置最短保持计时
+  ---
+  duration_ms: 0.206958
+  type: 'test'
+  ...
+# Subtest: 摆动与播放姿势分离，停住后回正，松开后权重清零
+ok 13 - 摆动与播放姿势分离，停住后回正，松开后权重清零
+  ---
+  duration_ms: 0.326667
+  type: 'test'
+  ...
+# Subtest: 慢帧的弹簧保持有限且释放后不残留摆动
+ok 14 - 慢帧的弹簧保持有限且释放后不残留摆动
+  ---
+  duration_ms: 1.559083
+  type: 'test'
+  ...
+# Subtest: 睡眠默认关闭，开启后只在待机计时，拖动唤醒
+ok 15 - 睡眠默认关闭，开启后只在待机计时，拖动唤醒
+  ---
+  duration_ms: 30.471542
+  type: 'test'
+  ...
+# Subtest: 没有动作库时使用通用静态回退
+ok 16 - 没有动作库时使用通用静态回退
+  ---
+  duration_ms: 1.619375
+  type: 'test'
+  ...
+# Subtest: VRM 标准绑定优先于同名 morph，并保留未支持的表情
+ok 17 - VRM 标准绑定优先于同名 morph，并保留未支持的表情
+  ---
+  duration_ms: 1.038166
+  type: 'test'
+  ...
+# Subtest: 非标准左右表情分别写入，且在管理器更新后才应用
+ok 18 - 非标准左右表情分别写入，且在管理器更新后才应用
+  ---
+  duration_ms: 2.361041
+  type: 'test'
+  ...
+# Subtest: 缺失表情的模型可以继续运行
+ok 19 - 缺失表情的模型可以继续运行
+  ---
+  duration_ms: 0.241291
+  type: 'test'
+  ...
+# Subtest: 静态姿势能量为零，四元数符号与静态偏移不会产生虚假动作
+ok 20 - 静态姿势能量为零，四元数符号与静态偏移不会产生虚假动作
+  ---
+  duration_ms: 4.300875
+  type: 'test'
+  ...
+# Subtest: 摆幅翻倍时耗能近似四倍，降低速度只减少速度项
+ok 21 - 摆幅翻倍时耗能近似四倍，降低速度只减少速度项
+  ---
+  duration_ms: 2.404083
+  type: 'test'
+  ...
+# Subtest: 髋部位移按素材髋高归一化，循环首尾跳变计入能量
+ok 22 - 髋部位移按素材髋高归一化，循环首尾跳变计入能量
+  ---
+  duration_ms: 0.574667
+  type: 'test'
+  ...
+# Subtest: Boltzmann 概率归一化、单调下降，低温偏向安静且极值不溢出
+ok 23 - Boltzmann 概率归一化、单调下降，低温偏向安静且极值不溢出
+  ---
+  duration_ms: 0.991042
+  type: 'test'
+  ...
+# Subtest: 十万次固定种子抽样符合实际素材分布，所有自动待机均有耗能
+ok 24 - 十万次固定种子抽样符合实际素材分布，所有自动待机均有耗能
+  ---
+  duration_ms: 19.819917
+  type: 'test'
+  ...
+# Subtest: 启动选择最低耗能动作，说话时继续待机抽样
+ok 25 - 启动选择最低耗能动作，说话时继续待机抽样
+  ---
+  duration_ms: 2.30275
+  type: 'test'
+  ...
+# 已导入：/var/folders/97/znd32wq11tbctmvq92ztf8yc0000gn/T/boxagent-vrm-import-MTVnoV/pets/local-test，128 个动作，11 个自动待机
+# 已导入：/var/folders/97/znd32wq11tbctmvq92ztf8yc0000gn/T/boxagent-vrm-import-NpgwtZ/pets/local-test，128 个动作，11 个自动待机
+# 已存在相同模型、动作和配置，直接复用：/var/folders/97/znd32wq11tbctmvq92ztf8yc0000gn/T/boxagent-vrm-import-NpgwtZ/pets/local-test
+# Subtest: 默认导入引用共享动作，不生成每个角色一份的动作目录
+ok 26 - 默认导入引用共享动作，不生成每个角色一份的动作目录
+  ---
+  duration_ms: 142.383041
+  type: 'test'
+  ...
+# Subtest: 已有形象标识拒绝覆盖，保留原文件
+ok 27 - 已有形象标识拒绝覆盖，保留原文件
+  ---
+  duration_ms: 51.34825
+  type: 'test'
+  ...
+# Subtest: 重复导入相同模型和配置复用原目录，不留下隐藏副本
+ok 28 - 重复导入相同模型和配置复用原目录，不留下隐藏副本
+  ---
+  duration_ms: 107.594458
+  type: 'test'
+  ...
+# Subtest: 非 VRM 和未下载的 LFS 指针在写入前被拒绝
+ok 29 - 非 VRM 和未下载的 LFS 指针在写入前被拒绝
+  ---
+  duration_ms: 0.712334
+  type: 'test'
+  ...
+# Subtest: 复制附件失败清理暂存目录，不留下菜单可见的半成品
+ok 30 - 复制附件失败清理暂存目录，不留下菜单可见的半成品
+  ---
+  duration_ms: 46.589875
+  type: 'test'
+  ...
+# Subtest: 旧导出包的脱离骨骼还原局部旋转，重组后的世界旋转保持原样
+ok 31 - 旧导出包的脱离骨骼还原局部旋转，重组后的世界旋转保持原样
+  ---
+  duration_ms: 2.432
+  type: 'test'
+  ...
+# Subtest: VRM 0 窗口外力使用预制体强度，静止帧恢复作者重力，碰撞与阻尼不变
+ok 32 - VRM 0 窗口外力使用预制体强度，静止帧恢复作者重力，碰撞与阻尼不变
+  ---
+  duration_ms: 0.315959
+  type: 'test'
+  ...
+# Subtest: VRM 1 按原版覆盖运行时重力，释放后清零，销毁恢复素材配置
+ok 33 - VRM 1 按原版覆盖运行时重力，释放后清零，销毁恢复素材配置
+  ---
+  duration_ms: 0.118333
+  type: 'test'
+  ...
+# Subtest: 头眼脊柱在拖拽允许状态继续跟随，骨骼角度保持限制
+ok 34 - 头眼脊柱在拖拽允许状态继续跟随，骨骼角度保持限制
+  ---
+  duration_ms: 6.328875
+  type: 'test'
+  ...
+# Subtest: 重定向保留髋部位移并按模型身高换算，不丢失身体相对脚的运动
+ok 35 - 重定向保留髋部位移并按模型身高换算，不丢失身体相对脚的运动
+  ---
+  duration_ms: 42.376833
+  type: 'test'
+  ...
+# Subtest: 自动状态只引用实际动作清单，待机顺序来自原版预制体范围
+ok 36 - 自动状态只引用实际动作清单，待机顺序来自原版预制体范围
+  ---
+  duration_ms: 0.410541
+  type: 'test'
+  ...
+# Subtest: 动作时长按实际播放速度换算，完整目录不会全部在启动时加载
+ok 37 - 动作时长按实际播放速度换算，完整目录不会全部在启动时加载
+  ---
+  duration_ms: 5.190542
+  type: 'test'
+  ...
+# Subtest: Web 版灯光、透明背景和软阴影配置被实际应用
+ok 38 - Web 版灯光、透明背景和软阴影配置被实际应用
+  ---
+  duration_ms: 2.241875
+  type: 'test'
+  ...
+# Subtest: music uses random non-repeating full clips over speech and gestures; stop resumes idle
+ok 39 - music uses random non-repeating full clips over speech and gestures; stop resumes idle
+  ---
+  duration_ms: 1.77575
+  type: 'test'
+  ...
+# Subtest: drag overrides music and music resumes afterwards
+ok 40 - drag overrides music and music resumes afterwards
+  ---
+  duration_ms: 0.252333
+  type: 'test'
+  ...
+# Subtest: paused music cannot start a clip whose async loading completes late
+ok 41 - paused music cannot start a clip whose async loading completes late
+  ---
+  duration_ms: 0.090208
+  type: 'test'
+  ...
+# Subtest: bad clips are skipped and empty catalogs remain idle
+ok 42 - bad clips are skipped and empty catalogs remain idle
+  ---
+  duration_ms: 0.110125
+  type: 'test'
+  ...
+# Subtest: 透明空白被裁掉，左下角坐标完整包含所有非透明像素
+ok 43 - 透明空白被裁掉，左下角坐标完整包含所有非透明像素
+  ---
+  duration_ms: 2.029875
+  type: 'test'
+  ...
+# Subtest: 边缘像素与完全透明的帧不产生无效边界
+ok 44 - 边缘像素与完全透明的帧不产生无效边界
+  ---
+  duration_ms: 0.399042
+  type: 'test'
+  ...
+1..44
+# tests 44
+# suites 0
+# pass 44
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 510.577209

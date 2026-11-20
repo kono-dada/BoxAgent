@@ -7,6 +7,7 @@ function subscribe(channel, callback) {
   };
 }
 contextBridge.exposeInMainWorld("boxagent", {
+  ...(process.argv.includes('--boxagent-setup') ? { openSetup: () => ipcRenderer.send('setup:open') } : {}),
   request: async (method, params) => {
     try {
       return await ipcRenderer.invoke("engine:request", method, params);

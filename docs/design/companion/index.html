@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BoxAgent · 伙伴交互设计稿</title>
+<style>
+:root {
+  color-scheme: dark;
+  --page: #221e29; --surface: #2a2432; --inset: #302838; --line: #574861;
+  --ink: #faf1fa; --muted: #d5c6db; --soft: #bfadc9;
+  --lavender: #e9c9ed; --task: #9bcfff; --chat: #32283b; --message: #453650;
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; color: var(--ink); background: var(--page); }
+main { max-width: 1320px; margin: auto; padding: 34px 26px 48px; }
+h1, h2, h3, p, figure { margin: 0; }
+h1 { font-size: clamp(26px, 3.6vw, 42px); line-height: 1.16; letter-spacing: -.045em; }
+h2 { font-size: 20px; }
+.intro { display: flex; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 24px; }
+.intro p { color: var(--muted); margin-top: 7px; }
+.intro a, a { color: var(--lavender); text-underline-offset: 3px; }
+.intro a { flex: none; margin-bottom: 2px; }
+button, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .55; }
+button:focus-visible, textarea:focus-visible, a:focus-visible, .thread:focus-visible { outline: 2px solid #f1c9fd; outline-offset: 3px; }
+button:focus-visible { scroll-margin: 8px; }
+.icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.review-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 13px; }
+.controls-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.segment { display: inline-flex; gap: 3px; align-items: center; border-radius: 9px; padding: 3px; background: #1f1a26; }
+.segment button { padding: 5px 12px; min-height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); white-space: nowrap; }
+.segment button[aria-pressed="true"] { background: #5a4569; color: var(--ink); box-shadow: 0 1px 5px #140e1b55; }
+#form-note { color: var(--muted); font-size: 13px; }
+.gallery { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin-top: 16px; }
+.preview { min-width: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 43px; padding: 8px 13px; }
+figcaption h2 { font-size: 15px; font-weight: 650; }
+figcaption span { color: var(--muted); font-size: 12px; }
+.scene { position: relative; height: 359px; isolation: isolate; overflow: hidden; }
+.scene.desktop { background: radial-gradient(ellipse at 19% 70%, #7d91ad70, transparent 62%), linear-gradient(150deg, #35455e, #596d89 62%, #343e57); }
+.scene.desktop::before { content: ""; position: absolute; z-index: -1; inset: 41% -30% -88% -48%; border-radius: 61% 59% 0 0; transform: rotate(-13deg); border: 1px solid #b4c8e659; background: linear-gradient(159deg, #8196b3a9, #556985 68%); }
+.desktop-bar { display: flex; justify-content: space-between; padding: 3px 11px; color: #f5edf8; background: #1a18256b; font-size: 11px; }
+.desktop-file { position: absolute; display: grid; justify-items: center; gap: 3px; top: 35px; left: 9px; padding: 4px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #f9f7ff; font-size: 10px; }
+.desktop-file[aria-pressed="true"] { background: #bacbf761; border-color: #ecedff92; }
+.scene.hardware { border: 6px solid #211b28; background: radial-gradient(ellipse at 45% 40%, #88768e, #62556f 55%, #494057); border-radius: 10px; }
+.actor { --art: 237px; width: 111px; position: absolute; top: 85px; right: 9px; height: var(--art); }
+.actor img { width: 82%; height: auto; position: absolute; bottom: 11%; left: 50%; transform: translateX(-50%); pointer-events: none; user-select: none; }
+.actor::before { content: ""; position: absolute; bottom: 9%; left: -17%; right: -17%; height: 27px; border-radius: 50%; background: radial-gradient(ellipse, #20152b70, transparent 73%); }
+.hardware .actor { --art: 259px; left: 45%; right: auto; top: 67px; transform: translateX(-50%); }
+.hardware.open .actor { left: 24%; }
+.hardware:not(.open) .actor { animation: wander 7s ease-in-out infinite alternate; }
+.hardware:not(.open) .actor.paused { animation-play-state: paused; }
+@keyframes wander { from { left: 26%; } to { left: 60%; } }
+.foot { position: absolute; top: 91%; left: 50%; transform: translateX(-50%); white-space: nowrap; display: flex; align-items: center; gap: 5px; border-radius: 15px; background: #40324cf2; border: 1px solid #ead4ee35; padding: 3px 8px; font-size: 11px; color: #f5e9f6; }
+.foot i, .island i { width: 5px; height: 5px; background: #c9b6d4; border-radius: 50%; display: inline-block; flex: none; }
+.foot.working i, .island.working i { background: var(--task); box-shadow: 0 0 6px #9bcfff99; }
+.bubble { position: absolute; bottom: 24%; right: calc(91% + 7px); width: max-content; min-width: 107px; max-width: min(225px, 45vw); padding: 8px 10px; border-radius: 11px 5px 11px 11px; background: #403249f7; border: 1px solid #f7dcff38; box-shadow: 0 7px 18px #21142e45; font-size: 13px; color: #fbf0fc; }
+.hardware .bubble { left: calc(100% + 7px); right: auto; border-radius: 5px 11px 11px 11px; }
+.bubble::before { content: ""; position: absolute; width: 8px; height: 8px; top: 14px; right: -4px; transform: rotate(45deg); background: #403249; }
+.hardware .bubble::before { left: -4px; right: auto; }
+.bubble strong { display: block; color: #efcfed; font-size: 11px; margin-bottom: 3px; }
+.chat { position: absolute; top: 29px; right: 124px; width: min(360px, calc(100% - 144px)); height: 300px; display: grid; grid-template-rows: 55px minmax(0,1fr) auto auto; overflow: hidden; background: var(--chat); border: 1px solid #b197bd8c; border-radius: 15px; box-shadow: 0 12px 32px #21132b64; }
+.desktop .actor, .desktop .chat { translate: var(--desktop-x, 0px) var(--desktop-y, 0px); }
+#live-scene.desktop .actor, #live-scene.desktop .chat-head { cursor: grab; touch-action: none; }
+#live-scene.desktop .actor:active, #live-scene.desktop .chat-head:active { cursor: grabbing; }
+.hardware .chat { top: 10%; right: 3%; width: 50%; height: 80%; }
+.chat-head { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 7px; padding: 6px 8px 6px 10px; border-bottom: 1px solid #78638671; background: linear-gradient(115deg, #3c3146, #372d43); }
+.identity { display: grid; align-content: center; min-width: 41px; }
+.identity b { font-size: 13px; white-space: nowrap; }
+.identity small { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.island { min-width: 0; min-height: 35px; padding: 3px 7px; text-align: left; border: 1px solid #b8a2c157; border-radius: 9px; background: #322a3c; display: grid; align-content: center; }
+.island b, .island small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.island b { display: block; font-size: 11px; }
+.island small { font-size: 10px; color: var(--muted); }
+.island.working { border-color: #a1ceffb0; background: linear-gradient(115deg, #9bcfff24, #31263c 54%, #bea8fb25); box-shadow: 0 0 10px #9bcfff44, inset 0 -1px #b4c8ff91; }
+.tbtn, .send { display: inline-grid; place-items: center; padding: 0; width: 28px; height: 28px; border: 1px solid transparent; border-radius: 6px; background: transparent; }
+.tbtn:hover, .tbtn[aria-pressed="true"] { background: #624d70; }
+.head-buttons, .foot-buttons { display: flex; gap: 1px; }
+.head-buttons .tbtn { width: 27px; }
+.thread { overflow: auto; scrollbar-width: thin; scrollbar-color: #836c93 transparent; padding: 8px 10px; }
+.message { width: fit-content; max-width: 94%; padding: 5px 8px; margin-bottom: 5px; background: var(--message); border: 1px solid transparent; border-radius: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.message:last-child { margin-bottom: 0; }
+.message b { display: block; color: #ebcfeb; font-size: 10px; margin-bottom: 2px; }
+.message.mine { margin-left: auto; background: #594466; }
+.message.wechat, .message.confirm { border-color: #c598c778; }
+.composer { margin: 0 9px; padding: 3px; display: flex; align-items: center; gap: 4px; background: #2b2334; border: 1px solid #8c709a77; border-radius: 8px; }
+.composer textarea { resize: none; flex: 1; width: 0; min-height: 31px; max-height: 55px; padding: 5px 6px; border: 0; background: transparent; font-size: 13px; }
+.composer textarea::placeholder { color: #d4c2db; }
+.send { background: #e4c4e9; color: #372444; }
+.chat-footer { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 4px; padding: 5px 9px 6px; }
+.game-buttons { display: flex; min-width: 0; gap: 3px; align-items: center; border: 1px solid #8c709a59; border-radius: 7px; padding: 0 4px; }
+.game-buttons .icon { width: 14px; }
+.game-buttons button { min-height: 27px; border: 0; border-radius: 5px; background: transparent; white-space: nowrap; padding: 0 5px; font-size: 11px; }
+.game-buttons button[aria-pressed="true"] { background: #634c72; }
+.popover { position: absolute; z-index: 2; top: 56px; right: 7px; width: min(216px,calc(100% - 14px)); padding: 9px; border: 1px solid #be9ecb; border-radius: 8px; background: #41334c; box-shadow: 0 6px 20px #100d16aa; font-size: 12px; }
+.game-screen { margin-top: 10px; border: 1px solid #4c6665; border-radius: 10px; display: flex; align-items: center; gap: 8px; min-height: 59px; padding: 7px 12px; position: relative; overflow: hidden; background: linear-gradient(156deg, #314845, #172d35 60%); }
+.game-screen > span { font-size: 12px; color: #e1edeb; }
+.dock { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 5px; }
+.edge { order: 1; position: relative; width: 28px; height: 34px; background: transparent; border: 0; }
+.edge img { position: absolute; right: -15px; top: 3px; width: 29px; height: 29px; border: 1px solid #c3e3d5; border-radius: 50%; transition: right 140ms; }
+.edge[aria-expanded="true"] img { right: 2px; }
+.dock-buttons { display: flex; gap: 3px; margin-right: 5px; padding: 3px; background: #202d31; border: 1px solid #b6d3ca69; border-radius: 8px; }
+.dock-buttons .tbtn[aria-pressed="true"] { color: #ffe0eb; background: #76515d; }
+.dock-buttons .slash { visibility: hidden; }
+.dock-buttons [aria-pressed="true"] .slash { visibility: visible; }
+.workbench { margin-top: 18px; display: grid; grid-template-columns: minmax(0,1fr) minmax(230px,.34fr); gap: 16px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+.workbench h2 { font-size: 15px; margin-bottom: 5px; }
+.workbench p { color: var(--muted); font-size: 13px; }
+.commands { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.commands button { min-height: 32px; padding: 4px 8px; border: 1px solid #7a6389; border-radius: 7px; background: #3b3048; font-size: 12px; }
+.commands button:hover { background: #584364; }
+.commands button[aria-pressed="true"] { background: #634875; border-color: #e1bdef; }
+#simulation-state { align-self: stretch; padding: 10px 12px; border-radius: 8px; border: 1px solid #72587f; background: #35293f; }
+#simulation-state strong { display: block; color: var(--ink); margin-bottom: 4px; }
+#clock { display: block; min-height: 19px; font-variant-numeric: tabular-nums; color: var(--lavender); margin-top: 4px; }
+.spec { margin-top: 24px; padding-top: 17px; border-top: 1px solid var(--line); }
+.spec h2 { margin-bottom: 9px; }
+.spec article { display: grid; grid-template-columns: minmax(80px, .24fr) 1fr; padding: 10px 2px; gap: 14px; border-bottom: 1px solid #4b3c55; }
+.spec h3 { font-size: 14px; }
+.spec p { color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 600px; text-align: left; border-collapse: collapse; }
+th, td { padding: 9px 11px; border-bottom: 1px solid #4b3c55; vertical-align: top; }
+thead { background: var(--inset); }
+td { color: var(--muted); }
+@media(max-width: 1050px) { .gallery { grid-template-columns: 1fr; } .scene { height: 359px; } .desktop.open .chat { right: 128px; } }
+@media(max-width: 600px) {
+  main { padding: 20px 12px 36px; } .intro { align-items: start; flex-direction: column; gap: 8px; }
+  .scene { height: 351px; } .actor { --art: 202px; width: 85px; top: 121px; }
+  .hardware .actor { --art: 212px; top: 109px; } .hardware.open .actor { left: 16%; }
+  .desktop.open .chat { right: 77px; width: min(360px, calc(100% - 82px)); }
+  .hardware .chat { width: 70%; right: 2%; }
+  .head-buttons .tbtn { width: 25px; } .chat-head { padding-inline: 5px; gap: 4px; }
+  .workbench { grid-template-columns: 1fr; } .game-screen > span { max-width: calc(100% - 150px); }
+  .desktop.open .desktop-file { display: none; }
+  .hardware .bubble { max-width: 135px; }
+}
+@media(prefers-reduced-motion: reduce) { *,*::before,*::after { animation: none !important; transition: none !important; } }
+@media(prefers-contrast: more) { :root { --muted: #f0deef; --line: #b59bc0; } .bubble, .chat, .message, .island, .composer { border-color: #cfb6d6; } }
+</style>
+</head>
+<body>
+<svg aria-hidden="true" width="0" height="0" style="position:absolute">
+  <symbol id="i-display" viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="10.5" rx="1.5"/><path d="M10 14v3m-4 0h8"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 7h14M8 7v10"/></symbol>
+  <symbol id="i-close" viewBox="0 0 20 20"><path d="m6 6 8 8m0-8-8 8"/></symbol>
+  <symbol id="i-send" viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 20 20"><rect x="8" y="2.5" width="4" height="9" rx="2"/><path d="M5 10a5 5 0 0 0 10 0m-5 5v3"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 20 20"><path d="M7 5 8 3.5h4L13 5h3a1.6 1.6 0 0 1 1.5 1.6v8a1.6 1.6 0 0 1-1.5 1.6H4a1.6 1.6 0 0 1-1.5-1.6v-8A1.6 1.6 0 0 1 4 5Z"/><circle cx="10" cy="10.5" r="2.4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 20 20"><path d="M5 10h10M10 5v10"/></symbol>
+  <symbol id="i-game" viewBox="0 0 20 20"><path d="M6 6h8a2.6 2.6 0 0 1 2.5 2l1 4.5a1.8 1.8 0 0 1-3 1.8L13 13H7l-1.5 1.3a1.8 1.8 0 0 1-3-1.8l1-4.5A2.6 2.6 0 0 1 6 6Z"/><path d="M6 8.5v3m-1.5-1.5h3m5.5-.6h.1m1.7 1.3h.1"/></symbol>
+  <symbol id="i-file" viewBox="0 0 20 22"><path d="M4 2h8l4 4v14H4zM12 2v5h4M7 11h6m-6 4h6"/></symbol>
+</svg>
+<main>
+  <header class="intro">
+    <div><h1>BoxAgent · 桌宠与无触屏硬件</h1><p>交互设计稿。用 BoxAgent 吉祥物和模拟消息演示小窗、任务状态和贴边陪玩控制。</p></div>
+    <a href="#display-rules">查看展开与收起规则 ↓</a>
+  </header>
+  <div class="review-controls">
+    <div class="controls-left">
+      <div class="segment" role="group" aria-label="显示形态">
+        <button type="button" data-form="desktop" aria-pressed="true">桌宠</button><button type="button" data-form="hardware" aria-pressed="false">无触屏硬件</button>
+      </div>
+      <div class="segment" role="group" aria-label="互动模式">
+        <button type="button" data-mode="daily" aria-pressed="true">日常</button><button type="button" data-mode="game" aria-pressed="false">陪玩</button>
+      </div>
+    </div>
+    <p id="form-note">桌宠小窗 360 × 300 点</p>
+  </div>
+  <div class="gallery">
+    <figure class="preview" id="live-preview">
+      <figcaption><h2 id="live-title">小窗收起</h2><span>点下方场景试用</span></figcaption>
+      <div id="live-scene" class="scene desktop"></div>
+    </figure>
+    <figure class="preview" id="reference-preview">
+      <figcaption><h2>小窗展开 · 对照</h2><span id="reference-size">360 × 300 点</span></figcaption>
+      <div id="reference-scene" class="scene desktop open"></div>
+    </figure>
+  </div>
+  <div class="game-screen" id="game-screen" hidden>
+    <span>游戏主屏 · 贴边头像</span>
+    <div class="dock">
+      <button class="edge" id="edge" type="button" aria-label="展开陪玩控制" aria-expanded="false" aria-controls="dock-buttons"><img src="../../../web/panel/public/brand/boxagent-128.png" alt=""></button>
+      <div class="dock-buttons" id="dock-buttons" role="group" aria-label="陪玩控制" hidden>
+        <button type="button" class="tbtn" id="dock-mic" aria-label="麦克风静音" aria-pressed="false" title="麦克风静音"><svg class="icon" aria-hidden="true"><use href="#i-mic"/><path class="slash" d="m3 3 14 14"/></svg></button>
+        <button type="button" class="tbtn" id="dock-speech" aria-label="静音游戏短评" aria-pressed="false" title="静音游戏短评"><svg class="icon" aria-hidden="true"><path d="M3 8h3l4-4v12l-4-4H3zm10-1a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10"/><path class="slash" d="m3 3 14 14"/></svg></button>
+        <button type="button" class="tbtn" id="dock-end" aria-label="结束陪玩" title="结束陪玩"><svg class="icon" aria-hidden="true"><rect x="5" y="5" width="10" height="10" rx="2"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <section class="workbench" aria-labelledby="demo-title">
+    <div>
+      <h2 id="demo-title">演练小窗时机</h2>
+      <p>以下按钮模拟用户和书书的动作。无触屏硬件可直接说话，需要打字时用电脑键盘。</p>
+      <div class="commands" role="group" aria-label="场景">
+        <button type="button" data-demo="short">短对话</button>
+        <button type="button" data-demo="long">长回复</button>
+        <button type="button" data-demo="open">说「展开聊天」</button>
+        <button type="button" data-demo="type">输入文字</button>
+        <button type="button" data-demo="wechat">微信来信</button>
+        <button type="button" data-demo="confirm">确认微信回复</button>
+        <button type="button" data-demo="task">任务进度更新</button>
+      </div>
+      <div class="commands" role="group" aria-label="控制当前预览">
+        <button type="button" data-demo="reading" aria-pressed="false">翻看历史</button>
+        <button type="button" data-demo="pin" aria-pressed="false">说「先留着」</button>
+        <button type="button" data-demo="accept" hidden>说「确认发送」</button>
+        <button type="button" data-demo="close">说「收起聊天」</button>
+      </div>
+    </div>
+    <div id="simulation-state"><strong id="state-title" role="status">小窗收起</strong><p id="state-detail">书书停在桌面原位，保留人物与脚下状态。</p><span id="clock"></span></div>
+  </section>
+  <section class="spec" id="display-rules">
+    <h2>小窗什么时候出来，什么时候收</h2>
+    <article><h3>先用气泡</h3><p>短回复、LoL 点评、简单来信贴在角色身边。微信来信显示发件人和正文，并在语音空档主动播报。免打扰群保持安静，原文可在微信历史查看。</p></article>
+    <article><h3>需要看才展开</h3><p>说「展开聊天」、查看历史或开始打字时展开。日常长回复需要对照阅读时可临时展开。陪玩时保留游戏焦点，完整对话在用户要求查看或需要确认时才展开。</p></article>
+    <article><h3>事情没结束就留着</h3><p>说话、输入文字、有未发送草稿、翻看历史或等待确认时暂停收窗。说「先留着」可以固定当前小窗，随时说「收起聊天」。</p></article>
+    <article><h3>留出阅读时间</h3><p>播报结束且没有保留条件时开始计时。桌宠先试 20 秒，硬件先试 12 秒。长回复按文字量延长。收窗后对话和任务继续，进度回到书书脚下。</p></article>
+  </section>
+  <section class="spec" aria-labelledby="routing-title">
+    <h2 id="routing-title">陪玩时怎么接话</h2>
+    <article><h3>说话轮流来</h3><p>你开口时先听你，再回答。微信在下一次空档主动报，已起播的来信留在对话里。LoL 短评只在仍应景时开口。任务进展更新灵动岛或脚下状态，聊天保持当前状态。</p></article>
+    <article><h3>控制在手边</h3><p>语音和陪玩可从 Mac 菜单栏打开。游戏边缘点头像才展开或收回控制。关麦、静音游戏短评都保持控件展开。完整人物和对话在桌面或硬件屏上，硬件可通过语音查看来信与确认回复。</p></article>
+  </section>
+  <section class="spec" aria-labelledby="overview-title">
+    <h2 id="overview-title">八种状态总览</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">形态与模式</th><th scope="col">小窗收起</th><th scope="col">小窗展开</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">桌宠 · 日常</th><td>角色原地做动作，任务状态在脚下。桌面空白可操作。</td><td>360 × 300 点试用，窗口随角色移动。保留文字输入、工具栏和任务灵动岛。</td></tr>
+        <tr><th scope="row">桌宠 · 陪玩</th><td>人物留在桌面，短对话贴着人物。游戏边缘只探出半个头像。</td><td>仍是同一个桌宠小窗。在桌面查看聊天、确认和输入，游戏边缘保留头像入口。</td></tr>
+        <tr><th scope="row">硬件 · 日常</th><td>雾紫舞台留给书书走动，短气泡跟随角色。脚下显示当前状态。</td><td>聊天靠右，约半屏宽且至多八成屏高。角色全身留在一侧。</td></tr>
+        <tr><th scope="row">硬件 · 陪玩</th><td>人物和来信正文留在硬件屏，游戏主屏只露贴边头像。</td><td>硬件屏展示完整对话、待确认正文和任务状态。语音操作期间游戏保持焦点。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+</main>
+<template id="scene-template">
+  <div class="desktop-bar"><span>Mac 桌面</span><span>19:42</span></div>
+  <button class="desktop-file" type="button" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>制作清单</button>
+  <div class="actor"><img src="../../../web/panel/public/brand/boxagent-256.png" alt="BoxAgent 吉祥物"><div class="bubble" hidden><strong></strong><span></span></div><div class="foot"><i aria-hidden="true"></i><span></span></div></div>
+  <section class="chat" aria-label="书书的聊天小窗">
+    <header class="chat-head">
+      <div class="identity"><b>书书</b><small></small></div>
+      <button type="button" class="island" data-chat-action="task" aria-label="查看任务进度" aria-expanded="false"><b><i aria-hidden="true"></i>　<span></span></b><small></small></button>
+      <div class="head-buttons">
+        <button type="button" class="tbtn" data-chat-action="display" aria-label="显示位置" title="显示位置"><svg class="icon" aria-hidden="true"><use href="#i-display"/></svg></button>
+        <button type="button" class="tbtn" data-chat-action="console" aria-label="伙伴控制台" title="伙伴控制台"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg></button>
+        <button type="button" class="tbtn" data-chat-action="close" aria-label="收起聊天" title="收起聊天"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+    </header>
+    <div class="thread" tabindex="0" aria-label="对话历史"></div>
+    <form class="composer">
+      <textarea rows="1" aria-label="文字消息" placeholder="和书书说点什么…"></textarea>
+      <button class="send" aria-label="发送文字消息" type="submit" disabled><svg class="icon" aria-hidden="true"><use href="#i-send"/></svg></button>
+    </form>
+    <footer class="chat-footer">
+      <div class="game-buttons" role="group" aria-label="陪玩模式"><svg class="icon" aria-hidden="true"><use href="#i-game"/></svg><button type="button" data-chat-action="lol">LoL</button><button type="button" data-chat-action="wuwa">鸣潮</button></div>
+      <div class="foot-buttons">
+        <button type="button" class="tbtn" data-chat-action="mic" aria-label="麦克风" title="麦克风"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg></button>
+        <button type="button" class="tbtn" data-chat-action="camera" aria-label="摄像头" title="摄像头"><svg class="icon" aria-hidden="true"><use href="#i-camera"/></svg></button>
+        <button type="button" class="tbtn" data-chat-action="new" aria-label="新会话" title="新会话"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+      </div>
+    </footer>
+    <aside class="popover" hidden></aside>
+  </section>
+</template>
+<script>
+'use strict';
+const pick = (selector, scope = document) => scope.querySelector(selector);
+const all = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+const live = pick('#live-scene');
+const reference = pick('#reference-scene');
+const incoming = {variant: 'wechat', source: '微信 · 小林', text: '今晚七点在地铁口碰面，你方便吗？'};
+const gameExample = {variant: '', source: '书书 · LoL', text: '漂亮，这波反打很稳。'};
+const confirmExample = {variant: 'confirm', source: '微信 · 确认发给小林', text: '我七点半到。请确认这句可以发。'};
+const initialMessages = {
+  daily: [{variant:'mine', source:'你', text:'把这两篇论文的差异整理成表。'}, {variant:'', source:'书书', text:'好，我先核对实验设置和结果。'}],
+  game: [{variant:'mine', source:'你', text:'刚刚是谁控住我了？'}, {variant:'', source:'书书', text:'刚才是对面辅助先控住你。'}, incoming],
+};
+const state = {form:'desktop', mode:'daily', game:'lol', open:false, task:false, speaking:false, reading:false,
+  pinned:false, confirm:false, bubble:null, messages:[], deadline:0, speechTimer:null, bubbleTimer:null, info:'',
+  micMuted:false, gameMuted:false, dock:false};
+const frames = new Map();
+for (const stage of [live, reference]) {
+  stage.append(pick('#scene-template').content.cloneNode(true));
+  frames.set(stage, {
+    chat: pick('.chat', stage), thread: pick('.thread', stage), composer: pick('.composer', stage), input: pick('textarea', stage),
+    bubble: pick('.bubble', stage), foot: pick('.foot', stage), island: pick('.island', stage),
+    popover: pick('.popover', stage), actor: pick('.actor', stage),
+  });
+}
+const liveFrame = frames.get(live);
+frames.get(reference).chat.inert = true;
+function putMessages(frame, messages) {
+  frame.thread.replaceChildren(...messages.map(({variant, source, text}) => {
+    const p = document.createElement('p');
+    p.className = `message ${variant}`;
+    const label = document.createElement('b');
+    label.textContent = source;
+    p.append(label, document.createTextNode(text));
+    return p;
+  }));
+  frame.thread.scrollTop = frame.thread.scrollHeight;
+}
+function displayFrame(stage, open, task, bubble) {
+  const frame = frames.get(stage);
+  stage.className = `scene ${state.form}${open ? ' open' : ''}`;
+  frame.chat.hidden = !open;
+  pick('.desktop-bar', stage).hidden = state.form !== 'desktop';
+  pick('.desktop-file', stage).hidden = state.form !== 'desktop';
+  frame.actor.classList.toggle('paused', Boolean(bubble || state.speaking));
+  frame.bubble.hidden = open || !bubble;
+  if (bubble) {
+    pick('strong', frame.bubble).textContent = bubble.source;
+    pick('span', frame.bubble).textContent = bubble.text;
+  }
+  frame.foot.hidden = open;
+  frame.foot.classList.toggle('working', task);
+  pick('span', frame.foot).textContent = task ? '正在整理对照表' : state.mode === 'game' ? '陪玩中' : '在这里';
+  pick('.identity small', stage).textContent = state.mode === 'game' ? '陪玩中' : '在这里';
+  frame.island.classList.toggle('working', task);
+  pick('b span', frame.island).textContent = task ? '执行中 · 排队 1' : '任务';
+  pick('small', frame.island).textContent = task ? '正在整理对照表…' : '暂无进行中的任务';
+  for (const game of ['lol','wuwa']) pick(`[data-chat-action="${game}"]`, stage).setAttribute('aria-pressed', state.mode === 'game' && state.game === game);
+}
+function displayDock() {
+  pick('#game-screen').hidden = state.mode !== 'game';
+  pick('#edge').setAttribute('aria-expanded', state.dock);
+  pick('#edge').setAttribute('aria-label', state.dock ? '收回陪玩控制' : '展开陪玩控制');
+  pick('#dock-buttons').hidden = !state.dock;
+  pick('#dock-mic').setAttribute('aria-pressed', state.micMuted);
+  pick('#dock-speech').setAttribute('aria-pressed', state.gameMuted);
+  for (const stage of [live, reference]) pick('[data-chat-action="mic"]', stage).setAttribute('aria-pressed', !state.micMuted);
+}
+function render() {
+  all('[data-form]').forEach(button => button.setAttribute('aria-pressed', button.dataset.form === state.form));
+  all('[data-mode]').forEach(button => button.setAttribute('aria-pressed', button.dataset.mode === state.mode));
+  pick('#form-note').textContent = state.form === 'desktop' ? '桌宠小窗 360 × 300 点' : '硬件小窗约半屏宽，高度最多八成';
+  pick('#reference-size').textContent = state.form === 'desktop' ? '360 × 300 点' : '半屏宽 · 八成屏高';
+  pick('#live-title').textContent = state.open ? '小窗已展开' : '小窗收起';
+  displayFrame(live, state.open, state.task, state.bubble);
+  displayFrame(reference, true, true, null);
+  displayDock();
+  pick('[data-demo="reading"]').setAttribute('aria-pressed', state.reading);
+  pick('[data-demo="pin"]').setAttribute('aria-pressed', state.pinned);
+  pick('[data-demo="accept"]').hidden = !state.confirm;
+  pick('#state-title').textContent = state.open ? '小窗已展开' : (state.bubble ? '对话气泡' : '小窗收起');
+  pick('#state-detail').textContent = state.info;
+  tick();
+}
+function defaultInfo() {
+  if (state.form === 'hardware') return '小窗收起后，书书可以在硬件屏里活动。';
+  return state.mode === 'game' ? '人物留在桌面，游戏画面只露贴边头像。' : '书书停在桌面原位，保留人物与脚下状态。';
+}
+function setScene(form, mode, game = 'lol') {
+  clearTimeout(state.speechTimer);
+  clearTimeout(state.bubbleTimer);
+  Object.assign(state, {form, mode, game, open:false, task:mode === 'game', speaking:false, reading:false,
+    pinned:false, confirm:false, bubble:mode === 'game' ? incoming : null, messages:[...initialMessages[mode]],
+    deadline:0, dock:false, micMuted:false, gameMuted:false});
+  state.info = defaultInfo();
+  live.style.removeProperty('--desktop-x');
+  live.style.removeProperty('--desktop-y');
+  for (const frame of frames.values()) {
+    frame.input.value = '';
+    pick('.send', frame.chat).disabled = true;
+    frame.popover.hidden = true;
+    frame.island.setAttribute('aria-expanded', 'false');
+  }
+  putMessages(liveFrame, state.messages);
+  putMessages(frames.get(reference), [...initialMessages[mode], ...(mode === 'game' ? [confirmExample] : [])]);
+  render();
+  frames.get(reference).thread.scrollTop = frames.get(reference).thread.scrollHeight;
+}
+function holdReason() {
+  if (state.pinned) return '已固定 · 说「收起聊天」即可收起';
+  if (state.confirm) return '等待确认 · 小窗保留';
+  if (state.speaking) return '语音进行中 · 小窗保留';
+  if (document.activeElement === liveFrame.input || liveFrame.input.value.trim()) return '正在输入或有草稿 · 小窗保留';
+  if (state.reading) return '正在翻看历史 · 小窗保留';
+  if (!liveFrame.popover.hidden) return '正在查看小窗控件 · 小窗保留';
+  return '';
+}
+function tick() {
+  const clock = pick('#clock');
+  if (!state.open) { clock.textContent = ''; return; }
+  const hold = holdReason();
+  if (hold) {
+    state.deadline = 0;
+    clock.textContent = hold;
+    return;
+  }
+  if (!state.deadline) {
+    const base = state.form === 'desktop' ? 20 : 12;
+    const text = state.messages.at(-1)?.text || '';
+    state.deadline = performance.now() + 1000 * (base + Math.max(0, Math.ceil((text.length - 45) / 8)));
+  }
+  const seconds = Math.ceil((state.deadline - performance.now()) / 1000);
+  if (seconds <= 0) {
+    closeChat(state.form === 'hardware' ? '阅读时间到，小窗已收起，书书恢复走动。' : '阅读时间到，小窗已收起，书书留在原位。');
+  } else {
+    clock.textContent = `${seconds} 秒后收起`;
+  }
+}
+function openChat(info) {
+  state.open = true;
+  state.info = info;
+  state.deadline = 0;
+  render();
+  fitDesktopGroup();
+  if (!state.reading) liveFrame.thread.scrollTop = liveFrame.thread.scrollHeight;
+}
+function fitDesktopGroup() {
+  if (state.form !== 'desktop' || !state.open) return;
+  const scene = live.getBoundingClientRect();
+  const actor = liveFrame.actor.getBoundingClientRect();
+  const chat = liveFrame.chat.getBoundingClientRect();
+  const dx = Math.max(0, scene.left + 6 - chat.left) + Math.min(0, scene.right - 6 - actor.right);
+  const dy = Math.max(0, scene.top + 22 - Math.min(chat.top, actor.top))
+    + Math.min(0, scene.bottom - 6 - Math.max(chat.bottom, actor.bottom));
+  if (dx) live.style.setProperty('--desktop-x', `${(parseFloat(live.style.getPropertyValue('--desktop-x')) || 0) + dx}px`);
+  if (dy) live.style.setProperty('--desktop-y', `${(parseFloat(live.style.getPropertyValue('--desktop-y')) || 0) + dy}px`);
+}
+function closeChat(info = '已收起聊天。语音和任务可以继续，展开后可接着看。') {
+  state.open = false;
+  state.pinned = state.reading = false;
+  state.deadline = 0;
+  state.bubble = null;
+  liveFrame.popover.hidden = true;
+  liveFrame.island.setAttribute('aria-expanded', 'false');
+  state.info = info;
+  render();
+}
+function showMessage(message, info, bubble = message) {
+  clearTimeout(state.bubbleTimer);
+  clearTimeout(state.speechTimer);
+  state.messages.push(message);
+  if (!state.reading) putMessages(liveFrame, state.messages);
+  state.bubble = bubble;
+  state.speaking = true;
+  state.info = info;
+  state.deadline = 0;
+  render();
+  state.speechTimer = setTimeout(() => {
+    state.speaking = false;
+    tick();
+    state.bubbleTimer = setTimeout(() => { state.bubble = null; render(); }, Math.max(6000, message.text.length * 140));
+  }, 1300);
+}
+function switchForm(form) { setScene(form, state.mode, state.game); }
+function switchMode(mode, game = state.game) { setScene(state.form, mode, game); }
+all('[data-form]').forEach(button => button.addEventListener('click', () => switchForm(button.dataset.form)));
+all('[data-mode]').forEach(button => button.addEventListener('click', () => switchMode(button.dataset.mode)));
+pick('#edge').addEventListener('click', () => { state.dock = !state.dock; displayDock(); });
+pick('#dock-mic').addEventListener('click', () => { state.micMuted = !state.micMuted; displayDock(); });
+pick('#dock-speech').addEventListener('click', () => { state.gameMuted = !state.gameMuted; displayDock(); });
+pick('#dock-end').addEventListener('click', () => switchMode('daily'));
+all('.desktop-file').forEach(button => button.addEventListener('click', () => button.setAttribute('aria-pressed', button.getAttribute('aria-pressed') !== 'true')));
+const demos = {
+  short() {
+    if (state.mode === 'game' && state.gameMuted) { state.info = '游戏短评已静音。微信来信仍可播报。'; return render(); }
+    const message = state.mode === 'daily' ? {variant:'', source:'书书', text:'我在，准备好了。'}
+      : state.game === 'wuwa' ? {variant:'', source:'书书 · 鸣潮', text:'刚才那一下闪得漂亮。'} : gameExample;
+    showMessage(message, '短回复用气泡。小窗已经打开时，这句进入当前对话。');
+  },
+  long() {
+    const message = {variant:'', source:'书书', text:'刚才那段我帮你整理好了。首先是你操作的顺序，其次是画面里需要留意的变化，最后是下一步能先做什么。我把这三点都记在当前对话里了，你想继续时可以从这里接上。'};
+    if (state.mode === 'daily') {
+      openChat('这段回复需要对照阅读，临时展开小窗。');
+      showMessage(message, state.info);
+    } else {
+      showMessage(message, '陪玩中先留简短气泡，完整回复可以按需查看。', {...message, text:'我把刚才的要点记在对话里了。'});
+    }
+  },
+  open() { openChat('你要求展开聊天。留出阅读时间后自动收起。'); },
+  type() { openChat('开始输入后，小窗会留在屏上。'); liveFrame.input.focus(); },
+  wechat() { showMessage(incoming, '小林的消息在语音空档主动播报。气泡显示发件人和正文。'); },
+  confirm() {
+    state.confirm = true;
+    state.messages.push({variant:'mine', source:'你', text:'回小林，我七点半到。'}, confirmExample);
+    putMessages(liveFrame, state.messages);
+    openChat('需要确认收件人和正文。你可以直接说「确认发送」或改一句话。');
+  },
+  accept() {
+    state.confirm = false;
+    showMessage({variant:'wechat', source:'微信 · 已发送', text:'发给小林：我七点半到。'}, '收到发送回执。播报结束后开始计时。');
+  },
+  task() {
+    state.task = !state.task;
+    state.info = state.task ? '书书开始整理对照表。收起时进度显示在脚下。' : '任务完成，脚下回到当前模式状态。';
+    render();
+  },
+  reading() {
+    state.reading = !state.reading;
+    if (state.reading) openChat('正在翻看较早的消息。');
+    else { putMessages(liveFrame, state.messages); openChat('已回到最新消息。'); }
+  },
+  pin() { state.pinned = !state.pinned; openChat(state.pinned ? '小窗已固定。' : '已取消固定，重新开始计时。'); },
+  close() { closeChat(); },
+};
+all('[data-demo]').forEach(button => button.addEventListener('click', () => demos[button.dataset.demo]()));
+for (const [stage, frame] of frames) {
+  frame.input.addEventListener('input', () => { pick('.send', frame.chat).disabled = !frame.input.value.trim(); tick(); });
+  frame.input.addEventListener('focus', tick);
+  frame.input.addEventListener('blur', () => setTimeout(tick, 0));
+  frame.thread.addEventListener('scroll', () => {
+    if (stage !== live || !state.open) return;
+    const older = frame.thread.scrollHeight - frame.thread.scrollTop - frame.thread.clientHeight > 12;
+    if (older !== state.reading) {
+      state.reading = older;
+      if (!older) putMessages(frame, state.messages);
+      render();
+    }
+  });
+  frame.composer.addEventListener('submit', event => {
+    event.preventDefault();
+    const text = frame.input.value.trim();
+    if (!text) return;
+    state.messages.push({variant:'mine', source:'你', text});
+    frame.input.value = '';
+    pick('.send', frame.chat).disabled = true;
+    if (stage === reference) { putMessages(liveFrame, state.messages); openChat('文字已加入预览会话。'); }
+    else state.info = '文字已加入预览会话。';
+    showMessage({variant:'', source:'书书', text:'好，我听到了。'}, state.info);
+  });
+  all('[data-chat-action]', stage).forEach(button => button.addEventListener('click', () => {
+    const name = button.dataset.chatAction;
+    if (name === 'close') { closeChat(); return; }
+    if (name === 'mic') { state.micMuted = !state.micMuted; return displayDock(); }
+    if (name === 'camera') { button.setAttribute('aria-pressed', button.getAttribute('aria-pressed') !== 'true'); return; }
+    if (name === 'lol' || name === 'wuwa') { switchMode('game', name); return; }
+    const showing = !frame.popover.hidden && frame.popover.dataset.action === name;
+    const copy = {task:'当前正在整理论文对照表。排队 1 项。', display:'显示形态和屏幕位置可从上方切换。', console:'伙伴控制台管理语音、显示和任务。', new:'预览对话。正式客户端从这里创建新会话。'};
+    frame.popover.hidden = showing;
+    frame.popover.dataset.action = name;
+    frame.popover.textContent = name === 'task' && stage === live && !state.task ? '暂无进行中的任务。' : copy[name];
+    frame.island.setAttribute('aria-expanded', !showing && name === 'task');
+    tick();
+  }));
+}
+for (const handle of [liveFrame.actor, pick('.chat-head', live)]) {
+  let drag = null;
+  handle.addEventListener('pointerdown', event => {
+    if (state.form !== 'desktop' || event.button !== 0 || event.target.closest('button')) return;
+    const x = Number.parseFloat(live.style.getPropertyValue('--desktop-x')) || 0;
+    const y = Number.parseFloat(live.style.getPropertyValue('--desktop-y')) || 0;
+    const scene = live.getBoundingClientRect();
+    const actor = liveFrame.actor.getBoundingClientRect();
+    const chat = state.open ? liveFrame.chat.getBoundingClientRect() : actor;
+    drag = {id:event.pointerId, startX:event.clientX-x, startY:event.clientY-y,
+      minX:x+scene.left+6-Math.min(actor.left,chat.left), maxX:x+scene.right-6-actor.right,
+      minY:y+scene.top+23-Math.min(actor.top,chat.top), maxY:y+scene.bottom-6-Math.max(actor.bottom,chat.bottom)};
+    handle.setPointerCapture(event.pointerId);
+  });
+  handle.addEventListener('pointermove', event => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const x = Math.max(drag.minX, Math.min(drag.maxX, event.clientX-drag.startX));
+    const y = Math.max(drag.minY, Math.min(drag.maxY, event.clientY-drag.startY));
+    live.style.setProperty('--desktop-x', `${x}px`);
+    live.style.setProperty('--desktop-y', `${y}px`);
+  });
+  handle.addEventListener('lostpointercapture', () => { drag = null; });
+}
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && state.open) closeChat();
+});
+window.addEventListener('resize', fitDesktopGroup);
+setScene('desktop','daily');
+setInterval(tick, 200);
+</script>
+</body>
+</html>

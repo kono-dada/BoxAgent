@@ -173,15 +173,17 @@ function PetScale({
       if (mounted.current) setBusy(false);
     }
   }
+  const hardware = snapshot.active_display_profile === 'hardware';
+  const sizeLabel = t(hardware ? '舞台角色大小' : '桌宠大小');
   return (
     <section className="pet-scale">
       <label htmlFor="pet-scale">
-        <strong>{t('桌宠大小')}</strong>
+        <strong>{sizeLabel}</strong>
         <output htmlFor="pet-scale">{percent}%</output>
       </label>
       <input
         id="pet-scale"
-        aria-label={t('桌宠大小百分比')}
+        aria-label={sizeLabel}
         type="range"
         min={Math.round((snapshot.min_scale ?? 0.5) * 100)}
         max={Math.round((snapshot.max_scale ?? 6) * 100)}
@@ -190,7 +192,8 @@ function PetScale({
         onChange={(event) => run(change(Number(event.target.value)))}
       />
       <div className="pet-scale-actions">
-        <span className="metadata">{t('实际大小受屏幕范围限制，重启与换装保留。')}</span>
+        <span className="metadata">{t(hardware
+          ? '100% 会按副屏高度自动调整。' : '实际大小受屏幕范围限制，重启与换装保留。')}</span>
         <button className="button" disabled={busy} onClick={() => run(change(100))}>
           {t('恢复默认')}
         </button>

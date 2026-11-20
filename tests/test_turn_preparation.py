@@ -4,7 +4,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.turn_preparation import TurnPreparer
@@ -17,6 +17,7 @@ from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContex
 from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 from boxagent.domain.interaction.delegation import DecisionAdvice
+from boxagent.agent.harness.wechat_tools import WeChatToolGateway
 
 
 class Memory:
@@ -25,6 +26,125 @@ class Memory:
 
 
 class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_waiting_wechat_answer_repairs_missed_call_without_switching_to_cu(self) -> None:
+        """A short reply continues the verified WeChat thread, even after a false chat score."""
+        with tempfile.TemporaryDirectory() as directory:
+            goals: list[str] = []
+            scopes: list[object] = []
+
+            class Executor:
+                async def run(self, goal: str, progress: object, approve: object) -> dict[str, object]:
+                    goals.append(goal)
+                    if len(goals) == 1:
+                        return {"outcome": "needs_input", "summary": "给测试联系人回复什么内容？"}
+                    return {"outcome": "completed", "summary": "测试回执已核验"}
+
+                async def cancel(self) -> None:
+                    pass
+
+            def factory(task_id: str, **kwargs: object) -> Executor:
+                scopes.append(kwargs.get("capability"))
+                return Executor()
+
+            app = BoxAgentApplication(lambda _: None, factory, None,
+                conversation_service=ConversationService(JsonlSessionStore(Path(directory))))
+            app.wechat_tools = WeChatToolGateway(Mock())
+            intent = AsyncMock()
+            intent.review_delegation.return_value = {"p_delegation": .99}
+            preparer = TurnPreparer(Memory(), intent=intent)
+            try:
+                await app.start()
+                service = app.interaction_service
+                await service._conversation_event("user_final", {"transcript": "帮我回复测试联系人"})
+                await service._handle_tool("run_task", '{"capability":"wechat"}')
+                await app.job
+                self.assertEqual(app.state.task, "needs_input")
+                await service._conversation_event("user_final", {"transcript": "回个很可爱"})
+                context = service.interaction
+                reference = service.task_reference(context)
+                self.assertIn("给测试联系人回复什么内容", reference)
+                self.assertIn('"capability": "wechat"', reference)
+                self.assertIn(reference, service._decision_context(context))
+                service.turn_preparer = preparer
+                service.decisions[context.interaction_id] = DecisionAdvice(.02, .01, .97)
+                voice = QwenRealtimeSession(service._handle_tool, app.events.emit,
+                    host_turn_control=True, conversation_event=service._conversation_event,
+                    delegation_review=service._review_delegation)
+                voice.current_query_id = context.interaction_id
+                voice.response_context["reply"] = {"kind": "user", "query_id": context.interaction_id}
+                service.response_interactions["reply"] = context
+                voice.response_transcripts["reply"] = "我这就给她回很可爱。"
+                await voice._finalize_response("reply", source="provider")
+                await asyncio.gather(*tuple(voice.deliveries))
+                await app.job
+                self.assertEqual(goals, ["帮我回复测试联系人", "回个很可爱"])
+                self.assertEqual(scopes, ["wechat", "wechat"])
+                self.assertEqual(app.state.task, "succeeded")
+                self.assertEqual(service.task_reference(context), "")
+            finally:
+                await app.close()
+                await preparer.close()
+
+    async def test_waiting_task_does_not_authorize_status_queries_or_other_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executor = AsyncMock()
+            executor.run.return_value = {"outcome": "needs_input", "summary": "回复什么？"}
+            app = BoxAgentApplication(lambda _: None, lambda *_args, **_kwargs: executor, None,
+                conversation_service=ConversationService(JsonlSessionStore(Path(directory))))
+            intent = AsyncMock()
+            intent.review_delegation.return_value = {"p_delegation": .01}
+            preparer = TurnPreparer(Memory(), intent=intent)
+            try:
+                await app.start()
+                service = app.interaction_service
+                await service._conversation_event("user_final", {"transcript": "帮我回消息"})
+                await service._handle_tool("run_task", "{}")
+                await app.job
+                original_job = app.job
+                await service._conversation_event("user_final", {"transcript": "你回了吗？"})
+                context = service.interaction
+                service.turn_preparer = preparer
+                service.decisions[context.interaction_id] = DecisionAdvice(.01, .99, 0)
+                service.response_interactions["status"] = context
+                self.assertFalse(await service._review_delegation("status", "我看一下进度。"))
+                self.assertIs(app.job, original_job)
+                executor.run.assert_awaited_once()
+                await app.conversation_service.create_session("其他会话")
+                other = await app.conversation_service.begin_interaction("好")
+                self.assertEqual(service.task_reference(other), "")
+                self.assertIsNone(app.execution_service.clarification_capability(other))
+            finally:
+                await app.close()
+                await preparer.close()
+
+    async def test_default_budget_admits_network_backed_memory(self) -> None:
+        class NetworkMemory:
+            async def context_packet(self, query: str, *, session_id: str, top_k: int) -> str:
+                await asyncio.sleep(.5)
+                return "只给两条建议，不剧透"
+
+        preparer = TurnPreparer(NetworkMemory())
+        try:
+            packet, report = await preparer.prepare("游戏建议", session_id="s", query_id="q")
+            self.assertEqual(report["memory"]["status"], "ready")
+            self.assertIn("只给两条建议，不剧透", packet)
+        finally:
+            await preparer.close()
+
+    async def test_game_and_screen_keep_separate_budgets_and_provenance(self) -> None:
+        preparer = TurnPreparer(Memory(), screen=lambda: "可见游戏窗口摘要" * 60,
+                                game=lambda: '{"source":"LOL 本地公开接口","gold":100}')
+        try:
+            packet, report = await preparer.prepare("我有多少金币", session_id="s", query_id="q")
+            value = json.loads(packet[packet.index("{"):packet.rindex("}") + 1])
+            self.assertIn('"gold":100', value["game"])
+            self.assertNotIn("gold", value["screen"])
+            self.assertLessEqual(len(value["screen"]), 320)
+            self.assertLessEqual(len(packet), 1600)
+            self.assertEqual(report["game"]["status"], "ready")
+        finally:
+            await preparer.close()
+
     async def test_slow_decision_is_installed_but_late_optional_memory_is_dropped(self):
         class SlowMemory:
             async def context_packet(self, query, **kwargs):
@@ -384,6 +504,72 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(second, return_exceptions=True)
             await session.stop()
 
+    async def test_continuing_speech_keeps_fragments_but_requests_only_latest_response(self) -> None:
+        transcripts: list[str] = []
+        sent: list[dict[str, object]] = []
+
+        async def record(kind: str, payload: dict[str, object]) -> None:
+            if kind == "user_final":
+                text = str(payload["transcript"])
+                transcripts.append(text)
+                await session.respond_to_query("", query_id=text)
+
+        session = QwenRealtimeSession(None, lambda *_a, **_k: None,
+            host_turn_control=True, conversation_event=record, voice_response_grace=.08)
+
+        class Socket:
+            async def send(self, raw: str) -> None:
+                request = json.loads(raw)
+                sent.append(request)
+                if request["type"] == "response.create":
+                    await session.receive({"type": "response.created", "response": {"id": "latest"}})
+
+            async def close(self) -> None:
+                pass
+
+        session.ws = Socket()
+        try:
+            for index, text in enumerate(("帮我看一下", "微信有什么消息", "先读最近那条")):
+                await session.receive({"type": "input_audio_buffer.speech_started"})
+                await session.receive({"type": "input_audio_buffer.speech_stopped"})
+                await session.receive({"type": "conversation.item.input_audio_transcription.completed",
+                                       "item_id": str(index), "transcript": text})
+                await asyncio.sleep(.01)
+            await asyncio.wait_for(session.preparation_task, .5)
+            self.assertEqual(transcripts, ["帮我看一下", "微信有什么消息", "先读最近那条"])
+            self.assertEqual([r["type"] for r in sent], ["response.create"])
+            self.assertEqual(session.response_context["latest"]["query_id"], "先读最近那条")
+            self.assertFalse(session.closed)
+        finally:
+            await session.stop()
+
+    async def test_interruption_cannot_extend_a_missing_response_ack_deadline(self) -> None:
+        trace: list[tuple[str, dict[str, object]]] = []
+
+        def record_trace(event: str, **data: object) -> None:
+            trace.append((event, data))
+
+        session = QwenRealtimeSession(None, lambda *_a, **_k: None,
+            host_turn_control=True, response_ack_timeout=.2, trace=record_trace)
+        session.ws = AsyncMock()
+        session.begin_query("first")
+        first = asyncio.create_task(session._create_response({"kind": "user", "query_id": "first"}))
+        session.preparation_task = first
+        await asyncio.sleep(.01)
+        original_deadline = session.response_ack_deadline
+        await session.receive({"type": "input_audio_buffer.speech_started"})
+        await asyncio.gather(first, return_exceptions=True)
+        # The next fragment arrives after the request's original deadline.
+        await asyncio.sleep(.21)
+        session.begin_query("second")
+        with self.assertRaises(TimeoutError):
+            await asyncio.wait_for(session._create_response({"kind": "user", "query_id": "second"}), .1)
+        self.assertEqual(session.response_ack_deadline, original_deadline)
+        self.assertTrue(session.closed)
+        self.assertIn(("response.ack_timeout", {"product_session_id": "", "phase": "previous_request"}), trace)
+        requests = [json.loads(call.args[0]) for call in session.ws.send.call_args_list]
+        self.assertEqual([r["type"] for r in requests], ["response.create"])
+
     async def test_cancel_race_is_nonfatal_but_other_provider_errors_stay_visible(self):
         emitted = []
         session = QwenRealtimeSession(None, lambda kind, **data: emitted.append((kind, data)))
@@ -459,7 +645,7 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                 "transcript": "打开科学计算器，计算二的五次方加根号四十二"})
             query_id = interaction.interaction.interaction_id
             session.begin_query(query_id)
-            await session.notifications.put({"notification_id": "old-failure", "outcome": "failed",
+            await session.notify_task_result({"notification_id": "old-failure", "outcome": "failed",
                                              "summary": "旧任务无法解析"})
             notices = asyncio.create_task(session.deliver_notifications())
             await asyncio.sleep(.02)

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {visibleBounds} from '../visible-bounds.js';
+import {visibleBounds, visibleHitMask} from '../visible-bounds.js';
 
 test('透明空白被裁掉，左下角坐标完整包含所有非透明像素', () => {
   const data = new Uint8ClampedArray(100 * 100 * 4);
@@ -22,4 +22,15 @@ test('边缘像素与完全透明的帧不产生无效边界', () => {
   assert.equal(visibleBounds(data, 10, 10, 100, 100), null);
   data[3] = 255; data[data.length - 1] = 255;
   assert.deepEqual(visibleBounds(data, 10, 10, 100, 100), {x:0, y:0, width:100, height:100});
+});
+
+test('鼠标命中图使用从顶行开始的坐标并跳过半透明投影', () => {
+  const data = new Uint8ClampedArray(80 * 40 * 4);
+  data[(11 * 80 + 32) * 4 + 3] = 255;
+  data[(20 * 80 + 32) * 4 + 3] = 180;
+  const { size, cells } = visibleHitMask(data, 80, 40);
+  assert.equal(cells.length, size * size);
+  assert.equal(cells[11 * size + 16], '1');
+  assert.equal(cells[20 * size + 16], '0');
+  assert.equal(cells[0], '0');
 });

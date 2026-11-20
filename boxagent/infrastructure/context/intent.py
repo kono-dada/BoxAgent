@@ -9,15 +9,22 @@ class DecisionWorker(Protocol):
     async def close(self) -> None: ...
 
 
+class PendingTaskReviewer(Protocol):
+    async def __call__(self, query: str, reply: str, *, context: str) -> dict[str, object]: ...
+
+
 class IntentReference:
-    def __init__(self, worker: DecisionWorker) -> None:
+    def __init__(self, worker: DecisionWorker, *, pending_reviewer: PendingTaskReviewer | None = None) -> None:
         self.worker = worker
+        self.pending_reviewer = pending_reviewer
         self.prewarm: asyncio.Task[dict[str, Any]] | None = None
 
     async def estimate(self, query: str, *, context: str = "") -> dict[str, Any]:
         return await self.worker._request("intent", query=query, context=context)
 
     async def review_delegation(self, query: str, reply: str, *, context: str = "") -> dict[str, Any]:
+        if self.pending_reviewer is not None and "<boxagent_pending_task>" in context:
+            return await self.pending_reviewer(query, reply, context=context)
         return await self.worker._request("delegation", query=query, reply=reply, context=context)
 
     async def start(self) -> None:

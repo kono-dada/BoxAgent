@@ -101,6 +101,29 @@ final class WakeListener {
 }
 
 let args = Array(CommandLine.arguments.dropFirst())
+func reportSpeechPermission(_ status: SFSpeechRecognizerAuthorizationStatus) -> Never {
+    let value: String
+    switch status {
+    case .authorized: value = "granted"
+    case .denied: value = "denied"
+    case .restricted: value = "restricted"
+    case .notDetermined: value = "not-determined"
+    @unknown default: value = "unavailable"
+    }
+    print(value)
+    fflush(stdout)
+    exit(0)
+}
+if args.first == "--speech-status" {
+    reportSpeechPermission(SFSpeechRecognizer.authorizationStatus())
+}
+if args.first == "--request-speech" {
+    let status = SFSpeechRecognizer.authorizationStatus()
+    if status != .notDetermined { reportSpeechPermission(status) }
+    SFSpeechRecognizer.requestAuthorization { reportSpeechPermission($0) }
+    RunLoop.main.run()
+    exit(0)
+}
 let phrase = WakePhrase(args.first ?? "")
 guard !phrase.normalized.isEmpty else { fail("角色名称不能为空") }
 let locales = phrase.usesWordBoundaries ? ["en-US", "zh-CN"] : ["zh-CN"]

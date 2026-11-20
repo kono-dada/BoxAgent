@@ -115,9 +115,12 @@ class TaskExecutor:
         rows = []
         for step, observation in list(self.observations.items())[-12:]:
             path = self.output / f"step-{step}.txt"
+            text = path.read_text(encoding="utf-8") if path.exists() else ""
+            truncated = len(text) > 3600
+            excerpt = text[:1800] + "\n[中间内容省略]\n" + text[-1800:] if truncated else text
             rows.append({"step": step, "tool": observation.get("tool"),
                          "success": observation.get("success"),
-                         "text": path.read_text(encoding="utf-8")[:1800] if path.exists() else ""})
+                         "text": excerpt, "truncated": truncated})
         return json.dumps(rows, ensure_ascii=False) if rows else ""
 
     def capture_environment(self):

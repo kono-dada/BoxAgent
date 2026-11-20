@@ -8,8 +8,11 @@ import re
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from boxagent.infrastructure.perception.windows import WindowInfo
+from typing import Literal, NotRequired, TypedDict
+from boxagent.domain.memory.visual import VisualFrame
+from boxagent.infrastructure.perception.windows import WindowInfo, WindowRect
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +41,7 @@ def clean_summary(text):
     return "".join(kept)
 
 
-def focused_window() -> WindowInfo | None:
+def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
     """选择前台应用最上层的普通窗口；不截整屏，也不改变焦点。"""
     if sys.platform == "win32":
         from boxagent.infrastructure.perception.windows import focused_window as windows_focused_window
@@ -46,26 +49,69 @@ def focused_window() -> WindowInfo | None:
     if sys.platform != "darwin":
         raise RuntimeError(f"不支持的桌面操作系统：{sys.platform}")
     import AppKit as AK
-    import Quartz as Q
     app = AK.NSWorkspace.sharedWorkspace().frontmostApplication()
-    if not app or app.processIdentifier() == os.getpid():
+    if (not app or app.processIdentifier() == os.getpid()
+            or (bundle_id is not None and app.bundleIdentifier() != bundle_id)):
         return None
+    return _mac_window(app.processIdentifier(), str(app.localizedName()), str(app.bundleIdentifier() or ""), {0})
+
+
+def _mac_window(pid: int, app: str, bundle_id: str, layers: set[int]) -> WindowInfo | None:
+    import Quartz as Q
     windows = Q.CGWindowListCopyWindowInfo(
         Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements,
         Q.kCGNullWindowID)
-    for window in windows:
+    for window in windows or ():
         bounds = window.get("kCGWindowBounds", {})
-        if (window.get("kCGWindowOwnerPID") == app.processIdentifier()
-                and window.get("kCGWindowLayer") == 0
+        if (window.get("kCGWindowOwnerPID") == pid
+                and window.get("kCGWindowLayer") in layers
                 and window.get("kCGWindowAlpha", 1) > 0
                 and bounds.get("Width", 0) > 80 and bounds.get("Height", 0) > 80):
-            return {"id": int(window["kCGWindowNumber"]), "app": str(app.localizedName())}
+            return {"id": int(window["kCGWindowNumber"]), "app": app, "bundle_id": bundle_id,
+                    "layer": int(window["kCGWindowLayer"]),
+                    "bounds": {"x": round(bounds["X"]), "y": round(bounds["Y"]),
+                               "width": round(bounds["Width"]), "height": round(bounds["Height"])}}
+    return None
+
+
+class ForegroundGame(TypedDict):
+    game: Literal["lol", "wuwa"]
+    bounds: WindowRect | None
+    shield_offset: NotRequired[int]
+
+
+def foreground_game() -> ForegroundGame | None:
+    if sys.platform not in {"darwin", "win32"}:
+        return None
+    if sys.platform == "darwin":
+        import AppKit as AK
+        import Quartz as Q
+        front = AK.NSWorkspace.sharedWorkspace().frontmostApplication()
+        if front and str(front.bundleIdentifier() or "").casefold() == "com.riotgames.leagueoflegends.gameclient":
+            shield = Q.CGShieldingWindowLevel()
+            window = _mac_window(front.processIdentifier(), str(front.localizedName()), str(front.bundleIdentifier()), {0, shield})
+            if window is None:
+                return None
+            result: ForegroundGame = {"game": "lol", "bounds": window.get("bounds")}
+            if window.get("layer") == shield:
+                result["shield_offset"] = shield + 1 - Q.CGWindowLevelForKey(Q.kCGScreenSaverWindowLevelKey)
+            return result
+    window = focused_window()
+    if window is None:
+        return None
+    app = window["app"].strip().casefold()
+    if (window.get("bundle_id", "").casefold() == "com.riotgames.leagueoflegends.gameclient"
+            or app == "league of legends"):
+        return {"game": "lol", "bounds": window.get("bounds")}
+    if window.get("bundle_id") == "com.kurogame.mingchao" or app in {"wuthering waves", "鸣潮"}:
+        return {"game": "wuwa", "bounds": window.get("bounds")}
     return None
 
 
 class WindowSummary:
     def __init__(self, emit, interval=15, model=None, max_size=960, *, workspace=None,
-                 python=None, worker_script=None, log_path=None):
+                 python=None, worker_script=None, log_path=None,
+                 window_allowed: Callable[[WindowInfo], bool] | None = None):
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
         self.model = Path(model or self.workspace / (".runtime/models/qwen3.5-0.8b" if os.name == "nt" else ".runtime/models/qwen3.5-0.8b-mlx"))
@@ -75,12 +121,92 @@ class WindowSummary:
         self.max_size = max_size
         self.process = self.task = None
         self.capture_failures = 0
+        self.latest_frame: VisualFrame | None = None
+        self.inference_lock = asyncio.Lock()
+        self.model_errors = None
+        self.window_allowed = window_allowed
 
     async def stop(self):
+        self.latest_frame = None
         if self.task:
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)
             self.task = None
+        await self._stop_model()
+
+    def current_frame(self, *, requested_at: float) -> VisualFrame | None:
+        frame = self.latest_frame
+        if frame is None or not 0 <= time.time() - frame.captured_at <= 45 \
+                or not 0 <= requested_at - frame.captured_at <= 45:
+            return None
+        window = focused_window()
+        if window is None or (self.window_allowed is not None and not self.window_allowed(window)):
+            return None
+        return frame if window["app"] == frame.app and window["id"] == frame.window_id else None
+
+    async def _stop_model(self) -> None:
+        process, self.process = self.process, None
+        if process and process.returncode is None:
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), 2)
+            except TimeoutError:
+                process.kill()
+                await process.wait()
+        if self.model_errors:
+            self.model_errors.close()
+            self.model_errors = None
+
+    async def _ensure_model(self) -> None:
+        if self.process and self.process.returncode is None:
+            return
+        if not self.model.is_dir() or not self.python.exists():
+            raise RuntimeError("缺少本地视觉环境或模型")
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.model_errors = self.log_path.open("a")
+        self.process = await asyncio.create_subprocess_exec(
+            "uv", "run", "--no-project", "--python", str(self.python),
+            str(self.worker_script), str(self.model),
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=self.model_errors,
+            env={**os.environ, "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"})
+        await self.reply(120)
+
+    async def _infer(self, path: Path, question: str = "", *, analysis_prompt: str = "",
+                     window: WindowInfo | None = None) -> dict:
+        async with self.inference_lock:
+            try:
+                await self._ensure_model()
+                request = {"image": str(path), "question": question}
+                if analysis_prompt:
+                    request["analysis_prompt"] = analysis_prompt
+                if window is not None:
+                    request.update(app=window["app"], title=window.get("title", ""))
+                self.process.stdin.write((json.dumps(request) + "\n").encode())
+                await self.process.stdin.drain()
+                return await self.reply(180 if sys.platform == "win32" else 60)
+            except (asyncio.CancelledError, TimeoutError, RuntimeError, OSError):
+                # An unread reply must never become the next request's answer.
+                await self._stop_model()
+                raise
+
+    async def analyze_image(self, image: bytes, prompt: str) -> str:
+        """Return the raw local answer to a host-supplied visual analysis prompt."""
+        with tempfile.TemporaryDirectory(prefix="boxagent-game-review-") as directory:
+            path = Path(directory) / "clip.jpg"
+            path.write_bytes(image)
+            result = await self._infer(path, analysis_prompt=prompt)
+        return str(result.get("summary", "")).strip()
+
+    async def describe(self, image: bytes, question: str) -> str:
+        """Reread saved bytes locally; no new desktop capture or image upload."""
+        with tempfile.TemporaryDirectory(prefix="boxagent-memory-look-") as directory:
+            path = Path(directory) / "source.png"
+            path.write_bytes(image)
+            result = await self._infer(path, question[:500])
+        text = clean_summary(str(result.get("summary", "")))
+        if not text:
+            raise RuntimeError("原图回看没有返回可见内容")
+        return text
 
     async def capture(self, window_id: int, path: Path) -> None:
         if sys.platform == "win32":
@@ -118,20 +244,10 @@ class WindowSummary:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             self.emit("context.loading", context_status="正在加载本地模型…", context_text="")
-            if not self.model.is_dir() or not self.python.exists():
-                raise RuntimeError("缺少本地视觉环境或模型，请按 docs/windows.md 或 docs/qwen-mlx-probe.md 准备")
-            with self.log_path.open("a") as errors:
-                self.process = await asyncio.create_subprocess_exec(
-                    "uv", "run", "--no-project", "--python", str(self.python),
-                    str(self.worker_script), str(self.model),
-                    stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=errors,
-                    env={**os.environ, "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"})
-                await self.reply(120)
-                while True:
-                    started = time.monotonic()
-                    await self.observe()
-                    # 慢推理不积压；只允许一个正在执行的观察。
-                    await asyncio.sleep(max(.1, self.interval - (time.monotonic() - started)))
+            while True:
+                started = time.monotonic()
+                await self.observe()
+                await asyncio.sleep(max(.1, self.interval - (time.monotonic() - started)))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -141,20 +257,29 @@ class WindowSummary:
             self.emit("context.error", context_enabled=False, context_text="", context_status=
                       "桌面观察已暂停，请检查屏幕录制权限及本地模型环境")
         finally:
-            if self.process and self.process.returncode is None:
-                self.process.terminate()
-                try:
-                    await asyncio.wait_for(self.process.wait(), 2)
-                except TimeoutError:
-                    self.process.kill()
-                    await self.process.wait()
-            self.process = None
+            self.latest_frame = None
+            await self._stop_model()
 
     async def observe(self):
         from PIL import Image
         window = focused_window()
         if not window:
+            self.latest_frame = None
             self.emit("context.waiting", context_text="", context_status="等待可读取的前台窗口")
+            return
+        if self.window_allowed is not None and not self.window_allowed(window):
+            self.latest_frame = None
+            self.emit("context.waiting", context_text="", context_app="", context_window_id=0,
+                      context_at=0, context_status="LOL 陪玩仅观察游戏窗口；请将游戏切到前台")
+            return
+        if window["app"].lower() == "electron" and window.get("title", "").startswith("BoxAgent ·"):
+            self.latest_frame = None
+            # Do not feed the assistant's own previous claims back as screen facts.
+            self.emit("context.updated", context_status="", context_text=(
+                f"当前前台是桌宠自身窗口「{window['title']}」。"
+                "其中聊天消息是历史文字，不能据此判断其他网页或应用已打开。"
+                "若要观察其他应用，需要先切换到目标窗口。"),
+                context_app=window["app"], context_window_id=window["id"], context_at=time.time())
             return
         self.emit("context.reading", context_status="正在观察前台窗口…")
         captured_at = time.time()
@@ -180,11 +305,12 @@ class WindowSummary:
                 image = source.convert("RGB")
                 image.thumbnail((self.max_size, self.max_size))
                 image.save(path)
-            self.process.stdin.write((json.dumps({"image": str(path)}) + "\n").encode())
-            await self.process.stdin.drain()
-            result = await self.reply(60)
+            image_bytes = path.read_bytes()
+            result = await self._infer(path, window=window)
         # 推理期间切换窗口时丢弃过时结果，避免把旧内容当作当前上下文。
-        if focused_window() != window:
+        if focused_window() != window or (
+                self.window_allowed is not None and not self.window_allowed(window)):
+            self.latest_frame = None
             self.emit("context.stale", context_text="", context_status="窗口已切换，等待下一次观察")
             return
         raw = result.get("summary", "").strip()
@@ -194,6 +320,7 @@ class WindowSummary:
                 "raw_chars": len(raw), "clean_chars": len(text)}})
         if not text:
             raise RuntimeError("模型返回空摘要")
+        self.latest_frame = VisualFrame(image_bytes, text, captured_at, window["app"], window["id"])
         self.emit("context.updated", context_status="", context_text=text,
                   context_app=window["app"], context_window_id=window["id"],
                   context_at=captured_at)

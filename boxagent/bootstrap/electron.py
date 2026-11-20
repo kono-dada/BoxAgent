@@ -1,7 +1,9 @@
 """Compose nonvisual desktop services for Electron, without importing AppKit UI."""
+import os
 from pathlib import Path
 
 from boxagent.bootstrap.settings import Settings
+from boxagent.infrastructure.perception.qwen_mlx import foreground_game
 from boxagent.interfaces.desktop.service import DesktopService
 from boxagent.interfaces.desktop.engine_bridge import EngineBridge
 from boxagent.interfaces.desktop.pets.catalog import PetCatalog
@@ -12,7 +14,8 @@ def create_electron_services(settings: Settings, *, pet_directory: Path | None,
                              task_provider: str, task_model: str | None,
                              auto_approve: bool, context_interval: float,
                              context_size: int) -> DesktopService:
-    catalog = PetCatalog(settings.root / ".runtime/pets", default_pet=settings.default_pet,
+    catalog_root = settings.data_dir / 'pets' if os.environ.get('BOXAGENT_PACKAGED') == '1' else settings.root / '.runtime/pets'
+    catalog = PetCatalog(catalog_root, default_pet=settings.default_pet,
                          bundled_root=settings.root / "assets/vrm/models")
     directory = pet_directory or catalog.current_directory()
     read_manifest(directory)
@@ -23,4 +26,4 @@ def create_electron_services(settings: Settings, *, pet_directory: Path | None,
                            watch=settings.engine_watch, soul_file=settings.soul_file)
     return DesktopService(backend=backend, catalog=catalog, data_dir=settings.data_dir,
                           log_dir=settings.log_dir, soul_file=settings.soul_file,
-                          directory=directory)
+                          directory=directory, foreground_game=lambda: dict(foreground_game() or {}))

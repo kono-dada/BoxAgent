@@ -1,19 +1,25 @@
 # BoxAgent
 
-Windows 安装与启动参见 [Windows 使用说明](docs/windows.md)。
-
 > A full-duplex, memory-native desktop companion for macOS.
 
 BoxAgent 是一个常驻在 Mac 桌面的 AI 伙伴。它可以自然对话、记住长期偏好，并在后台操作电脑；耗时任务不会阻塞当前聊天，完成后会主动回来告诉你结果。
 
+我们希望它能跟着你在工作、聊天和游戏间切换，记得之前聊过的事，在合适的时候接话，也能替你把交代的任务做完。
+
 > [!IMPORTANT]
-> BoxAgent 目前是面向 macOS / Apple Silicon 的开发版本，不是开箱即用的正式发行包。运行前需要准备模型凭据、Codex Computer Use 组件和相应的 macOS 系统权限。
+> BoxAgent 目前以 Apple Silicon macOS 开发版为主。团队接续开发从 [2026-11-21 集成分支交接](docs/integration-handoff-2026-11-21.md) 开始。
 
 ## 产品演示
 
 https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 
 这段历史版本的 5 分钟真人录屏包含声音，展示全双工语音、跨 Session 长期记忆、后台音乐操作、任务结果通知，以及角色、记忆和 Skill 管理。当前形象已升级为 3D VRM。
+
+### 桌宠、双屏与陪玩
+
+![BoxAgent 互动原型展示副屏舞台、聊天小窗和游戏边缘的头像入口](docs/design/companion/preview.png)
+
+[交互设计稿](docs/design/companion/index.html)演示桌宠和无触屏硬件两种形态。下载仓库后用浏览器打开该文件，可以切换日常与陪玩，试用气泡、任务状态、自动收窗和贴边控制。原型使用 BoxAgent 吉祥物和模拟消息，实际窗口尺寸与设置见[显示说明](docs/desktop-displays.md)。
 
 ## 它能做什么
 
@@ -26,13 +32,16 @@ https://github.com/user-attachments/assets/57a0d029-2d58-42e5-9f1e-dfe7e535314e
 | Skill 系统 | 管理内置与用户 Skill，也可以从真实任务轨迹生成并安装 Skill 草稿 |
 | 桌宠与伙伴控制台 | Electron 统一管理 3D 桌宠、React 对话小窗、任务展示和伙伴控制台 |
 | 摄像头视频对话 | 聊天框一键开关摄像头；画面辅助同一条 Qwen 语音会话，独立深色视频小窗 |
-| 副屏桌宠 | 小人放在扩展副屏，聊天和任务面板留在主屏；支持缩放和热插拔恢复 |
+| 桌宠与副屏舞台 | 桌宠背景透明，空白处可点击下方窗口。无触屏硬件形态把角色、聊天和任务放在指定副屏，支持换背景、缩放及热插拔恢复 |
+| 游戏陪玩 | LoL 使用本地对局数据，鸣潮实验模式使用游戏窗口观察。主屏游戏边缘可展开关麦、静音游戏短评和结束陪玩 |
+| 微信语音代回 | 完成本机接入后，来信用气泡和语音提醒，可在当前应用内口述回复 |
 | 独立语音输出 | 可选指定桌宠的扬声器，不改变其他应用的系统输出设备 |
 
 例如，你可以对它说：
 
 - “帮我播放一首音乐，完成后告诉我。”
 - “去知乎找几篇关于 Agent Memory 的高赞文章，我先继续和你聊。”
+- 开启屏幕观察后说“记住这套配队”；以后问“上次那张配装图里的武器是什么”，可以召回经历并按需重读来源画面。
 - “我更喜欢简洁一点的回答。”
 - “把刚才这套操作沉淀成一个 Skill。”
 
@@ -66,6 +75,8 @@ flowchart LR
 更完整的数据流和模块边界见 [架构重构方案](docs/BoxAgent-架构重构方案.md)、[Conversation Context 设计](docs/BoxAgent-Phase3-Conversation-Context-设计.md) 与 [Memory 设计](docs/BoxAgent-Phase4-Memory-设计.md)。
 
 ## 快速开始
+
+下面是日常源码开发的步骤。要从源码打开 Onboarding 并配置自己的微信，见 [微信源码接入](docs/wechat-onboarding.md#同事从仓库本地运行2026-11-20)。要测试独立 App 的 Onboarding 或自己构建 DMG，见 [macOS 安装与发包](docs/macos-distribution.md)。
 
 ### 1. 准备环境
 
@@ -105,6 +116,8 @@ zsh scripts/set-key.zsh
 
 启动时只显示 3D 桌宠，默认形象为 Zome。聊天面板和屏幕总结默认关闭。聊天面板可手动打开；屏幕总结可从伙伴控制台的「设置 → 语音与桌面」开启，开启后默认每 15 秒检查前台窗口。
 
+在这台 Mac 上完成 Onboarding 后，可以运行 `./scripts/run-local.sh`，让源码版复用本机数据和模型。
+
 ### 5. 开始使用
 
 - `Control + Option + Space`：开启或关闭麦克风
@@ -115,9 +128,17 @@ zsh scripts/set-key.zsh
 - 对话小窗上滑查看历史时，点击右下角箭头回到最新消息
 - 伙伴控制台「设置 → 3D 形象 → 桌宠大小」：50%～600% 连续缩放，恢复默认回到 100%；重启和换装保留设置，实际尺寸受屏幕范围限制
 - 对话小窗的摄像头开关：打开视频并沿用 AOQ 语音；模型根据说话时的画面回答，不会仅因动作自动开口。详见 [摄像头视觉对话](docs/camera-conversation.md)
-- 对话小窗右上角的显示器图标：选择小人所在屏幕，聊天留在主屏。详见 [桌宠分屏显示](docs/desktop-displays.md)
+- 对话小窗右上角的显示器图标：选择展示形态及伙伴与聊天所在屏幕。无触屏硬件形态需要扩展副屏。详见 [桌宠与双屏展示](docs/desktop-displays.md)
 - 可选配置 `BOXAGENT_AOQ_OUTPUT_DEVICE`：只让桌宠走指定音响。默认不启用，详见 [独立语音输出](docs/audio-output.md)
 - “取消任务”或“停止任务”：停止当前后台任务的后续操作
+- 可以直接问“联网查一下《鸣潮》野外普通无冠者的打断时机”或发送公开攻略链接。默认播报一到两句建议，参考资料在小窗里按需展开；说“再说一遍”可以简短复述。搜索与网页阅读复用 DeepSeek Key；详见 [游戏攻略与联网资料](docs/web-research.md)。
+
+### 6. 游戏陪玩
+
+- **LoL**。点击聊天小窗底部的 LoL，或开启语音后说「进入英雄联盟陪玩模式」。陪玩等待进入对局，从客户端本地接口读取游戏事件。说「退出陪玩」或用悬浮控制结束。
+- **鸣潮**。设置 `BOXAGENT_GAME_COMPANION=1` 后启动，在小窗开启鸣潮陪玩。此模式使用游戏窗口画面，需要屏幕录制权限，配置见 [鸣潮陪玩预览](docs/setup.md#鸣潮陪玩预览)。
+- **游戏内控制**。在游戏前台点击右侧半头像展开控件。关麦关闭输入，关闭陪玩声音会截断当前游戏短评并清掉排队短评。对话和微信播报照常。
+- **展开与收起**。短回复和来信可贴近角色显示。展开的小窗在空闲且无保留条件时自动收起，桌宠默认 20 秒，硬件副屏默认 12 秒。正在输入、翻看历史或等待确认时暂停，任务进度可回到角色脚下。
 
 ## 配置
 
@@ -125,6 +146,7 @@ zsh scripts/set-key.zsh
 | --- | --- | --- |
 | Qwen Realtime | AOQ 提供全双工语音、回声消除与降噪；WebSocket 仅作诊断降级 | `DASHSCOPE_API_KEY`、`BOXAGENT_DASHSCOPE_WORKSPACE_ID` |
 | 桌面任务 | DeepSeek 负责规划，Codex Runtime 提供工具循环与 Computer Use | `DEEPSEEK_API_KEY`、`BOXAGENT_CODEX_BIN` |
+| 联网资料 | DeepSeek Search / Fetch，供聊天查攻略和阅读公开链接 | `DEEPSEEK_API_KEY`；`BOXAGENT_WEB_SEARCH_ENABLED=0` 可关闭，网关需支持独立工具 API |
 | 决策模型 / Jev-Mem | 默认阿里云 `decision-model-preview`，用于记忆准入/检索和当前 Query 的意图参考 | `BOXAGENT_DECISION_PROVIDER=auto`、DashScope Key / Workspace、`BOXAGENT_JEV_MEM_BACKEND=jev`；意图参考可用 `BOXAGENT_INTENT_REFERENCE=0` 关闭 |
 | 本地屏幕总结 | 启动时关闭，可从控制台设置开启；开启后默认每 15 秒检查前台窗口 | `./scripts/download-qwen-mlx.zsh`、`--context-interval`（正数可在启动时开启） |
 | 人格 | 优先读取本地私有人格，否则使用内置默认人格 | `BOXAGENT_SOUL_FILE` |
@@ -141,8 +163,10 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 当前版本默认自动允许 Computer Use 工具请求；使用 `--require-approval` 可恢复逐次确认。
 - 不可逆操作仍依赖任务策略和最终状态核验；当前版本不是完整操作系统沙箱。
 - 启用真实 Jev-Mem backend 时，相关文本会发送给所选决策服务（默认阿里云，亦可选 TypeSafe.ai）；Qwen、任务模型与 Profile 模型也会接收各自完成请求所需的上下文。
-- 屏幕总结截图仅在本地推理期间临时存在，当前不会自动进入长期记忆。
+- 屏幕总结截图默认仅在本地推理期间临时存在。明确说“记住这套配队 / 当前画面”后，对应的近期关键帧才会保存在本地；来源图片可从记忆面板查看，删除会覆盖该段经历、相关事实和无其他引用的图片。
+- 视觉记忆复用本地屏幕模型，图片不随经历提取上传；用户原话和画面描述会发送给已配置的 DeepSeek 文本模型，提取出的文本会进入现有 Jev-Mem。语音回复和任务模型仍按各自的上下文策略接收相关文字。
 - 摄像头默认关闭；开启视频后，说话期间的低频 JPEG 画面会发送到千问云端。原始画面不写入本地记录，关闭窗口或断开通话即停止采集，不自动恢复摄像头。
+- 鸣潮陪玩默认使用本机视觉。显式启用 `BOXAGENT_WUWA_CLOUD_VISION` 或 `BOXAGENT_WUWA_SCENE_VISION` 时，相应任务栏裁图或近期游戏帧会交给已配置的 DeepSeek 视觉接口。
 
 请只在你信任的机器和测试账号中运行开发版。详细的数据落盘与审计说明见 [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md)。
 
@@ -158,16 +182,22 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - React 对话小窗：Markdown、历史回到底部、任务授权 / 停止；旧 AppKit 窗口与 WebKit UI 已移除
 - 仅支持 3D VRM 形象、本地导入与运行中换装；共享模型和动作通过 Git LFS 管理
 - 本地 MLX 前台窗口总结
+- 有来源的关键画面记忆、后台经历提取、同主题历史链与按问题回看原图；默认用一两句播报，来源不足时说明不确定
+- LoL 与《鸣潮》陪玩、透明桌宠与副屏舞台、微信来信提醒及明确指令后代回
+- macOS Onboarding、配置修复与独立安装包构建。0.1.2 已通过本机成品冒烟，验收范围见 [团队交接](docs/integration-handoff-2026-11-21.md)
+
+视觉记忆的使用方法、源码对照和验证范围见 [PersonOS 多模态记忆接入](docs/PersonOS-多模态记忆接入评估.md)。
 
 ### 仍在推进
 
-- 新用户 Onboarding、依赖检测与正式应用分发
+- 新 Mac 的 Onboarding 和权限验收、微信凭据冷启动恢复、正式签名与公证分发
 - 桌面任务队列、并发调度和更稳定的第三方应用适配
 - 记忆冲突消歧、画像质量评测与多尺度 consolidation
+- 《鸣潮》真实素材的视觉记忆准确率与语音延迟验收；连续视频、人物身份关联尚未接入
 - 脚本型 Skill 沙箱、ZIP / Git 导入与 Skill 市场
 - 持续委托、活动时间线和长期运行可靠性
 
-本分支交付、迁移与最新验证边界见 [分支交付与 PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md)；早期能力验证见 [POC 验收记录](docs/poc-verification.md)。
+本次集成的功能、验收和开发入口见 [团队交接](docs/integration-handoff-2026-11-21.md)。
 
 ## 项目结构
 
@@ -219,13 +249,17 @@ uvx --from pyright==1.1.414 pyright
 
 | 主题 | 文档 |
 | --- | --- |
-| 安装与配置 | [本机环境准备](docs/setup.md) |
+| 团队接续开发 | [2026-11-21 集成分支交接](docs/integration-handoff-2026-11-21.md) · [代码架构导览](docs/BoxAgent-代码架构导览.md) |
+| 源码运行、安装与配置 | [本机环境准备](docs/setup.md) · [macOS Onboarding 与打包](docs/macos-distribution.md) · [Windows 使用说明](docs/windows.md) |
+| 微信接入与使用 | [微信首次接入](docs/wechat-onboarding.md) · [微信模块设计](docs/wechat-模块设计.md) |
 | 当前架构与前后端连接 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
 | 伙伴控制台与界面偏好 | [Panel README](web/panel/README.md) |
+| 桌宠、双屏与陪玩 | [显示说明](docs/desktop-displays.md) · [交互设计稿](docs/design/companion/index.html) |
 | 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
 | 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
 | 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |
-| 需求状态与本次交付 | [需求路线图](docs/需求/README.md) · [PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md) |
+| 功能、修复与性能验证 | [实践记录](docs/BoxAgent-实践记录.md) |
+| 需求与历史交付 | [需求路线图](docs/需求/README.md) · [2026-10-12 PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md) |
 | 3D 形象与共享资产 | [VRM 桌宠](docs/vrm.md) |
 | Computer Use | [Python Computer Use](docs/python-codex-computer-use.md) |
 | 语音链路 | [Qwen 全双工实验](docs/qwen-full-duplex-summary.md) |

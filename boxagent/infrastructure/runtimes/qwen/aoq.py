@@ -669,13 +669,19 @@ class AoqRealtimeSession(QwenRealtimeSession):
         # Media and data tracks are independent. If the first native playback
         # frame wins the race against response.created, acknowledge a queued
         # notification as soon as its response identity arrives.
-        if kind == "response.created" and self.playing:
+        if kind == "response.created":
             response_id = event.get("response", {}).get("id")
-            notification_id = self.notification_responses.get(response_id)
-            if notification_id:
-                self.pending_notifications.discard(notification_id)
-                self._dispatch_notification_event(
-                    "playback_started", notification_id=notification_id)
+            notification_id = (self.notification_responses.get(response_id)
+                               if response_id not in self.cancelled_responses else None)
+            # AOQ plays through its media track, so response.audio.delta may
+            # never arrive. Bind the notification before the first native
+            # frame as well as handling a frame that preceded response.created.
+            self.playing_notification_id = notification_id
+            if self.playing and self._game_playback_valid(response_id):
+                self._lol_playback_started(response_id)
+                if notification_id:
+                    self.playing_notification_id = None
+                    self._notification_playback_started(notification_id)
 
     async def feed_audio(self, _chunk):
         # Native capture/AEC is owned by AOQ.
@@ -703,6 +709,7 @@ class AoqRealtimeSession(QwenRealtimeSession):
                 await asyncio.sleep(delay - quiet_for)
 
         self.playback_finish_task = asyncio.create_task(finish())
+        self.playback_finish_task.add_done_callback(lambda _: self.speech_changed.set())
 
     async def close_resources(self, workers):
         if self.playback_finish_task:

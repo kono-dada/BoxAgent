@@ -2,7 +2,7 @@
 
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Awaitable, Callable, Protocol, TypedDict
+from typing import Awaitable, Callable, Literal, Protocol, TypedDict
 
 
 class VoiceState(StrEnum):
@@ -30,6 +30,26 @@ class TaskQueueItem(TypedDict):
     goal: str
 
 
+class WebReference(TypedDict):
+    title: str
+    url: str
+    published_at: str | None
+    site_name: str | None
+    read_status: Literal["not_read", "reading", "read", "unavailable"]
+
+
+class WebResearchView(TypedDict):
+    """JSON snapshot shape, independent of provider and feature implementations."""
+    session_id: str
+    interaction_id: str
+    stage: Literal["searching", "reading", "ready", "empty", "failed", "cancelled"]
+    query: str
+    requested_version: str
+    message: str
+    retrieved_at: str
+    sources: list[WebReference]
+
+
 @dataclass
 class Snapshot:
     session_id: str = ""
@@ -47,6 +67,7 @@ class Snapshot:
     task_text: str = ""
     user_text: str = ""
     assistant_text: str = ""
+    web_research: WebResearchView | None = None
     error: str = ""
     approval: str = ""
     context_text: str = ""
@@ -57,9 +78,20 @@ class Snapshot:
     context_at: float = 0
     game_news_text: str = ""
     game_news_url: str = ""
+    game_companion_available: bool = False
+    game_companion_enabled: bool = False
+    lol_companion_enabled: bool = False
+    lol_companion_status: str = "off"
+    lol_companion_text: str = ""
+    companion_speech_muted: bool = False
+    companion_comment: str = ""
+    chat_window_action: str = ""
     notification_id: str = ""
     notification_text: str = ""
     notification_unread: bool = False
+    notification_source: str = ""
+    notification_sender: str = ""
+    notification_body: str = ""
     camera_status: str = "off"
     camera_error: str = ""
     camera_frame_at: float = 0

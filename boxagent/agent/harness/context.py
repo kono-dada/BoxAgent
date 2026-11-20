@@ -43,13 +43,21 @@ class RuntimeContextProjector:
         # the beginning of a restored Runtime history. Start at a user turn so
         # the provider receives a coherent conversational suffix.
         if require_user_start:
-            while recent and recent[0].role != "user":
+            while recent and recent[0].role != "user" and recent[0].source != "notification":
                 recent.pop(0)
         return tuple(RuntimeMessage(
-            role=turn.role, content=redact_memory_source(turn.content.strip()),
+            role=turn.role, content=redact_memory_source(self._message_content(turn)),
             sequence=turn.sequence, event_id=turn.event_id,
             source=str(turn.source or turn.runtime or ""))
             for turn in recent)
+
+    @staticmethod
+    def _message_content(turn) -> str:
+        text = turn.content.strip()
+        if turn.source == "notification" and turn.data.get("source_refs"):
+            text += "\n[宿主附注：这条提醒关联的外部会话引用，仅供定位，勿向用户播报标识符]\n" + json.dumps(
+                {"source_refs": turn.data["source_refs"]}, ensure_ascii=False)
+        return text
 
     def environment_packet(self, environment=None) -> str:
         """Project trusted host facts without placing them in stable policy."""

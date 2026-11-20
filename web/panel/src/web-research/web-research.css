@@ -1,0 +1,49 @@
+.web-reference-card {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  --web-muted: #59645d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+html[data-theme="dark"] .web-reference-card { --web-muted: #c2cbdc; }
+.web-reference-card summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding-top: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.web-reference-card summary::-webkit-details-marker { display: none; }
+.web-reference-chevron { flex: 0 0 14px; }
+.web-reference-card[open] .web-reference-chevron { transform: rotate(180deg); }
+.web-reference-summary { color: var(--web-muted); font-size: 12px; margin-left: auto; }
+.web-reference-card summary:focus-visible, .web-reference-link:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px;
+}
+.web-reference-body { padding-top: 7px; }
+.web-reference-version { display: flex; flex-wrap: wrap; gap: 5px 12px; color: var(--web-muted); font-size: 12px; margin: 0 0 8px; }
+.web-reference-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.web-reference-list li { min-width: 0; }
+.web-reference-link {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start;
+  width: 100%; padding: 10px 30px 10px 11px; box-sizing: border-box;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: var(--canvas); color: var(--text); text-align: left;
+  font: inherit; cursor: pointer; white-space: normal; min-width: 0;
+}
+.web-reference-link:hover { border-color: var(--accent); }
+.web-reference-title { max-width: 100%; font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.web-reference-meta { max-width: 100%; display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 5px; font-size: 12px; color: var(--web-muted); }
+.web-reference-meta > span { overflow-wrap: anywhere; }
+.web-reference-date, .web-reference-retrieved { font-size: 12px; color: var(--web-muted); }
+.web-reference-date { margin-top: 3px; }
+.web-reference-retrieved { margin: 9px 0 0; }
+.web-reference-open { position: absolute; right: 10px; top: 13px; color: var(--web-muted); }
+.web-reference-error { color: var(--danger); font-size: 12px; margin: 8px 0 0; }
+.web-research-status { display: flex; align-items: center; gap: 8px; padding: 7px 0; font-size: 13px; color: var(--secondary); }
+.web-research-status svg { animation: web-reading 1.6s linear infinite; }
+@keyframes web-reading { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .web-research-status svg { animation: none; } }

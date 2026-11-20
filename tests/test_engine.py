@@ -31,6 +31,10 @@ class FakeApplication:
         self.state.voice = "ready" if self.state.voice == "off" else "off"
         return None
 
+    def set_game_companion_mode(self, enabled: bool) -> dict[str, object]:
+        self.state.game_companion_enabled = enabled
+        return {"status": "succeeded", "enabled": enabled}
+
     async def submit_text(self, goal):
         return {"status": "accepted", "goal": goal}
 
@@ -148,6 +152,17 @@ class EngineBoundaryTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
         state = [event for event in self.events if event.get("type") == "context.updated"][-1]
         self.assertTrue(state["state"]["context_enabled"])
+
+    async def test_explicit_companion_mode_and_boolean_validation_cross_ipc(self) -> None:
+        self.assertFalse(self.application.state.game_companion_enabled)
+        result = await self.client.request("set_game_companion_mode", {"enabled": True})
+        self.assertEqual(result, {"status": "succeeded", "enabled": True})
+        self.assertTrue(self.application.state.game_companion_enabled)
+        with self.assertRaisesRegex(RuntimeError, "布尔值"):
+            await self.client.request("set_game_companion_mode", {"enabled": "false"})
+        self.assertTrue(self.application.state.game_companion_enabled)
+        await self.client.request("set_game_companion_mode", {"enabled": False})
+        self.assertFalse(self.application.state.game_companion_enabled)
 
     async def test_session_commands_cross_process_contract(self):
         created = await self.client.request("create_session", {"title": "游戏"})

@@ -3,11 +3,16 @@
 from typing import Awaitable, Callable, Protocol
 
 from boxagent.agent.runtime.models import RuntimeRequest
+from boxagent.domain.events.models import EventDecision
 
 
 ToolCall = Callable[[str, dict], Awaitable[dict]]
 ResultValidator = Callable[[str], dict]
 Progress = Callable[[str], None]
+
+
+class EventAgent(Protocol):
+    async def evaluate(self, request: RuntimeRequest) -> EventDecision: ...
 
 
 class ToolObservationSink(Protocol):

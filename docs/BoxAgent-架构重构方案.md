@@ -303,7 +303,7 @@ boxagent/
 | `skill` | Skill Catalog、CRUD、启停状态与校验 |
 | `environment` | 当前时间、周几和时区的可信快照 |
 | `perception` | 本地前台窗口总结状态 |
-| `proactivity` | 主动行为决策 Port，目前不承载完整实现 |
+| `proactivity` | 主动行为决策 Port 与 LOL 公开对局事件策略；轮询由 application/lol_companion.py 管理 |
 
 ## 6. 核心数据流
 

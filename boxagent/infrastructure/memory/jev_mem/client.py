@@ -5,6 +5,7 @@ import contextlib
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from boxagent.domain.memory.contracts import MemoryUnavailable
 
@@ -44,12 +45,14 @@ class JevMemWorker:
                 "--cache-dir", str(self.cache_dir),
                 "--backend", self.backend]
 
-    def _environment(self):
+    def _environment(self) -> dict[str, str]:
         names = ("HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "HF_HOME",
                  "HF_HUB_CACHE", "TRANSFORMERS_CACHE", "XDG_CACHE_HOME",
+                 "BOXAGENT_EMBEDDING_MODEL", "HF_HUB_OFFLINE",
                  "HF_ENDPOINT", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
                  "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "SYSTEMROOT", "WINDIR",
-                 "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA")
+                 "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
+                 "PYTHONPYCACHEPREFIX")
         env = {name: os.environ[name] for name in names if name in os.environ}
         if self.decision_api_key:
             env["TYPESAFE_API_KEY"] = self.decision_api_key
@@ -61,7 +64,8 @@ class JevMemWorker:
             raise MemoryUnavailable(
                 "长期记忆需要决策模型密钥"
                 "（DASHSCOPE_API_KEY + 工作空间，或 TYPESAFE_API_KEY）")
-        env.update(PYTHONUNBUFFERED="1", PYTHONUTF8="1", TOKENIZERS_PARALLELISM="false")
+        env.update(PYTHONUNBUFFERED="1", PYTHONUTF8="1", TOKENIZERS_PARALLELISM="false",
+                   PYTHONDONTWRITEBYTECODE="1")
         return env
 
     async def _start_unlocked(self):
@@ -147,6 +151,16 @@ class JevMemWorker:
         return await self._request(
             "remember_narrative", checkpoint=checkpoint,
             metadata=dict(metadata or {}))
+
+    async def remember_episode(self, episode: dict[str, Any]) -> dict[str, Any]:
+        from boxagent.domain.memory.visual import VisualEpisode
+        validated = VisualEpisode.from_payload(episode)
+        return await self._request("remember_episode", episode=validated.payload())
+
+    async def forget_episode(self, evidence_id: str) -> dict[str, Any]:
+        if not isinstance(evidence_id, str) or not evidence_id.strip() or len(evidence_id) > 160:
+            raise ValueError("画面来源 ID 无效")
+        return await self._request("forget_episode", evidence_id=evidence_id)
 
     async def query(self, question, *, top_k=5, mode="deep"):
         if not isinstance(question, str) or not question.strip():

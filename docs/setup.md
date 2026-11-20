@@ -61,6 +61,18 @@ zsh scripts/set-key.zsh
 ./scripts/run-pet.sh
 ```
 
+已在这台 Mac 的安装版里准备好模型和用户数据时，开发期间可以直接运行：
+
+```sh
+sh scripts/run-local.sh
+```
+
+此入口从仓库读取源码和 `.env.local`，复用 `~/Library/Application Support/BoxAgent` 中的会话、微信状态和已下载模型；也可以通过 `BOXAGENT_DATA_DIR` 指定数据目录。不要同时运行安装版，以免抢占麦克风和 Engine。它不制作 DMG、不重新执行 onboarding；Python 改动由源码监听重启后端，前端改动在下次启动时自动构建。缓存的 Electron 宿主仍在 `.runtime/desktop/`，普通 Python、React 和界面脚本修改不改变其签名；不要把该目录当作旧安装包删除。
+
+微信接入仍需要本机开发配置；此脚本不会自动解密首次向导保存的微信凭据。新同事首次接入和带向导源码运行的资源准备，见 [微信接入说明](wechat-onboarding.md#同事从仓库本地运行2026-11-20)。复用数据目录不代表已经启用微信。
+
+本地脚本启动后，通过菜单「BoxAgent → 设置与权限…」检查当前进程的麦克风、语音识别、屏幕录制和辅助功能状态。检查不会弹出授权请求；点击相应权限按钮才会申请。状态也写入 `<BOXAGENT_DATA_DIR>/logs/local-permissions.json`，不包含凭据或画面。系统设置中的同名条目不代表当前运行进程一定已有授权；录屏／辅助功能变更后可能需要退出，再执行同一个启动脚本。
+
 源码 checkout 默认将 Agent 后端运行在独立 Engine 进程，并监视后端 Python 文件。
 后端变更会触发 Engine 重启，Electron 窗口和菜单栏保持不变。正在执行的任务、语音和
 审批会被中断；JSONL Product Session、Jev-Mem 长期记忆和本地配置仍可在新 Engine 中恢复。修改原生 UI 或 IPC
@@ -84,6 +96,12 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 
 `auto` 会在 Workspace ID 和两个 Framework 都就绪时选择 AOQ。WebSocket fallback 只用于开发诊断，不属于当前正式支持配置；降级原因写入 `<BOXAGENT_DATA_DIR>/logs/runtime/qwen/events.jsonl`。AOQ Token 开发期由 Engine 用 API Key 换取；正式发布应改为业务 AppServer 下发短期 Token，不应将 API Key 放入客户端安装包。
 
+`BOXAGENT_TASK_PROVIDER` 选择的是底层模型 API 来源，不是执行器。设为 `deepseek` 时，
+Codex App Server 调用 DeepSeek API；设为 `codex` 时，同一执行器通过 Codex 登录调用 OpenAI。
+微信新消息的 Agent 判断、上下文压缩也使用该来源；实时语音与记忆决策使用各自的配置。
+启动命令的 `--task-provider` 优先于 `.env.local`，所以修改来源后应重启整个桌宠，
+仅重启 Engine 可能继续沿用旧的启动参数。
+
 桌面任务默认要求 `BOXAGENT_TASK_PROVIDER=deepseek` 与 `DEEPSEEK_API_KEY`。Bootstrap 只把密钥以环境变量注入 Codex App Server 子进程；命令行和模型目录不包含真实密钥。Codex 通过仓库内的 DeepSeek 模型目录和 `wire_api="responses"` 调用 `deepseek-flash`，继续复用统一工具循环。
 
 配置完成后，也可以从项目根目录显式启动 DeepSeek 规划路径：
@@ -94,7 +112,7 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 
 脚本使用同一个启动入口，只检查 `DEEPSEEK_API_KEY` 是否存在；具体密钥由 Python 配置层读取并传给 App Server 子进程。可用 `BOXAGENT_DEEPSEEK_MODEL` 覆盖默认的 `deepseek-flash`，其他参数可直接追加在脚本后。双击 `启动桌宠.command` 与 Codex 项目运行按钮也调用同一入口。
 
-优先从独立 Terminal 启动。直接 uv 运行没有独立应用权限身份；系统权限取决于启动终端及 Computer Use 组件。麦克风用于语音，屏幕录制用于本地截图；电脑操作还依赖执行组件获得所需系统权限。产品内的自动／手动授权不是 macOS 权限开关。
+macOS 源码入口会准备 `.runtime/desktop/BoxAgent.app`，再通过 LaunchServices 启动，使系统权限归属 BoxAgent；不需要先制作 DMG。请使用 `./scripts/run-pet.sh`，不要绕过入口直接运行 App 内的二进制。由 IDE 直接拉起进程可能把权限责任归给 IDE；本机曾因此在 IDE 缺少语音识别用途声明时触发 TCC 强制终止。源码版与安装版目前均可能使用临时签名，构建更新后仍可能需要重新授权。麦克风用于语音，屏幕录制用于本地截图；电脑操作还依赖执行组件获得所需系统权限。产品内的自动／手动授权不是 macOS 权限开关。
 
 ## 本地窗口摘要
 
@@ -109,6 +127,37 @@ BOXAGENT_DASHSCOPE_REGION=cn-beijing
 ```
 
 用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 macOS 系统依赖装进视觉环境。
+
+### 《鸣潮》陪玩预览
+
+在 macOS 源码版中设置 `BOXAGENT_GAME_COMPANION=1` 后启动桌宠。点击小窗的「鸣潮」，再把游戏放到前台。预览使用上面的本地视觉环境和屏幕录制权限。切走游戏后暂停采集。
+
+本机已通过桌面安装向导准备模型时，可以让源码版直接使用这份视觉环境。
+
+```sh
+BOXAGENT_GAME_COMPANION=1 \
+  BOXAGENT_PERCEPTION_PYTHON="$HOME/Library/Application Support/BoxAgent/runtimes/vision/bin/python" \
+  BOXAGENT_PERCEPTION_MODEL="$HOME/Library/Application Support/BoxAgent/models/qwen3.5-0.8b-mlx" \
+  ./scripts/run-pet.sh
+```
+
+陪玩每半秒尝试采一帧，在最近约六秒的画面里判断交手是否已经结束。模型能指出有画面依据的操作时，桌宠才会挑空闲时说一句。实际开始播放后的 20 秒内，你可以追问「哪一下？」。截图由本地模型处理，语音会话使用短评和追问所需的文字。
+
+语音和文字对话也会使用当前通话中仍有效的游戏画面观察。你可以直接说「好吓人」或「刚才跑过去的是什么」，模型会根据对话和画面判断能确认到哪一步。画面观察包含时间范围和所见内容，切走游戏后停止提供新的画面上下文。
+
+进入游戏时，本机 Vision 会读取任务追踪栏。连续两次读到相同的任务目标后，陪玩保存进度，并在语音空闲时问候一次。下次启动游戏读到相同的目标时，问候会提到上次的进度。进度保存在 BoxAgent 数据目录的 `games/wuwa-progress.json`。日志中的 `wuwa.entry.playback` 记录从首次读清任务栏的采样帧到语音开始播放的时间。
+
+### 语音空闲与陪玩告别
+
+普通麦克风会话在约 60 秒没有用户讲话后结束。已有语音播放时先等播完，再断开。用户开始讲话会取消空闲计时，停止讲话后重新计时。聊天小窗按自己的阅读时间和保留条件收起，见 [聊天与陪玩](desktop-displays.md#聊天与陪玩)。
+
+Mac 菜单栏的 BoxAgent 图标直接提供语音和陪玩操作，也可用 `⌃⌥空格` 切换语音。常驻语音唤醒默认关闭，可在菜单中开启「常驻语音唤醒」。唤醒监听需要持续占用麦克风，蓝牙耳机可能因此在闲置时保持通话模式。关闭常驻唤醒后，仍可在需要交流时通过菜单或快捷键使用耳机麦克风。
+
+陪玩默认关闭。在桌面对话小窗底部点「LoL」或「鸣潮」，同一次操作会连接语音并切换陪玩对象。也可以在语音连接后说「进入英雄联盟陪玩模式」。开启后暂停一分钟空闲断线，关闭陪玩后恢复普通计时。麦克风仍可单独关闭，重启后需重新开启陪玩。
+
+开启时，每轮对话会注入陪玩模式提示，说明当前搭子身份、根据画面接话与情绪互动、使用已确认任务信息查攻略，以及正常处理微信和音乐等临时请求。关闭后不再注入；模式本身不表示识别到了具体游戏，也不提供额外操作授权。
+
+明确说「书书，你先下去吧」「先这样吧」等结束语时，先说完简短告别，再断开语音。告别开始即暂停游戏主动播报，已排队的旧评论也随之取消。游戏内控制条可以关闭麦克风并保留语音输出，也可以单独停止游戏短评。读屏仍由陪玩开关控制，微信和后台任务会继续，临时网络断线会自动重连。
 
 ## 电脑操作执行器
 

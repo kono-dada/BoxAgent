@@ -53,7 +53,8 @@ class CodexAppServer:
                  workspace=PROJECT_ROOT, model_profile: ModelProfile | None = None,
                  permission_check=None, codex_home=None, skill_service=None,
                  on_tool_observed: ToolObservationSink | None = None,
-                 windows_skill_loader: Callable[[], WindowsSkill] | None = None):
+                 windows_skill_loader: Callable[[], WindowsSkill] | None = None,
+                 computer_use_enabled: bool = True):
         self.output = Path(output)
         self.on_tool_call = on_tool_call
         self.on_tool_observed = on_tool_observed
@@ -67,6 +68,7 @@ class CodexAppServer:
         self.workspace = Path(workspace)
         self.codex_home = Path(codex_home) if codex_home else None
         self.computer_use_home = resolve_computer_use_home()
+        self.computer_use_enabled = computer_use_enabled
         self.windows_skill_loader = windows_skill_loader
         self.windows_skill: WindowsSkill | None = None
         self.discovery_thread_id: str | None = None
@@ -159,7 +161,19 @@ class CodexAppServer:
         ])
         return overrides
 
-    def launch_arguments(self, executable: Path, client: Path) -> list[str]:
+    def launch_arguments(self, executable: Path, client: Path | None) -> list[str]:
+        if not self.computer_use_enabled:
+            arguments = [str(executable), "app-server", "--stdio"]
+            # Dedicated event hosts have no CU server, shell or delegated agents.
+            for override in ("mcp_servers={}", "features.shell_tool=false", "features.apps=false",
+                             "features.multi_agent=false", "features.multi_agent_v2=false",
+                             "features.code_mode_host=false", "features.skill_search=false",
+                             "features.skill_mcp_dependency_install=false", "features.view_image=false",
+                             "project_doc_max_bytes=0", "web_search=\"disabled\""):
+                arguments.extend(("-c", override))
+            for override in self.model_config_overrides():
+                arguments.extend(("-c", override))
+            return arguments
         if self.windows_skill is not None:
             arguments = [str(executable), "app-server", "--stdio", "-c",
                          self.windows_skill.config_override()]
@@ -274,6 +288,8 @@ class CodexAppServer:
             return
         call_id = item.get("id")
         native_operation = item.get("tool")
+        if not isinstance(native_operation, str):
+            return
         operation = (WINDOWS_TOOL_NAMES.get(native_operation) if self.windows_skill else native_operation)
         allowed = {tool.get("name") for tool in self.tools}
         if not isinstance(call_id, str) or f"desktop_{operation}" not in allowed:
@@ -390,14 +406,16 @@ class CodexAppServer:
             self.thread_id == preferred_thread_id
             and self.thread_signature is not None
             and self.thread_signature != signature)
-        if preferred_thread_id and not configuration_changed:
+        # This App Server version accepts dynamicTools only on thread/start,
+        # not thread/resume. After a process restart, restore Product history
+        # into a fresh thread rather than silently losing the current tools.
+        if preferred_thread_id and not configuration_changed and not self.tools:
             try:
                 resumed = await self.rpc("thread/resume", {
                     "threadId": preferred_thread_id,
                     "cwd": str(self.workspace),
                     "approvalPolicy": "on-request", "sandbox": "read-only",
                     "model": model, "developerInstructions": instructions,
-                    "dynamicTools": self.tools,
                 })
                 self.thread_id = resumed["thread"]["id"]
                 self.thread_signature = signature
@@ -538,21 +556,27 @@ class CodexAppServer:
             "dynamicTools": [],
         })
         isolated_thread_id = thread["thread"]["id"]
-        turn = await self.rpc("turn/start", {
-            "threadId": isolated_thread_id,
-            "outputSchema": output_schema,
-            "input": [{"type": "text", "text": query, "text_elements": []}],
-        })
-        self.turn_id = turn["turn"]["id"]
-        self.log("structured_turn_started", thread_id=isolated_thread_id,
-                 turn_id=self.turn_id)
         try:
+            turn = await self.rpc("turn/start", {
+                "threadId": isolated_thread_id,
+                "outputSchema": output_schema,
+                "input": [{"type": "text", "text": query, "text_elements": []}],
+            })
+            self.turn_id = turn["turn"]["id"]
+            self.log("structured_turn_started", thread_id=isolated_thread_id,
+                     turn_id=self.turn_id)
             result = await asyncio.wait_for(asyncio.shield(self.completed), 180)
             if result.get("status") != "completed":
                 raise RuntimeError(
                     "结构化请求未完成：" + str(result.get("error") or result.get("status")))
             return self.agent_text
         finally:
+            if self.completed is not None and not self.completed.done() and self.turn_id:
+                with contextlib.suppress(Exception):
+                    await self.rpc("turn/interrupt", {"threadId": isolated_thread_id,
+                                                     "turnId": self.turn_id}, timeout=3)
+            with contextlib.suppress(Exception):
+                await self.rpc("thread/unsubscribe", {"threadId": isolated_thread_id}, timeout=3)
             self.turn_id = None
             self.completed = None
             self.cleanup_status = "not_needed"
@@ -562,7 +586,9 @@ class CodexAppServer:
             await self.refresh_skills()
             return self.discovered_tools
         executable = self.runtime_resolver()
-        if self.windows_skill_loader:
+        if not self.computer_use_enabled:
+            self.client = None
+        elif self.windows_skill_loader:
             self.windows_skill = self.windows_skill_loader()
             self.client = self.windows_skill.command
         else:
@@ -584,7 +610,7 @@ class CodexAppServer:
                                       "capabilities": {"experimentalApi": True}})
         await self.send({"method": "initialized"})
         await self.refresh_skills(force=True)
-        self.discovered_tools = await self.discover_tools()
+        self.discovered_tools = await self.discover_tools() if self.computer_use_enabled else []
         self.log("tools_discovered", count=len(self.discovered_tools))
         return self.discovered_tools
 

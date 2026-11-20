@@ -13,6 +13,7 @@ results/
 .venv-pet/
 dist/
 build/
+/outputs/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
@@ -48,3 +49,13 @@ Desktop.ini
 *.swp
 *.swo
 ~$*
+
+# 实验目录
+experiments/*
+# 仅版本化性能测量摘要与单元测试输出，其他实验和原始运行资料仍忽略。
+!experiments/performance/
+experiments/performance/**/*
+!experiments/performance/**/
+!experiments/performance/**/measurements.json
+!experiments/performance/**/panel-tests.log
+!experiments/performance/**/vrm-tests.log

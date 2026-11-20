@@ -135,6 +135,76 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await service.close()
 
+    async def test_explicit_companion_mode_holds_voice_without_game_detection(self) -> None:
+        for mode in ("game_companion_enabled", "lol_companion_enabled"):
+            with self.subTest(mode=mode):
+                await self._check_companion_idle(mode)
+
+    async def _check_companion_idle(self, mode: str) -> None:
+        voice = AsyncMock()
+        voice.ready = asyncio.Event()
+        voice.playback_pending = False
+        closed = asyncio.Event()
+
+        async def run() -> None:
+            voice.ready.set()
+            await closed.wait()
+
+        voice.run.side_effect = run
+        voice.stop.side_effect = closed.set
+        events = StateEvents(lambda _: None)
+        events.emit("game.companion_mode_changed", **{mode: True})
+        service = InteractionService(events, lambda *_a, **_kw: voice, None,
+                                     voice_idle_timeout=.03)
+        try:
+            await service.toggle()
+            await asyncio.sleep(.07)
+            self.assertTrue(service.is_connected)
+            events.emit("game.companion_mode_changed", **{mode: False})
+            self.assertTrue(service.is_connected, "disabling companion mode must not close voice immediately")
+            assert service.voice_idle_task is not None
+            await asyncio.wait_for(service.voice_idle_task, 1)
+            self.assertFalse(service.is_connected)
+        finally:
+            await service.close()
+
+    async def test_farewell_during_game_pauses_proactive_voice_until_explicit_reopen(self) -> None:
+        voices: list[AsyncMock] = []
+
+        def factory(*_args: object, **_kwargs: object) -> AsyncMock:
+            voice = AsyncMock()
+            voice.ready = asyncio.Event()
+            voice.playback_pending = False
+            closed = asyncio.Event()
+
+            async def run() -> None:
+                voice.ready.set()
+                await closed.wait()
+
+            voice.run.side_effect = run
+            voice.stop.side_effect = closed.set
+            voices.append(voice)
+            return voice
+
+        service = InteractionService(StateEvents(lambda _: None), factory, None)
+        service.events.emit("game.companion_mode_changed", game_companion_enabled=True)
+        try:
+            await service.toggle()
+            await service._conversation_event("user_final", {"transcript": "书书，你先下去吧"})
+            self.assertTrue(service.game_speech_paused)
+            assert service.voice_end_task is not None
+            await asyncio.wait_for(service.voice_end_task, 1)
+            self.assertFalse(service.is_connected)
+            await service.prepare_game_audio()
+            self.assertEqual(len(voices), 1, "background game audio must not reopen a dismissed call")
+            self.assertFalse(await service.announce_game_line("game-highlight:late", "旧评论", lambda: True))
+            await service.toggle()
+            self.assertFalse(service.game_speech_paused)
+            self.assertTrue(service.is_connected)
+            self.assertEqual(len(voices), 2)
+        finally:
+            await service.close()
+
     async def test_voice_startup_timeout_cleans_up_before_retry(self) -> None:
         voices = []
 
@@ -161,16 +231,18 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
                 await service.toggle()
             self.assertTrue(voices[0].closed.is_set())
             self.assertFalse(service.is_connected)
-            self.assertFalse(service.voice_requested)
-            self.assertEqual(events.state.voice, "off")
+            self.assertTrue(service.voice_requested)
+            self.assertEqual(events.state.voice, "connecting")
             service.connection_timeout = .2
-            await service.toggle()
+            async with asyncio.timeout(2):
+                while len(voices) < 2 or not voices[1].ready.is_set():
+                    await asyncio.sleep(.001)
             self.assertTrue(service.is_connected)
             self.assertTrue(voices[1].ready.is_set())
         finally:
             await service.close()
 
-    async def test_voice_startup_failure_does_not_launch_background_reconnect(self) -> None:
+    async def test_voice_startup_failure_preserves_request_until_user_stops(self) -> None:
         class Voice:
             ready = asyncio.Event()
             stop = AsyncMock()
@@ -180,11 +252,18 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
 
         service = InteractionService(StateEvents(lambda _event: None),
                                      lambda *_a, **_k: Voice(), None, reconnect_delays=(0,))
-        with self.assertRaisesRegex(RuntimeError, "AOQ 连接失败"):
+        try:
+            with self.assertRaisesRegex(RuntimeError, "AOQ 连接失败"):
+                await service.toggle()
+            self.assertIsNotNone(service.reconnect_task)
+            self.assertTrue(service.voice_requested)
             await service.toggle()
-        self.assertIsNone(service.reconnect_task)
-        self.assertFalse(service.is_connected)
-        self.assertFalse(service.voice_requested)
+            self.assertIsNone(service.reconnect_task)
+            self.assertFalse(service.is_connected)
+            self.assertFalse(service.voice_requested)
+            self.assertTrue(service.game_speech_paused)
+        finally:
+            await service.close()
 
     async def test_existing_call_retries_after_one_reconnect_startup_failure(self) -> None:
         voices = []
@@ -369,7 +448,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("new-response", service.response_interactions)
         self.assertNotIn("voice.off", [event["type"] for event in events])
 
-    async def test_current_voice_disconnect_clears_requested_flag(self):
+    async def test_current_voice_disconnect_preserves_requested_flag(self):
         class Voice:
             async def run(self):
                 return None
@@ -382,9 +461,10 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
 
         await service._run(voice, microphone=True)
 
-        self.assertFalse(service.voice_requested)
+        self.assertTrue(service.voice_requested)
         self.assertIsNone(service.voice)
-        self.assertEqual(service.events.state.voice, "off")
+        self.assertEqual(service.events.state.voice, "connecting")
+        await service.close()
 
     async def test_provider_response_idle_close_is_silent_for_open_microphone(self):
         events = []

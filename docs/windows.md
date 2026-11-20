@@ -10,7 +10,9 @@ git lfs pull
 ```
 
 程序自动检测系统：macOS 使用 AppKit/Quartz 和 screencapture；Windows
-使用 Win32 前台窗口 API 和 Pillow 的原生窗口截图，不改变窗口焦点。
+使用 Win32 前台窗口 API 和 Pillow 读取该窗口的可见屏幕区域，不改变窗口焦点。
+这避免了 Electron 等 GPU 渲染窗口通过 PrintWindow 截成黑图或白图；
+截图包含窗口区域内可见的遮挡内容，不读取被遮挡的后台窗口。
 Windows 不安装 PyObjC、AOQ 或 MLX；语音使用 WebSocket。
 
 可选的本地窗口摘要需要单独安装视觉环境和原始 Transformers 模型
@@ -24,6 +26,14 @@ uv run --with huggingface-hub hf download Qwen/Qwen3.5-0.8B --local-dir .runtime
 ```
 
 模型加载后只读取本地文件；有可用 CUDA 时使用 GPU，否则使用 CPU。
+已有视觉环境可安装 CUDA 11.8 配套版本以使用 NVIDIA GPU：
+
+```powershell
+uv pip install --python .runtime/vision-venv/Scripts/python.exe torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cu118
+```
+
+GPU 使用 bfloat16 权重；Windows 输入缩放到最长边 960 像素，摘要最多
+生成 128 个 token。日志 `context-worker.log` 会记录实际设备和权重类型。
 可用 `BOXAGENT_PERCEPTION_PYTHON` 和 `BOXAGENT_PERCEPTION_MODEL` 覆盖路径。
 安装入口同时准备 `.runtime/jev-mem-venv` 的记忆服务依赖，也可配置
 `BOXAGENT_JEV_MEM_PYTHON` 指向已有环境。

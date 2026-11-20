@@ -104,6 +104,25 @@ export interface ProductMessage {
   role?: string;
   content?: string;
   occurred_at?: number;
+  session_id?: string;
+  data?: Record<string, unknown>;
+}
+export interface WebReference {
+  title: string;
+  url: string;
+  published_at: string | null;
+  site_name: string | null;
+  read_status: 'not_read' | 'reading' | 'read' | 'unavailable';
+}
+export interface WebResearchView {
+  session_id: string;
+  interaction_id: string;
+  stage: 'searching' | 'reading' | 'ready' | 'empty' | 'failed' | 'cancelled';
+  query: string;
+  requested_version: string;
+  message: string;
+  retrieved_at: string;
+  sources: WebReference[];
 }
 export interface SessionMessages {
   session_id: string;
@@ -117,6 +136,7 @@ export interface RuntimeState {
   user_speaking?: boolean;
   user_text?: string;
   assistant_text?: string;
+  web_research?: WebResearchView | null;
   task_id?: string;
   task_started_at?: number;
   task_goal?: string;
@@ -125,6 +145,9 @@ export interface RuntimeState {
   task_activity_at?: number;
   game_news_text?: string;
   game_news_url?: string;
+  game_companion_available?: boolean;
+  game_companion_enabled?: boolean;
+  companion_speech_muted?: boolean;
   notification_id?: string;
   notification_text?: string;
   notification_unread?: boolean;
@@ -140,6 +163,9 @@ export interface RuntimeState {
   context_enabled?: boolean;
   context_status?: string;
   context_text?: string;
+  lol_companion_enabled?: boolean;
+  lol_companion_status?: string;
+  lol_companion_text?: string;
 }
 export interface Avatar {
   id: string;
@@ -150,12 +176,23 @@ export interface CameraSnapshot {
   status: 'off' | 'starting' | 'on';
   error: string;
 }
+export type StageBackground = 'purple' | 'pink';
+
 export interface AvatarSnapshot {
   displays?: { id: string; label: string; primary: boolean }[];
   pet_display_id?: string;
+  selected_display_id?: string | null;
+  display_profile?: 'desktop' | 'hardware';
+  active_display_profile?: 'desktop' | 'hardware';
+  stage_background?: StageBackground;
+  chat_dock_edge?: 'left' | 'right';
   separate_windows?: boolean;
   tasks_expanded?: boolean;
   tasks_pinned?: boolean;
+  chat_pinned?: boolean;
+  game_dock_open?: boolean;
+  game_dock_game?: "lol" | "wuwa";
+  avatar_portrait?: string;
   appearance?: string;
   appearance_ready?: boolean;
   appearance_error?: string;
@@ -192,6 +229,7 @@ export interface RunData {
   items: RunRecord[];
 }
 export interface PanelBridge extends Bridge {
+  openSetup?(): void;
   errors(): Promise<RecordData[]>;
   onState(callback: (state: RuntimeState) => void): () => void;
   onCamera(callback: (state: CameraSnapshot) => void): () => void;
@@ -219,6 +257,9 @@ declare global {
 }
 
 export interface PetFrame {
+  walkDirection?: -1 | 0 | 1;
+  scene?: StageBackground;
+  gameOverlay?: boolean;
   music?: boolean;
   action?: string;
   actionId?: string;
@@ -227,6 +268,12 @@ export interface PetFrame {
   crop: { x: number; y: number; width: number; height: number };
   // 画布在整屏渲染层窗口内的位置。
   canvas: { x: number; y: number };
+  overlayAnchors?: {
+    face: { left: number; right: number; y: number };
+    feet: { x: number; y: number };
+  };
+  caption?: { text: string; source?: string; sender?: string };
+  footStatus?: { text: string; tone: "idle" | "playing" | "working" | "waiting" };
   state: string;
   pointer: number[];
 }

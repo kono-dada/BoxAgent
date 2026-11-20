@@ -5,6 +5,7 @@ import json
 import logging
 import threading
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, TypedDict
 
@@ -29,7 +30,8 @@ class PreparedAvatar(TypedDict):
 
 class DesktopService:
     def __init__(self, *, backend: Backend, catalog: PetCatalog, data_dir: Path,
-                 log_dir: Path, soul_file: Path, directory: Path) -> None:
+                 log_dir: Path, soul_file: Path, directory: Path,
+                 foreground_game: Callable[[], dict[str, object]] = dict) -> None:
         self.backend = backend
         self.catalog = catalog
         self.data_dir = data_dir
@@ -38,6 +40,7 @@ class DesktopService:
         default_soul = Path(__file__).resolve().parents[3] / "assets/personas/default/SOUL.md"
         self.editable_soul = data_dir / "SOUL.md" if soul_file == default_soul else soul_file
         self.directory = directory
+        self.foreground_game = foreground_game
         self.scale = load_pet_scale(data_dir)
         self.servers: dict[str, AssetServer] = {}
         self.prepared: dict[str, Path] = {}
@@ -72,6 +75,8 @@ class DesktopService:
                 raise RuntimeError("桌面服务已关闭")
             if method == "desktop_snapshot":
                 return self.snapshot()
+            if method == "desktop_foreground_game":
+                return self.foreground_game()
             if method == "desktop_avatars":
                 paths = list(self.catalog.vrm_manifests())
                 if self.directory / "pet.json" not in paths:

@@ -16,14 +16,18 @@ function wakeReply(state, now = Date.now()) {
 }
 
 class WakeWord {
-  constructor({ onError, onWake }) {
-    Object.assign(this, { onError, onWake });
+  constructor({ onError, onWake, onDiagnostic = () => {}, spawnListener = spawn,
+    schedule = setTimeout, cancel = clearTimeout }) {
+    Object.assign(this, { onError, onWake, onDiagnostic, spawnListener, schedule, cancel });
     this.enabled = true;
+    this.failures = 0;
   }
   setEnabled(enabled) {
     this.enabled = enabled;
     if (!enabled) {
       this.stopListening();
+    } else {
+      this.sync(this.canListen);
     }
   }
   setName(name) {
@@ -35,10 +39,11 @@ class WakeWord {
   sync(canListen) {
     this.canListen = canListen;
     if (!canListen) this.stopListening();
-    if (!this.enabled || !canListen || !this.name || this.listener || this.replying) return;
+    if (!this.enabled || !canListen || !this.name || this.listener || this.replying || this.retry) return;
     const helper = path.join(path.dirname(process.execPath), "BoxAgentWakeListener");
-    const child = spawn(helper, [this.name], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = this.spawnListener(helper, [this.name], { stdio: ["ignore", "pipe", "pipe"] });
     this.listener = child;
+    child.on('spawn', () => this.onDiagnostic({ event: 'listener.started', pid: child.pid }));
     let detected = false;
     let diagnostic = "";
     child.stderr.setEncoding("utf8").on("data", (chunk) => {
@@ -47,18 +52,28 @@ class WakeWord {
     readline.createInterface({ input: child.stdout }).on("line", (line) => {
       if (line === "wake") detected = true;
     });
-    child.on("error", () => {});
-    child.on("close", () => {
+    child.on("error", error => { diagnostic = error.message; });
+    child.on("close", (code, signal) => {
       this.listener = undefined;
       if (child.killed) {
         this.sync(this.canListen);
         return;
       }
       if (!detected) {
-        this.setEnabled(false);
+        this.onDiagnostic({ event: 'listener.failed', code, signal, detail: diagnostic.trim() });
         this.onError(diagnostic.trim() || "无法启动本机语音唤醒，请检查麦克风和语音识别权限");
+        if (this.enabled && this.canListen) {
+          const delay = Math.min(30000, 2000 * 2 ** Math.min(this.failures++, 4));
+          this.retry = this.schedule(() => {
+            this.retry = undefined;
+            this.sync(this.canListen);
+          }, delay);
+          this.retry.unref?.();
+        }
         return;
       }
+      this.failures = 0;
+      this.onDiagnostic({ event: 'wake.detected' });
       if (!this.enabled || !this.canListen) return;
       this.replying = true;
       Promise.resolve().then(() => this.onWake()).catch((error) => {
@@ -70,6 +85,8 @@ class WakeWord {
     });
   }
   stopListening() {
+    this.cancel(this.retry);
+    this.retry = undefined;
     this.listener?.kill();
   }
 }

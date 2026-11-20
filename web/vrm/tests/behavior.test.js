@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import {PetBehavior} from '../behavior.js';
 const idleActions=Array.from({length:3},(_,i)=>({name:'idle-'+i,duration:3,weight:1}));
 const create=(settings={})=>new PetBehavior(()=>0.5,{idleActions,roles:{dragging:'drag',speaking:'talk'},settings});
+test('walking loops during idle, pauses idle selection and yields to interactions',()=>{
+ const b=create();b.walkMotion='PET_LOCOMOTION/PET_WALK_LEFT';
+ assert.deepEqual(b.motion(),{name:b.walkMotion,kind:'walk',loop:true});
+ const timer=b.idleTimer;b.step(0.08);assert.equal(b.idleTimer,timer);
+ b.startGesture('idle-1');assert.equal(b.motion().kind,'gesture');
+ b.interact({kind:'drag-start'});assert.equal(b.motion().kind,'drag');
+ b.interact({kind:'drag-end'});b.step(0.08);b.step(0.08);b.step(0.08);b.step(0.08);
+ b.present({state:'speaking'});assert.equal(b.motion().kind,'idle');
+ b.present({state:'idle'});b.walkMotion=null;assert.equal(b.motion().kind,'idle');
+});
 test('显式表演跨说话状态保留，结束恢复说话，拖动可中断',()=>{
  const b=create();
  b.gesture={name:'dance',start:b.time,duration:2,semantic:'dance'};

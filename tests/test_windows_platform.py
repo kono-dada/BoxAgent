@@ -1,6 +1,8 @@
 """Platform dispatch and HWND capture contracts without touching the desktop."""
 
 import asyncio
+import ctypes
+from ctypes import wintypes
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -36,7 +38,28 @@ def test_windows_capture_preserves_full_hwnd(tmp_path: Path) -> None:
 def test_native_capture_targets_window_only(tmp_path: Path) -> None:
     from boxagent.infrastructure.perception.windows import capture_window
 
-    with patch("PIL.ImageGrab.grab") as grab:
+    def rectangle(window_id: int, pointer: ctypes.c_void_p) -> int:
+        rect = ctypes.cast(pointer, ctypes.POINTER(wintypes.RECT)).contents
+        rect.left, rect.top, rect.right, rect.bottom = -1200, 50, -200, 750
+        return 1
+
+    native = Mock()
+    native.GetForegroundWindow.return_value = 123
+    native.GetWindowRect.side_effect = rectangle
+    native.SetThreadDpiAwarenessContext.return_value = 1
+    with patch("ctypes.WinDLL", return_value=native, create=True), patch("PIL.ImageGrab.grab") as grab:
         capture_window(123, tmp_path / "window.png")
-    grab.assert_called_once_with(window=123)
+    grab.assert_called_once_with(bbox=(-1200, 50, -200, 750), all_screens=True)
     grab.return_value.close.assert_called_once()
+    native.SetThreadDpiAwarenessContext.assert_called_with(1)
+
+
+def test_native_capture_rejects_switched_window(tmp_path: Path) -> None:
+    from boxagent.infrastructure.perception.windows import capture_window
+
+    native = Mock()
+    native.GetForegroundWindow.return_value = 456
+    with patch("ctypes.WinDLL", return_value=native, create=True), patch("PIL.ImageGrab.grab") as grab:
+        with pytest.raises(RuntimeError, match="前台窗口已切换"):
+            capture_window(123, tmp_path / "window.png")
+    grab.assert_not_called()

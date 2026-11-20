@@ -46,3 +46,11 @@ test('model crop resize replaces dimensions without affecting other windows', ()
   assert.deepEqual(geometry.getBounds(pet), { x: 100, y: 201, width: 130, height: 160 });
   assert.equal(geometry.getBounds(bubble).width, 440);
 });
+
+test('late geometry updates never call a destroyed native window', () => {
+  const geometry = new WindowGeometry();
+  const window = { isDestroyed: () => true, getBounds: () => assert.fail('Destroyed window read'),
+    setBounds: () => assert.fail('Destroyed window write') };
+  assert.doesNotThrow(() => geometry.setBounds(window, { x: 1, y: 2, width: 30, height: 40 }));
+  assert.doesNotThrow(() => geometry.setPosition(window, 1, 2));
+});

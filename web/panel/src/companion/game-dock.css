@@ -1,0 +1,61 @@
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+.game-dock {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  color: #f9ecfa;
+  user-select: none;
+}
+.game-dock button {
+  display: grid;
+  place-items: center;
+  color: inherit;
+  cursor: pointer;
+}
+.game-dock-avatar {
+  position: absolute;
+  right: -15px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid #d5afdd;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #35283f;
+  font: 600 17px -apple-system, sans-serif;
+}
+.game-dock-open .game-dock-avatar { right: 3px; }
+.game-dock-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.game-dock-controls {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #977da788;
+  border-radius: 14px;
+  background: #2b2333f5;
+}
+.game-dock-controls button {
+  width: 36px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.game-dock-controls button.active { background: #5b4568; }
+.game-dock-controls button:hover { background: #6b5178; }
+.game-dock-controls button:disabled { cursor: default; opacity: .65; }
+.game-dock-controls svg { width: 17px; height: 17px; }
+.game-dock-stop { color: #ffc1ce !important; }
