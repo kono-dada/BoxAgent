@@ -17,6 +17,7 @@ if [ -d "$panel_dir/src" ]; then
             for panel_source in \
                 "$panel_dir/index.html" \
                 "$panel_dir/companion.html" \
+                "$panel_dir/game-dock.html" \
                 "$panel_dir/pet.html" \
                 "$panel_dir/tasks.html" \
                 "$panel_dir/camera.html" \

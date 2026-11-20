@@ -1,0 +1,838 @@
+
+> boxagent-panel@0.1.2 test <repo>/web/panel
+> node --test tests/*.test.cjs
+
+TAP version 13
+# Subtest: camera assets cannot escape the bundle or expose arbitrary local files
+ok 1 - camera assets cannot escape the bundle or expose arbitrary local files
+  ---
+  duration_ms: 106.467458
+  type: 'test'
+  ...
+# Subtest: chat toggle starts once after renderer readiness; ordinary open and reload never auto-start
+ok 2 - chat toggle starts once after renderer readiness; ordinary open and reload never auto-start
+  ---
+  duration_ms: 2.392584
+  type: 'test'
+  ...
+# Subtest: switching off while permissions are pending cancels start and never starts audio
+ok 3 - switching off while permissions are pending cancels start and never starts audio
+  ---
+  duration_ms: 0.864958
+  type: 'test'
+  ...
+# Subtest: late audio connection after switch-off is stopped using its own token
+ok 4 - late audio connection after switch-off is stopped using its own token
+  ---
+  duration_ms: 0.504292
+  type: 'test'
+  ...
+# Subtest: error resets the switch and old renderer cannot start again after close
+ok 5 - error resets the switch and old renderer cannot start again after close
+  ---
+  duration_ms: 0.359917
+  type: 'test'
+  ...
+# Subtest: media permission is video-only and scoped to the explicitly enabled camera window
+ok 6 - media permission is video-only and scoped to the explicitly enabled camera window
+  ---
+  duration_ms: 0.4245
+  type: 'test'
+  ...
+# Subtest: IPC allows only bounded frames, rejects other windows; stop revokes the token
+ok 7 - IPC allows only bounded frames, rejects other windows; stop revokes the token
+  ---
+  duration_ms: 0.484208
+  type: 'test'
+  ...
+# Subtest: start returns the event revision without exposing the capture token to the renderer
+ok 8 - start returns the event revision without exposing the capture token to the renderer
+  ---
+  duration_ms: 0.348625
+  type: 'test'
+  ...
+# Subtest: compact window and pin control do not authorize camera or touch voice
+ok 9 - compact window and pin control do not authorize camera or touch voice
+  ---
+  duration_ms: 0.599167
+  type: 'test'
+  ...
+# Subtest: new notifications cannot reappend a stale committed assistant reply
+ok 10 - new notifications cannot reappend a stale committed assistant reply
+  ---
+  duration_ms: 0.703708
+  type: 'test'
+  ...
+# Subtest: uncommitted streaming reply remains visible and disappears after commit
+ok 11 - uncommitted streaming reply remains visible and disappears after commit
+  ---
+  duration_ms: 0.086458
+  type: 'test'
+  ...
+# Subtest: historical requests restore an expired reference without injecting current messages
+ok 12 - historical requests restore an expired reference without injecting current messages
+  ---
+  duration_ms: 1.456541
+  type: 'test'
+  ...
+# Subtest: missing historical entries stay explicit rather than treated as known zero cost
+ok 13 - missing historical entries stay explicit rather than treated as known zero cost
+  ---
+  duration_ms: 0.260667
+  type: 'test'
+  ...
+# Subtest: category differences reflect reference removal while keeping formal history
+ok 14 - category differences reflect reference removal while keeping formal history
+  ---
+  duration_ms: 0.09825
+  type: 'test'
+  ...
+# Subtest: desktop startup restores Engine state after the ready event was already emitted
+ok 15 - desktop startup restores Engine state after the ready event was already emitted
+  ---
+  duration_ms: 21.247208
+  type: 'test'
+  ...
+# Subtest: stationary pointer and audio levels do not repeatedly resend avatar state
+ok 16 - stationary pointer and audio levels do not repeatedly resend avatar state
+  ---
+  duration_ms: 6.505667
+  type: 'test'
+  ...
+# Subtest: idle and farewell close the chat bubble while preserving a background task
+ok 17 - idle and farewell close the chat bubble while preserving a background task
+  ---
+  duration_ms: 5.87375
+  type: 'test'
+  ...
+# Subtest: slow Engine startup does not fail avatar startup or open a diagnostic chat
+ok 18 - slow Engine startup does not fail avatar startup or open a diagnostic chat
+  ---
+  duration_ms: 7.869
+  type: 'test'
+  ...
+# Subtest: idle walking waits for animation and stays inside changing screen limits
+ok 19 - idle walking waits for animation and stays inside changing screen limits
+  ---
+  duration_ms: 20.952666
+  type: 'test'
+  ...
+# Subtest: walking pauses for conversation, speech, dragging, music, task panels and avatar replacement
+ok 20 - walking pauses for conversation, speech, dragging, music, task panels and avatar replacement
+  ---
+  duration_ms: 6.594458
+  type: 'test'
+  ...
+# Subtest: walking on a display with negative coordinates keeps the scene aligned and stops on resize
+ok 21 - walking on a display with negative coordinates keeps the scene aligned and stops on resize
+  ---
+  duration_ms: 6.388708
+  type: 'test'
+  ...
+# Subtest: select secondary moves companion, chat, task panels and notifications together
+ok 22 - select secondary moves companion, chat, task panels and notifications together
+  ---
+  duration_ms: 46.478417
+  type: 'test'
+  ...
+# Subtest: macOS fullscreen stage tracks the avatar after moving to another display
+ok 23 - macOS fullscreen stage tracks the avatar after moving to another display
+  ---
+  duration_ms: 50.141
+  type: 'test'
+  ...
+# Subtest: split dragging is independent and constrained to the assigned screen
+ok 24 - split dragging is independent and constrained to the assigned screen
+  ---
+  duration_ms: 4.445542
+  type: 'test'
+  ...
+# Subtest: unplug falls back to primary; reconnect restores target and updates menus
+ok 25 - unplug falls back to primary; reconnect restores target and updates menus
+  ---
+  duration_ms: 2.686458
+  type: 'test'
+  ...
+# Subtest: menu controls start an explicit companion session and wake stays opt-in
+ok 26 - menu controls start an explicit companion session and wake stays opt-in
+  ---
+  duration_ms: 3.146209
+  type: 'test'
+  ...
+# Subtest: portrait rotation, negative coordinates and scale changes preserve full viewport
+ok 27 - portrait rotation, negative coordinates and scale changes preserve full viewport
+  ---
+  duration_ms: 5.670209
+  type: 'test'
+  ...
+# Subtest: display preference survives startup and avatar replacement
+ok 28 - display preference survives startup and avatar replacement
+  ---
+  duration_ms: 12.3035
+  type: 'test'
+  ...
+# Subtest: selection saves the display name and startup upgrades a valid legacy preference
+ok 29 - selection saves the display name and startup upgrades a valid legacy preference
+  ---
+  duration_ms: 5.82375
+  type: 'test'
+  ...
+# Subtest: startup restores the named secondary when its ID changed
+ok 30 - startup restores the named secondary when its ID changed
+  ---
+  duration_ms: 6.438375
+  type: 'test'
+  ...
+# Subtest: hotplug restores the named display after renumbering, including a pending avatar
+ok 31 - hotplug restores the named display after renumbering, including a pending avatar
+  ---
+  duration_ms: 3.582917
+  type: 'test'
+  ...
+# Subtest: a reused display ID cannot override the saved name; ambiguous or missing names fall back
+ok 32 - a reused display ID cannot override the saved name; ambiguous or missing names fall back
+  ---
+  duration_ms: 0.110083
+  type: 'test'
+  ...
+# Subtest: topology changes during avatar loading also move pending renderer
+ok 33 - topology changes during avatar loading also move pending renderer
+  ---
+  duration_ms: 11.103667
+  type: 'test'
+  ...
+# Subtest: primary reassignment keeps chat and companion on the selected physical display
+ok 34 - primary reassignment keeps chat and companion on the selected physical display
+  ---
+  duration_ms: 3.28425
+  type: 'test'
+  ...
+# Subtest: invalid choices are rejected; returning to together restores legacy linked drag
+ok 35 - invalid choices are rejected; returning to together restores legacy linked drag
+  ---
+  duration_ms: 2.272667
+  type: 'test'
+  ...
+# Subtest: corrupt or null saved preferences safely keep existing same-screen behavior
+ok 36 - corrupt or null saved preferences safely keep existing same-screen behavior
+  ---
+  duration_ms: 8.187209
+  type: 'test'
+  ...
+# Subtest: shutdown removes display listeners
+ok 37 - shutdown removes display listeners
+  ---
+  duration_ms: 3.763083
+  type: 'test'
+  ...
+# Subtest: placement uses logical work area, not Retina pixels; chat fits the selected work area
+ok 38 - placement uses logical work area, not Retina pixels; chat fits the selected work area
+  ---
+  duration_ms: 0.118125
+  type: 'test'
+  ...
+# Subtest: measured portrait pet uses visible bounds, not transparent canvas, at maximum scale
+ok 39 - measured portrait pet uses visible bounds, not transparent canvas, at maximum scale
+  ---
+  duration_ms: 8.34025
+  type: 'test'
+  ...
+# Subtest: first measured bounds calibrate saved maximum scale; all later animation reports leave the frame fixed
+ok 40 - first measured bounds calibrate saved maximum scale; all later animation reports leave the frame fixed
+  ---
+  duration_ms: 6.359375
+  type: 'test'
+  ...
+# Subtest: split scaling and repeated screen changes retain the original crop without rounding drift
+ok 41 - split scaling and repeated screen changes retain the original crop without rounding drift
+  ---
+  duration_ms: 51.927209
+  type: 'test'
+  ...
+# Subtest: split resize and drag share geometry tracking for avatar, chat and task windows
+ok 42 - split resize and drag share geometry tracking for avatar, chat and task windows
+  ---
+  duration_ms: 17.608542
+  type: 'test'
+  ...
+# Subtest: full-display render windows always pass through clicks; unmeasured hit windows do too
+ok 43 - full-display render windows always pass through clicks; unmeasured hit windows do too
+  ---
+  duration_ms: 5.219042
+  type: 'test'
+  ...
+# Subtest: only the explicit hardware profile enables a stage on the assigned secondary
+ok 44 - only the explicit hardware profile enables a stage on the assigned secondary
+  ---
+  duration_ms: 7.981666
+  type: 'test'
+  ...
+# Subtest: a pinned desktop pet stays transparent and moves with the 360-point chat
+ok 45 - a pinned desktop pet stays transparent and moves with the 360-point chat
+  ---
+  duration_ms: 3.400125
+  type: 'test'
+  ...
+# Subtest: hardware chat uses half a landscape display, and closing restores the stage area
+ok 46 - hardware chat uses half a landscape display, and closing restores the stage area
+  ---
+  duration_ms: 3.398166
+  type: 'test'
+  ...
+# Subtest: renderer failure and late shutdown callbacks cannot position destroyed avatar windows
+ok 47 - renderer failure and late shutdown callbacks cannot position destroyed avatar windows
+  ---
+  duration_ms: 8.033166
+  type: 'test'
+  ...
+# Subtest: chat and task display never cover the companion after growth, scaling or dragging
+ok 48 - chat and task display never cover the companion after growth, scaling or dragging
+  ---
+  duration_ms: 8.913667
+  type: 'test'
+  ...
+# Subtest: avatar actions and music survive camera state updates while the avatar is on secondary
+ok 49 - avatar actions and music survive camera state updates while the avatar is on secondary
+  ---
+  duration_ms: 2.571959
+  type: 'test'
+  ...
+# Subtest: visible scaling preserves the feet and horizontal center when there is room
+ok 50 - visible scaling preserves the feet and horizontal center when there is room
+  ---
+  duration_ms: 0.165958
+  type: 'test'
+  ...
+# Subtest: restart and avatar replacement preserve the visible anchor of an enlarged pet
+ok 51 - restart and avatar replacement preserve the visible anchor of an enlarged pet
+  ---
+  duration_ms: 11.254417
+  type: 'test'
+  ...
+# Subtest: App Server plugin runtime and Computer Use are automatically found without a Codex.app
+ok 52 - App Server plugin runtime and Computer Use are automatically found without a Codex.app
+  ---
+  duration_ms: 67.366
+  type: 'test'
+  ...
+# Subtest: a CLI alone is insufficient: the executable code mode host is also required
+ok 53 - a CLI alone is insufficient: the executable code mode host is also required
+  ---
+  duration_ms: 11.580209
+  type: 'test'
+  ...
+# Subtest: explicitly selected valid tools take precedence over automatic discovery
+ok 54 - explicitly selected valid tools take precedence over automatic discovery
+  ---
+  duration_ms: 7.409
+  type: 'test'
+  ...
+# Subtest: Windows client reads endpoint and sends token before requests
+ok 55 - Windows client reads endpoint and sends token before requests
+  ---
+  duration_ms: 66.916
+  type: 'test'
+  ...
+# Subtest: Windows client reports an unavailable endpoint and can retry
+ok 56 - Windows client reports an unavailable endpoint and can retry
+  ---
+  duration_ms: 0.492583
+  type: 'test'
+  ...
+# Subtest: ready event and split response are not confused with request result
+ok 57 - ready event and split response are not confused with request result
+  ---
+  duration_ms: 5.1555
+  type: 'test'
+  ...
+# Subtest: requests wait through startup and are sent once after a delayed connection
+ok 58 - requests wait through startup and are sent once after a delayed connection
+  ---
+  duration_ms: 2.179042
+  type: 'test'
+  ...
+# Subtest: unavailable connection times out and shutdown cancels waiting requests
+ok 59 - unavailable connection times out and shutdown cancels waiting requests
+  ---
+  duration_ms: 32.102666
+  type: 'test'
+  ...
+# Subtest: an operation already sent is rejected on disconnect rather than replayed
+ok 60 - an operation already sent is rejected on disconnect rather than replayed
+  ---
+  duration_ms: 1.982292
+  type: 'test'
+  ...
+# Subtest: voice startup waits beyond normal RPC timeout and preserves provider errors
+ok 61 - voice startup waits beyond normal RPC timeout and preserves provider errors
+  ---
+  duration_ms: 101.849625
+  type: 'test'
+  ...
+# Subtest: source permission refresh records real state without requesting any authorization
+ok 62 - source permission refresh records real state without requesting any authorization
+  ---
+  duration_ms: 1.427875
+  type: 'test'
+  ...
+# Subtest: closing a local review never starts onboarding or requests permissions
+ok 63 - closing a local review never starts onboarding or requests permissions
+  ---
+  duration_ms: 0.608209
+  type: 'test'
+  ...
+# Subtest: explicit selection requests only that permission and returns to system settings
+ok 64 - explicit selection requests only that permission and returns to system settings
+  ---
+  duration_ms: 0.128167
+  type: 'test'
+  ...
+# Subtest: repeated open requests share one dialog while it is visible
+ok 65 - repeated open requests share one dialog while it is visible
+  ---
+  duration_ms: 4.911166
+  type: 'test'
+  ...
+# Subtest: all four grants are required for a complete permission report
+ok 66 - all four grants are required for a complete permission report
+  ---
+  duration_ms: 0.4735
+  type: 'test'
+  ...
+# Subtest: memory source accepts only bounded local PNG data and valid timestamps
+ok 67 - memory source accepts only bounded local PNG data and valid timestamps
+  ---
+  duration_ms: 73.70675
+  type: 'test'
+  ...
+# Subtest: deleting an episode removes all IDs acknowledged by the engine
+ok 68 - deleting an episode removes all IDs acknowledged by the engine
+  ---
+  duration_ms: 19.76975
+  type: 'test'
+  ...
+# Subtest: music changes are delivered once, failures clear dance, closed polls are ignored
+ok 69 - music changes are delivered once, failures clear dance, closed polls are ignored
+  ---
+  duration_ms: 2.153208
+  type: 'test'
+  ...
+# Subtest: polls never overlap or notify after shutdown
+ok 70 - polls never overlap or notify after shutdown
+  ---
+  duration_ms: 0.253834
+  type: 'test'
+  ...
+# Subtest: tampered package resource fails before any installer starts
+ok 71 - tampered package resource fails before any installer starts
+  ---
+  duration_ms: 32.142041
+  type: 'test'
+  ...
+# Subtest: manifest traversal and model file damage are rejected
+ok 72 - manifest traversal and model file damage are rejected
+  ---
+  duration_ms: 15.243958
+  type: 'test'
+  ...
+# Subtest: failed dependency installation revokes success without deleting product data
+ok 73 - failed dependency installation revokes success without deleting product data
+  ---
+  duration_ms: 10.6395
+  type: 'test'
+  ...
+# Subtest: healthy existing component environments are reused without installation
+ok 74 - healthy existing component environments are reused without installation
+  ---
+  duration_ms: 8.522334
+  type: 'test'
+  ...
+# Subtest: moving the app rebuilds only offline environments and reuses verified models
+ok 75 - moving the app rebuilds only offline environments and reuses verified models
+  ---
+  duration_ms: 30.769791
+  type: 'test'
+  ...
+# Subtest: a runtime linked to an old app is rejected even while the old location still works
+ok 76 - a runtime linked to an old app is rejected even while the old location still works
+  ---
+  duration_ms: 3.932208
+  type: 'test'
+  ...
+# (node:96217) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: snapshot never requests permission and screen click requests from the app before settings
+ok 77 - snapshot never requests permission and screen click requests from the app before settings
+  ---
+  duration_ms: 1.535709
+  type: 'test'
+  ...
+# Subtest: already granted screen permission does not capture or open settings
+ok 78 - already granted screen permission does not capture or open settings
+  ---
+  duration_ms: 0.235416
+  type: 'test'
+  ...
+# Subtest: granting during request returns the new status without opening settings
+ok 79 - granting during request returns the new status without opening settings
+  ---
+  duration_ms: 0.286292
+  type: 'test'
+  ...
+# Subtest: denied or failed requests keep a settings route and can be retried
+ok 80 - denied or failed requests keep a settings route and can be retried
+  ---
+  duration_ms: 1.046792
+  type: 'test'
+  ...
+# Subtest: a stalled native screen picker does not block onboarding or spawn duplicate captures
+ok 81 - a stalled native screen picker does not block onboarding or spawn duplicate captures
+  ---
+  duration_ms: 1.273708
+  type: 'test'
+  ...
+# Subtest: accessibility and microphone requests only happen on their explicit actions
+ok 82 - accessibility and microphone requests only happen on their explicit actions
+  ---
+  duration_ms: 0.316625
+  type: 'test'
+  ...
+# Subtest: unified final messages retain their readable role and content
+ok 83 - unified final messages retain their readable role and content
+  ---
+  duration_ms: 229.296125
+  type: 'test'
+  ...
+# Subtest: legacy product messages keep top-level content even with nested metadata
+ok 84 - legacy product messages keep top-level content even with nested metadata
+  ---
+  duration_ms: 9.44875
+  type: 'test'
+  ...
+# Subtest: model-visible messages remain context items rather than duplicate formal replies
+ok 85 - model-visible messages remain context items rather than duplicate formal replies
+  ---
+  duration_ms: 8.490333
+  type: 'test'
+  ...
+# Subtest: query-scoped reference and task records retain association and summary
+ok 86 - query-scoped reference and task records retain association and summary
+  ---
+  duration_ms: 5.436458
+  type: 'test'
+  ...
+# Subtest: speech refresh is read-only and never starts audio or authorization
+ok 87 - speech refresh is read-only and never starts audio or authorization
+  ---
+  duration_ms: 24.557458
+  type: 'test'
+  ...
+# Subtest: concurrent speech actions share one system request
+ok 88 - concurrent speech actions share one system request
+  ---
+  duration_ms: 0.566292
+  type: 'test'
+  ...
+# Subtest: existing grant or denial is not requested again
+ok 89 - existing grant or denial is not requested again
+  ---
+  duration_ms: 1.044167
+  type: 'test'
+  ...
+# Subtest: missing helper does not break setup or attempt permission requests
+ok 90 - missing helper does not break setup or attempt permission requests
+  ---
+  duration_ms: 1.663791
+  type: 'test'
+  ...
+# Subtest: speech is included in snapshots and explicit grant enables wake without requesting the microphone
+ok 91 - speech is included in snapshots and explicit grant enables wake without requesting the microphone
+  ---
+  duration_ms: 2.593375
+  type: 'test'
+  ...
+# Subtest: denied speech opens the right settings pane without another system request
+ok 92 - denied speech opens the right settings pane without another system request
+  ---
+  duration_ms: 0.564958
+  type: 'test'
+  ...
+# Subtest: declining the native prompt is respected without opening settings immediately
+ok 93 - declining the native prompt is respected without opening settings immediately
+  ---
+  duration_ms: 0.597542
+  type: 'test'
+  ...
+# Subtest: refresh after system settings can resume wake without another authorization prompt
+ok 94 - refresh after system settings can resume wake without another authorization prompt
+  ---
+  duration_ms: 0.299417
+  type: 'test'
+  ...
+# Subtest: closing setup cancels a pending native permission helper
+ok 95 - closing setup cancels a pending native permission helper
+  ---
+  duration_ms: 0.65425
+  type: 'test'
+  ...
+# Subtest: permission review identity follows the designated code requirement, not the display name
+ok 96 - permission review identity follows the designated code requirement, not the display name
+  ---
+  duration_ms: 0.915334
+  type: 'test'
+  ...
+# Subtest: upgraded completed users review missing permissions without repeating keys, models or WeChat setup
+ok 97 - upgraded completed users review missing permissions without repeating keys, models or WeChat setup
+  ---
+  duration_ms: 54.25425
+  type: 'test'
+  ...
+# Subtest: a completed app with effective permissions resumes directly and a fresh install cannot bypass setup
+ok 98 - a completed app with effective permissions resumes directly and a fresh install cannot bypass setup
+  ---
+  duration_ms: 17.06975
+  type: 'test'
+  ...
+# Subtest: published paths do not depend on source or inherit .runtime user storage
+ok 99 - published paths do not depend on source or inherit .runtime user storage
+  ---
+  duration_ms: 0.196833
+  type: 'test'
+  ...
+# Subtest: permission refresh does not unlock credentials or initialize model runtimes
+ok 100 - permission refresh does not unlock credentials or initialize model runtimes
+  ---
+  duration_ms: 1.301667
+  type: 'test'
+  ...
+# Subtest: keys are encrypted, never exposed by summary, replaceable and deletable
+ok 101 - keys are encrypted, never exposed by summary, replaceable and deletable
+  ---
+  duration_ms: 21.123375
+  type: 'test'
+  ...
+# Subtest: repeated startup reads reuse unlocked credentials, while file changes invalidate the cache
+ok 102 - repeated startup reads reuse unlocked credentials, while file changes invalidate the cache
+  ---
+  duration_ms: 14.417458
+  type: 'test'
+  ...
+# Subtest: locked storage and corrupt state preserve existing files
+ok 103 - locked storage and corrupt state preserve existing files
+  ---
+  duration_ms: 6.914417
+  type: 'test'
+  ...
+# Subtest: WeChat notify-all preference persists and rejects invalid values
+ok 104 - WeChat notify-all preference persists and rejects invalid values
+  ---
+  duration_ms: 6.244042
+  type: 'test'
+  ...
+# Subtest: concurrent key updates are serialized and invalid workspace is rejected
+ok 105 - concurrent key updates are serialized and invalid workspace is rejected
+  ---
+  duration_ms: 11.251208
+  type: 'test'
+  ...
+# Subtest: real provider response structure is required; errors never leak keys or body
+ok 106 - real provider response structure is required; errors never leak keys or body
+  ---
+  duration_ms: 0.592167
+  type: 'test'
+  ...
+# Subtest: Engine failure leaves configuration operations available and blocks completion
+ok 107 - Engine failure leaves configuration operations available and blocks completion
+  ---
+  duration_ms: 20.255459
+  type: 'test'
+  ...
+# Subtest: completion rechecks readiness and returning-user repair preserves completed
+ok 108 - completion rechecks readiness and returning-user repair preserves completed
+  ---
+  duration_ms: 15.146375
+  type: 'test'
+  ...
+# Subtest: flow state is validated and persisted without capabilities or credentials
+ok 109 - flow state is validated and persisted without capabilities or credentials
+  ---
+  duration_ms: 4.925208
+  type: 'test'
+  ...
+# Subtest: cancelled subprocess is reaped even when it handles termination with a zero exit
+ok 110 - cancelled subprocess is reaped even when it handles termination with a zero exit
+  ---
+  duration_ms: 23.886042
+  type: 'test'
+  ...
+# Subtest: returning users start after core/Engine checks without reloading large models
+ok 111 - returning users start after core/Engine checks without reloading large models
+  ---
+  duration_ms: 9.811125
+  type: 'test'
+  ...
+# Subtest: missing or invalid DeepSeek credentials block completion even when Qwen and local components are ready
+ok 112 - missing or invalid DeepSeek credentials block completion even when Qwen and local components are ready
+  ---
+  duration_ms: 18.041875
+  type: 'test'
+  ...
+# Subtest: previously completed users without DeepSeek return to key setup and keep their saved state
+ok 113 - previously completed users without DeepSeek return to key setup and keep their saved state
+  ---
+  duration_ms: 9.950542
+  type: 'test'
+  ...
+# Subtest: subprocess output limit waits for forced termination before rejecting
+ok 114 - subprocess output limit waits for forced termination before rejecting
+  ---
+  duration_ms: 2024.850709
+  type: 'test'
+  ...
+# Subtest: auto-detected tools are passed into the Engine, with no tool paths or keys in UI snapshots
+ok 115 - auto-detected tools are passed into the Engine, with no tool paths or keys in UI snapshots
+  ---
+  duration_ms: 1.935083
+  type: 'test'
+  ...
+# Subtest: unfinished onboarding resumes its saved step and verifies saved keys only on completion
+ok 116 - unfinished onboarding resumes its saved step and verifies saved keys only on completion
+  ---
+  duration_ms: 23.414292
+  type: 'test'
+  ...
+# Subtest: a wake helper failure retries once without permanently disabling wake
+ok 117 - a wake helper failure retries once without permanently disabling wake
+  ---
+  duration_ms: 0.817583
+  type: 'test'
+  ...
+# Subtest: starting a voice session cancels a queued wake restart
+ok 118 - starting a voice session cancels a queued wake restart
+  ---
+  duration_ms: 0.284209
+  type: 'test'
+  ...
+# Subtest: source links reject executable, local, credential and malformed targets in both renderer and main
+ok 119 - source links reject executable, local, credential and malformed targets in both renderer and main
+  ---
+  duration_ms: 36.846333
+  type: 'test'
+  ...
+# Subtest: reference data stays with its interaction and rejects mismatched records and stale live sessions
+ok 120 - reference data stays with its interaction and rejects mismatched records and stale live sessions
+  ---
+  duration_ms: 8.202708
+  type: 'test'
+  ...
+# Subtest: explicit rereading preserves article dates and source URL provenance without treating it as a spoken message
+ok 121 - explicit rereading preserves article dates and source URL provenance without treating it as a spoken message
+  ---
+  duration_ms: 7.816208
+  type: 'test'
+  ...
+# Subtest: captured keys travel only over stdin/stdout and encrypted storage, never the UI summary
+ok 122 - captured keys travel only over stdin/stdout and encrypted storage, never the UI summary
+  ---
+  duration_ms: 18.216708
+  type: 'test'
+  ...
+# Subtest: cancelled capture preserves previous account and credentials
+ok 123 - cancelled capture preserves previous account and credentials
+  ---
+  duration_ms: 9.387542
+  type: 'test'
+  ...
+# Subtest: untrusted subprocess error text is never exposed to renderer
+ok 124 - untrusted subprocess error text is never exposed to renderer
+  ---
+  duration_ms: 4.859833
+  type: 'test'
+  ...
+# Subtest: unpublished, mutable, and wrong-build archives cannot bypass the download gate
+ok 125 - unpublished, mutable, and wrong-build archives cannot bypass the download gate
+  ---
+  duration_ms: 0.361541
+  type: 'test'
+  ...
+# Subtest: an enabled connector blocks completion until real read and listen checks pass
+ok 126 - an enabled connector blocks completion until real read and listen checks pass
+  ---
+  duration_ms: 0.167875
+  type: 'test'
+  ...
+# Subtest: renderer cannot write WeChat credential fields through general provider settings
+ok 127 - renderer cannot write WeChat credential fields through general provider settings
+  ---
+  duration_ms: 2.982875
+  type: 'test'
+  ...
+# Subtest: packaged environment does not inherit developer WeChat keys or auto-enable it
+ok 128 - packaged environment does not inherit developer WeChat keys or auto-enable it
+  ---
+  duration_ms: 1.835583
+  type: 'test'
+  ...
+# Subtest: missing archive is explicit and never starts a download
+ok 129 - missing archive is explicit and never starts a download
+  ---
+  duration_ms: 7.075333
+  type: 'test'
+  ...
+# Subtest: a failed or cancelled optional WeChat setup restores the core service without enabling the connector
+ok 130 - a failed or cancelled optional WeChat setup restores the core service without enabling the connector
+  ---
+  duration_ms: 5.280042
+  type: 'test'
+  ...
+# Subtest: verification failure does not enable message processing
+ok 131 - verification failure does not enable message processing
+  ---
+  duration_ms: 1.991834
+  type: 'test'
+  ...
+# Subtest: tampered bundled client is rejected before mounting or running any program
+ok 132 - tampered bundled client is rejected before mounting or running any program
+  ---
+  duration_ms: 13.134
+  type: 'test'
+  ...
+# Subtest: WeChat setup rechecks the runtime and reports repair before any client operation
+ok 133 - WeChat setup rechecks the runtime and reports repair before any client operation
+  ---
+  duration_ms: 1.70175
+  type: 'test'
+  ...
+# Subtest: repeated drag gestures preserve intended size despite native DPI rounding
+ok 134 - repeated drag gestures preserve intended size despite native DPI rounding
+  ---
+  duration_ms: 2.247459
+  type: 'test'
+  ...
+# Subtest: content height changes update height while moves preserve width
+ok 135 - content height changes update height while moves preserve width
+  ---
+  duration_ms: 0.899708
+  type: 'test'
+  ...
+# Subtest: model crop resize replaces dimensions without affecting other windows
+ok 136 - model crop resize replaces dimensions without affecting other windows
+  ---
+  duration_ms: 0.159667
+  type: 'test'
+  ...
+# Subtest: late geometry updates never call a destroyed native window
+ok 137 - late geometry updates never call a destroyed native window
+  ---
+  duration_ms: 0.213583
+  type: 'test'
+  ...
+1..137
+# tests 137
+# suites 0
+# pass 137
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2622.593875

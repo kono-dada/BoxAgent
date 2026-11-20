@@ -5,8 +5,13 @@ const path = require('node:path');
 const { screen } = require('electron');
 
 exports.run = async ({ pet, stage, bubble, js, wait }) => {
+  const primary = screen.getPrimaryDisplay();
+  const secondary = screen.getAllDisplays().find(display => display.id !== primary.id);
+  assert(secondary, 'Connect an extended display to test native hardware-mode walking');
   const output = process.env.BOXAGENT_WALK_ARTIFACTS;
   if (output) fs.mkdirSync(output, { recursive: true });
+  await js(bubble, "boxagent.request('desktop_set_display_profile', {profile:'hardware'})");
+  await js(bubble, `boxagent.request('desktop_set_pet_display', {id:${JSON.stringify(String(secondary.id))}})`);
   if (bubble.isVisible()) await js(bubble, "boxagent.request('desktop_toggle_bubble')");
   const animation = stage.webContents.mainFrame.frames[0];
   await wait(() => animation.executeJavaScript('Boolean(pet.debug().ready)'), 'VRM loaded');

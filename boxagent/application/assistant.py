@@ -186,7 +186,7 @@ class BoxAgentApplication:
         return {"enabled": self.lol_companion.enabled}
 
     async def set_companion_session(self, game: Literal["lol", "wuwa"], enabled: bool) -> dict[str, object]:
-        """Apply a chat-window companion action, including a user-requested mic start."""
+        """Apply a user-requested companion mode and ensure voice is ready when enabling it."""
         async with self._companion_session_lock:
             lol = self.lol_companion
             if game == "lol" and lol is None:
@@ -209,7 +209,23 @@ class BoxAgentApplication:
                     await lol.set_enabled(False)
                     self.events.emit("context.scope_changed", context_text="", context_at=0,
                                      context_app="", context_window_id=0)
+            if not self.state.lol_companion_enabled and not self.state.game_companion_enabled:
+                await self.interaction_service.set_companion_speech_muted(False)
+                if not self.interaction_service.connection_microphone:
+                    await self.interaction_service.release_companion_microphone(keep_playback=False)
             return {"status": "succeeded", "game": game, "enabled": enabled}
+
+    async def set_companion_audio(self, control: Literal["microphone", "speech"], enabled: bool) -> None:
+        async with self._companion_session_lock:
+            if not (self.state.lol_companion_enabled or self.state.game_companion_enabled):
+                raise ValueError("请先开启陪玩")
+            interaction = self.interaction_service
+            if control == "speech":
+                await interaction.set_companion_speech_muted(not enabled)
+            elif enabled:
+                await interaction.ensure_microphone()
+            else:
+                await interaction.release_companion_microphone(keep_playback=True)
 
     async def toggle_voice(self):
         await self.interaction_service.toggle()
@@ -286,8 +302,13 @@ class BoxAgentApplication:
             source_event_ids=decision.source_event_ids, source_refs=refs)
         if item.status in {"delivered", "delivering"}:
             return
+        wechat = [event for event in batch.events if event.source == "wechat" and event.event_id in selected]
+        single = wechat[0] if len(wechat) == 1 else None
         self.events.emit("notification.pending", notification_id=item.notification_id,
-                         notification_text=item.summary, notification_unread=True)
+                         notification_text=item.summary, notification_unread=True,
+                         notification_source="wechat" if wechat else "",
+                         notification_sender=single.sender_name if single else "",
+                         notification_body=single.content if single else "")
         if not await self._deliver_voice_notification(item):
             self._publish_system_notification(item)
 
@@ -717,6 +738,13 @@ class BoxAgentApplication:
                 enabled = data.get("enabled") if isinstance(data, dict) else None
                 if type(enabled) is not bool:
                     return {"status": "failed", "message": "请明确开启或关闭陪玩模式"}
+                game = data.get("game")
+                if game == "lol" or (game is None and self.state.lol_companion_enabled):
+                    return await self.set_companion_session("lol", enabled)
+                if game == "wuwa":
+                    return await self.set_companion_session("wuwa", enabled)
+                if game is not None:
+                    return {"status": "failed", "message": "可选择 LoL 或《鸣潮》陪玩"}
                 return self.set_game_companion_mode(enabled)
             if name == "run_task":
                 capability = data.get("capability", self.execution_service.clarification_capability(interaction) or "desktop")
@@ -803,7 +831,8 @@ class BoxAgentApplication:
             return
         self.events.emit(
             "notification.pending", notification_id=item.notification_id,
-            notification_text=item.summary, notification_unread=True)
+            notification_text=item.summary, notification_unread=True,
+            notification_source="", notification_sender="", notification_body="")
         if not await self._deliver_voice_notification(item):
             self._publish_system_notification(item)
 
@@ -818,7 +847,8 @@ class BoxAgentApplication:
             return
         self.events.emit(
             "notification.pending", notification_id=item.notification_id,
-            notification_text=item.summary, notification_unread=True)
+            notification_text=item.summary, notification_unread=True,
+            notification_source="", notification_sender="", notification_body="")
         if not await self._deliver_voice_notification(item):
             self._publish_system_notification(item)
 

@@ -37,6 +37,7 @@ const methods = new Set([
   "set_game_companion_mode",
   "toggle_lol_companion",
   "set_companion_session",
+  "set_companion_audio",
   "submit_text",
   "cancel_task",
   "cancel_all_tasks",
@@ -51,6 +52,8 @@ const desktopMethods = new Set([
   "desktop_snapshot",
   "desktop_set_pet_scale",
   "desktop_set_pet_display",
+  "desktop_set_display_profile",
+  "desktop_set_stage_background",
   "desktop_toggle_bubble",
   "desktop_avatars",
   "desktop_preview_avatar",
@@ -92,6 +95,7 @@ function showPanel() {
   panel = new BrowserWindow({
     width: 1200,
     height: 820,
+    show: false,
     minWidth: 740,
     minHeight: 560,
     title: "BoxAgent · 伙伴控制台",
@@ -108,10 +112,17 @@ function showPanel() {
     },
   });
   registerWindow(panel);
+  // A foreground console must sit above both the pet renderer and its mouse window.
+  if (process.platform === 'darwin') {
+    const consoleWindow = panel;
+    consoleWindow.on('focus', () => consoleWindow.setAlwaysOnTop(true, 'floating', 3));
+    consoleWindow.on('blur', () => consoleWindow.setAlwaysOnTop(false));
+  }
   panel.on("closed", () => {
     panel = null;
   });
   panel.loadFile(path.join(__dirname, "dist/index.html"));
+  panel.show();
   return panel;
 }
 let startingDesktop;
@@ -361,10 +372,13 @@ app.whenReady().then(async () => {
     else if (action === "collapse-tasks") host.collapseTasks();
     else if (action === "pin-tasks") host.pinTasks();
     else if (action === "hide-bubble") host.hideBubble();
+    else if (action === "chat-hold") host.holdChat(event.sender, params);
+    else if (action === "game-dock-toggle") host.toggleGameDock(event.sender);
     else if (action === "dismiss-feedback") host.dismissFeedback();
     else if (action === "resize-bubble")
       host.resizeBubble(event.sender, params);
     else if (action === "drag") host.dragWindow(event.sender, params);
+    else if (action === "pet-pointer") host.petPointer(event.sender);
     else if (action === "pet-perform")
       host.performPet(event.sender, params?.name ?? params);
     else if (action === "pet-ready") {

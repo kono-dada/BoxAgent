@@ -147,6 +147,7 @@ export interface RuntimeState {
   game_news_url?: string;
   game_companion_available?: boolean;
   game_companion_enabled?: boolean;
+  companion_speech_muted?: boolean;
   notification_id?: string;
   notification_text?: string;
   notification_unread?: boolean;
@@ -175,12 +176,23 @@ export interface CameraSnapshot {
   status: 'off' | 'starting' | 'on';
   error: string;
 }
+export type StageBackground = 'purple' | 'pink';
+
 export interface AvatarSnapshot {
   displays?: { id: string; label: string; primary: boolean }[];
   pet_display_id?: string;
+  selected_display_id?: string | null;
+  display_profile?: 'desktop' | 'hardware';
+  active_display_profile?: 'desktop' | 'hardware';
+  stage_background?: StageBackground;
+  chat_dock_edge?: 'left' | 'right';
   separate_windows?: boolean;
   tasks_expanded?: boolean;
   tasks_pinned?: boolean;
+  chat_pinned?: boolean;
+  game_dock_open?: boolean;
+  game_dock_game?: "lol" | "wuwa";
+  avatar_portrait?: string;
   appearance?: string;
   appearance_ready?: boolean;
   appearance_error?: string;
@@ -246,7 +258,8 @@ declare global {
 
 export interface PetFrame {
   walkDirection?: -1 | 0 | 1;
-  scene?: boolean;
+  scene?: StageBackground;
+  gameOverlay?: boolean;
   music?: boolean;
   action?: string;
   actionId?: string;
@@ -255,6 +268,12 @@ export interface PetFrame {
   crop: { x: number; y: number; width: number; height: number };
   // 画布在整屏渲染层窗口内的位置。
   canvas: { x: number; y: number };
+  overlayAnchors?: {
+    face: { left: number; right: number; y: number };
+    feet: { x: number; y: number };
+  };
+  caption?: { text: string; source?: string; sender?: string };
+  footStatus?: { text: string; tone: "idle" | "playing" | "working" | "waiting" };
   state: string;
   pointer: number[];
 }

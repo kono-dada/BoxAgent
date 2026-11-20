@@ -7,26 +7,57 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
   const { data, runtime, busy, act } = props;
   const [desktop, setDesktop] = useState<AvatarSnapshot>(data);
   useEffect(() => window.boxagent.onDesktop(setDesktop), []);
+  const displayDisabled = busy || Boolean(data.unavailable) || !desktop.appearance_ready || desktop.switching;
+  const displayTarget = desktop.selected_display_id ?? 'together';
+  const missingDisplay = displayTarget !== 'together' && !desktop.displays?.some(display => display.id === displayTarget);
   return (
     <>
       <section className="feature-card control-settings">
+        <div>
+          <section>
+            <h2><label htmlFor="display-profile">{t('展示形态')}</label></h2>
+            <p>{desktop.display_profile === 'hardware' && desktop.active_display_profile !== 'hardware'
+              ? t('选择一块副屏后启用硬件展示。')
+              : t('桌宠透出桌面。无触屏硬件在指定副屏铺满角色舞台。')}</p>
+          </section>
+          <select id="display-profile" className="pet-display-select" value={desktop.display_profile || 'desktop'}
+            disabled={displayDisabled} onChange={(event) => run(act<AvatarSnapshot>('desktop_set_display_profile', {
+              profile: event.target.value,
+            }).then(setDesktop))}>
+            <option value="desktop">{t('桌宠')}</option>
+            <option value="hardware">{t('无触屏硬件')}</option>
+          </select>
+        </div>
         <div>
           <section><h2><label htmlFor="pet-display">{t('伙伴与聊天显示屏')}</label></h2><p>{t('伙伴、聊天与任务展示一起放在所选屏幕。')}</p></section>
           <select
             id="pet-display"
             className="pet-display-select"
-            value={desktop.separate_windows ? desktop.pet_display_id : 'together'}
-            disabled={busy || Boolean(data.unavailable) || !desktop.appearance_ready || desktop.switching}
+            value={displayTarget}
+            disabled={displayDisabled}
             onChange={(event) => run(act<AvatarSnapshot>('desktop_set_pet_display', {
               id: event.target.value === 'together' ? null : event.target.value,
             }).then(setDesktop))}
           >
             <option value="together">{t('随拖动切换屏幕')}</option>
+            {missingDisplay && <option value={displayTarget} disabled>{t('所选屏幕已断开')}</option>}
             {desktop.displays?.map(display => (
               <option key={display.id} value={display.id}>
                 {t(display.primary ? '主屏' : '副屏')} · {display.label}
               </option>
             ))}
+          </select>
+        </div>
+        <div>
+          <section><h2><label htmlFor="stage-background">{t('副屏背景')}</label></h2>
+            <p>{t('在无触屏硬件形态下使用。')}</p>
+          </section>
+          <select id="stage-background" className="pet-display-select" value={desktop.stage_background || 'purple'}
+            disabled={busy || Boolean(data.unavailable)} onChange={(event) => run(act<AvatarSnapshot>('desktop_set_stage_background', {
+              background: event.target.value,
+            }).then(setDesktop))}>
+            <option value="purple">{t('雾紫')}</option>
+            <option value="pink">{t('经典粉红')}</option>
           </select>
         </div>
         <div>

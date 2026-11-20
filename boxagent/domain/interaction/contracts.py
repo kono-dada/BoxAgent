@@ -24,6 +24,11 @@ class GameLineVoice(Protocol):
 
 
 @runtime_checkable
+class CompanionSpeechVoice(Protocol):
+    async def set_game_speech_muted(self, muted: bool) -> None: ...
+
+
+@runtime_checkable
 class LolSpeechVoice(Protocol):
     def schedule_lol(self, line: str, *, still_current: Callable[[], bool],
                      playback_started: Callable[[], None]) -> bool: ...

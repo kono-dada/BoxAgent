@@ -83,9 +83,15 @@ class Snapshot:
     lol_companion_enabled: bool = False
     lol_companion_status: str = "off"
     lol_companion_text: str = ""
+    companion_speech_muted: bool = False
+    companion_comment: str = ""
+    chat_window_action: str = ""
     notification_id: str = ""
     notification_text: str = ""
     notification_unread: bool = False
+    notification_source: str = ""
+    notification_sender: str = ""
+    notification_body: str = ""
     camera_status: str = "off"
     camera_error: str = ""
     camera_frame_at: float = 0

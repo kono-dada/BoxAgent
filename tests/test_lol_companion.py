@@ -323,7 +323,7 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(app.state.lol_companion_enabled)
         self.assertIsNone(monitor.task)
 
-    async def test_chat_companion_action_opens_mic_once_and_switches_games(self) -> None:
+    async def test_chat_and_voice_companion_actions_share_mode_and_microphone(self) -> None:
         voice = AsyncMock()
         voice.ready = asyncio.Event()
         closed = asyncio.Event()
@@ -355,6 +355,57 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
             await server.dispatch("set_companion_session", {"game": "wuwa", "enabled": False})
             self.assertFalse(app.state.game_companion_enabled)
             self.assertTrue(app.interaction_service.is_connected)
+            self.assertEqual(await app.handle_tool(
+                "set_game_companion_mode", '{"game":"lol","enabled":true}'),
+                {"status": "succeeded", "game": "lol", "enabled": True})
+            self.assertTrue(app.state.lol_companion_enabled)
+            self.assertFalse(app.state.game_companion_enabled)
+            self.assertEqual(factory.call_count, 1)
+            invalid = await app.handle_tool("set_game_companion_mode", '{"game":"other","enabled":false}')
+            self.assertEqual(invalid["status"], "failed")
+            self.assertTrue(app.state.lol_companion_enabled)
+            self.assertEqual(await app.handle_tool("set_game_companion_mode", '{"enabled":false}'),
+                             {"status": "succeeded", "game": "lol", "enabled": False})
+            self.assertFalse(app.state.lol_companion_enabled)
+        finally:
+            await app.close()
+
+    async def test_dock_mute_keeps_notification_voice_and_releases_the_microphone(self) -> None:
+        request = []
+
+        def factory(*args: object, **kwargs: object) -> AsyncMock:
+            request.append(kwargs["microphone"])
+            voice = AsyncMock()
+            voice.ready = asyncio.Event()
+            closed = asyncio.Event()
+
+            async def run() -> None:
+                voice.ready.set()
+                await closed.wait()
+
+            voice.run.side_effect = run
+            voice.stop.side_effect = closed.set
+            return voice
+
+        app = BoxAgentApplication(lambda event: None, Mock(), factory)
+        app.lol_companion = LolCompanion(lambda: LolRead("unavailable"), LolCompanionPolicy(),
+                                        Mock(), lambda status, text: app.emit(
+                                            "lol.companion", lol_companion_enabled=status != "off"))
+        server = EngineServer.__new__(EngineServer)
+        server.application = app
+        try:
+            await server.dispatch("set_companion_session", {"game": "lol", "enabled": True})
+            await server.dispatch("set_companion_audio", {"control": "speech", "enabled": False})
+            self.assertEqual(request, [True])
+            self.assertTrue(app.state.companion_speech_muted)
+            await server.dispatch("set_companion_audio", {"control": "microphone", "enabled": False})
+            self.assertEqual(request, [True, False])
+            self.assertEqual(app.state.voice, "off")
+            self.assertTrue(app.interaction_service.is_connected)
+            self.assertTrue(await app.interaction_service.deliver_notification({"summary": "收到消息"}))
+            await server.dispatch("set_companion_session", {"game": "lol", "enabled": False})
+            self.assertFalse(app.interaction_service.is_connected)
+            self.assertFalse(app.state.companion_speech_muted)
         finally:
             await app.close()
 
@@ -401,6 +452,52 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         voice._delivery_busy.return_value = True
         self.assertFalse(await voice._deliver_lol(speech))
         self.assertEqual(voice._create_response.await_count, 1)
+
+    async def test_mute_cuts_current_game_audio_without_cutting_user_and_wechat(self) -> None:
+        from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
+
+        for kind, finished in (("lol_companion", False), ("game_highlight", True), ("game_news", False)):
+            with self.subTest(kind=kind, finished=finished):
+                voice = QwenRealtimeSession(AsyncMock(), Mock())
+                voice.audio = audio = Mock(has_pending_playback=True)
+                voice.send = AsyncMock()
+                voice.response_origins.append({"kind": kind, "notification_id": "game-line"})
+                await voice.receive({"type": "response.created", "response": {"id": "game"}})
+                await voice.receive({"type": "response.audio.delta", "response_id": "game", "delta": "pcm"})
+                voice.playback_changed(True)
+                if finished:
+                    await voice._finalize_response("game", source="provider")
+                await voice.set_game_speech_muted(True)
+                audio.clear.assert_called_once()
+                if finished:
+                    voice.send.assert_not_awaited()
+                else:
+                    voice.send.assert_awaited_once_with({"type": "response.cancel"})
+                await voice.receive({"type": "response.audio.delta", "response_id": "game", "delta": "late"})
+                audio.append.assert_called_once_with("pcm")
+                for other in ("user", "notification"):
+                    voice.response_origins.append({"kind": other, "notification_id": "wechat"})
+                    await voice.receive({"type": "response.created", "response": {"id": other}})
+                    await voice.set_game_speech_muted(True)
+                    await voice.receive({"type": "response.audio.delta", "response_id": other, "delta": other})
+                    audio.append.assert_called_with(other)
+                audio.clear.assert_called_once()
+
+    async def test_mute_drops_queued_comment_even_if_unmuted_before_provider_accepts_it(self) -> None:
+        from boxagent.infrastructure.runtimes.qwen.realtime import LolSpeech, QwenRealtimeSession
+
+        voice = QwenRealtimeSession(AsyncMock(), Mock())
+        voice.send = AsyncMock()
+        voice.audio = audio = Mock(has_pending_playback=False)
+        voice.pending_lol = LolSpeech("下一条", lambda: True, Mock())
+        voice.response_origins.append({"kind": "lol_companion"})
+        await voice.set_game_speech_muted(True)
+        self.assertIsNone(voice.pending_lol)
+        await voice.set_game_speech_muted(False)
+        await voice.receive({"type": "response.created", "response": {"id": "queued-game"}})
+        await voice.receive({"type": "response.audio.delta", "response_id": "queued-game", "delta": "late"})
+        audio.append.assert_not_called()
+        voice.send.assert_awaited_once_with({"type": "response.cancel"})
 
     async def test_game_reference_is_deleted_before_user_response_and_late_input_wins(self) -> None:
         from boxagent.infrastructure.runtimes.qwen.realtime import LolSpeech, QwenRealtimeSession

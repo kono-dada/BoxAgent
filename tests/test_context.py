@@ -8,11 +8,30 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from PIL import Image
-from boxagent.infrastructure.perception.qwen_mlx import WindowSummary
+from boxagent.infrastructure.perception.qwen_mlx import WindowSummary, foreground_game
 from boxagent.application.assistant import BoxAgentApplication
 
 
 class ContextTests(unittest.IsolatedAsyncioTestCase):
+    def test_foreground_dock_recognizes_only_the_real_lol_shield_window(self) -> None:
+        bundle = Mock(return_value="com.riotgames.LeagueofLegends.GameClient")
+        front = SimpleNamespace(bundleIdentifier=bundle, processIdentifier=lambda: 42, localizedName=lambda: "League Of Legends")
+        appkit = SimpleNamespace(NSWorkspace=Mock())
+        appkit.NSWorkspace.sharedWorkspace.return_value.frontmostApplication.return_value = front
+        quartz = SimpleNamespace(CGShieldingWindowLevel=lambda: 2147483628,
+                                 CGWindowLevelForKey=lambda _: 1000, kCGScreenSaverWindowLevelKey=13)
+        rect = {"x": 0, "y": 0, "width": 1920, "height": 1200}
+        with (patch.dict("sys.modules", {"AppKit": appkit, "Quartz": quartz}),
+              patch("boxagent.infrastructure.perception.qwen_mlx.sys.platform", "darwin"),
+              patch("boxagent.infrastructure.perception.qwen_mlx._mac_window", return_value={
+                  "id": 7, "layer": 2147483628, "bounds": rect}) as window):
+            self.assertEqual(foreground_game(), {"game": "lol", "bounds": rect, "shield_offset": 2147482629})
+            window.assert_called_once_with(42, "League Of Legends", bundle(), {0, 2147483628})
+            bundle.return_value = "com.riotgames.LeagueofLegends.LeagueClientUx"
+            window.return_value = None
+            self.assertIsNone(foreground_game())
+            self.assertEqual(window.call_args.args[-1], {0})
+
     async def test_lol_mode_rejects_previously_captured_browser_reference(self) -> None:
         from boxagent.bootstrap.engine import current_screen_reference
         from boxagent.core.states import Snapshot

@@ -1,13 +1,30 @@
 const { clampFrame, petSize, scalePetCrop } = require('./layout.cjs');
 
-function targetDisplay(displays, primary, target, label = '') {
+function selectedDisplay(displays, primary, target, label = '') {
   if (target === 'primary') return primary;
-  const exact = displays.find(display => String(display.id) === target);
-  if (!label) return exact || primary;
+  const exact = target ? displays.find(display => String(display.id) === target) : undefined;
+  if (!target || !label) return exact;
   if (exact?.label === label) return exact;
   // Display IDs can change after reconnecting or rebooting; avoid guessing between identical names.
   const matches = displays.filter(display => display.label === label);
-  return matches.length === 1 ? matches[0] : primary;
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function targetDisplay(displays, primary, target, label = '') {
+  return selectedDisplay(displays, primary, target, label) || primary;
+}
+
+function decodeDisplayPreference(saved) {
+  const validTarget = typeof saved?.target === 'string' && (saved.target === 'primary' || /^-?\d+$/.test(saved.target));
+  if (![1, 2].includes(saved?.version) || (!validTarget && saved.target !== null))
+    return { target: null, label: '', profile: 'desktop', background: 'purple', legacy: false };
+  const target = saved.target;
+  const label = target && target !== 'primary' && typeof saved.label === 'string' && saved.label.length <= 256 ? saved.label : '';
+  const profile = saved.version === 1
+    ? (target && target !== 'primary' ? 'hardware' : 'desktop')
+    : (saved.profile === 'hardware' ? 'hardware' : 'desktop');
+  const background = saved.background === 'pink' ? 'pink' : 'purple';
+  return { target, label, profile, background, legacy: saved.version === 1 };
 }
 
 function petAnchor(pet) {
@@ -56,8 +73,8 @@ function petPlacement(pet, scale, area, center = false, fitVisible = true) {
 }
 
 function displayBubbleFrame(previous, area, requestedHeight) {
-  const width = Math.min(640, area.width - 16);
-  const height = Math.min(Math.max(228, Math.min(600, requestedHeight)), area.height - 32);
+  const width = Math.max(1, area.width - 16);
+  const height = Math.max(1, Math.min(Math.max(228, Math.min(600, requestedHeight)), area.height - 32));
   const onScreen = previous.x >= area.x && previous.y >= area.y &&
     previous.x < area.x + area.width && previous.y < area.y + area.height;
   return clampFrame({
@@ -67,15 +84,23 @@ function displayBubbleFrame(previous, area, requestedHeight) {
   }, { x: area.x + 8, y: area.y + 8, width: area.width - 16, height: area.height - 16 });
 }
 
+function hardwarePetScale(pet, scale, area) {
+  const reference = petPlacement(pet, 1, area).crop.height;
+  // The crop includes the shadow and motion padding, so the body is shorter than this target.
+  const defaultScale = Math.min(4, Math.max(1, area.height * .8 / Math.max(1, reference)));
+  return Math.min(6, scale * defaultScale);
+}
+
 function companionDisplayAreas(pet, scale, area, requestedHeight) {
   const chat = displayBubbleFrame({ x: area.x, y: area.y }, area, requestedHeight);
-  const desired = petPlacement(pet, scale, area);
-  const minimumPanelWidth = area.width >= 960 ? 600 : 320;
-  const panelWidth = Math.min(chat.width, Math.max(minimumPanelWidth, Math.round(desired.crop.width * 1.2))) + 16;
-  if (desired.crop.width + 16 + panelWidth + 12 <= area.width) {
+  const desired = petPlacement(pet, hardwarePetScale(pet, scale, area), area);
+  const panelWidth = Math.min(496, Math.max(376, Math.round(area.width * .38) + 16));
+  if ((area.width >= area.height && area.width >= 680) || desired.crop.width + 28 + panelWidth <= area.width) {
+    const panelTop = Math.max(0, Math.floor(area.height * .1) - 16);
     return {
       pet: { ...area, width: area.width - panelWidth - 12 },
-      panel: { ...area, x: area.x + area.width - panelWidth, width: panelWidth },
+      panel: { x: area.x + area.width - panelWidth, y: area.y + panelTop,
+        width: panelWidth, height: Math.min(area.height - panelTop, Math.floor(area.height * .8) + 32) },
     };
   }
   const panelHeight = Math.min(chat.height, Math.max(228, Math.floor(area.height / 2))) + 32;
@@ -85,4 +110,4 @@ function companionDisplayAreas(pet, scale, area, requestedHeight) {
   };
 }
 
-module.exports = { targetDisplay, petAnchor, petPlacement, constrainPetOrigin, displayBubbleFrame, companionDisplayAreas };
+module.exports = { decodeDisplayPreference, selectedDisplay, targetDisplay, petAnchor, petPlacement, constrainPetOrigin, displayBubbleFrame, hardwarePetScale, companionDisplayAreas };

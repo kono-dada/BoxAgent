@@ -31,6 +31,7 @@ function Companion() {
     [title, setTitle] = useState("");
   const [away, setAway] = useState(false),
     [, revise] = useState(0);
+  const [composing, setComposing] = useState(false);
   const drafts = useRef<Record<string, string>>({}),
     liveDraft = useRef("");
   const session = useRef(""),
@@ -44,6 +45,10 @@ function Companion() {
   const cameraActive = camera.status !== "off";
   const cameraStarting = camera.status === "starting";
   const drag = useWindowDrag(bridge);
+  useEffect(() => {
+    bridge.desktopAction("chat-hold", Boolean(composing || text.trim() || pending ||
+      creating || away || desktop.tasks_expanded));
+  }, [composing, text, pending, creating, away, desktop.tasks_expanded]);
   const refresh = useCallback(async () => {
     const id = session.current,
       mine = ++request.current;
@@ -310,7 +315,8 @@ function Companion() {
               : "idle"
       }
       data-visible={visible}
-      data-assigned-display={desktop.separate_windows ? "true" : "false"}
+      data-display-profile={desktop.active_display_profile || "desktop"}
+      data-dock-edge={desktop.chat_dock_edge}
     >
       <div className="companion-ambient" aria-hidden="true">
         <i />
@@ -349,7 +355,7 @@ function Companion() {
           title={t('伙伴与聊天显示屏')}
           aria-label={t('伙伴与聊天显示屏')}
           aria-haspopup="menu"
-          data-active={desktop.separate_windows || false}
+          data-active={Boolean(desktop.selected_display_id) || desktop.display_profile === 'hardware'}
           onClick={() => bridge.desktopAction('display-menu')}
         >
           <Monitor size={16} aria-hidden="true" />
@@ -501,6 +507,8 @@ function Companion() {
           aria-label={t("对话消息")}
           rows={2}
           value={text}
+          onFocus={() => setComposing(true)}
+          onBlur={() => setComposing(false)}
           onChange={(event) => {
             liveDraft.current = event.target.value;
             drafts.current[session.current] = event.target.value;

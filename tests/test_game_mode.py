@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.memory import DisabledMemoryModule
@@ -10,6 +11,28 @@ from boxagent.infrastructure.persistence import JsonlSessionStore
 
 
 class GameModeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_lol_voice_command_switches_before_model_reply(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            app = BoxAgentApplication(lambda _: None, None, None,
+                conversation_service=ConversationService(JsonlSessionStore(Path(directory))))
+            try:
+                await app.start()
+                service = app.interaction_service
+                service.voice = voice = AsyncMock()
+                service.connection_microphone = service.voice_requested = True
+                service.handle_tool = tool = AsyncMock(return_value={"status": "succeeded"})
+                for phrase, enabled in (("进入 LoL 陪玩模式。", True), ("进入陪玩模式，撸啊撸的。", True),
+                                        ("关闭英雄联盟陪玩。", False)):
+                    await service._conversation_event("user_final", {"transcript": phrase})
+                    self.assertEqual(tool.await_args.args[0], "set_game_companion_mode")
+                    self.assertIn(f'"enabled": {str(enabled).lower()}', tool.await_args.args[1])
+                    self.assertIn("宿主已处理", voice.respond_to_query.await_args.args[0])
+                self.assertEqual(tool.await_count, 3)
+                await service._conversation_event("user_final", {"transcript": "怎么进入 LoL 陪玩模式？"})
+                self.assertEqual(tool.await_count, 3)
+            finally:
+                await app.close()
+
     async def test_mode_is_explicit_validated_and_does_not_enable_microphone(self) -> None:
         app = BoxAgentApplication(lambda _: None, None, None)
         try:

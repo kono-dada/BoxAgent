@@ -18,6 +18,8 @@ from boxagent.domain.proactivity.game_highlight import GameHighlight
 from boxagent.infrastructure.audio import AudioIO
 from boxagent.infrastructure.runtimes.qwen.media import redact_media
 
+_GAME_SPEECH_KINDS = {"lol_companion", "game_highlight", "game_news"}
+
 MODELS = {
     "qwen-audio-3.0-realtime-plus": {"voice": "longanqian", "turn_detection": {"type": "smart_turn"}},
     "qwen3.5-omni-flash-realtime": {"voice": "Ethan", "turn_detection": {
@@ -85,8 +87,11 @@ TOOLS = [
          "这不是电脑操作，不要为桌宠表演调用 run_task。返回 requested 只代表请求已发送。",
          {"action": {"type": "string", "enum": ["dance", "happy", "laugh", "shy"]}}),
     tool("set_game_companion_mode", "用户明确要求进入或退出陪玩模式时调用。开启后保持语音并提供陪玩语境，"
-         "关闭后恢复空闲断线；模式切换不需要桌面操作工具。",
-         {"enabled": {"type": "boolean", "description": "开启为 true，关闭为 false。"}}, required=["enabled"]),
+         "关闭后恢复空闲断线。LoL、英雄联盟或撸啊撸选 lol，鸣潮选 wuwa。"
+         "只要求退出陪玩而未指定游戏时可省略 game，由宿主关闭当前模式。成功后再确认已开启或已退出。",
+         {"enabled": {"type": "boolean", "description": "开启为 true，关闭为 false。"},
+          "game": {"type": "string", "enum": ["lol", "wuwa"], "description": "用户明确指定的游戏。"}},
+         required=["enabled"]),
     tool("run_task", "将当前这条用户原始请求委托给后台通用桌面操作 Agent。"
          "用于用户要求执行操作，包括回答后台待补充问题以继续原任务；普通聊天、问号、追问澄清或仅查询进度不得调用。"
          "宿主会从当前 Interaction 读取原文，不要重述、改写或补充目标参数。"
@@ -121,6 +126,7 @@ INSTRUCTIONS = (
     "收到 boxagent_companion_mode 时按该宿主模式信息作为游戏搭子交流；"
     "模式标记不表示已经识别到具体游戏，也不代替当前截图证据或用户操作授权。"
     "用户明确说开启或退出陪玩模式时，直接调用 set_game_companion_mode，不用 run_task 或点击界面。"
+    "例如‘进入 LoL 陪玩模式’传 game=lol、enabled=true。仅询问如何开启时，说明用法即可。"
     "宿主可通过独立视觉模块读取游戏窗口，再以 boxagent_game_scene、boxagent_game_quest 等参考数据传给你。"
     "收到这些数据就代表你获得了相应时刻的画面观察，即使本轮没有原始图片，也应据此回答可见内容，"
     "不要笼统声称‘看不到屏幕’或要求用户重复截图。有观察但缺少任务名时，只说明任务标题还没读清。"
@@ -253,6 +259,9 @@ class QwenRealtimeSession:
         self.speech_changed = asyncio.Event()
         self.pending_lol: LolSpeech | None = None
         self.starting_lol: tuple[str, LolSpeech] | None = None
+        self.game_speech_muted = False
+        # The provider can finish generating before the device drains its audio.
+        self.game_output_response: str | None = None
         self.notification_waited = False
         self.delivery_lock = asyncio.Lock()
         self.response_id = None
@@ -355,6 +364,28 @@ class QwenRealtimeSession:
             await self.send({"type": "response.cancel"})
         except (OSError, RuntimeError):
             self.trace("game.cancel_failed")
+
+    async def set_game_speech_muted(self, muted: bool) -> None:
+        self.game_speech_muted = muted
+        if not muted:
+            return
+        self.pending_lol = None
+        for origin in self.response_origins:
+            if origin.get("kind") in _GAME_SPEECH_KINDS:
+                origin["muted_game_speech"] = True
+        response_id = self.game_output_response
+        self.speech_changed.set()
+        if (not response_id or response_id != self.response_id or response_id in self.cancelled_responses
+                or not (self.response_active or self.playback_pending)):
+            return
+        self.cancelled_responses.add(response_id)
+        self.starting_lol = None
+        self.game_caption = None
+        self.playing_notification_id = None
+        if self.audio is not None:
+            self.audio.clear()
+        self.trace("game.playback_muted", response_id=response_id)
+        await self._cancel_game_playback(response_id)
 
     @property
     def playback_pending(self) -> bool:
@@ -539,6 +570,8 @@ class QwenRealtimeSession:
             self.response_id = event.get("response", {}).get("id")
             self.text = ""
             origin = self.response_origins.popleft() if self.response_origins else None
+            game_speech = (origin or {}).get("kind") in _GAME_SPEECH_KINDS
+            self.game_output_response = self.response_id if game_speech else None
             if self.response_id:
                 self.response_context[self.response_id] = dict(origin or {"kind": "user"})
             stale = (self.host_turn_control and origin is not None
@@ -548,7 +581,8 @@ class QwenRealtimeSession:
             lol = (origin or {}).get("lol_speech")
             if isinstance(lol, LolSpeech):
                 game_check = lol.still_current
-            stale_game = callable(game_check) and (self.input_turn_pending or not game_check())
+            stale_game = (game_speech and (self.game_speech_muted or bool((origin or {}).get("muted_game_speech")))) or (
+                callable(game_check) and (self.input_turn_pending or not game_check()))
             stale_notice = (origin or {}).get("kind") == "notification" and self.input_turn_pending
             self.starting_lol = ((self.response_id, lol) if self.response_id and isinstance(lol, LolSpeech)
                                  and not stale_game else None)
@@ -653,7 +687,9 @@ class QwenRealtimeSession:
             if response_id not in self.cancelled_responses:
                 transcript = event.get("transcript", event.get("text", ""))
                 if response_id not in self.notification_responses:
-                    self.emit("voice.assistant_text", assistant_text=transcript)
+                    origin = self.response_context.get(response_id, {}).get("kind", "user")
+                    output_event = "voice.assistant_text_done" if origin == "user" else "voice.assistant_text"
+                    self.emit(output_event, assistant_text=transcript)
                 if transcript:
                     self.response_transcripts[response_id] = transcript
         elif kind == "response.audio.done":
@@ -982,6 +1018,11 @@ class QwenRealtimeSession:
         self.notification_waited = bool(self.notifications)
         self.input_turn_settled.clear()
 
+    def finish_local_query(self) -> None:
+        self.input_turn_pending = False
+        self.input_turn_settled.set()
+        self.speech_changed.set()
+
     async def respond_to_query(self, packet: str, *, query_id: str) -> None:
         if asyncio.current_task() is self.preparation_task:
             # Persist ASR fragments immediately, but let a brief continuation
@@ -1303,12 +1344,17 @@ class QwenRealtimeSession:
             raise
 
     async def _create_response(self, origin):
+        game_speech = origin.get("kind") in _GAME_SPEECH_KINDS
+        if game_speech and self.game_speech_muted:
+            return
         if self.host_turn_control:
             # Some AOQ requests receive their response.created late. Never send
             # the next request while its origin is still awaiting a provider ID.
             async with self.response_request_lock:
                 if self.response_ack is not None:
                     await self._wait_for_response_ack(self.response_ack, phase="previous_request")
+                if game_speech and self.game_speech_muted:
+                    return
                 ack = asyncio.get_running_loop().create_future()
                 self.response_ack = ack
                 self.response_ack_deadline = time.monotonic() + self.response_ack_timeout

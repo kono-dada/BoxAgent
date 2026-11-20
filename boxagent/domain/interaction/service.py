@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import json
 import logging
 import re
 import time
@@ -10,7 +11,7 @@ from collections.abc import Callable
 from boxagent.core.states import Voice
 from boxagent.domain.context.contracts import NullContextObserver
 from boxagent.domain.conversation.models import InteractionContext
-from boxagent.domain.interaction.contracts import GameHighlightVoice, GameLineVoice, LolSpeechVoice
+from boxagent.domain.interaction.contracts import CompanionSpeechVoice, GameHighlightVoice, GameLineVoice, LolSpeechVoice
 from boxagent.domain.interaction.delegation import DecisionAdvice
 from boxagent.domain.perception.camera import CameraFeed
 from boxagent.domain.proactivity.game_entry import ENTRY_RECEIPT_PREFIX
@@ -60,6 +61,13 @@ def _is_voice_end_request(transcript: str, companion_name: str) -> bool:
         if match is not None and match["command"] is not None:
             return True
     return False
+
+
+def _lol_companion_command(command: str) -> bool | None:
+    text = re.sub(r"[\s，,。！!]+", "", command).casefold()
+    game = r"(?:lol|英雄联盟|撸啊撸)"
+    match = re.fullmatch(rf"(进入|开启|打开|启动|退出|关闭|结束)(?:{game}陪玩(?:模式)?|陪玩(?:模式)?{game}的?)", text)
+    return None if match is None else match[1] in {"进入", "开启", "打开", "启动"}
 
 
 class InteractionService:
@@ -192,6 +200,13 @@ class InteractionService:
             if self.is_connected:
                 await self.stop()
             await self._start_requested_voice()
+
+    async def release_companion_microphone(self, *, keep_playback: bool) -> None:
+        async with self.toggle_lock:
+            if self.connection_microphone or self.voice_requested or not keep_playback:
+                await self.stop()
+            if keep_playback and not self.is_connected:
+                await self._connect(microphone=False)
 
     async def wake(self, greeting: str) -> None:
         async with self.toggle_lock:
@@ -366,6 +381,8 @@ class InteractionService:
             delegation_review=self._review_delegation,
             product_session_id=(session.session_id if session else ""))
         self.connection_microphone = microphone
+        if self.events.state.companion_speech_muted and isinstance(voice, CompanionSpeechVoice):
+            await voice.set_game_speech_muted(True)
         self.events.emit("voice.input_reset", voice_input_level=-1)
         self.connection_error = None
         voice = self.voice
@@ -437,6 +454,7 @@ class InteractionService:
 
     async def _conversation_event(self, kind, payload):
         transcript = ""
+        lol_command = None
         if self.voice is not None and self.connection_microphone and self.voice_requested:
             if kind == "user_speech_started":
                 self.user_speaking = True
@@ -448,6 +466,19 @@ class InteractionService:
                 return
         if kind == "user_final":
             transcript = str(payload.get("transcript") or "").strip()
+            command = transcript.strip("。！？!?. “\"”")
+            name = self.companion_name()
+            if name and command.startswith(name):
+                command = command.removeprefix(name).lstrip("，,：: ")
+            if not transcript.endswith(("?", "？")):
+                lol_command = _lol_companion_command(command)
+            window_actions = {"展开聊天": "open", "收起聊天": "close", "先留着": "pin"}
+            if action := window_actions.get(command):
+                self.events.emit("chat.window_command", chat_window_action=action)
+                settle = getattr(self.voice, "finish_local_query", None)
+                if settle is not None:
+                    settle()
+                return
             if self.voice is not None and self.connection_microphone and self.voice_requested:
                 if self.voice_end_task is not None:
                     return
@@ -470,7 +501,19 @@ class InteractionService:
                     transcript, source="voice",
                     runtime="qwen_realtime")
                 self.events.emit("web.research.reset", web_research=None)
-                if self.turn_preparer is not None:
+                if lol_command is not None and self.voice is not None and self.connection_microphone and self.voice_requested:
+                    context = self.interaction
+                    voice = self.voice
+                    result = await self.handle_tool(
+                        "set_game_companion_mode", json.dumps({"game": "lol", "enabled": lol_command}), interaction=context)
+                    if self.interaction is not context or self.voice is not voice:
+                        return
+                    message = ("LoL 陪玩已开启。" if lol_command else "LoL 陪玩已退出。") if result.get("status") == "succeeded" else (
+                        str(result.get("message") or "这次没能切换 LoL 陪玩。"))
+                    await voice.respond_to_query(
+                        f"<boxagent_local_action>宿主已处理本轮陪玩指令。用一句话告诉用户执行结果：{message} 不再调用工具。</boxagent_local_action>",
+                        query_id=context.interaction_id)
+                elif self.turn_preparer is not None:
                     context = self.interaction
                     voice = self.voice
                     packet, report = await self.turn_preparer.prepare(
@@ -726,11 +769,18 @@ class InteractionService:
     async def announce_game_news(self, headline: str, *, community_topic: bool = False) -> None:
         async with self.toggle_lock:
             if (not self.events.state.game_companion_enabled or self.game_speech_paused
+                    or self.events.state.companion_speech_muted
                     or (not self.is_connected and self.voice_requested)):
                 return
             await self._connect(microphone=False)
             if self.voice is not None:
                 await self.voice.announce_game_news(headline, community_topic=community_topic)
+
+    async def set_companion_speech_muted(self, muted: bool) -> None:
+        self.events.emit("companion.speech", companion_speech_muted=muted)
+        voice = self.voice
+        if isinstance(voice, CompanionSpeechVoice):
+            await voice.set_game_speech_muted(muted)
 
     def game_voice(self) -> GameHighlightVoice | None:
         voice = self.voice
@@ -741,27 +791,31 @@ class InteractionService:
 
     async def announce_game_highlight(self, highlight: GameHighlight,
                                       still_current: Callable[[], bool]) -> bool:
-        if not self.events.state.game_companion_enabled or self.game_speech_paused:
+        if (not self.events.state.game_companion_enabled or self.game_speech_paused
+                or self.events.state.companion_speech_muted):
             return False
         voice = self.game_voice()
         return await voice.announce_game_highlight(
             highlight, lambda: self.events.state.game_companion_enabled
-            and not self.game_speech_paused and still_current()) if voice else False
+            and not self.game_speech_paused and not self.events.state.companion_speech_muted
+            and still_current()) if voice else False
 
     async def prepare_game_audio(self) -> None:
         if (not self.events.state.game_companion_enabled or self.game_speech_paused
-                or self.voice_requested or self.voice_factory is None):
+                or self.events.state.companion_speech_muted or self.voice_requested or self.voice_factory is None):
             return
         async with self.toggle_lock:
-            if self.events.state.game_companion_enabled and not self.game_speech_paused and not self.voice_requested:
+            if (self.events.state.game_companion_enabled and not self.game_speech_paused
+                    and not self.events.state.companion_speech_muted and not self.voice_requested):
                 await self._connect(microphone=False)
 
     async def announce_game_line(self, receipt: str, text: str,
                                  still_current: Callable[[], bool]) -> bool:
-        if not self.events.state.game_companion_enabled or self.game_speech_paused:
-            return False
         def still_allowed() -> bool:
-            return self.events.state.game_companion_enabled and not self.game_speech_paused and still_current()
+            return (self.events.state.game_companion_enabled and not self.game_speech_paused
+                    and not self.events.state.companion_speech_muted and still_current())
+        if not still_allowed():
+            return False
         voice = self.game_voice()
         if isinstance(voice, GameLineVoice):
             return await voice.announce_game_line(receipt, text, still_allowed)
@@ -790,6 +844,7 @@ class InteractionService:
 
         def still_allowed() -> bool:
             return (self.voice is voice and self.is_connected and self.voice_end_task is None
+                    and not self.events.state.companion_speech_muted
                     and not self.toggle_lock.locked() and not self.events.state.approval
                     and self.events.state.task not in {"accepted", "running", "cancelling"}
                     and still_current())
@@ -806,6 +861,8 @@ class InteractionService:
                 if playback_started is not None:
                     playback_started(receipt)
                 line, session_id = payload.get("game_line"), payload.get("session_id")
+                if isinstance(line, str) and line.strip():
+                    self.events.emit("companion.comment", companion_comment=line)
                 if (self.conversation and self.conversation.store and isinstance(line, str) and line.strip()
                         and isinstance(session_id, str) and session_id):
                     await self.conversation.append_game_comment(session_id, receipt, line)

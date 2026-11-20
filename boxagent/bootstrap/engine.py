@@ -443,10 +443,14 @@ def create_application(publish, *, task_provider=None, task_model=None,
 
     def announce_lol(moment: LolMoment, still_current: Callable[[], bool],
                      playback_started: Callable[[], None]) -> bool:
-        return application.interaction_service.schedule_lol(moment.line, still_current, playback_started)
+        def present() -> None:
+            playback_started()
+            application.emit("companion.comment", companion_comment=moment.line)
+
+        return application.interaction_service.schedule_lol(moment.line, still_current, present)
 
     def publish_lol(status: str, text: str) -> None:
-        if status == "active" and application.state.voice != "ready":
+        if status == "active" and not application.interaction_service.is_connected:
             status = "voice_waiting"
             text = "对局数据正常；语音正在恢复连接" if application.state.voice == "connecting" else "对局数据正常；请开启语音以接收陪玩提醒"
         application.events.emit("lol.companion", lol_companion_enabled=status != "off",

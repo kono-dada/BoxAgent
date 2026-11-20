@@ -10,8 +10,9 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal, NotRequired, TypedDict
 from boxagent.domain.memory.visual import VisualFrame
-from boxagent.infrastructure.perception.windows import WindowInfo
+from boxagent.infrastructure.perception.windows import WindowInfo, WindowRect
 
 logger = logging.getLogger(__name__)
 
@@ -48,21 +49,62 @@ def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
     if sys.platform != "darwin":
         raise RuntimeError(f"不支持的桌面操作系统：{sys.platform}")
     import AppKit as AK
-    import Quartz as Q
     app = AK.NSWorkspace.sharedWorkspace().frontmostApplication()
     if (not app or app.processIdentifier() == os.getpid()
             or (bundle_id is not None and app.bundleIdentifier() != bundle_id)):
         return None
+    return _mac_window(app.processIdentifier(), str(app.localizedName()), str(app.bundleIdentifier() or ""), {0})
+
+
+def _mac_window(pid: int, app: str, bundle_id: str, layers: set[int]) -> WindowInfo | None:
+    import Quartz as Q
     windows = Q.CGWindowListCopyWindowInfo(
         Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements,
         Q.kCGNullWindowID)
-    for window in windows:
+    for window in windows or ():
         bounds = window.get("kCGWindowBounds", {})
-        if (window.get("kCGWindowOwnerPID") == app.processIdentifier()
-                and window.get("kCGWindowLayer") == 0
+        if (window.get("kCGWindowOwnerPID") == pid
+                and window.get("kCGWindowLayer") in layers
                 and window.get("kCGWindowAlpha", 1) > 0
                 and bounds.get("Width", 0) > 80 and bounds.get("Height", 0) > 80):
-            return {"id": int(window["kCGWindowNumber"]), "app": str(app.localizedName())}
+            return {"id": int(window["kCGWindowNumber"]), "app": app, "bundle_id": bundle_id,
+                    "layer": int(window["kCGWindowLayer"]),
+                    "bounds": {"x": round(bounds["X"]), "y": round(bounds["Y"]),
+                               "width": round(bounds["Width"]), "height": round(bounds["Height"])}}
+    return None
+
+
+class ForegroundGame(TypedDict):
+    game: Literal["lol", "wuwa"]
+    bounds: WindowRect | None
+    shield_offset: NotRequired[int]
+
+
+def foreground_game() -> ForegroundGame | None:
+    if sys.platform not in {"darwin", "win32"}:
+        return None
+    if sys.platform == "darwin":
+        import AppKit as AK
+        import Quartz as Q
+        front = AK.NSWorkspace.sharedWorkspace().frontmostApplication()
+        if front and str(front.bundleIdentifier() or "").casefold() == "com.riotgames.leagueoflegends.gameclient":
+            shield = Q.CGShieldingWindowLevel()
+            window = _mac_window(front.processIdentifier(), str(front.localizedName()), str(front.bundleIdentifier()), {0, shield})
+            if window is None:
+                return None
+            result: ForegroundGame = {"game": "lol", "bounds": window.get("bounds")}
+            if window.get("layer") == shield:
+                result["shield_offset"] = shield + 1 - Q.CGWindowLevelForKey(Q.kCGScreenSaverWindowLevelKey)
+            return result
+    window = focused_window()
+    if window is None:
+        return None
+    app = window["app"].strip().casefold()
+    if (window.get("bundle_id", "").casefold() == "com.riotgames.leagueoflegends.gameclient"
+            or app == "league of legends"):
+        return {"game": "lol", "bounds": window.get("bounds")}
+    if window.get("bundle_id") == "com.kurogame.mingchao" or app in {"wuthering waves", "鸣潮"}:
+        return {"game": "wuwa", "bounds": window.get("bounds")}
     return None
 
 

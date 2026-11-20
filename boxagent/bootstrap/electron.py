@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from boxagent.bootstrap.settings import Settings
+from boxagent.infrastructure.perception.qwen_mlx import foreground_game
 from boxagent.interfaces.desktop.service import DesktopService
 from boxagent.interfaces.desktop.engine_bridge import EngineBridge
 from boxagent.interfaces.desktop.pets.catalog import PetCatalog
@@ -25,4 +26,4 @@ def create_electron_services(settings: Settings, *, pet_directory: Path | None,
                            watch=settings.engine_watch, soul_file=settings.soul_file)
     return DesktopService(backend=backend, catalog=catalog, data_dir=settings.data_dir,
                           log_dir=settings.log_dir, soul_file=settings.soul_file,
-                          directory=directory)
+                          directory=directory, foreground_game=lambda: dict(foreground_game() or {}))

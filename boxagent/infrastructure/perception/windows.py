@@ -7,10 +7,20 @@ from pathlib import Path
 from typing import NotRequired, TypedDict
 
 
+class WindowRect(TypedDict):
+    x: int
+    y: int
+    width: int
+    height: int
+
+
 class WindowInfo(TypedDict):
     id: int
     app: str
     title: NotRequired[str]
+    layer: NotRequired[int]
+    bounds: NotRequired[WindowRect]
+    bundle_id: NotRequired[str]
 
 
 def focused_window() -> WindowInfo | None:
@@ -51,7 +61,9 @@ def focused_window() -> WindowInfo | None:
             kernel32.CloseHandle(process)
     title = ctypes.create_unicode_buffer(1024)
     user32.GetWindowTextW(hwnd, title, len(title))
-    return {"id": int(hwnd), "app": app, "title": title.value}
+    return {"id": int(hwnd), "app": app, "title": title.value,
+            "bounds": {"x": rect.left, "y": rect.top,
+                       "width": rect.right - rect.left, "height": rect.bottom - rect.top}}
 
 
 def capture_window(window_id: int, path: Path) -> None:

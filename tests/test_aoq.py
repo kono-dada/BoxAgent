@@ -14,6 +14,7 @@ from boxagent.infrastructure.runtimes.qwen.aoq import (
     AoqToken,
     AoqTokenClient,
     AoqUnavailable,
+    _AoqAudioControl,
     aoq_preflight,
 )
 from boxagent.infrastructure.runtimes.qwen.realtime import MODELS, QwenRealtimeSession
@@ -399,6 +400,26 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
         emit.assert_called_once_with("voice.playback", speaking=True)
         await session.receive({"type": "response.created", "response": {"id": "scene-response"}})
         emit.assert_any_call("front.assistant_text", assistant_text=line)
+
+    async def test_game_mute_interrupts_native_playback_after_provider_done(self) -> None:
+        session = AoqRealtimeSession(
+            lambda *_args: None, Mock(),
+            workspace_id="workspace", sdk_dir="/sdk", work_dir="/work")
+        session.transport = transport = Mock()
+        session.audio = _AoqAudioControl(transport)
+        session.response_origins.append({"kind": "lol_companion"})
+        await session.receive({"type": "response.created", "response": {"id": "game"}})
+        session.playback_changed(True)
+        await session.receive({"type": "response.done", "response": {"id": "game"}})
+        try:
+            self.assertFalse(session.response_active)
+            await session.set_game_speech_muted(True)
+            transport.interrupt.assert_called_once()
+            transport.send.assert_not_called()
+        finally:
+            if session.playback_finish_task is not None:
+                session.playback_finish_task.cancel()
+                await asyncio.gather(session.playback_finish_task, return_exceptions=True)
 
     async def test_unrelated_response_cannot_acknowledge_a_stale_notification(self) -> None:
         receipts = []

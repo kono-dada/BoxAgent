@@ -22,13 +22,92 @@ body,
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center;
+  background: radial-gradient(ellipse at 45% 40%, #88768e, #62556f 55%, #494057);
   pointer-events: none;
   user-select: none;
 }
+.pet-stage-bg img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .pet-stage iframe {
   position: absolute;
+  z-index: 1;
   border: 0;
   pointer-events: none;
 }
+.pet-caption,
+.pet-foot-status {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  pointer-events: none;
+  color: #fbf3fc;
+  background: #392d43f5;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  box-shadow: 0 4px 16px #20152750;
+}
+.pet-caption {
+  width: max-content;
+  padding: 8px 11px;
+  border: 1px solid #e3c6e936;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.pet-caption strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #ecd0ef;
+  font-size: 11px;
+}
+.pet-caption span {
+  display: block;
+  max-height: min(60vh, 150px);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.pet-caption-left::before,
+.pet-caption-right::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: rotate(45deg);
+  border: solid #e3c6e936;
+  border-width: 0;
+}
+.pet-caption-left::before { right: -5px; border-width: 1px 1px 0 0; }
+.pet-caption-right::before { left: -5px; border-width: 0 0 1px 1px; }
+.pet-caption-above { transform: translateX(-50%); }
+.pet-foot-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 168px;
+  padding: 3px 8px;
+  border: 1px solid #e3c6e936;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 15px;
+  transform: translateX(-50%);
+}
+.pet-foot-status span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pet-foot-status i {
+  flex: 0 0 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ccbad5;
+}
+.pet-foot-status[data-tone="playing"] i { background: #b4d9ca; }
+.pet-foot-status[data-tone="working"] i { background: #9bcfff; box-shadow: 0 0 6px #9bcfff80; }
+.pet-foot-status[data-tone="waiting"] i { background: #ffc88f; }

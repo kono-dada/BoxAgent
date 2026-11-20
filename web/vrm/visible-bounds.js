@@ -18,3 +18,17 @@ export function visibleBounds(data, width, height, viewportWidth, viewportHeight
   const maxY = Math.min(viewportHeight, Math.ceil((height - top) * viewportHeight / height + padY));
   return {x, y, width:maxX - x, height:maxY - y};
 }
+
+export function visibleHitMask(data, width, height) {
+  const size = 40;
+  const cells = new Uint8Array(size * size);
+  for (let y = 0; y < height; y++) {
+    const row = Math.floor(y * size / height) * size;
+    for (let x = 0; x < width; x++) {
+      // Ignore the ground shadow and nearly transparent edges.
+      if (data[(y * width + x) * 4 + 3] >= 192)
+        cells[row + Math.floor(x * size / width)] = 1;
+    }
+  }
+  return { size, cells: cells.join('') };
+}

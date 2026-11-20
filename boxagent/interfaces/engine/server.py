@@ -178,6 +178,12 @@ class EngineServer:
             if game not in ("lol", "wuwa") or type(enabled) is not bool:
                 raise ValueError("请选择有效的陪玩游戏和开关状态")
             return await self.application.set_companion_session(game, enabled)
+        if method == "set_companion_audio":
+            control, enabled = params.get("control"), params.get("enabled")
+            if control not in ("microphone", "speech") or type(enabled) is not bool:
+                raise ValueError("请选择有效的陪玩音频开关")
+            await self.application.set_companion_audio(control, enabled)
+            return {"status": "succeeded"}
         if method == "toggle_voice":
             await self.application.toggle_voice()
             return {"status": "succeeded"}

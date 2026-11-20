@@ -1,4 +1,5 @@
-html,
+html:root,
+html:root[data-theme],
 body,
 #app {
   width: 100%;
@@ -146,11 +147,14 @@ html[data-theme="dark"] .companion-task-summary {
 }
 .companion-history-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 60px;
 }
 .companion-history {
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
   overflow: auto;
   padding: 20px 18px;
   box-sizing: border-box;
@@ -209,16 +213,16 @@ html[data-theme="dark"] .companion-task-summary {
 .companion-markdown p {
   white-space: pre-wrap;
 }
-.companion-shell[data-assigned-display="true"] .companion-markdown {
-  font-size: 22px;
-  line-height: 1.6;
+.companion-shell[data-display-profile="hardware"] .companion-markdown {
+  font-size: 18px;
+  line-height: 1.55;
 }
-.companion-shell[data-assigned-display="true"] .companion-heading strong { font-size: 20px; }
-.companion-shell[data-assigned-display="true"] .companion-heading > span,
-.companion-shell[data-assigned-display="true"] .companion-task-summary-state { font-size: 14px; }
-.companion-shell[data-assigned-display="true"] .companion-task-summary-progress { font-size: 16px; }
-.companion-shell[data-assigned-display="true"] .companion-message-meta { font-size: 13px; }
-.companion-shell[data-assigned-display="true"] .companion-composer textarea { font-size: 18px; }
+.companion-shell[data-display-profile="hardware"] .companion-heading strong { font-size: 20px; }
+.companion-shell[data-display-profile="hardware"] .companion-heading > span,
+.companion-shell[data-display-profile="hardware"] .companion-task-summary-state { font-size: 14px; }
+.companion-shell[data-display-profile="hardware"] .companion-task-summary-progress { font-size: 16px; }
+.companion-shell[data-display-profile="hardware"] .companion-message-meta { font-size: 13px; }
+.companion-shell[data-display-profile="hardware"] .companion-composer textarea { font-size: 16px; }
 .companion-markdown pre {
   overflow: auto;
   padding: 10px;
@@ -273,9 +277,9 @@ html[data-theme="dark"] .companion-task-summary {
   cursor: pointer;
 }
 .companion-latest {
-  position: absolute;
-  bottom: 6px;
-  right: 18px;
+  align-self: flex-end;
+  flex: none;
+  margin: 4px 18px 6px;
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 5px 10px;
@@ -445,6 +449,32 @@ html[data-theme="dark"] .companion-task-summary {
   padding: 8px;
   box-sizing: border-box;
 }
+/* The arrow shares the panel edge and stays within the native window's inset. */
+#app:has(.companion-shell[data-dock-edge])::after {
+  content: "";
+  position: absolute;
+  top: 24px;
+  width: 8px;
+  height: 8px;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--dock-fill, #f8faf9);
+  border: solid var(--dock-edge, #dde3e2);
+}
+html[data-theme="dark"] #app {
+  --dock-fill: #32283b;
+  --dock-edge: #736282;
+}
+#app:has(.companion-shell[data-dock-edge="left"])::after {
+  left: 4px;
+  border-width: 0 0 1px 1px;
+  transform: rotate(45deg);
+}
+#app:has(.companion-shell[data-dock-edge="right"])::after {
+  right: 4px;
+  border-width: 1px 1px 0 0;
+  transform: rotate(45deg);
+}
 .companion-shell {
   position: relative;
   isolation: isolate;
@@ -460,19 +490,19 @@ html[data-theme="dark"] .companion-task-summary {
   border-radius: 18px;
 }
 html[data-theme="dark"] .companion-shell {
-  --text: #f5f7fc;
-  --muted: #c2cbdc;
-  --secondary: #c2cbdc;
-  --surface: #202a39;
-  --canvas: #192231;
-  --hover: #303e52;
-  --accent: #aadac3;
-  --accent-soft: #293e37;
-  --line: #3b475a;
-  --bubble-base: rgba(19, 25, 35, 0.97);
-  --bubble-card: #222c3c;
-  --bubble-input: #1b2534;
-  --bubble-edge: #4b596e;
+  --text: #faf1fa;
+  --muted: #d5c6db;
+  --secondary: #d5c6db;
+  --surface: #3c3146;
+  --canvas: #32283b;
+  --hover: #584364;
+  --accent: #e9c9ed;
+  --accent-soft: #594466;
+  --line: #574861;
+  --bubble-base: #32283b;
+  --bubble-card: #453650;
+  --bubble-input: #2b2334;
+  --bubble-edge: #736282;
   box-shadow:
     0 4px 14px #00000045,
     inset 0 1px 0 #ffffff18;
@@ -565,9 +595,7 @@ html[data-theme="dark"]
 .companion-history {
   padding: 20px 18px;
 }
-.reading-history .companion-history {
-  height: calc(100% - 36px);
-}
+.reading-history .companion-history { padding-block: 8px; }
 .companion-welcome {
   padding: 10px 8px;
 }
@@ -626,11 +654,11 @@ html[data-theme="dark"] .companion-camera.active,
 html[data-theme="dark"] .companion-shell .button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #14261e;
+  color: #372444;
 }
 html[data-theme="dark"] .companion-shell .button.primary:hover {
-  background: #c1e8d5;
-  border-color: #c1e8d5;
+  background: #f2d9f5;
+  border-color: #f2d9f5;
 }
 @keyframes ambient-drift {
   from {
@@ -651,7 +679,7 @@ html[data-theme="dark"] .companion-shell .button.primary:hover {
     --bubble-base: #f7f9fb;
   }
   html[data-theme="dark"] .companion-shell {
-    --bubble-base: #191e2b;
+    --bubble-base: #32283b;
   }
 }
 
@@ -669,3 +697,20 @@ html[data-theme="dark"] .companion-shell .button.primary:hover {
   font-size: 15px;
   padding: 0 3px;
 }
+
+.companion-shell[data-display-profile="desktop"] .companion-header { gap: 6px; padding: 6px 12px; }
+@media (min-width: 400px) {
+  .companion-shell[data-display-profile="desktop"] .companion-header {
+    grid-template-columns: minmax(86px, 1fr) minmax(80px, 166px) auto;
+    gap: 10px;
+    padding-inline: 14px;
+  }
+}
+.companion-shell[data-display-profile="desktop"] .companion-task-summary { padding: 5px 8px; }
+.companion-shell[data-display-profile="desktop"] .companion-history { padding: 8px 12px; }
+.companion-shell[data-display-profile="desktop"] .companion-message { padding: 7px 9px; margin-bottom: 8px; }
+.companion-shell[data-display-profile="desktop"] .companion-message:last-child { margin-bottom: 0; }
+.companion-shell[data-display-profile="desktop"] .companion-composer { margin: 6px 12px 0; padding: 4px; }
+.companion-shell[data-display-profile="desktop"] .companion-composer textarea { height: 36px; }
+.companion-shell[data-display-profile="desktop"] .companion-composer .button { min-height: 34px; height: 34px; }
+.companion-shell[data-display-profile="desktop"] .companion-footer { gap: 6px; padding: 5px 12px 8px; }

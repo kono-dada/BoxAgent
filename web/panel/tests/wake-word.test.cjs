@@ -5,8 +5,8 @@ const { PassThrough } = require('node:stream');
 const { WakeWord } = require('../desktop/wake-word.cjs');
 
 function fixture() {
-  const children = [], timers = [];
-  const listener = new WakeWord({ onError() {}, onWake() {},
+  const children = [], timers = [], diagnostics = [];
+  const listener = new WakeWord({ onError() {}, onWake() {}, onDiagnostic: event => diagnostics.push(event),
     spawnListener() {
       const child = new EventEmitter();
       child.stdout = new PassThrough(); child.stderr = new PassThrough();
@@ -17,12 +17,19 @@ function fixture() {
     cancel(timer) { if (timer) timer.cancelled = true; },
   });
   listener.setName('书书'); listener.sync(true);
-  return { listener, children, timers };
+  return { listener, children, timers, diagnostics };
 }
 
 test('a wake helper failure retries once without permanently disabling wake', () => {
-  const { listener, children, timers } = fixture();
+  const { listener, children, timers, diagnostics } = fixture();
+  children[0].pid = 100;
+  children[0].emit('spawn');
+  children[0].stderr.write('microphone unavailable');
   children[0].emit('close', 1);
+  assert.deepEqual(diagnostics, [
+    { event: 'listener.started', pid: 100 },
+    { event: 'listener.failed', code: 1, signal: undefined, detail: 'microphone unavailable' },
+  ]);
   assert.equal(listener.enabled, true);
   for (let i = 0; i < 10; i++) listener.sync(true);
   assert.equal(children.length, 1);
