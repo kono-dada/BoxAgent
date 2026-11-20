@@ -108,6 +108,8 @@ class BoxAgentApplication:
         await self.deliver_pending_notifications()
 
     async def announce_game_news(self, game: Game, news: GameNews | None) -> None:
+        if not self.state.game_companion_enabled:
+            return
         if news is None:
             headline = f"《{game.name}》打开了，暂时没有查到近期动态。"
         elif news.community_topic:
@@ -159,6 +161,15 @@ class BoxAgentApplication:
 
     async def toggle_context(self):
         await self.perception_service.toggle()
+
+    def set_game_companion_mode(self, enabled: bool) -> dict[str, object]:
+        if type(enabled) is not bool:
+            raise ValueError("陪玩模式开关必须为布尔值")
+        if enabled and not self.state.game_companion_available:
+            raise ValueError("当前运行环境尚未启用陪玩功能")
+        self.events.emit("game.companion_mode_changed", game_companion_enabled=enabled)
+        self.interaction_service.set_companion_mode(enabled)
+        return {"status": "succeeded", "enabled": enabled}
 
     async def toggle_voice(self):
         await self.interaction_service.toggle()
@@ -629,6 +640,11 @@ class BoxAgentApplication:
             if name == "play_avatar_action":
                 action = data.get("action") if isinstance(data, dict) else None
                 return self.request_avatar_action(action)
+            if name == "set_game_companion_mode":
+                enabled = data.get("enabled") if isinstance(data, dict) else None
+                if type(enabled) is not bool:
+                    return {"status": "failed", "message": "请明确开启或关闭陪玩模式"}
+                return self.set_game_companion_mode(enabled)
             if name == "run_task":
                 capability = data.get("capability", self.execution_service.clarification_capability(interaction) or "desktop")
                 if not isinstance(capability, str) or capability not in {"desktop", "wechat"}:

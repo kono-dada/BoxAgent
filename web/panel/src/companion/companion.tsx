@@ -8,7 +8,7 @@ import {
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Camera, Mic, Monitor } from "lucide-react";
+import { Camera, Mic, Monitor, Gamepad2 } from "lucide-react";
 import { t } from "../i18n";
 import { locale, startPreferences } from "../preferences";
 import { useAction, run, runtimeLabel } from "../hooks/useAction";
@@ -522,6 +522,17 @@ function Companion() {
         </button>
       </form>
       <footer className="companion-footer">
+        <button type="button"
+          className={`companion-voice ${runtime.game_companion_enabled ? "active" : ""}`}
+          role="switch" aria-label={t("陪玩模式")}
+          aria-checked={Boolean(runtime.game_companion_enabled)}
+          title={t("开启后保持语音连接，结合游戏画面陪你聊天；关闭后恢复一分钟空闲断线。")}
+          disabled={!online || action.busy || !runtime.game_companion_available}
+          onClick={() => run(action.act("set_game_companion_mode", { enabled: !runtime.game_companion_enabled }))}>
+          <Gamepad2 size={16} aria-hidden="true" />
+          {runtime.game_companion_enabled ? t("退出陪玩") : t("开启陪玩")}
+          <i className="voice-switch" aria-hidden="true" />
+        </button>
         <button
           className={`companion-voice ${runtime.voice === "ready" ? "active" : ""}`}
           title={`${t("全双工")} · ⌃⌥${t("空格")}`}

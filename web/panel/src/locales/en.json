@@ -708,5 +708,10 @@
   "微信副本在登录检查完成前退出，请重新启动后重试。": "The WeChat copy exited before login verification finished. Restart it and try again.",
   "伙伴与聊天显示屏": "Companion and chat display",
   "随拖动切换屏幕": "Move together across displays",
-  "伙伴、聊天与任务展示一起放在所选屏幕。": "Keep your companion, chat and task panel on the selected display."
+  "伙伴、聊天与任务展示一起放在所选屏幕。": "Keep your companion, chat and task panel on the selected display.",
+  "陪玩模式": "Game companion mode",
+  "开启陪玩": "Start companion mode",
+  "退出陪玩": "Exit companion mode",
+  "开启后保持语音连接，结合游戏画面陪你聊天；关闭后恢复一分钟空闲断线。": "Keep voice connected and chat about your game. Turning this off restores the one-minute idle timeout.",
+  "当前运行环境尚未启用陪玩功能": "Game companion support is not enabled in this environment."
 }

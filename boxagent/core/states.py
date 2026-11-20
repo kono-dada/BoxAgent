@@ -78,6 +78,8 @@ class Snapshot:
     context_at: float = 0
     game_news_text: str = ""
     game_news_url: str = ""
+    game_companion_available: bool = False
+    game_companion_enabled: bool = False
     notification_id: str = ""
     notification_text: str = ""
     notification_unread: bool = False

@@ -115,6 +115,21 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
         await self.tick()
         self.assertFalse(self.game.is_active())
 
+    async def test_explicit_mode_disables_capture_and_discards_old_context(self) -> None:
+        enabled = False
+        self.game.enabled = lambda: enabled
+        await self.tick()
+        self.assertEqual(self.vision.captures, 0)
+        enabled = True
+        await self.tick()
+        self.assertEqual(self.vision.captures, 1)
+        self.assertTrue(self.game.is_active())
+        enabled = False
+        self.assertEqual(self.game.reference(), "")
+        await self.tick()
+        self.assertEqual(self.vision.captures, 1)
+        self.assertFalse(self.game.is_active())
+
     async def test_silent_scene_supplies_conversation_context_until_expired(self) -> None:
         # This observation is available even though there is no proactive line.
         self.vision.result = HighlightReview(
@@ -232,6 +247,7 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
 
         interaction = InteractionService(StateEvents(lambda _event: None), None, None)
         interaction.voice_factory = object()
+        interaction.events.emit("game.companion_mode_changed", game_companion_enabled=True)
 
         async def connect(*, microphone: bool) -> None:
             opened.append(microphone)

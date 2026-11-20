@@ -135,34 +135,28 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await service.close()
 
-    async def test_quiet_game_keeps_voice_then_leaving_game_gets_a_fresh_idle_interval(self) -> None:
+    async def test_explicit_companion_mode_holds_voice_without_game_detection(self) -> None:
         voice = AsyncMock()
         voice.ready = asyncio.Event()
         voice.playback_pending = False
-        closed, saw_game, left_game = asyncio.Event(), asyncio.Event(), asyncio.Event()
-        game_active = True
+        closed = asyncio.Event()
 
         async def run() -> None:
             voice.ready.set()
             await closed.wait()
 
-        def keep_game() -> bool:
-            (saw_game if game_active else left_game).set()
-            return game_active
-
         voice.run.side_effect = run
         voice.stop.side_effect = closed.set
-        service = InteractionService(StateEvents(lambda _: None), lambda *_a, **_kw: voice, None,
+        events = StateEvents(lambda _: None)
+        events.emit("game.companion_mode_changed", game_companion_enabled=True)
+        service = InteractionService(events, lambda *_a, **_kw: voice, None,
                                      voice_idle_timeout=.03)
-        service.keep_voice_for_game = keep_game
         try:
             await service.toggle()
-            await asyncio.wait_for(saw_game.wait(), 1)
             await asyncio.sleep(.07)
             self.assertTrue(service.is_connected)
-            game_active = False
-            await asyncio.wait_for(left_game.wait(), 1)
-            self.assertTrue(service.is_connected, "leaving a long silent game must not close voice immediately")
+            events.emit("game.companion_mode_changed", game_companion_enabled=False)
+            self.assertTrue(service.is_connected, "disabling companion mode must not close voice immediately")
             assert service.voice_idle_task is not None
             await asyncio.wait_for(service.voice_idle_task, 1)
             self.assertFalse(service.is_connected)
@@ -188,7 +182,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             return voice
 
         service = InteractionService(StateEvents(lambda _: None), factory, None)
-        service.keep_voice_for_game = lambda: True
+        service.events.emit("game.companion_mode_changed", game_companion_enabled=True)
         try:
             await service.toggle()
             await service._conversation_event("user_final", {"transcript": "书书，你先下去吧"})

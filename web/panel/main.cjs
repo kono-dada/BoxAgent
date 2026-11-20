@@ -34,6 +34,7 @@ const methods = new Set([
   "archive_session",
   "toggle_voice",
   "toggle_context",
+  "set_game_companion_mode",
   "submit_text",
   "cancel_task",
   "cancel_all_tasks",

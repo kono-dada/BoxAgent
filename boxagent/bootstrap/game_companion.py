@@ -44,9 +44,10 @@ def install_game_companion(application: BoxAgentApplication, settings: Settings,
                             cache=settings.data_dir / "runtimes/game-capture"))
     companion = GameCompanion(vision, interaction.game_voice, announce, entry=entry,
                               recognize_quest=recognize_quest, cloud_scene=cloud_scene is not None,
-                              prepare_audio=interaction.prepare_game_audio)
+                              prepare_audio=interaction.prepare_game_audio,
+                              enabled=lambda: application.state.game_companion_enabled)
     interaction.game_reference = companion.reference
-    interaction.keep_voice_for_game = companion.is_active
     interaction.game_playback_started = companion.playback_started
     interaction.game_entry_playback_started = companion.entry_playback_started
     application.runtime_resources = (*application.runtime_resources, companion)
+    application.emit("game.companion_available", game_companion_available=True)

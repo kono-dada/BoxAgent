@@ -166,6 +166,11 @@ class EngineServer:
         if method == "toggle_context":
             await self.application.toggle_context()
             return {"status": "succeeded"}
+        if method == "set_game_companion_mode":
+            enabled = params.get("enabled")
+            if type(enabled) is not bool:
+                raise ValueError("陪玩模式开关必须为布尔值")
+            return self.application.set_game_companion_mode(enabled)
         if method == "toggle_voice":
             await self.application.toggle_voice()
             return {"status": "succeeded"}

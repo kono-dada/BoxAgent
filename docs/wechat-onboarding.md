@@ -1,5 +1,59 @@
 # 微信首次接入与自动副本准备
 
+## 同事从仓库本地运行（2026-11-20）
+
+当前集成分支是 `codex/wechat-agent-integration`。仓库包含微信读取、监听、原生发送、Inbox 与语音代回的代码；本机凭据和固定微信安装资源不在 Git。**拉代码不等于微信已经接入**，每位同事需要在自己的 Apple Silicon Mac 上完成副本准备和扫码登录。
+
+新 checkout：
+
+```sh
+git clone --branch codex/wechat-agent-integration https://github.com/kono-dada/BoxAgent.git
+cd BoxAgent
+git lfs pull
+```
+
+先按 [本机环境准备](setup.md) 安装依赖、构建前端和准备官方桌面执行组件。前端测试使用 Node.js 22；不要沿用 Node.js 18 的 MockTimers 接口。模型 Key 使用同事自己的配置。
+
+另行取得以下两个无账号数据的资源，原样放到 checkout 的 `.runtime/package-resources/wechat/`：
+
+| 文件 | 用途 |
+| --- | --- |
+| `4.1.15.270115.dmg` | 已验证的腾讯原版固定构建，695,378,035 bytes |
+| `manifest.json` | 安装前长度与 SHA256 校验清单 |
+
+该归档 SHA256 为 `7d49a7cce5bd2607ad819a5727d7e9cee5ed8296a359cf358b1644f59c7c19d1`。检查命令：
+
+```sh
+shasum -a 256 .runtime/package-resources/wechat/4.1.15.270115.dmg
+```
+
+当前没有发布固定资源的下载地址，仓库内下载清单刻意保持禁用。不能用最新版微信或相同版本号的其他热修构建替代。不要复制开发者的微信副本、账号数据库、密钥报告、`.env.local` 或整个用户数据目录。
+
+没有配套运行资源的新机器，只有上述两个文件仍不足以运行完整首次引导。可在本机准备引导需要的 Python、wheel、AOQ 与微信资源，不制作 DMG：
+
+```sh
+uv run --python 3.12 --script scripts/prepare-packaged-runtime.py \
+  --aoq-dir /绝对路径/官方AOQ/frameworks \
+  --wechat-source "$PWD/.runtime/package-resources/wechat/4.1.15.270115.dmg"
+```
+
+这是较重的一次性准备，会下载依赖并占用额外磁盘空间。已有完整、可信的构建资源也可复用；仅分享微信归档不会自动补齐其他组件。
+
+退出其他 BoxAgent 实例后，从源码开启首次引导：
+
+```sh
+BOXAGENT_DATA_DIR="$HOME/Library/Application Support/BoxAgent" \
+  pnpm --dir web/panel setup
+```
+
+在向导中填写自己的模型 Key、准备本地组件、确认权限，再到微信页依次点击「准备微信副本」「启动并扫码登录」「检查读取与监听」「后台发送预检」「启用微信」。扫码和系统授权由同事本人完成。发送预检不实际发消息；首次验收请另约一条测试来信，确认 Inbox 收到新消息，再由本人明确口述回复并检查发送回执。
+
+后续继续使用上面的 `pnpm ... setup` 命令和同一个数据目录，宿主会读取本机加密配置并恢复已完成的引导。它运行 checkout 中的代码，但使用引导管理的运行环境，默认不启用 Engine 源码热重启。
+
+`./scripts/run-local.sh` 是另一条开发入口：它复用用户数据和模型，但当前不会读取向导的加密凭据库来生成微信环境配置。**不能把“同一个数据目录”当作两个入口已打通微信凭据**。已有本机开发微信配置时才直接使用该入口；新同事先按上述向导路径运行，不导出密钥来绕过。
+
+本分支可用于同事开发联调；本机微信成功记录见下文，全新 Mac 的首次扫码、冷启动恢复仍需在同事机器上验收。
+
 ## 用户流程
 
 用户不需要自己查找微信版本或下载安装包。BoxAgent 的发行资源包含经过构建号、腾讯签名和

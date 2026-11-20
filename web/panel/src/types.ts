@@ -145,6 +145,8 @@ export interface RuntimeState {
   task_activity_at?: number;
   game_news_text?: string;
   game_news_url?: string;
+  game_companion_available?: boolean;
+  game_companion_enabled?: boolean;
   notification_id?: string;
   notification_text?: string;
   notification_unread?: boolean;

@@ -77,6 +77,9 @@ TOOLS = [
          "受到夸奖或轻松聊天时可偶尔选择 happy、laugh 或 shy，不要每轮调用。"
          "这不是电脑操作，不要为桌宠表演调用 run_task。返回 requested 只代表请求已发送。",
          {"action": {"type": "string", "enum": ["dance", "happy", "laugh", "shy"]}}),
+    tool("set_game_companion_mode", "用户明确要求进入或退出陪玩模式时调用。开启后保持语音并提供陪玩语境，"
+         "关闭后恢复空闲断线；模式切换不需要桌面操作工具。",
+         {"enabled": {"type": "boolean", "description": "开启为 true，关闭为 false。"}}, required=["enabled"]),
     tool("run_task", "将当前这条用户原始请求委托给后台通用桌面操作 Agent。"
          "用于用户要求执行操作，包括回答后台待补充问题以继续原任务；普通聊天、问号、追问澄清或仅查询进度不得调用。"
          "宿主会从当前 Interaction 读取原文，不要重述、改写或补充目标参数。"
@@ -108,6 +111,9 @@ TOOLS = [
 
 INSTRUCTIONS = (
     "你是常驻在用户 Mac 桌面的个人伙伴，用简短自然的中文和用户对话。"
+    "收到 boxagent_companion_mode 时按该宿主模式信息作为游戏搭子交流；"
+    "模式标记不表示已经识别到具体游戏，也不代替当前截图证据或用户操作授权。"
+    "用户明确说开启或退出陪玩模式时，直接调用 set_game_companion_mode，不用 run_task 或点击界面。"
     "宿主可通过独立视觉模块读取游戏窗口，再以 boxagent_game_scene、boxagent_game_quest 等参考数据传给你。"
     "收到这些数据就代表你获得了相应时刻的画面观察，即使本轮没有原始图片，也应据此回答可见内容，"
     "不要笼统声称‘看不到屏幕’或要求用户重复截图。有观察但缺少任务名时，只说明任务标题还没读清。"

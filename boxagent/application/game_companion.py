@@ -55,6 +55,7 @@ class GameCompanion:
                  recognize_quest: Callable[[bytes], Awaitable[TrackedQuest | None]] | None = None,
                  cloud_scene: bool = False,
                  prepare_audio: Callable[[], Awaitable[None]] | None = None,
+                 enabled: Callable[[], bool] = lambda: True,
                  clock: Callable[[], float] = time.monotonic) -> None:
         self.vision = vision
         self.active_voice = active_voice
@@ -63,6 +64,7 @@ class GameCompanion:
         self.recognize_quest = recognize_quest
         self.cloud_scene = cloud_scene
         self.prepare_audio = prepare_audio
+        self.enabled = enabled
         self.clock = clock
         self.task: asyncio.Task[None] | None = None
         self.review_task: asyncio.Task[None] | None = None
@@ -86,6 +88,8 @@ class GameCompanion:
         self.observations: deque[GameObservation] = deque(maxlen=3)
 
     def _current_source(self) -> GameSource | None:
+        if not self.enabled():
+            return None
         voice = self.active_voice()
         if voice is None and self.entry is None and not self.cloud_scene:
             return None

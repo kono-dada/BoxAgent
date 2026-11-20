@@ -72,6 +72,19 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
             {runtime.context_enabled ? t('关闭屏幕总结') : t('开启屏幕总结')}
           </button>
         </div>
+        <div>
+          <section>
+            <h2>{t('陪玩模式')}</h2>
+            <p>{t('开启后保持语音连接，结合游戏画面陪你聊天；关闭后恢复一分钟空闲断线。')}</p>
+            {!runtime.game_companion_available && <p>{t('当前运行环境尚未启用陪玩功能')}</p>}
+          </section>
+          <button className="button" role="switch" aria-label={t('陪玩模式')}
+            aria-checked={Boolean(runtime.game_companion_enabled)}
+            disabled={busy || !runtime.game_companion_available}
+            onClick={() => run(act('set_game_companion_mode', { enabled: !runtime.game_companion_enabled }))}>
+            {runtime.game_companion_enabled ? t('退出陪玩') : t('开启陪玩')}
+          </button>
+        </div>
         {runtime.context_text && <p className="context-summary">{runtime.context_text}</p>}
         <div>
           <section>
