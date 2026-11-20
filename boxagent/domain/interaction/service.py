@@ -249,8 +249,10 @@ class InteractionService:
                 if self.interaction is not context or self.voice is not voice:
                     return {"status": "interrupted", "message": "本轮已被新的输入打断"}
                 game_reference = self.game_reference()
-                report["game"] = {"status": "ready" if game_reference else "empty",
-                                  "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference}
+                report["game_vision"] = {
+                    "status": "ready" if game_reference else "empty",
+                    "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference,
+                }
                 self.context_observer.turn_prepared(context.session.session_id, **report)
                 self._store_decision(context, report)
                 reference = (self.companion_mode_reference() + self.task_reference(context) + game_clarification_reference(text)
@@ -411,7 +413,7 @@ class InteractionService:
                 if self.voice is not voice or self.user_speaking or self.voice_end_task is not None:
                     return
                 now = loop.time()
-                if self.events.state.game_companion_enabled:
+                if self.events.state.game_companion_enabled or self.events.state.lol_companion_enabled:
                     # Explicit mode holds the call even while the game is hidden.
                     deadline = now + self.voice_idle_timeout
                     was_game_active = True
@@ -469,8 +471,10 @@ class InteractionService:
                     if self.interaction is not context or self.voice is not voice or voice is None:
                         return
                     game_reference = self.game_reference()
-                    report["game"] = {"status": "ready" if game_reference else "empty",
-                                      "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference}
+                    report["game_vision"] = {
+                        "status": "ready" if game_reference else "empty",
+                        "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference,
+                    }
                     self.context_observer.turn_prepared(context.session.session_id, **report)
                     self._store_decision(context, report)
                     reference = (self.companion_mode_reference() + self.task_reference(context) + game_clarification_reference(transcript)
@@ -666,6 +670,11 @@ class InteractionService:
                     and interaction.interaction_id not in self.closed_interactions)
 
     def companion_mode_reference(self) -> str:
+        if self.events.state.lol_companion_enabled:
+            return ("<boxagent_companion_mode>用户显式开启了 LOL 陪玩，语音不因沉默断开。"
+                    "有本轮 game 数据时结合本局事实自然回应，缺少对局数据时不猜当前局势。"
+                    "具体精彩操作可以简短夸赞，微信和其他请求沿用原有工具与授权。"
+                    "明确告别时仍结束语音。</boxagent_companion_mode>\n")
         if not self.events.state.game_companion_enabled:
             return ""
         return ("<boxagent_companion_mode>用户显式开启了陪玩模式，当前语音不因沉默而自动断开。"
@@ -762,6 +771,20 @@ class InteractionService:
             return False
         await notify(item)
         return True
+
+    async def announce_lol(self, content: str, instruction: str) -> bool:
+        # Never open a microphone or reconnect for a transient game event.
+        # The user owns the voice connection; disconnected/busy events expire.
+        if (not self.is_connected or self.voice_end_task is not None
+                or self.text_lock.locked() or self.toggle_lock.locked()
+                or self.events.state.user_speaking or self.events.state.speaking
+                or self.events.state.approval
+                or self.events.state.task in {"accepted", "running", "cancelling"}):
+            return False
+        announce = getattr(self.voice, "announce_lol", None)
+        if announce is None:
+            return False
+        return bool(await announce(content, instruction))
 
     async def _notification_event(self, kind: str, payload: dict[str, object]) -> None:
         receipt = payload.get("notification_id")

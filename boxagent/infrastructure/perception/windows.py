@@ -4,12 +4,13 @@ import ctypes
 from ctypes import wintypes
 import os
 from pathlib import Path
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class WindowInfo(TypedDict):
     id: int
     app: str
+    title: NotRequired[str]
 
 
 def focused_window() -> WindowInfo | None:
@@ -20,6 +21,7 @@ def focused_window() -> WindowInfo | None:
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
     user32.IsIconic.argtypes = [wintypes.HWND]
     user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
     kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
     kernel32.OpenProcess.restype = wintypes.HANDLE
     kernel32.QueryFullProcessImageNameW.argtypes = [
@@ -47,14 +49,35 @@ def focused_window() -> WindowInfo | None:
                 app = Path(name.value).stem
         finally:
             kernel32.CloseHandle(process)
-    return {"id": int(hwnd), "app": app}
+    title = ctypes.create_unicode_buffer(1024)
+    user32.GetWindowTextW(hwnd, title, len(title))
+    return {"id": int(hwnd), "app": app, "title": title.value}
 
 
 def capture_window(window_id: int, path: Path) -> None:
     from PIL import ImageGrab
 
-    # Pillow uses the native Windows window capture API for the supplied HWND.
-    image = ImageGrab.grab(window=window_id)
+    # PrintWindow returns blank frames for GPU-rendered Electron windows.
+    # Read the visible foreground window's rectangle from the desktop instead.
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+    user32.SetThreadDpiAwarenessContext.argtypes = [wintypes.HANDLE]
+    user32.SetThreadDpiAwarenessContext.restype = wintypes.HANDLE
+    previous = user32.SetThreadDpiAwarenessContext(wintypes.HANDLE(-4))
+    try:
+        if user32.GetForegroundWindow() != window_id:
+            raise RuntimeError("前台窗口已切换，跳过截图")
+        rect = wintypes.RECT()
+        if not user32.GetWindowRect(window_id, ctypes.byref(rect)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if rect.right <= rect.left or rect.bottom <= rect.top:
+            raise RuntimeError("窗口截图区域无效")
+        image = ImageGrab.grab(
+            bbox=(rect.left, rect.top, rect.right, rect.bottom), all_screens=True)
+    finally:
+        if previous:
+            user32.SetThreadDpiAwarenessContext(previous)
     try:
         image.save(path)
     finally:

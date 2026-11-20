@@ -162,6 +162,9 @@ export interface RuntimeState {
   context_enabled?: boolean;
   context_status?: string;
   context_text?: string;
+  lol_companion_enabled?: boolean;
+  lol_companion_status?: string;
+  lol_companion_text?: string;
 }
 export interface Avatar {
   id: string;

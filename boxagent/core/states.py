@@ -80,6 +80,9 @@ class Snapshot:
     game_news_url: str = ""
     game_companion_available: bool = False
     game_companion_enabled: bool = False
+    lol_companion_enabled: bool = False
+    lol_companion_status: str = "off"
+    lol_companion_text: str = ""
     notification_id: str = ""
     notification_text: str = ""
     notification_unread: bool = False

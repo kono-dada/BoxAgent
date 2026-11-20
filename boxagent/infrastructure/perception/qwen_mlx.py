@@ -8,6 +8,7 @@ import re
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from boxagent.domain.memory.visual import VisualFrame
 from boxagent.infrastructure.perception.windows import WindowInfo
@@ -67,7 +68,8 @@ def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
 
 class WindowSummary:
     def __init__(self, emit, interval=15, model=None, max_size=960, *, workspace=None,
-                 python=None, worker_script=None, log_path=None):
+                 python=None, worker_script=None, log_path=None,
+                 window_allowed: Callable[[WindowInfo], bool] | None = None):
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
         self.model = Path(model or self.workspace / (".runtime/models/qwen3.5-0.8b" if os.name == "nt" else ".runtime/models/qwen3.5-0.8b-mlx"))
@@ -80,6 +82,7 @@ class WindowSummary:
         self.latest_frame: VisualFrame | None = None
         self.inference_lock = asyncio.Lock()
         self.model_errors = None
+        self.window_allowed = window_allowed
 
     async def stop(self):
         self.latest_frame = None
@@ -95,7 +98,9 @@ class WindowSummary:
                 or not 0 <= requested_at - frame.captured_at <= 45:
             return None
         window = focused_window()
-        return frame if window and window["app"] == frame.app and window["id"] == frame.window_id else None
+        if window is None or (self.window_allowed is not None and not self.window_allowed(window)):
+            return None
+        return frame if window["app"] == frame.app and window["id"] == frame.window_id else None
 
     async def _stop_model(self) -> None:
         process, self.process = self.process, None
@@ -124,16 +129,19 @@ class WindowSummary:
             env={**os.environ, "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"})
         await self.reply(120)
 
-    async def _infer(self, path: Path, question: str = "", *, analysis_prompt: str = "") -> dict:
+    async def _infer(self, path: Path, question: str = "", *, analysis_prompt: str = "",
+                     window: WindowInfo | None = None) -> dict:
         async with self.inference_lock:
             try:
                 await self._ensure_model()
                 request = {"image": str(path), "question": question}
                 if analysis_prompt:
                     request["analysis_prompt"] = analysis_prompt
+                if window is not None:
+                    request.update(app=window["app"], title=window.get("title", ""))
                 self.process.stdin.write((json.dumps(request) + "\n").encode())
                 await self.process.stdin.drain()
-                return await self.reply(60)
+                return await self.reply(180 if sys.platform == "win32" else 60)
             except (asyncio.CancelledError, TimeoutError, RuntimeError, OSError):
                 # An unread reply must never become the next request's answer.
                 await self._stop_model()
@@ -217,6 +225,20 @@ class WindowSummary:
             self.latest_frame = None
             self.emit("context.waiting", context_text="", context_status="等待可读取的前台窗口")
             return
+        if self.window_allowed is not None and not self.window_allowed(window):
+            self.latest_frame = None
+            self.emit("context.waiting", context_text="", context_app="", context_window_id=0,
+                      context_at=0, context_status="LOL 陪玩仅观察游戏窗口；请将游戏切到前台")
+            return
+        if window["app"].lower() == "electron" and window.get("title", "").startswith("BoxAgent ·"):
+            self.latest_frame = None
+            # Do not feed the assistant's own previous claims back as screen facts.
+            self.emit("context.updated", context_status="", context_text=(
+                f"当前前台是桌宠自身窗口「{window['title']}」。"
+                "其中聊天消息是历史文字，不能据此判断其他网页或应用已打开。"
+                "若要观察其他应用，需要先切换到目标窗口。"),
+                context_app=window["app"], context_window_id=window["id"], context_at=time.time())
+            return
         self.emit("context.reading", context_status="正在观察前台窗口…")
         captured_at = time.time()
         # 临时图片随本轮结束删除，模型和图片均不上传云端。
@@ -242,9 +264,10 @@ class WindowSummary:
                 image.thumbnail((self.max_size, self.max_size))
                 image.save(path)
             image_bytes = path.read_bytes()
-            result = await self._infer(path)
+            result = await self._infer(path, window=window)
         # 推理期间切换窗口时丢弃过时结果，避免把旧内容当作当前上下文。
-        if focused_window() != window:
+        if focused_window() != window or (
+                self.window_allowed is not None and not self.window_allowed(window)):
             self.latest_frame = None
             self.emit("context.stale", context_text="", context_status="窗口已切换，等待下一次观察")
             return

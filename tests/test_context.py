@@ -1,6 +1,7 @@
 """验证过时上下文丢弃、临时图片清理和独立生命周期。"""
 
 import asyncio
+import time
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -12,6 +13,66 @@ from boxagent.application.assistant import BoxAgentApplication
 
 
 class ContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_lol_mode_rejects_previously_captured_browser_reference(self) -> None:
+        from boxagent.bootstrap.engine import current_screen_reference
+        from boxagent.core.states import Snapshot
+
+        window = {"id": 1, "app": "Browser"}
+        state = Snapshot(context_enabled=True, context_text="浏览器页面",
+                         context_at=time.time(), context_app="Browser", context_window_id=1,
+                         lol_companion_enabled=True)
+        with patch("boxagent.infrastructure.perception.focused_window", return_value=window):
+            self.assertEqual(current_screen_reference(state), "")
+            state.lol_companion_enabled = False
+            self.assertIn("浏览器页面", current_screen_reference(state))
+
+    async def test_lol_mode_never_captures_other_foreground_windows(self) -> None:
+        events = []
+        observer = WindowSummary(lambda kind, **data: events.append((kind, data)),
+            window_allowed=lambda w: w["app"] == "League of Legends")
+        observer.capture = AsyncMock()
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value={"id": 1, "app": "Browser"}):
+            await observer.observe()
+        observer.capture.assert_not_awaited()
+        self.assertEqual(events[-1][0], "context.waiting")
+        self.assertEqual(events[-1][1]["context_text"], "")
+
+    async def test_lol_scope_change_during_inference_discards_other_window(self) -> None:
+        events = []
+        game_only = False
+        observer = WindowSummary(lambda kind, **data: events.append((kind, data)),
+            window_allowed=lambda w: not game_only or w["app"] == "League of Legends")
+        observer.process = SimpleNamespace(returncode=None, stdin=SimpleNamespace(write=Mock(), drain=AsyncMock()))
+
+        async def reply(timeout):
+            nonlocal game_only
+            game_only = True
+            return {"summary": "浏览器文字。"}
+
+        async def capture(window_id, path):
+            Image.new("RGB", (100, 100)).save(path)
+
+        observer.capture, observer.reply = capture, reply
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window",
+                   return_value={"id": 1, "app": "Browser"}):
+            await observer.observe()
+        self.assertEqual(events[-1][0], "context.stale")
+        self.assertFalse(any(kind == "context.updated" for kind, _ in events))
+
+    async def test_companion_chat_cannot_recycle_previous_screen_claims(self) -> None:
+        events = []
+        observer = WindowSummary(lambda kind, **fields: events.append((kind, fields)))
+        observer.capture = AsyncMock()
+        window = {"id": 7, "app": "electron", "title": "BoxAgent · 对话"}
+        with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window", return_value=window):
+            await observer.observe()
+        observer.capture.assert_not_awaited()
+        kind, fields = events[-1]
+        self.assertEqual(kind, "context.updated")
+        self.assertIn("桌宠自身窗口", fields["context_text"])
+        self.assertEqual(fields["context_window_id"], 7)
+
     async def test_capture_is_deleted_and_switched_window_result_discarded(self):
         for switched in (False, True):
             events, paths = [], []

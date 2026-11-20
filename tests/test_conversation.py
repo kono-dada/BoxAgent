@@ -136,6 +136,11 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             await service.close()
 
     async def test_explicit_companion_mode_holds_voice_without_game_detection(self) -> None:
+        for mode in ("game_companion_enabled", "lol_companion_enabled"):
+            with self.subTest(mode=mode):
+                await self._check_companion_idle(mode)
+
+    async def _check_companion_idle(self, mode: str) -> None:
         voice = AsyncMock()
         voice.ready = asyncio.Event()
         voice.playback_pending = False
@@ -148,14 +153,14 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
         voice.run.side_effect = run
         voice.stop.side_effect = closed.set
         events = StateEvents(lambda _: None)
-        events.emit("game.companion_mode_changed", game_companion_enabled=True)
+        events.emit("game.companion_mode_changed", **{mode: True})
         service = InteractionService(events, lambda *_a, **_kw: voice, None,
                                      voice_idle_timeout=.03)
         try:
             await service.toggle()
             await asyncio.sleep(.07)
             self.assertTrue(service.is_connected)
-            events.emit("game.companion_mode_changed", game_companion_enabled=False)
+            events.emit("game.companion_mode_changed", **{mode: False})
             self.assertTrue(service.is_connected, "disabling companion mode must not close voice immediately")
             assert service.voice_idle_task is not None
             await asyncio.wait_for(service.voice_idle_task, 1)

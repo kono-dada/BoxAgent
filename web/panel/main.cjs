@@ -35,6 +35,7 @@ const methods = new Set([
   "toggle_voice",
   "toggle_context",
   "set_game_companion_mode",
+  "toggle_lol_companion",
   "submit_text",
   "cancel_task",
   "cancel_all_tasks",

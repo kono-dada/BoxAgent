@@ -136,6 +136,8 @@ class ArchitectureTests(unittest.TestCase):
             "domain/perception/models.py", "domain/perception/service.py",
             "domain/skill/models.py", "domain/skill/contracts.py",
             "domain/skill/service.py", "domain/proactivity/contracts.py",
+            "domain/proactivity/lol.py", "application/lol_companion.py",
+            "infrastructure/games/lol.py",
             "infrastructure/runtimes/codex/runtime.py",
             "infrastructure/runtimes/codex/app_server.py",
             "infrastructure/runtimes/codex/session.py",
@@ -223,6 +225,7 @@ class ArchitectureTests(unittest.TestCase):
             "SkillFileRepository", "SkillService",
             "JsonlContextLedgerStore", "QwenContextRecorder",
             "WindowSummary",
+            "LolLiveClient", "LolCompanion", "LolCompanionPolicy",
             "LocalSystemEnvironmentProvider",
         }
         offenders = []

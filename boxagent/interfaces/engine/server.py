@@ -171,6 +171,8 @@ class EngineServer:
             if type(enabled) is not bool:
                 raise ValueError("陪玩模式开关必须为布尔值")
             return self.application.set_game_companion_mode(enabled)
+        if method == "toggle_lol_companion":
+            return await self.application.toggle_lol_companion()
         if method == "toggle_voice":
             await self.application.toggle_voice()
             return {"status": "succeeded"}
