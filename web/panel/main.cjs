@@ -36,6 +36,7 @@ const methods = new Set([
   "toggle_context",
   "set_game_companion_mode",
   "toggle_lol_companion",
+  "set_companion_session",
   "submit_text",
   "cancel_task",
   "cancel_all_tasks",
@@ -237,10 +238,14 @@ app.whenReady().then(async () => {
     broadcast("engine:event", event);
     host?.stateChanged(state, event);
   });
-  client.on("online", () => broadcast("engine:diagnostic", "Engine 已连接"));
+  client.on("online", () => {
+    host?.updateMenu();
+    broadcast("engine:diagnostic", "Engine 已连接");
+  });
   client.on("diagnostic", (message) => broadcast("engine:diagnostic", message));
   client.on("offline", () => {
     host?.syncWakeWord();
+    host?.updateMenu();
     camera.disconnected();
     broadcast("engine:diagnostic", "Engine 已断开");
     if (!disposed) reconnect = setTimeout(() => client.connect(), 1000);
@@ -303,7 +308,7 @@ app.whenReady().then(async () => {
     localPermissions = new LocalPermissions({ dialog,
       permissions: new Permissions(systemPreferences, shell, {
         speech: new SpeechPermissions(),
-        onVoiceGranted: () => { host?.wakeWord?.setEnabled(true); host?.syncWakeWord(); },
+        onVoiceGranted: () => host?.syncWakeWord(),
         requestScreen: () => desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false }),
       }),
       record: permissions => {
@@ -326,7 +331,7 @@ app.whenReady().then(async () => {
       credentials: new CredentialStore(path.join(data, 'state/credentials.json'), safeStorage),
       permissions: new Permissions(systemPreferences, shell, {
         speech: new SpeechPermissions(),
-        onVoiceGranted: () => { host?.wakeWord?.setEnabled(true); host?.syncWakeWord(); },
+        onVoiceGranted: () => host?.syncWakeWord(),
         requestScreen: async () => {
         await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false });
       } }),

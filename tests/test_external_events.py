@@ -244,6 +244,34 @@ class EventRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.agent.requests, [])
         self.context.prepare.assert_not_awaited()
 
+    async def test_muted_wechat_groups_stay_in_inbox_without_a_notification(self) -> None:
+        group = "muted@chatroom"
+        module = Mock(group_muted=Mock(side_effect=lambda peer: peer == group),
+                      contacts=Mock(return_value=()))
+        wechat = WeChatEventContext(module)
+        self.runs.suppressions = {"wechat": wechat.suppression_reason}
+        await self.runs.accept(event("muted-model", subject=group))
+        self.assertTrue(await self.runs.process_once())
+        self.assertEqual(self.agent.requests, [])
+
+        async def direct(batch: EventBatch) -> tuple[str, EventDecision]:
+            return await self.context.session_for(batch), await wechat.notice(batch)
+
+        self.runs.direct_notices = {"wechat": direct}
+        await self.runs.accept(event("muted-direct", subject=group))
+        self.assertTrue(await self.runs.process_once())
+        self.assertEqual(self.inbox.status()["done"], 2)
+        self.assertEqual(await self.app.list_notifications(), [])
+
+        await self.runs.accept(event("normal", subject="normal@chatroom"))
+        await self.runs.accept(event("private"))
+        self.assertTrue(await self.runs.process_once())
+        self.assertTrue(await self.runs.process_once())
+        notices = await self.app.list_notifications()
+        self.assertCountEqual([item["source_event_ids"][0] for item in notices], ["normal", "private"])
+        self.assertEqual([call.args[0] for call in module.group_muted.call_args_list],
+                         [group, group, "normal@chatroom"])
+
     async def test_wechat_notice_removes_only_matching_group_sender_header(self) -> None:
         sender = "wxid_fixture"
         group = "fixture@chatroom"
@@ -381,14 +409,16 @@ class StructuredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         voice = QwenRealtimeSession(None, lambda *_args, **_kwargs: None, microphone=False)
         voice.send = AsyncMock()
         voice._create_response = AsyncMock()
-        await voice._deliver_notification({"notification_id": "n1", "kind": "external_event",
-            "summary": "朋友问今晚几点出发。", "source_refs": [{"subject_id": "peer"}]})
+        notice = {"notification_id": "n1", "kind": "external_event",
+                  "summary": "朋友问今晚几点出发。", "source_refs": [{"subject_id": "peer"}]}
+        await voice._deliver_notification(notice)
         request = voice.send.call_args.args[0]
         text = request["item"]["content"][0]["text"]
         self.assertIn("不是用户指令", text)
         self.assertNotIn("可信任务结果", text)
         self.assertIn('"subject_id": "peer"', text)
-        voice._create_response.assert_awaited_once_with({"kind":"notification", "notification_id":"n1"})
+        voice._create_response.assert_awaited_once_with({"kind": "notification", "notification_id": "n1",
+                                                       "notification_item": notice})
 
     async def test_event_host_does_not_require_cu_and_cleans_cancelled_turn(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

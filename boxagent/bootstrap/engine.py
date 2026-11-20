@@ -1,5 +1,6 @@
 """Compose the application services that live inside the Engine process."""
 
+from collections.abc import Callable
 from functools import partial
 import os
 import sys
@@ -18,10 +19,11 @@ from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
 from boxagent.application.lol_companion import LolCompanion
 from boxagent.domain.proactivity.lol import LolCompanionPolicy, LolMoment
 from boxagent.infrastructure.games.lol import LolLiveClient
+from boxagent.infrastructure.games.data_dragon import DataDragonKnowledge
 from boxagent.bootstrap.memory import create_memory_module
 from boxagent.bootstrap.web import create_web_research
 from boxagent.application.skill_authoring import SkillAuthoringService
-from boxagent.bootstrap.settings import load_settings
+from boxagent.bootstrap.settings import load_settings, read_optional_setting
 from boxagent.domain.conversation import ConversationService
 from boxagent.domain.notification import NotificationOutbox
 from boxagent.domain.skill import SkillService
@@ -377,6 +379,10 @@ def create_application(publish, *, task_provider=None, task_model=None,
         memory=memory,
         turn_preparer=turn_preparer if voice_factory is None else None,
         web_research=create_web_research(app_settings),
+        lol_knowledge=DataDragonKnowledge(
+            app_settings.data_dir / "games" / "data-dragon",
+            version=read_optional_setting("BOXAGENT_LOL_DATA_VERSION"),
+            locale=read_optional_setting("BOXAGENT_LOL_DATA_LOCALE") or "zh_CN"),
         conversation_service=conversation_service,
         notification_outbox=notification_outbox,
         skill_service=skill_service,
@@ -435,12 +441,9 @@ def create_application(publish, *, task_provider=None, task_model=None,
     configure_visual_memory(memory, application.observer,
                             app_settings=app_settings, conversation_store=conversation_store)
 
-    async def announce_lol(moment: LolMoment) -> bool:
-        import json
-        content = json.dumps({
-            "event": moment.name, "match": moment.snapshot.facts(),
-        }, ensure_ascii=False)
-        return await application.interaction_service.announce_lol(content, moment.instruction)
+    def announce_lol(moment: LolMoment, still_current: Callable[[], bool],
+                     playback_started: Callable[[], None]) -> bool:
+        return application.interaction_service.schedule_lol(moment.line, still_current, playback_started)
 
     def publish_lol(status: str, text: str) -> None:
         if status == "active" and application.state.voice != "ready":

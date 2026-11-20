@@ -53,6 +53,15 @@ class DesktopHost {
         onError: (message) => this.feedback(message),
         onWake: () => this.answerWakeWord(),
       });
+      let wakeEnabled = false;
+      try {
+        const saved = JSON.parse(fs.readFileSync(path.join(data, "voice-preferences.json"), "utf8"));
+        wakeEnabled = saved?.version === 1 && saved.wakeEnabled === true;
+      } catch (error) {
+        if (error.code !== "ENOENT" && !(error instanceof SyntaxError))
+          console.error("Voice preference:", error.message);
+      }
+      this.wakeWord.setEnabled(wakeEnabled);
     }
     this.snapshot = {};
     this.windows = new Set();
@@ -230,17 +239,13 @@ class DesktopHost {
     this.tray = new Tray(icon);
     this.wakeWord?.setName(this.snapshot.name);
     this.syncWakeWord();
-    this.tray.setToolTip(`BoxAgent · ${this.snapshot.name} · ⌃⌥空格切换麦克风`);
+    this.tray.setToolTip(`BoxAgent · ${this.snapshot.name} · ⌃⌥空格切换语音`);
     this.updateMenu();
     for (const event of ['display-added', 'display-removed', 'display-metrics-changed'])
       screen.on(event, this.displayChanged);
     this.tray.on("click", () => this.toggleBubble());
     if (
-      !globalShortcut.register("Control+Alt+Space", () =>
-        this.client
-          .request("toggle_voice")
-          .catch((error) => this.feedback(error.message)),
-      )
+      !globalShortcut.register("Control+Alt+Space", () => this.quickControl("toggle_voice"))
     )
       this.feedback("快捷键已被占用，请使用小窗的语音按钮");
     this.pointerTimer = setInterval(() => this.pointer(), 100);
@@ -299,13 +304,44 @@ class DesktopHost {
   showDisplayMenu(sender) {
     Menu.buildFromTemplate(this.displayMenuItems()).popup({ window: BrowserWindow.fromWebContents(sender) });
   }
+  quickControl(method, params) {
+    return this.client.request(method, params).catch(error => this.feedback(error.message));
+  }
+  setWakeEnabled(enabled) {
+    if (!this.wakeWord) return;
+    try {
+      fs.mkdirSync(this.data, { recursive: true });
+      const file = path.join(this.data, "voice-preferences.json");
+      fs.writeFileSync(file + ".tmp", JSON.stringify({ version: 1, wakeEnabled: enabled }));
+      fs.renameSync(file + ".tmp", file);
+      this.wakeWord.setEnabled(enabled);
+      this.syncWakeWord();
+    } catch (error) {
+      this.feedback(error.message);
+    }
+    this.updateMenu();
+  }
   updateMenu() {
     if (!this.tray) return;
     const displayItems = this.displayMenuItems();
-    const signature = JSON.stringify(displayItems);
+    const { voice, lol_companion_enabled: lol, game_companion_enabled: wuwa,
+      game_companion_available: wuwaAvailable } = this.state;
+    const { online } = this.client;
+    const signature = JSON.stringify([displayItems, online, voice, lol, wuwa, wuwaAvailable, this.wakeWord?.enabled]);
     if (signature === this.menuSignature) return;
     this.menuSignature = signature;
+    const voiceActive = voice === "ready" || voice === "connecting";
+    const gameReady = Boolean(online) && !["connecting", "stopping"].includes(voice);
     this.menu = Menu.buildFromTemplate([
+      { label: voiceActive ? "结束语音" : "开启语音", enabled: Boolean(online) && voice !== "stopping",
+        click: () => this.quickControl("toggle_voice") },
+      { label: lol ? "退出 LoL 陪玩" : "开启 LoL 陪玩", enabled: gameReady,
+        click: () => this.quickControl("set_companion_session", { game: "lol", enabled: !lol }) },
+      ...(wuwaAvailable ? [{ label: wuwa ? "退出鸣潮陪玩" : "开启鸣潮陪玩", enabled: gameReady,
+        click: () => this.quickControl("set_companion_session", { game: "wuwa", enabled: !wuwa }) }] : []),
+      ...(this.wakeWord ? [{ label: "常驻语音唤醒", type: "checkbox", checked: this.wakeWord.enabled,
+        click: item => this.setWakeEnabled(item.checked) }] : []),
+      { type: "separator" },
       { label: "伙伴控制台…", click: this.showPanel },
       { label: "摄像头互动…", click: this.showCamera },
       { label: '伙伴与聊天显示屏', submenu: displayItems },
@@ -1012,6 +1048,9 @@ class DesktopHost {
       if (this.bubbleReady) void this.recoverNotifications();
     }
     this.syncWakeWord();
+    if (event?.type === "engine.ready" || ["voice", "lol_companion_enabled",
+        "game_companion_enabled", "game_companion_available"].some(key => previous[key] !== this.state[key]))
+      this.updateMenu();
     if (
       [
         "front.user_text",

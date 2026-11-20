@@ -173,6 +173,11 @@ class EngineServer:
             return self.application.set_game_companion_mode(enabled)
         if method == "toggle_lol_companion":
             return await self.application.toggle_lol_companion()
+        if method == "set_companion_session":
+            game, enabled = params.get("game"), params.get("enabled")
+            if game not in ("lol", "wuwa") or type(enabled) is not bool:
+                raise ValueError("请选择有效的陪玩游戏和开关状态")
+            return await self.application.set_companion_session(game, enabled)
         if method == "toggle_voice":
             await self.application.toggle_voice()
             return {"status": "succeeded"}

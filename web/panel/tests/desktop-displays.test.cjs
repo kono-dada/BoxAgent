@@ -293,6 +293,27 @@ test('unplug falls back to primary; reconnect restores target and updates menus'
   inside(host.bubble.getBounds(), secondary.workArea);
 });
 
+test('menu controls start an explicit companion session and wake stays opt-in', async t => {
+  const { host, data } = await fixture(t);
+  assert.equal(host.wakeWord.enabled, false);
+  const commands = [];
+  host.client.request = async (method, params) => { commands.push({ method, params }); };
+  const find = label => host.tray.menu.items.find(item => item.label === label);
+  await find('开启语音').click();
+  await find('开启 LoL 陪玩').click();
+  assert.deepEqual(JSON.parse(JSON.stringify(commands)), [
+    { method: 'toggle_voice' },
+    { method: 'set_companion_session', params: { game: 'lol', enabled: true } },
+  ]);
+  host.stateChanged({ voice: 'ready', lol_companion_enabled: true });
+  assert(find('结束语音'));
+  assert(find('退出 LoL 陪玩'));
+  find('常驻语音唤醒').click({ checked: true });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'voice-preferences.json'), 'utf8')).wakeEnabled, true);
+  find('常驻语音唤醒').click({ checked: false });
+  assert.equal(host.wakeWord.enabled, false);
+});
+
 test('portrait rotation, negative coordinates and scale changes preserve full viewport', async t => {
   const { host, screen } = await fixture(t);
   host.setPetDisplay('2');

@@ -27,6 +27,10 @@ class DirectEventNotice(Protocol):
     async def __call__(self, batch: EventBatch) -> tuple[str, EventDecision]: ...
 
 
+class EventSuppression(Protocol):
+    async def __call__(self, batch: EventBatch) -> str | None: ...
+
+
 class EventSource(Protocol):
     async def start(self) -> None: ...
     async def close(self) -> None: ...
@@ -79,13 +83,15 @@ class ExternalEventIntegration:
 class EventRuns:
     def __init__(self, inbox: EventInbox, context: EventContext, agent: EventAgent,
                  notify: EventNotification, *, batch_wait: float = 0.75,
-                 direct_notices: Mapping[str, DirectEventNotice] | None = None) -> None:
+                 direct_notices: Mapping[str, DirectEventNotice] | None = None,
+                 suppressions: Mapping[str, EventSuppression] | None = None) -> None:
         self.inbox = inbox
         self.context = context
         self.agent = agent
         self.notify = notify
         self.batch_wait = batch_wait
         self.direct_notices = direct_notices if direct_notices is not None else {}
+        self.suppressions = suppressions if suppressions is not None else {}
         self.direct_deliveries: dict[str, EventNotification] = {}
         self._wake = asyncio.Event()
         self._job: asyncio.Task[None] | None = None
@@ -111,8 +117,12 @@ class EventRuns:
             return False
         heartbeat = asyncio.create_task(self._renew(batch))
         try:
-            if batch.decision is None:
-                direct = self.direct_notices.get(batch.events[0].source)
+            source = batch.events[0].source
+            suppress = self.suppressions.get(source)
+            reason = await suppress(batch) if suppress is not None else None
+            decision = EventDecision("silent", "", (), reason) if reason else batch.decision
+            if decision is None:
+                direct = self.direct_notices.get(source)
                 if direct is not None:
                     session_id, decision = await direct(batch)
                     await asyncio.to_thread(self.inbox.bind_session, batch, session_id)
@@ -122,14 +132,12 @@ class EventRuns:
                     await asyncio.to_thread(self.inbox.bind_session, batch, session_id)
                     batch = replace(batch, session_id=session_id)
                     decision = await self.agent.evaluate(request)
-                validate_decision(decision, batch.events)
+            validate_decision(decision, batch.events)
+            if decision != batch.decision:
                 await asyncio.to_thread(self.inbox.save_decision, batch, decision)
-            else:
-                decision = batch.decision
-                validate_decision(decision, batch.events)
             await asyncio.to_thread(self.inbox.renew, batch)
             if decision.action == "notify":
-                deliver = self.direct_deliveries.get(batch.events[0].source, self.notify)
+                deliver = self.direct_deliveries.get(source, self.notify)
                 await deliver(batch, decision)
             await asyncio.to_thread(self.inbox.complete, batch)
             self.completed_runs += 1

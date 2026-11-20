@@ -15,6 +15,7 @@ class LolEvent:
     result: str = ""
     raw_killer: str = ""
     raw_victim: str = ""
+    multikill_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -51,8 +52,12 @@ class LolRead:
 class LolMoment:
     name: str
     priority: int
-    instruction: str
-    snapshot: LolSnapshot
+    line: str
+
+
+_MULTIKILL_LABELS = {2: "双杀", 3: "三杀", 4: "四杀", 5: "五杀"}
+_OBJECTIVE_LABELS = {"DragonKill": "小龙被击杀", "TurretKilled": "防御塔被摧毁",
+                     "InhibKilled": "高地水晶被摧毁"}
 
 
 class LolCompanionPolicy:
@@ -76,8 +81,7 @@ class LolCompanionPolicy:
         self.previous = snapshot
         candidates: list[LolMoment] = []
         if new_game:
-            candidates.append(LolMoment("进入对局", 20,
-                "简短打个招呼，陪用户轻松玩这一局；中途接入不要说游戏刚开始。", snapshot))
+            candidates.append(LolMoment("进入对局", 20, "这局我陪你打，有事喊我。"))
         else:
             for event in snapshot.events:
                 if event.event_id <= self.cursor:
@@ -88,29 +92,27 @@ class LolCompanionPolicy:
                 if event.name == "GameEnd":
                     self.ended = True
                     # Win/Lose is the player's result; other values remain unknown.
-                    result = {"Win": "获胜", "Lose": "失利"}.get(event.result, "结束")
+                    line = {"Win": "赢啦！这局打完了，辛苦啦。", "Lose": "这局输了，先缓一下。"}
                     candidates.append(LolMoment("对局结束", 100,
-                        f"对局{result}，自然收尾陪伴一句；不臆测战绩或胜负原因。", snapshot))
+                                                line.get(event.result, "这局打完了，辛苦啦。")))
                 elif event.name == "ChampionKill" and snapshot.player:
                     if event.victim == snapshot.player:
-                        candidates.append(LolMoment("本人阵亡", 90,
-                            "明确回应这次阵亡，温和安慰一句，不责怪，不猜凶手、位置或原因，不保证下次获胜。", snapshot))
+                        candidates.append(LolMoment("本人阵亡", 90, "这次倒了，没事，等复活再来。"))
                     elif event.killer == snapshot.player:
-                        candidates.append(LolMoment("本人击杀", 80,
-                            "轻松夸一句刚才的击杀，不猜操作细节或敌方英雄。", snapshot))
-                elif event.name in {"DragonKill", "TurretKilled", "InhibKilled"}:
-                    label = {"DragonKill": "小龙被击杀", "TurretKilled": "防御塔被摧毁",
-                             "InhibKilled": "水晶被摧毁"}[event.name]
-                    candidates.append(LolMoment(label, 40,
-                        f"本次事件是「{label}」。只用中性短句确认这件事，不加建议。"
-                        "未提供双方归属，不得推测我方/敌方或据此评价优势、被动、局势。", snapshot))
+                        candidates.append(LolMoment("本人击杀", 80, "漂亮，刚刚那个人头拿下了。"))
+                elif event.name == "Multikill" and snapshot.player and event.killer == snapshot.player:
+                    label = _MULTIKILL_LABELS.get(event.multikill_count or 0)
+                    if label:
+                        candidates.append(LolMoment(label, 85, f"漂亮，这波拿下{label}！"))
+                elif event.name in _OBJECTIVE_LABELS:
+                    label = _OBJECTIVE_LABELS[event.name]
+                    candidates.append(LolMoment(label, 40, f"{label}了。"))
         if not self.ended and snapshot.health is not None and snapshot.max_health:
             low = 0 < snapshot.health / snapshot.max_health <= .25
             was_low = bool(previous and previous.health is not None and previous.max_health
                            and 0 < previous.health / previous.max_health <= .25)
             if low and not was_low:
-                candidates.append(LolMoment("低血量", 70,
-                    "温柔提醒血量偏低，最多一句，不猜药水、技能、敌人位置。", snapshot))
+                candidates.append(LolMoment("低血量", 70, "血量有点低了，留意一下。"))
         eligible = [m for m in candidates if now - self.spoken.get(m.name, float("-inf"))
                     >= (90 if m.name == "低血量" else 45)]
         # Death/end must not be suppressed by a recent routine comment.

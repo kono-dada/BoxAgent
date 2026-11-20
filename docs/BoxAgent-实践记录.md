@@ -1,5 +1,7 @@
 # BoxAgent 实践记录
 
+近期功能和修复见 [功能与修复简记](#功能与修复简记)。每条记录包含背景、问题、决策与做法、效果。
+
 > 历史记录：文中 2D 图集、形象商店及相关路径描述的是当时实现；当前产品已改为仅支持 [3D VRM 形象](vrm.md)。
 
 当前结论：BoxAgent 已形成 macOS 原生桌宠、实时语音、通用桌面操作、本地窗口摘要和 Jev-Mem-first 自动/显式长期记忆的可运行 POC；产品主线进一步收敛为“电脑座舱里的具身个人 Agent”：它常驻、随叫随到、有角色形象和连续互动，能感知宿主电脑状态并在授权边界内行动。它不被限定为娱乐或办公 Agent，而是像车端 NOMI 一样作为用户与整个环境交互的统一人格化入口。近期以 macOS 验证“常驻存在 + 低摩擦召唤 + 环境感知 + 克制主动 + 受控行动 + 关系延续”闭环；Windows 和真实机箱屏适配后置。
@@ -2679,3 +2681,43 @@ passed
 - [界面测试日志](../experiments/performance/2026-11-19-avatar-idle/panel-tests.log)、[动画测试日志](../experiments/performance/2026-11-19-avatar-idle/vrm-tests.log)已保留。
 
 后续每次可量化优化继续追加日期、条件、前后指标、采样方法、证据与局限；工程要求已写入 [AGENTS.md](../AGENTS.md)。下一轮重点是仍持续约 50% 的主进程 CPU，以及游戏并行时的实际功耗和延迟。
+
+## 功能与修复简记
+
+### 2026-11-21 · 统一语音播报调度
+
+- **背景**　LoL 原先在事件命中后直发实时语音，微信来信走 Inbox、Outbox 和语音队列。
+- **问题**　用户说话、击杀短评和微信同时到达时，需要统一决定先说哪句。LoL 的空闲播报延迟也需要保持在原有量级。
+- **决策与做法**　复用实时语音的单个投递循环。用户交流优先。LoL 排队最多保留最新一条，从检测起 3 秒内允许起播，起播才开始冷却。已经等过一轮的微信优先，微信在起播时确认送达并刷新聊天历史。用户在起播前打断时，等回答后再播，已经起播的微信只播一次。 [语音调度实现](../boxagent/infrastructure/runtimes/qwen/realtime.py) · [LoL 有效期](../boxagent/application/lol_companion.py)
+- **效果**　离线回归覆盖抢占、过期、连续 LoL 候选和微信起播前后打断。实际 AOQ 与 WebSocket 用合成来信测试，同时入列时设备回执均为先 LoL、后微信。全量 675 项通过，13 项跳过，Pyright 无错误。 [时序回归](../tests/test_speech_scheduling.py) · [实机探针](../scripts/experiments/voice_scheduling_probe.py) · [测量数据](../experiments/performance/2026-11-21-speech-scheduling/measurements.json)
+
+本机 macOS 使用默认输出设备、关闭麦克风，播放同一句合成 LoL 短评。真实语音计时从短评交给语音入口开始，到本地输出设备起播回调为止。对比采用同一条 AOQ 连接交替直发和经调度发，每组剔除 1 次预热。额外的本地模拟用无网络的握手和模型桩，只计时到 `response.create` 调用。
+
+| 方法 | 样本 | 直发 | 经调度发 |
+| --- | --- | --- | --- |
+| 本地路由 | 每组 1000 次 | p50 0.001 ms / p95 0.003 ms | p50 0.016 ms / p95 0.033 ms |
+| AOQ 设备起播 | 每组 8 次 | p50 906 ms / 最大 1015 ms | p50 937 ms / 最大 1070 ms |
+| WebSocket 分时设备起播 | 改动前后各 8 次 | 改动前 p50 903 ms / 最大 1087 ms | 改动后 p50 1083 ms / 最大 1628 ms |
+
+本地路由开销可单独比较，真实语音包含网络和模型波动，尤其是分时跑的 WebSocket 两组。设备回调没有经过声学录制。真实 LoL 对局的采样延迟、开麦实玩和真实微信来信联测仍待验收。 [原始输出解析与样本](../experiments/performance/2026-11-21-speech-scheduling/measurements.json)
+
+### 2026-11-21 · 微信群聊免打扰
+
+- **背景**　陪玩时，书书会主动播报微信来信。
+- **问题**　微信里已开启免打扰的群，仍可能触发 BoxAgent 的气泡和语音通知。
+- **决策与做法**　在微信事件进入通知决策前读取 `contact.chat_room_notify`。已免打扰的群记为已处理，跳过主动通知。原文仍可通过微信历史查询。 [读取实现](../boxagent/infrastructure/wechat/database/reader.py) · [通知接入](../boxagent/bootstrap/external_events.py)
+- **效果**　本机只读检查成功读取 52 个群聊的通知字段。回归覆盖免打扰群保持静默、普通群和私聊正常生成通知，以及静默后仍能查到历史。全量 669 项测试通过，另有 13 项跳过，Pyright 无错误。字段取值沿用已在 Windows 微信 4.1.13.12 验证的映射，macOS 客户端的开关对照待验证。 [事件回归](../tests/test_external_events.py) · [读取回归](../tests/wechat/test_reader.py) · [字段映射依据](https://github.com/qixinmin1994/WeChatNotifier/blob/main/wechat_notify.py#L258-L266)
+
+### LoL 多杀和对局结束播报纠错 · 2026-11-21 补记
+
+- **背景**　书书根据 LoL 本地对局事件主动点评。
+- **问题**　实玩时出现过把 `3/0/0` 说成三杀，以及拆掉中路高地就宣布对局结束。
+- **决策与做法**　多杀播报取本人 `Multikill` 事件的连杀数。`InhibKilled` 只播报高地水晶被摧毁，`GameEnd` 才触发对局结束。 [事件策略](../boxagent/domain/proactivity/lol.py)
+- **效果**　累计 KDA、真实连杀、高地与对局结束的回归用例通过。更新后的实际对局播报待复测。 [LoL 回归](../tests/test_lol_companion.py)
+
+### 2026-11-20 · 显式开启陪玩并同步 LoL
+
+- **背景**　陪玩时玩家可能长时间专注操作，日常语音则需要有明确的结束方式。
+- **问题**　玩家需要知道陪玩是否已开启。日常语音的空闲计时也会影响陪玩时的语音连接。
+- **决策与做法**　提供显式陪玩入口。开启后在对话轮次注入陪玩语境，并豁免日常语音空闲计时。同步 LoL 本地对局事件和主动短评。 [使用入口](setup.md) · [LoL 陪玩设计](需求/GAME-LOL-01-LOL主动陪玩.md)
+- **效果**　陪玩入口和 LoL 集成分别落在 `ea6d961`、`5d997a0`。自动化覆盖陪玩模式切换、LoL 轮询与忙时跳过播报。 [陪玩回归](../tests/test_lol_companion.py)

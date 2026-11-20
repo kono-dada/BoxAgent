@@ -61,6 +61,22 @@ class DatabaseReader:
         return tuple(c for c in contacts if not query or any(lowered in v.casefold()
                      for v in (c.peer, c.nickname, c.remark)))[:limit]
 
+    def group_muted(self, peer: str) -> bool:
+        if not peer.endswith("@chatroom"):
+            return False
+        with self.snapshots.lock:
+            connection = connect(self.snapshots.refresh("contact/contact.db"))
+            try:
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(contact)")}
+                if "chat_room_notify" not in columns:
+                    return False
+                row = connection.execute("SELECT chat_room_notify FROM contact WHERE username=?",
+                                         (peer,)).fetchone()
+                # The field represents whether group notifications are enabled.
+                return row is not None and row[0] == 0
+            finally:
+                connection.close()
+
     def sessions(self, *, unread_only: bool = False, limit: int = 20) -> tuple[Conversation, ...]:
         bounded(limit)
         names = {c.peer: c.display_name for c in self.contacts(limit=10000)}

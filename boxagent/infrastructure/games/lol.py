@@ -80,7 +80,8 @@ def parse_lol_snapshot(value: object) -> LolSnapshot | None:
             if event_id is not None and at is not None and name:
                 events.append(LolEvent(event_id, name, at, actor(event.get("KillerName")),
                     actor(event.get("VictimName")), _text(event.get("Result")),
-                    _text(event.get("KillerName")), _text(event.get("VictimName"))))
+                    _text(event.get("KillerName")), _text(event.get("VictimName")),
+                    multikill_count=_integer(event.get("KillStreak")) if name == "Multikill" else None))
     return LolSnapshot(game_time, identity, _text(selected.get("championName")),
         _number(stats.get("currentHealth")), _number(stats.get("maxHealth")),
         _number(active.get("currentGold")), _integer(scores.get("kills")),

@@ -20,6 +20,9 @@ class WeChatModule:
     def contacts(self, query: str = "", *, limit: int = 100) -> tuple[Contact, ...]:
         return self.service.reader.contacts(query, limit=limit)
 
+    def group_muted(self, peer: str) -> bool:
+        return self.service.reader.group_muted(peer)
+
     def sessions(self, *, unread_only: bool = False, limit: int = 20) -> tuple[Conversation, ...]:
         return self.service.reader.sessions(unread_only=unread_only, limit=limit)
 
@@ -69,6 +72,9 @@ class DeferredWeChatModule:
 
     def contacts(self, query: str = '', *, limit: int = 100) -> tuple[Contact, ...]:
         return self._ready().contacts(query, limit=limit)
+
+    def group_muted(self, peer: str) -> bool:
+        return self._ready().group_muted(peer)
 
     def sessions(self, *, unread_only: bool = False, limit: int = 20) -> tuple[Conversation, ...]:
         return self._ready().sessions(unread_only=unread_only, limit=limit)

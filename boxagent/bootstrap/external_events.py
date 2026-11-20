@@ -7,7 +7,7 @@ from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
 from boxagent.agent.runtime.models import ModelProfile
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.event_context import ExternalEventContext
-from boxagent.application.event_runs import DirectEventNotice, EventRuns, ExternalEventIntegration
+from boxagent.application.event_runs import DirectEventNotice, EventRuns, EventSuppression, ExternalEventIntegration
 from boxagent.application.game_entry import GAME_ENTRY_SOURCE, GameEntryInbox
 from boxagent.domain.events.models import EventBatch, EventDecision
 from boxagent.application.wechat.event_context import WeChatEventContext
@@ -46,14 +46,17 @@ def configure_external_events(application: BoxAgentApplication, settings: Settin
     context = ExternalEventContext(application.conversation_service, builder,
                                    application.memory, environment.capture)
     direct_notices: dict[str, DirectEventNotice] = {}
+    suppressions: dict[str, EventSuppression] = {}
     runs = EventRuns(inbox, context, CodexEventAgent(session, model=profile.model),
-                     application.publish_event_notification, direct_notices=direct_notices)
+                     application.publish_event_notification, direct_notices=direct_notices,
+                     suppressions=suppressions)
     sources: dict[str, DeferredWeChatModule] = {}
     if settings.wechat_enabled:
         module = DeferredWeChatModule(lambda: build_wechat_module(wechat_config(settings), event_sink=runs))
         sources["wechat"] = module
         wechat_context = WeChatEventContext(module)
         context.sources = {"wechat": wechat_context}
+        suppressions["wechat"] = wechat_context.suppression_reason
         if settings.wechat_notify_all:
             async def notify_all(batch: EventBatch) -> tuple[str, EventDecision]:
                 return await context.session_for(batch), await wechat_context.notice(batch)

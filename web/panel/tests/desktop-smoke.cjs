@@ -44,6 +44,7 @@ const state = {
   assistant_text: "",
   task_text: "",
   approval: "",
+  game_companion_available: true,
 };
 let events = Array.from({ length: 32 }, (_, index) => ({
   event_id: `row${index}`,
@@ -154,9 +155,11 @@ const js = async (window, source) => {
 };
 const footerFits = `(() => {
   const buttons = [...document.querySelectorAll('.companion-footer button')].map(button => button.getBoundingClientRect());
-  return buttons.length === 3 && buttons.every((rect, i) =>
+  const center = (rect) => rect.top + rect.height / 2;
+  return buttons.length === 5 && buttons.every((rect, i) =>
     rect.left >= 8 && rect.right <= innerWidth - 8 && rect.bottom <= innerHeight &&
-    buttons.slice(i + 1).every(other => rect.right <= other.left || other.right <= rect.left || rect.bottom <= other.top || other.bottom <= rect.top));
+    Math.abs(center(rect) - center(buttons[0])) < 1 &&
+    (i === 0 || rect.left >= buttons[i - 1].right));
 })()`;
 const dragBy = async (window, dx, dy, inspect = () => {}) => {
   const bounds = window.getBounds(), start = { x: bounds.x + 24, y: bounds.y + 24 };

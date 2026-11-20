@@ -74,15 +74,15 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
         </div>
         <div>
           <section>
-            <h2>{t('陪玩模式')}</h2>
-            <p>{t('开启后保持语音连接，结合游戏画面陪你聊天；关闭后恢复一分钟空闲断线。')}</p>
+            <h2>{t('鸣潮陪玩')}</h2>
+            <p>{t('开启陪玩时同时开启麦克风')}</p>
             {!runtime.game_companion_available && <p>{t('当前运行环境尚未启用陪玩功能')}</p>}
           </section>
-          <button className="button" role="switch" aria-label={t('陪玩模式')}
+          <button className="button" role="switch" aria-label={t('鸣潮陪玩')}
             aria-checked={Boolean(runtime.game_companion_enabled)}
             disabled={busy || !runtime.game_companion_available}
-            onClick={() => run(act('set_game_companion_mode', { enabled: !runtime.game_companion_enabled }))}>
-            {runtime.game_companion_enabled ? t('退出陪玩') : t('开启陪玩')}
+            onClick={() => run(act('set_companion_session', { game: 'wuwa', enabled: !runtime.game_companion_enabled }))}>
+            {runtime.game_companion_enabled ? t('退出鸣潮陪玩') : t('开启鸣潮陪玩')}
           </button>
         </div>
         {runtime.context_text && <p className="context-summary">{runtime.context_text}</p>}
@@ -92,7 +92,9 @@ export function Controls(props: PageProps<AvatarSnapshot & { unavailable?: strin
             <p>{runtime.lol_companion_text || t('开启后进入对局，保持语音连接即可听到陪伴提醒。')}</p>
             <p>{t('读取本机公开对局数据；已开启的屏幕总结会作为补充。')}</p>
           </section>
-          <button className="button" disabled={busy} onClick={() => run(act('toggle_lol_companion'))}>
+          <button className="button" role="switch" aria-label={t('LOL 游戏陪玩')}
+            aria-checked={Boolean(runtime.lol_companion_enabled)} disabled={busy}
+            onClick={() => run(act('set_companion_session', { game: 'lol', enabled: !runtime.lol_companion_enabled }))}>
             {runtime.lol_companion_enabled ? t('关闭 LOL 陪玩') : t('开启 LOL 陪玩')}
           </button>
         </div>

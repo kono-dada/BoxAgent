@@ -5,7 +5,7 @@ import json
 import time
 from uuid import uuid4
 import logging
-from typing import Any
+from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,7 @@ from boxagent.application.camera import CameraInteractionService
 from boxagent.application.game_news import GameNewsMonitor
 from boxagent.application.lol_companion import LolCompanion
 from boxagent.domain.proactivity.game_news import Game, GameNews
+from boxagent.domain.proactivity.lol_knowledge import LolKnowledge, LolKnowledgeKind
 from boxagent.application.memory import DisabledMemoryModule
 from boxagent.application.web_research import WebResearchService
 from boxagent.application.skill_authoring import (
@@ -48,7 +49,8 @@ class BoxAgentApplication:
                  skill_authoring=None, task_trace_reader=None,
                  notification_outbox=None, context_ledger=None,
                  context_observer=None, context_history=None, turn_preparer=None,
-                 web_research: WebResearchService | None = None):
+                 web_research: WebResearchService | None = None,
+                 lol_knowledge: LolKnowledge | None = None):
         self.events = StateEvents(publish)
         self.camera: CameraInteractionService | None = None
         self.conversation_service = conversation_service or ConversationService()
@@ -58,6 +60,7 @@ class BoxAgentApplication:
             on_terminal=self._task_terminal)
         self.memory = memory or DisabledMemoryModule()
         self.web_research = web_research or WebResearchService(None)
+        self.lol_knowledge = lol_knowledge
         self.skill_service = skill_service
         self.skill_authoring = skill_authoring
         self.task_trace_reader = task_trace_reader
@@ -79,6 +82,7 @@ class BoxAgentApplication:
         self.skill_jobs = set()
         self.game_news: GameNewsMonitor | None = None
         self.lol_companion: LolCompanion | None = None
+        self._companion_session_lock = asyncio.Lock()
         self._started = False
         self._closed = False
         self.external_events: ExternalEventIntegration | None = None
@@ -181,6 +185,32 @@ class BoxAgentApplication:
                          context_app="", context_window_id=0)
         return {"enabled": self.lol_companion.enabled}
 
+    async def set_companion_session(self, game: Literal["lol", "wuwa"], enabled: bool) -> dict[str, object]:
+        """Apply a chat-window companion action, including a user-requested mic start."""
+        async with self._companion_session_lock:
+            lol = self.lol_companion
+            if game == "lol" and lol is None:
+                raise ValueError("当前 Engine 未装配 LOL 陪玩")
+            if game == "wuwa" and enabled and not self.state.game_companion_available:
+                raise ValueError("当前运行环境尚未启用陪玩功能")
+            if enabled:
+                # The first poll can generate an in-match greeting immediately.
+                await self.interaction_service.ensure_microphone()
+            if game == "lol":
+                assert lol is not None
+                if enabled and self.state.game_companion_enabled:
+                    self.set_game_companion_mode(False)
+                await lol.set_enabled(enabled)
+                self.events.emit("context.scope_changed", context_text="", context_at=0,
+                                 context_app="", context_window_id=0)
+            else:
+                self.set_game_companion_mode(enabled)
+                if enabled and lol is not None and lol.enabled:
+                    await lol.set_enabled(False)
+                    self.events.emit("context.scope_changed", context_text="", context_at=0,
+                                     context_app="", context_window_id=0)
+            return {"status": "succeeded", "game": game, "enabled": enabled}
+
     async def toggle_voice(self):
         await self.interaction_service.toggle()
         await self.deliver_pending_notifications()
@@ -242,6 +272,8 @@ class BoxAgentApplication:
         if self.state.notification_id == notification_id:
             changes = {"notification_unread": False}
         self.events.emit("notification.delivered", **changes)
+        if item.kind == "external_event":
+            self.events.emit("conversation.updated")
         return item.payload()
 
     async def publish_event_notification(self, batch: EventBatch, decision: EventDecision) -> None:
@@ -602,9 +634,40 @@ class BoxAgentApplication:
             return True
         return False
 
+    async def _lookup_lol_knowledge(self, data: object,
+                                    interaction: InteractionContext | None) -> dict[str, object]:
+        if self.lol_knowledge is None:
+            return {"status": "failed", "message": "当前无法查询 Riot 资料"}
+        if not isinstance(data, dict):
+            return {"status": "failed", "message": "请选择英雄或装备并提供名称"}
+        kind = data.get("kind")
+        name = data.get("name")
+        if kind not in ("champion", "item") or not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+            return {"status": "failed", "message": "请选择英雄或装备并提供准确名称"}
+        category: LolKnowledgeKind = "champion" if kind == "champion" else "item"
+        try:
+            entry = await self.lol_knowledge.lookup(category, name.strip())
+        except (OSError, ValueError):
+            return {"status": "failed", "message": "暂时无法读取 Riot Data Dragon，请稍后再试"}
+        if entry is None:
+            return {"status": "not_found", "message": "没有匹配的资料，请核对英雄或装备的正式名称"}
+        title = f"{entry.name} · Riot Data Dragon {entry.version}"
+        await self._publish_web_research({
+            "session_id": "", "interaction_id": interaction.interaction_id if interaction else "",
+            "stage": "ready", "query": f"查阅 {entry.name}", "requested_version": "",
+            "message": f"资料版本 {entry.version}，请以实际对局版本为准。",
+            "retrieved_at": "", "sources": [{"title": title, "url": entry.source_url,
+                "published_at": None, "site_name": "Riot Data Dragon", "read_status": "read"}],
+        }, interaction)
+        return {"status": "succeeded", "name": entry.name, "details": entry.details,
+                "catalog_version": entry.version, "locale": entry.locale, "source_url": entry.source_url,
+                "speech_guidance": "只解释用户问的英雄技能或装备效果，以资料版本为准，不推断实际对局版本。"}
+
     async def handle_tool(self, name, arguments, *, interaction=None):
         try:
             data = json.loads(arguments) if isinstance(arguments, str) else arguments
+            if name == "lookup_lol_knowledge":
+                return await self._lookup_lol_knowledge(data, interaction)
             if name in {"search_web", "read_webpage"}:
                 if not isinstance(data, dict):
                     return {"status": "failed", "message": "联网工具参数必须是对象"}

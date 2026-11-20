@@ -1040,7 +1040,7 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         voice.ws = FakeSocket()
         item = {"notification_id": "notice-1", "outcome": "succeeded",
                 "summary": "计算器结果是 42"}
-        await voice.notifications.put(item)
+        await voice.notify_task_result(item)
 
         worker = asyncio.create_task(voice.deliver_notifications())
         await asyncio.sleep(.05)
@@ -1053,7 +1053,7 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("计算器结果是 42", sent[0]["item"]["content"][0]["text"])
         self.assertEqual(sent[1]["type"], "response.create")
         self.assertEqual(list(voice.response_origins), [{
-            "kind": "notification", "notification_id": "notice-1"}])
+            "kind": "notification", "notification_id": "notice-1", "notification_item": item}])
 
     async def test_notification_transcript_does_not_overwrite_visible_chat(self):
         emitted = []

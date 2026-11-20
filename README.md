@@ -237,6 +237,7 @@ uvx --from pyright==1.1.414 pyright
 | 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
 | 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
 | 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |
+| 功能与修复 | [实践记录](docs/BoxAgent-实践记录.md) |
 | 需求状态与本次交付 | [需求路线图](docs/需求/README.md) · [PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md) |
 | 3D 形象与共享资产 | [VRM 桌宠](docs/vrm.md) |
 | Computer Use | [Python Computer Use](docs/python-codex-computer-use.md) |

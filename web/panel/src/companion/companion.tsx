@@ -282,6 +282,19 @@ function Companion() {
     setTitle("");
     await refresh();
   }
+  const playing = runtime.lol_companion_enabled || runtime.game_companion_enabled;
+  const voiceLabel = t(runtime.voice === "ready" ? "结束语音"
+    : runtime.voice === "connecting" ? "连接中…"
+      : runtime.voice === "stopping" ? "关闭中…" : "开启语音");
+  const cameraLabel = t(cameraStarting ? "连接中…" : cameraActive ? "关闭摄像头" : "开启摄像头");
+  const status = t(!online ? "等待 Engine 连接"
+    : runtime.speaking ? "回复中"
+      : runtime.user_speaking ? "聆听中"
+        : runtime.voice === "ready" ? "麦克风已开启"
+          : runtime.voice === "connecting" ? "连接中…"
+            : playing ? "麦克风已关闭" : "在这里陪你");
+  const lolAction = t(runtime.lol_companion_enabled ? "关闭 LOL 陪玩" : "开启 LOL 陪玩");
+  const wuwaAction = t(runtime.game_companion_enabled ? "退出鸣潮陪玩" : "开启鸣潮陪玩");
   return (
     <section
       ref={shell}
@@ -310,17 +323,9 @@ function Companion() {
       >
         <div className="companion-heading">
           <strong>{desktop.name || t("伙伴")}</strong>
-          <span>
-            <i className={`companion-dot ${online ? "online" : ""}`} />
-            {online
-              ? runtime.speaking
-                ? t("回复中")
-                : runtime.user_speaking
-                  ? t("聆听中")
-                  : runtime.voice === "ready"
-                    ? t("全双工语音已开启")
-                    : t("在这里陪你")
-              : t("等待 Engine 连接")}
+          <span role="status" title={status}>
+            <i className={`companion-dot ${online ? "online" : ""}`} aria-hidden="true" />
+            <span className="companion-status-text">{status}</span>
           </span>
         </div>
         <button
@@ -522,20 +527,32 @@ function Companion() {
         </button>
       </form>
       <footer className="companion-footer">
-        <button type="button"
-          className={`companion-voice ${runtime.game_companion_enabled ? "active" : ""}`}
-          role="switch" aria-label={t("陪玩模式")}
-          aria-checked={Boolean(runtime.game_companion_enabled)}
-          title={t("开启后保持语音连接，结合游戏画面陪你聊天；关闭后恢复一分钟空闲断线。")}
-          disabled={!online || action.busy || !runtime.game_companion_available}
-          onClick={() => run(action.act("set_game_companion_mode", { enabled: !runtime.game_companion_enabled }))}>
+        <div className="companion-games" role="group" aria-label={t("陪玩模式")}>
           <Gamepad2 size={16} aria-hidden="true" />
-          {runtime.game_companion_enabled ? t("退出陪玩") : t("开启陪玩")}
-          <i className="voice-switch" aria-hidden="true" />
-        </button>
+          <button type="button" className={`companion-game ${runtime.lol_companion_enabled ? "active" : ""}`}
+            role="switch" aria-label={t("LOL 游戏陪玩")}
+            aria-checked={Boolean(runtime.lol_companion_enabled)}
+            title={[lolAction, runtime.lol_companion_enabled ? runtime.lol_companion_text : t("开启陪玩时同时开启麦克风")].filter(Boolean).join("\n")}
+            disabled={!online || action.busy || runtime.voice === "stopping"}
+            onClick={() => run(action.act("set_companion_session", { game: "lol", enabled: !runtime.lol_companion_enabled }))}>
+            LoL
+          </button>
+          {runtime.game_companion_available && (
+            <button type="button" className={`companion-game ${runtime.game_companion_enabled ? "active" : ""}`}
+              role="switch" aria-label={t("鸣潮陪玩")}
+              aria-checked={Boolean(runtime.game_companion_enabled)}
+              title={runtime.game_companion_enabled ? wuwaAction : `${wuwaAction}\n${t("开启陪玩时同时开启麦克风")}`}
+              disabled={!online || action.busy || runtime.voice === "stopping"}
+              onClick={() => run(action.act("set_companion_session", { game: "wuwa", enabled: !runtime.game_companion_enabled }))}>
+              {t("鸣潮")}
+            </button>
+          )}
+        </div>
         <button
+          type="button"
           className={`companion-voice ${runtime.voice === "ready" ? "active" : ""}`}
-          title={`${t("全双工")} · ⌃⌥${t("空格")}`}
+          title={`${voiceLabel} · ⌃⌥${t("空格")}`}
+          aria-label={voiceLabel}
           aria-pressed={runtime.voice === "ready"}
           disabled={
             !online ||
@@ -545,29 +562,23 @@ function Companion() {
           onClick={() => run(action.act("toggle_voice"))}
         >
           <Mic size={16} aria-hidden="true" />
-          {runtime.voice === "ready"
-            ? t("结束语音")
-            : runtime.voice === "connecting"
-              ? t("连接中…")
-              : runtime.voice === "stopping"
-                ? t("关闭中…")
-                : t("开启语音")}
-          <i className="voice-switch" aria-hidden="true" />
         </button>
         <button
           type="button"
           className={`companion-camera ${cameraActive ? "active" : ""}`}
-          title={cameraActive ? t("关闭摄像头") : t("开启摄像头并开始视频通话")}
+          title={cameraStarting || cameraActive ? cameraLabel : t("开启摄像头并开始视频通话")}
+          aria-label={cameraLabel}
           aria-pressed={cameraActive}
           disabled={!online || action.busy}
           onClick={() => run(action.act("desktop_toggle_camera"))}
         >
           <Camera size={16} aria-hidden="true" />
-          <span>{cameraStarting ? t("连接中…") : cameraActive ? t("关闭摄像头") : t("开启摄像头")}</span>
-          <i className="voice-switch" aria-hidden="true" />
         </button>
         <button
+          type="button"
           className="companion-session-button"
+          title={t("新会话")}
+          aria-label={t("新会话")}
           aria-expanded={creating}
           aria-controls={creating ? "companion-new-session" : undefined}
           onClick={() => setCreating((value) => !value)}
@@ -581,7 +592,6 @@ function Companion() {
               strokeLinecap="round"
             />
           </svg>
-          {t("新会话")}
         </button>
       </footer>
       {creating && (

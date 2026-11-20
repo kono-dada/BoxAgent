@@ -40,6 +40,8 @@ class ExternalEventContext:
     async def prepare(self, batch: EventBatch) -> tuple[str, RuntimeRequest]:
         session_id = await self.session_for(batch)
         turns = await self.conversation.recent_messages(session_id)
+        # TODO: Use explicit notification preferences and source- and sender-scoped
+        # Jev-Mem evidence when enabling notification triage.
         query = "\n".join(event.content[:1000] for event in batch.events)
         memories = await self.memory.evidence(query, session_id=session_id)
         enrich = self.sources.get(batch.events[0].source)

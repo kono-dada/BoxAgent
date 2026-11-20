@@ -16,6 +16,29 @@ def test_contacts_sessions_and_synthetic_filehelper(reader: DatabaseReader) -> N
     assert reader.sessions(unread_only=True)[0].unread == 2
 
 
+def test_group_mute_tracks_wechat_preference_and_keeps_history(reader: DatabaseReader,
+                                                            snapshots: PlainSnapshots) -> None:
+    assert not reader.group_muted(GROUP)  # Older snapshot without the field.
+    add_message(snapshots, 1, "见面改到七点", peer=GROUP)
+    connection = sqlite3.connect(snapshots.keys.root / "contact/contact.db")
+    try:
+        with connection:
+            connection.execute("ALTER TABLE contact ADD COLUMN chat_room_notify INTEGER")
+            connection.execute("UPDATE contact SET chat_room_notify=0 WHERE username IN (?, ?)", (GROUP, PEER))
+        assert reader.group_muted(GROUP)
+        assert not reader.group_muted(PEER)
+        assert not reader.group_muted("unknown@chatroom")
+        assert reader.history(GROUP)[0].text == "见面改到七点"
+        with connection:
+            connection.execute("UPDATE contact SET chat_room_notify=1 WHERE username=?", (GROUP,))
+        assert not reader.group_muted(GROUP)
+        with connection:
+            connection.execute("UPDATE contact SET chat_room_notify=NULL WHERE username=?", (GROUP,))
+        assert not reader.group_muted(GROUP)
+    finally:
+        connection.close()
+
+
 def test_history_and_decoded_search(reader: DatabaseReader, snapshots: PlainSnapshots) -> None:
     add_message(snapshots, 1, "会议明天三点")
     add_message(snapshots, 2, "Hello 🎉", sender=1)

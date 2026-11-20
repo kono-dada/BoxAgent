@@ -21,3 +21,9 @@ class GameHighlightVoice(Protocol):
 class GameLineVoice(Protocol):
     async def announce_game_line(self, receipt: str, text: str,
                                  still_current: Callable[[], bool]) -> bool: ...
+
+
+@runtime_checkable
+class LolSpeechVoice(Protocol):
+    def schedule_lol(self, line: str, *, still_current: Callable[[], bool],
+                     playback_started: Callable[[], None]) -> bool: ...

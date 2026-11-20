@@ -5,10 +5,10 @@ import asyncio
 import json
 import re
 import xml.etree.ElementTree as ET
+from typing import Protocol
 
 from boxagent.domain.events.models import EventBatch, EventDecision
-from boxagent.domain.wechat.contracts import WeChatCapability
-from boxagent.domain.wechat.models import CALL_PREVIEW
+from boxagent.domain.wechat.models import CALL_PREVIEW, Contact
 
 
 _INTERNAL_LABEL = re.compile(r"(?:wxid_\w+|\S+@(?:chatroom|openim)|Msg_[0-9a-f]{32})", re.ASCII)
@@ -49,9 +49,20 @@ def _display_body(body: str) -> str:
     return "[非文字消息]"
 
 
+class WeChatEventReader(Protocol):
+    def contacts(self, query: str = "", *, limit: int = 100) -> tuple[Contact, ...]: ...
+    def group_muted(self, peer: str) -> bool: ...
+
+
 class WeChatEventContext:
-    def __init__(self, module: WeChatCapability) -> None:
+    def __init__(self, module: WeChatEventReader) -> None:
         self.module = module
+
+    async def suppression_reason(self, batch: EventBatch) -> str | None:
+        peer = batch.events[0].subject_id  # Inbox batches share the same conversation.
+        if peer.endswith("@chatroom") and await asyncio.to_thread(self.module.group_muted, peer):
+            return "wechat_group_muted"
+        return None
 
     async def __call__(self, batch: EventBatch) -> str:
         labels = await asyncio.to_thread(self._labels, batch)

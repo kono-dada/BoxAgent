@@ -10,7 +10,7 @@ from collections.abc import Callable
 from boxagent.core.states import Voice
 from boxagent.domain.context.contracts import NullContextObserver
 from boxagent.domain.conversation.models import InteractionContext
-from boxagent.domain.interaction.contracts import GameHighlightVoice, GameLineVoice
+from boxagent.domain.interaction.contracts import GameHighlightVoice, GameLineVoice, LolSpeechVoice
 from boxagent.domain.interaction.delegation import DecisionAdvice
 from boxagent.domain.perception.camera import CameraFeed
 from boxagent.domain.proactivity.game_entry import ENTRY_RECEIPT_PREFIX
@@ -184,6 +184,14 @@ class InteractionService:
                 self.events.emit("voice.reconnecting", voice="connecting")
                 self._schedule_voice_reconnect()
             raise
+
+    async def ensure_microphone(self) -> None:
+        async with self.toggle_lock:
+            if self.voice_requested or (self.is_connected and self.connection_microphone):
+                return
+            if self.is_connected:
+                await self.stop()
+            await self._start_requested_voice()
 
     async def wake(self, greeting: str) -> None:
         async with self.toggle_lock:
@@ -673,6 +681,8 @@ class InteractionService:
         if self.events.state.lol_companion_enabled:
             return ("<boxagent_companion_mode>用户显式开启了 LOL 陪玩，语音不因沉默断开。"
                     "有本轮 game 数据时结合本局事实自然回应，缺少对局数据时不猜当前局势。"
+                    "game 的 kills、deaths、assists 是整局累计战绩；累计三次击杀不能称为三杀。"
+                    "高地水晶、高地塔和主基地是不同建筑；高地被破不能推出比赛结束。"
                     "具体精彩操作可以简短夸赞，微信和其他请求沿用原有工具与授权。"
                     "明确告别时仍结束语音。</boxagent_companion_mode>\n")
         if not self.events.state.game_companion_enabled:
@@ -772,19 +782,20 @@ class InteractionService:
         await notify(item)
         return True
 
-    async def announce_lol(self, content: str, instruction: str) -> bool:
-        # Never open a microphone or reconnect for a transient game event.
-        # The user owns the voice connection; disconnected/busy events expire.
-        if (not self.is_connected or self.voice_end_task is not None
-                or self.text_lock.locked() or self.toggle_lock.locked()
-                or self.events.state.user_speaking or self.events.state.speaking
-                or self.events.state.approval
-                or self.events.state.task in {"accepted", "running", "cancelling"}):
+    def schedule_lol(self, line: str, still_current: Callable[[], bool],
+                     playback_started: Callable[[], None]) -> bool:
+        voice = self.voice
+        if not isinstance(voice, LolSpeechVoice):
             return False
-        announce = getattr(self.voice, "announce_lol", None)
-        if announce is None:
-            return False
-        return bool(await announce(content, instruction))
+
+        def still_allowed() -> bool:
+            return (self.voice is voice and self.is_connected and self.voice_end_task is None
+                    and not self.toggle_lock.locked() and not self.events.state.approval
+                    and self.events.state.task not in {"accepted", "running", "cancelling"}
+                    and still_current())
+
+        return still_allowed() and voice.schedule_lol(
+            line, still_current=still_allowed, playback_started=playback_started)
 
     async def _notification_event(self, kind: str, payload: dict[str, object]) -> None:
         receipt = payload.get("notification_id")

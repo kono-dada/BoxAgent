@@ -645,7 +645,7 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                 "transcript": "打开科学计算器，计算二的五次方加根号四十二"})
             query_id = interaction.interaction.interaction_id
             session.begin_query(query_id)
-            await session.notifications.put({"notification_id": "old-failure", "outcome": "failed",
+            await session.notify_task_result({"notification_id": "old-failure", "outcome": "failed",
                                              "summary": "旧任务无法解析"})
             notices = asyncio.create_task(session.deliver_notifications())
             await asyncio.sleep(.02)

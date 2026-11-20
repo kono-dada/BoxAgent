@@ -75,7 +75,7 @@ class EngineClient extends EventEmitter {
       if (!this.online || !this.socket || this.socket.destroyed) return reject(new Error('Engine 未连接'));
       const id = String(++this.seq);
       // Allow the provider's bounded startup and cleanup to report their actual error.
-      const voice = ['toggle_voice', 'wake_voice', 'camera_start', 'camera_stop', 'submit_text'].includes(method);
+      const voice = ['toggle_voice', 'wake_voice', 'set_companion_session', 'camera_start', 'camera_stop', 'submit_text'].includes(method);
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(voice ? '语音会话请求超时，请检查当前连接状态后重试' : 'Engine 响应超时'));
