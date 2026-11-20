@@ -1,17 +1,13 @@
 # BoxAgent
 
-Windows 安装与启动参见 [Windows 使用说明](docs/windows.md)。
-
-macOS Apple Silicon 的首次 Key 配置、独立 app/DMG 制作与验证参见 [macOS 安装包说明](docs/macos-distribution.md)。
-
-本地启用微信读取、监听和语音代回，参见 [微信源码接入说明](docs/wechat-onboarding.md#同事从仓库本地运行2026-11-20)；需另行准备固定微信资源并用自己的账号扫码，不能只拉代码。
-
 > A full-duplex, memory-native desktop companion for macOS.
 
 BoxAgent 是一个常驻在 Mac 桌面的 AI 伙伴。它可以自然对话、记住长期偏好，并在后台操作电脑；耗时任务不会阻塞当前聊天，完成后会主动回来告诉你结果。
 
+我们希望它能跟着你在工作、聊天和游戏间切换，记得之前聊过的事，在合适的时候接话，也能替你把交代的任务做完。
+
 > [!IMPORTANT]
-> BoxAgent 目前是面向 macOS / Apple Silicon 的开发版本，不是开箱即用的正式发行包。运行前需要准备模型凭据、Codex Computer Use 组件和相应的 macOS 系统权限。
+> BoxAgent 目前以 Apple Silicon macOS 开发版为主。团队接续开发从 [2026-11-21 集成分支交接](docs/integration-handoff-2026-11-21.md) 开始。
 
 ## 产品演示
 
@@ -79,6 +75,8 @@ flowchart LR
 更完整的数据流和模块边界见 [架构重构方案](docs/BoxAgent-架构重构方案.md)、[Conversation Context 设计](docs/BoxAgent-Phase3-Conversation-Context-设计.md) 与 [Memory 设计](docs/BoxAgent-Phase4-Memory-设计.md)。
 
 ## 快速开始
+
+下面是日常源码开发的步骤。要从源码打开首次引导并接入自己的微信，见 [微信源码接入](docs/wechat-onboarding.md#同事从仓库本地运行2026-11-20)。要验证独立 App 的首次引导或自己构建 DMG，见 [macOS 安装与发包](docs/macos-distribution.md)。
 
 ### 1. 准备环境
 
@@ -185,19 +183,21 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 - 仅支持 3D VRM 形象、本地导入与运行中换装；共享模型和动作通过 Git LFS 管理
 - 本地 MLX 前台窗口总结
 - 有来源的关键画面记忆、后台经历提取、同主题历史链与按问题回看原图；默认用一两句播报，来源不足时说明不确定
+- LoL 与《鸣潮》陪玩、透明桌宠与副屏舞台、微信来信提醒及明确指令后代回
+- macOS 首次引导、配置修复与独立安装包构建。0.1.2 已通过本机成品冒烟，验收范围见 [团队交接](docs/integration-handoff-2026-11-21.md)
 
 视觉记忆的使用方法、源码对照和验证范围见 [PersonOS 多模态记忆接入](docs/PersonOS-多模态记忆接入评估.md)。
 
 ### 仍在推进
 
-- 新用户 Onboarding、依赖检测与正式应用分发
+- 新 Mac 首次引导与权限验收、微信凭据冷启动恢复、正式签名与公证分发
 - 桌面任务队列、并发调度和更稳定的第三方应用适配
 - 记忆冲突消歧、画像质量评测与多尺度 consolidation
 - 《鸣潮》真实素材的视觉记忆准确率与语音延迟验收；连续视频、人物身份关联尚未接入
 - 脚本型 Skill 沙箱、ZIP / Git 导入与 Skill 市场
 - 持续委托、活动时间线和长期运行可靠性
 
-本分支交付、迁移与最新验证边界见 [分支交付与 PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md)；早期能力验证见 [POC 验收记录](docs/poc-verification.md)。
+本次集成的功能、验收和开发入口见 [团队交接](docs/integration-handoff-2026-11-21.md)。
 
 ## 项目结构
 
@@ -249,15 +249,17 @@ uvx --from pyright==1.1.414 pyright
 
 | 主题 | 文档 |
 | --- | --- |
-| 安装与配置 | [本机环境准备](docs/setup.md) |
+| 团队接续开发 | [2026-11-21 集成分支交接](docs/integration-handoff-2026-11-21.md) · [代码架构导览](docs/BoxAgent-代码架构导览.md) |
+| 源码运行、安装与配置 | [本机环境准备](docs/setup.md) · [macOS 安装引导与打包](docs/macos-distribution.md) · [Windows 使用说明](docs/windows.md) |
+| 微信接入与使用 | [微信首次接入](docs/wechat-onboarding.md) · [微信模块设计](docs/wechat-模块设计.md) |
 | 当前架构与前后端连接 | [架构重构方案](docs/BoxAgent-架构重构方案.md) |
 | 伙伴控制台与界面偏好 | [Panel README](web/panel/README.md) |
 | 桌宠、双屏与陪玩 | [显示说明](docs/desktop-displays.md) · [交互设计稿](docs/design/companion/index.html) |
 | 会话与上下文 | [Phase 3：Conversation Context](docs/BoxAgent-Phase3-Conversation-Context-设计.md) |
 | 长期记忆 | [Phase 4：Memory](docs/BoxAgent-Phase4-Memory-设计.md) |
 | 运行记录与审计 | [运行记录与上下文审计](docs/BoxAgent-运行记录与上下文审计.md) |
-| 功能与修复 | [实践记录](docs/BoxAgent-实践记录.md) |
-| 需求状态与本次交付 | [需求路线图](docs/需求/README.md) · [PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md) |
+| 功能、修复与性能验证 | [实践记录](docs/BoxAgent-实践记录.md) |
+| 需求与历史交付 | [需求路线图](docs/需求/README.md) · [2026-10-12 PR 验收](docs/需求/2026-10-12-分支交付与PR验收.md) |
 | 3D 形象与共享资产 | [VRM 桌宠](docs/vrm.md) |
 | Computer Use | [Python Computer Use](docs/python-codex-computer-use.md) |
 | 语音链路 | [Qwen 全双工实验](docs/qwen-full-duplex-summary.md) |
