@@ -1,8 +1,16 @@
 from __future__ import annotations
+
 from pathlib import Path
+
 import pytest
+
 from boxagent.infrastructure.wechat._private import private_dir, write_json
-from boxagent.infrastructure.wechat.moments import Expressions, Visibility, previous_request, utf16_units
+from boxagent.infrastructure.wechat.moments import (
+    Expressions,
+    Visibility,
+    previous_request,
+    utf16_units,
+)
 
 
 def test_moments_unicode_and_visibility_preparation_has_no_subscription() -> None:

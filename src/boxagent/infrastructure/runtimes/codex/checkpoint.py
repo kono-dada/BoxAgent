@@ -4,7 +4,6 @@ import json
 
 from boxagent.domain.memory.policy import redact_memory_source
 
-
 CHECKPOINT_SCHEMA = {
     "type": "object",
     "properties": {

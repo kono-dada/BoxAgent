@@ -38,15 +38,19 @@ import shutil
 import sys
 import threading
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from types import TracebackType
+from typing import TextIO
 
-from boxagent.core.logs import (  # noqa: F401 - re-exported for entry points
+from boxagent.core.logs import (
     EnqueueHandler,
     JsonFormatter,
     crash_logger,
-    install_asyncio_handler,
     iso_time,
 )
+from boxagent.core.logs import install_asyncio_handler as install_asyncio_handler
 
 ROOT_LOGGER = "boxagent"
 READY_EVENT = "logging.ready"
@@ -58,7 +62,7 @@ RETENTION_DAYS = 14
 WINDOW_SECONDS = 60.0
 WINDOW_LIMIT = 100
 RECENT_LIMIT = 200
-_state = None
+_state: _State | None = None
 _state_lock = threading.Lock()
 
 
@@ -69,8 +73,15 @@ class RateLimitedHandler(logging.Handler):
     were dropped, so suppression is visible instead of silent.
     """
 
-    def __init__(self, target, *, limit=WINDOW_LIMIT, window=WINDOW_SECONDS,
-                 clock=time.monotonic, accept=None):
+    def __init__(
+        self,
+        target: logging.Handler,
+        *,
+        limit: int = WINDOW_LIMIT,
+        window: float = WINDOW_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+        accept: Callable[[logging.LogRecord], bool] | None = None,
+    ) -> None:
         super().__init__()
         self.target = target
         self.limit, self.window, self.clock = limit, window, clock
@@ -79,7 +90,7 @@ class RateLimitedHandler(logging.Handler):
         self.written = 0
         self.dropped = 0
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         if not self.accept(record):
             return
         now = self.clock()
@@ -89,9 +100,8 @@ class RateLimitedHandler(logging.Handler):
                     "boxagent.logging", logging.WARNING, __file__, 0,
                     "dropped %d message(s) over the rate limit", (self.dropped,),
                     None)
-                summary.boxagent_context = {}
-                summary.data = {"dropped": self.dropped,
-                                "window_seconds": self.window}
+                vars(summary)["boxagent_context"] = {}
+                vars(summary)["data"] = {"dropped": self.dropped, "window_seconds": self.window}
                 self.target.handle(summary)
             self.window_start, self.written, self.dropped = now, 0, 0
         if self.written >= self.limit:
@@ -100,7 +110,7 @@ class RateLimitedHandler(logging.Handler):
         self.written += 1
         self.target.handle(record)
 
-    def close(self):
+    def close(self) -> None:
         self.target.close()
         super().close()
 
@@ -108,20 +118,22 @@ class RateLimitedHandler(logging.Handler):
 class RecentProblems(logging.Handler):
     """In-memory ring of recent WARNING+ records for an admin view."""
 
-    def __init__(self, formatter, capacity=RECENT_LIMIT):
+    def __init__(self, formatter: logging.Formatter, capacity: int = RECENT_LIMIT) -> None:
         super().__init__(logging.WARNING)
         self.setFormatter(formatter)
-        self.items = collections.deque(maxlen=capacity)
+        self.items: collections.deque[dict[str, object]] = collections.deque(maxlen=capacity)
 
-    def emit(self, record):
-        self.items.append(json.loads(self.format(record)))
+    def emit(self, record: logging.LogRecord) -> None:
+        item: object = json.loads(self.format(record))
+        if isinstance(item, dict):
+            self.items.append(item)
 
 
-def _is_problem_or_marker(record):
+def _is_problem_or_marker(record: logging.LogRecord) -> bool:
     return record.levelno >= logging.WARNING or record.getMessage() == READY_EVENT
 
 
-def rotate_if_large(path, *, max_bytes, backups):
+def rotate_if_large(path: str | Path, *, max_bytes: int, backups: int) -> bool:
     """Rotate ``path`` to ``path.1``… when it exceeds ``max_bytes``.
 
     Used at startup for append-only files written outside ``logging`` (event
@@ -148,7 +160,7 @@ STREAM_MAX_BYTES = 20 * 1024 * 1024
 STREAM_BACKUPS = 3
 
 
-def rotate_stream_logs(log_dir):
+def rotate_stream_logs(log_dir: str | Path) -> list[Path]:
     """Bound the raw stream files; returns the paths that were rotated."""
     log_dir = Path(log_dir)
     return [log_dir / name for name in STREAM_FILES
@@ -156,7 +168,9 @@ def rotate_stream_logs(log_dir):
                                backups=STREAM_BACKUPS)]
 
 
-def prune_old_logs(log_dir, *, days=RETENTION_DAYS, now=None):
+def prune_old_logs(
+    log_dir: str | Path, *, days: int = RETENTION_DAYS, now: float | None = None
+) -> list[Path]:
     """Delete rotated backups and crash files older than ``days``."""
     log_dir = Path(log_dir)
     cutoff = (now or time.time()) - days * 86400
@@ -173,7 +187,7 @@ def prune_old_logs(log_dir, *, days=RETENTION_DAYS, now=None):
     return removed
 
 
-def migrate_legacy_logs(data_dir, log_dir):
+def migrate_legacy_logs(data_dir: str | Path, log_dir: str | Path) -> list[Path]:
     """Move pre-``logs/`` diagnostic files out of the data root, once.
 
     Early builds wrote ``engine.log``, ``events.jsonl`` and worker logs straight
@@ -201,16 +215,23 @@ def migrate_legacy_logs(data_dir, log_dir):
     return moved
 
 
+@dataclass
 class _State:
-    def __init__(self, process, log_dir, listener, enqueue, recent, crash_file,
-                 previous_hooks):
-        self.process, self.log_dir = process, log_dir
-        self.listener, self.enqueue, self.recent = listener, enqueue, recent
-        self.crash_file = crash_file
-        self.previous_hooks = previous_hooks
+    process: str
+    log_dir: Path
+    listener: logging.handlers.QueueListener
+    enqueue: EnqueueHandler
+    recent: RecentProblems
+    crash_file: TextIO | None
+    previous_hooks: tuple[
+        Callable[[type[BaseException], BaseException, TracebackType | None], object],
+        Callable[[threading.ExceptHookArgs], object],
+    ]
 
 
-def _file_handler(path, *, max_bytes, backups, formatter):
+def _file_handler(
+    path: Path, *, max_bytes: int, backups: int, formatter: logging.Formatter
+) -> logging.handlers.RotatingFileHandler:
     handler = logging.handlers.RotatingFileHandler(
         path, maxBytes=max_bytes, backupCount=backups, encoding="utf-8",
         delay=True)
@@ -218,7 +239,9 @@ def _file_handler(path, *, max_bytes, backups, formatter):
     return handler
 
 
-def _shared_errors_handler(path, formatter):
+def _shared_errors_handler(
+    path: Path, formatter: logging.Formatter
+) -> logging.handlers.WatchedFileHandler:
     # Several processes append to errors.jsonl. Size rotation inside a running
     # process would race the others, so it only rotates at startup (see
     # configure_logging); WatchedFileHandler reopens after such a rotation.
@@ -228,8 +251,15 @@ def _shared_errors_handler(path, formatter):
     return handler
 
 
-def configure_logging(log_dir, *, process, level=logging.INFO, console=False,
-                      clock=time.monotonic, rotate_shared=None):
+def configure_logging(
+    log_dir: str | Path,
+    *,
+    process: str,
+    level: int | str = logging.INFO,
+    console: bool = False,
+    clock: Callable[[], float] = time.monotonic,
+    rotate_shared: bool | None = None,
+) -> _State:
     """Install BoxAgent logging for this process; safe to call again.
 
     ``rotate_shared`` controls whether this process rotates ``errors.jsonl`` at
@@ -243,8 +273,8 @@ def configure_logging(log_dir, *, process, level=logging.INFO, console=False,
         logging.raiseExceptions = False
         log_dir = Path(log_dir)
         formatter = JsonFormatter(process)
-        handlers = []
-        crash_file = None
+        handlers: list[logging.Handler] = []
+        crash_file: TextIO | None = None
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
             (log_dir / "crash").mkdir(exist_ok=True)
@@ -279,7 +309,7 @@ def configure_logging(log_dir, *, process, level=logging.INFO, console=False,
         recent = RecentProblems(formatter)
         handlers.append(recent)
 
-        records = queue.SimpleQueue()
+        records: queue.SimpleQueue[logging.LogRecord] = queue.SimpleQueue()
         listener = logging.handlers.QueueListener(
             records, *handlers, respect_handler_level=True)
         enqueue = EnqueueHandler(records)
@@ -294,15 +324,15 @@ def configure_logging(log_dir, *, process, level=logging.INFO, console=False,
         previous = (sys.excepthook, threading.excepthook)
         sys.excepthook = _sys_excepthook
         threading.excepthook = _thread_excepthook
-        _state = _State(process, log_dir, listener, enqueue, recent, crash_file,
-                        previous)
+        state = _State(process, log_dir, listener, enqueue, recent, crash_file, previous)
+        _state = state
     logging.getLogger("boxagent.logging").info(
         READY_EVENT, extra={"data": {"log_dir": str(log_dir), "process": process,
                                      "python": sys.version.split()[0]}})
-    return _state
+    return state
 
 
-def _shutdown_locked():
+def _shutdown_locked() -> None:
     global _state
     state, _state = _state, None
     if state is None:
@@ -319,13 +349,13 @@ def _shutdown_locked():
             state.crash_file.close()
 
 
-def shutdown_logging():
+def shutdown_logging() -> None:
     """Flush queued records and detach handlers (tests, orderly exit)."""
     with _state_lock:
         _shutdown_locked()
 
 
-def flush_logging():
+def flush_logging() -> None:
     """Block until queued records are written; keeps logging configured."""
     with _state_lock:
         state = _state
@@ -335,13 +365,15 @@ def flush_logging():
         state.listener.start()
 
 
-def recent_problems():
+def recent_problems() -> list[dict[str, object]]:
     """Most recent WARNING+ records of this process, oldest first."""
     state = _state
     return list(state.recent.items) if state else []
 
 
-def _sys_excepthook(kind, value, tb):
+def _sys_excepthook(
+    kind: type[BaseException], value: BaseException, tb: TracebackType | None
+) -> None:
     if not issubclass(kind, KeyboardInterrupt):
         crash_logger.critical("uncaught exception", exc_info=(kind, value, tb))
         flush_logging()
@@ -349,8 +381,8 @@ def _sys_excepthook(kind, value, tb):
     previous(kind, value, tb)
 
 
-def _thread_excepthook(args):
-    if args.exc_type is not SystemExit:
+def _thread_excepthook(args: threading.ExceptHookArgs) -> None:
+    if args.exc_type is not SystemExit and args.exc_value is not None:
         crash_logger.critical(
             "uncaught exception in thread %s",
             getattr(args.thread, "name", "?"),

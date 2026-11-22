@@ -1,8 +1,8 @@
 """Data passed into and out of an Agent Runtime."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any
 
 

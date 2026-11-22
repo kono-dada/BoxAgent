@@ -9,13 +9,13 @@ writing, and all decrypted material stays under ``.runtime/private``.
 from __future__ import annotations
 
 import ctypes as c
-from dataclasses import dataclass
-from functools import lru_cache
-from pathlib import Path
 import shutil
 import sqlite3
 import struct
 import time
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 PAGE_SIZE = 4096
 SALT_SIZE = 16
@@ -152,7 +152,7 @@ def decrypt_database(db_path: Path, key: bytes, wal_path: Path | None) -> bytes:
 def copy_snapshot(source: Path, target: Path) -> None:
     """Copy a database and its sidecars while the client keeps running."""
     target.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(3):
+    for _attempt in range(3):
         before = source.stat()
         shutil.copyfile(source, target)
         for suffix in ("-wal", "-shm"):

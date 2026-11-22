@@ -2,13 +2,13 @@
 
 import asyncio
 import contextlib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol, Callable
+from typing import Protocol
 
 from boxagent.agent.runtime.contracts import ToolCall, ToolObservationSink
 from boxagent.agent.runtime.models import ModelProfile
 from boxagent.domain.skill import SkillService
-
 from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
 
 
@@ -91,11 +91,11 @@ class CodexTaskSession:
             raise RuntimeError("Codex Runtime 尚未启动")
         return await self.server.run_isolated_structured_turn(**arguments)
 
-    async def interrupt(self):
+    async def interrupt(self) -> None:
         if self.server:
             await self.server.interrupt()
 
-    async def close(self):
+    async def close(self) -> None:
         if self.acquired:
             self.acquired = False
             await self.host.release(self.server)
@@ -133,7 +133,7 @@ class CodexRuntimeHost:
             runtime_thread_id=runtime_thread_id,
             on_thread_bound=on_thread_bound, on_context_synced=on_context_synced)
 
-    async def start(self):
+    async def start(self) -> None:
         """Lifecycle hook; the expensive process launch remains lazy."""
         if self.closed:
             raise RuntimeError("Codex Runtime 已关闭")
@@ -187,7 +187,7 @@ class CodexRuntimeHost:
                 return []
             return await self.server.refresh_skills(force=True)
 
-    async def close(self):
+    async def close(self) -> None:
         if self.closed:
             return
         self.closed = True

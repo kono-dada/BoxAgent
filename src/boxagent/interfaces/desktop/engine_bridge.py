@@ -8,6 +8,7 @@ import os
 import threading
 import time
 import traceback
+from collections.abc import Coroutine, Mapping
 from pathlib import Path
 
 from boxagent.core.errors import redact
@@ -47,16 +48,16 @@ class EngineBridge:
         self.watch = watch
         self.soul_file = soul_file
         self.closing = False
-        self.engine_pid = None
-        self.restart_lock = None
-        self.background_tasks = []
+        self.engine_pid: int | None = None
+        self.restart_lock: asyncio.Lock | None = None
+        self.background_tasks: list[asyncio.Task[None]] = []
         self.thread = threading.Thread(target=self.run, name="BoxAgent-engine-client", daemon=True)
         self.thread.start()
         self.startup = self.submit(self._start())
 
-    def run(self):
+    def run(self) -> None:
         asyncio.set_event_loop(self.loop)
-        def report(loop, context):
+        def report(loop: asyncio.AbstractEventLoop, context: dict[str, object]) -> None:
             asyncio_exception_handler(loop, context)
             self.publish({
                 "type": "backend.error", "occurred_at": time.time(),
@@ -72,47 +73,60 @@ class EngineBridge:
         self.loop.run_until_complete(self.loop.shutdown_asyncgens())
         self.loop.close()
 
-    async def _start(self):
+    async def _start(self) -> None:
         self.restart_lock = asyncio.Lock()
         adopted = await self._adopt_existing()
         if not adopted:
             await self.supervisor.start()
             await self.client.connect()
         health = await self.client.request("health")
-        self.engine_pid = health.get("pid")
-        self.publish({"type": "backend.connected", "occurred_at": time.time(),
-                      "pid": self.engine_pid, "adopted": adopted})
-        self.background_tasks.append(asyncio.create_task(self._monitor(), name="boxagent-engine-monitor"))
+        pid = health.get("pid") if isinstance(health, dict) else None
+        self.engine_pid = pid if type(pid) is int else None
+        self.publish(
+            {
+                "type": "backend.connected",
+                "occurred_at": time.time(),
+                "pid": self.engine_pid,
+                "adopted": adopted,
+            }
+        )
+        self.background_tasks.append(
+            asyncio.create_task(self._monitor(), name="boxagent-engine-monitor")
+        )
         if self.watch:
-            self.background_tasks.append(asyncio.create_task(self._watch_sources(), name="boxagent-engine-watch"))
+            self.background_tasks.append(
+                asyncio.create_task(self._watch_sources(), name="boxagent-engine-watch")
+            )
 
-    async def request(self, method, params=None):
+    async def request(self, method: str, params: Mapping[str, object] | None = None) -> object:
         return await self.client.request(method, params)
 
-    async def _adopt_existing(self):
+    async def _adopt_existing(self) -> bool:
         if not self.socket_path.exists():
             return False
         try:
             await self.client.connect(timeout=.5)
             health = await self.client.request("health", timeout=2)
-            return health.get("status") == "ready"
+            return isinstance(health, dict) and health.get("status") == "ready"
         except Exception as exc:
             # A stale socket from a crashed Engine is expected; start a new one.
             logger.info("existing engine not adopted: %s", type(exc).__name__)
             await self.client.disconnect()
             return False
 
-    def publish(self, event):
+    def publish(self, event: dict[str, object]) -> None:
         if not event:
             return
         self.log_dir.mkdir(parents=True, exist_ok=True)
         with (self.log_dir / "events.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(redact(event), ensure_ascii=False) + "\n")
 
-    def submit(self, coroutine):
+    def submit[T](
+        self, coroutine: Coroutine[object, object, T]
+    ) -> concurrent.futures.Future[T]:
         future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
 
-        def finished(done):
+        def finished(done: concurrent.futures.Future[T]) -> None:
             try:
                 done.result()
             except (concurrent.futures.CancelledError, EngineDisconnected):
@@ -125,7 +139,7 @@ class EngineBridge:
         future.add_done_callback(finished)
         return future
 
-    def _source_snapshot(self):
+    def _source_snapshot(self) -> dict[str, int]:
         snapshot = {}
         for name in self.WATCH_ROOTS:
             base = PACKAGE_ROOT / name
@@ -141,16 +155,16 @@ class EngineBridge:
                 snapshot[str(path)] = path.stat().st_mtime_ns
             except OSError:
                 continue
-        for path in {self.data_dir / "SOUL.md", self.soul_file}:
-            if path is None:
+        for candidate in {self.data_dir / "SOUL.md", self.soul_file}:
+            if candidate is None:
                 continue
             try:
-                snapshot[str(path)] = path.stat().st_mtime_ns
+                snapshot[str(candidate)] = candidate.stat().st_mtime_ns
             except OSError:
                 continue
         return snapshot
 
-    async def _watch_sources(self):
+    async def _watch_sources(self) -> None:
         previous = await asyncio.to_thread(self._source_snapshot)
         while not self.closing:
             await asyncio.sleep(.75)
@@ -159,14 +173,14 @@ class EngineBridge:
                 previous = current
                 await self._restart("source_changed")
 
-    async def _monitor(self):
+    async def _monitor(self) -> None:
         while not self.closing:
             await asyncio.sleep(.5)
             process = self.supervisor.process
             if process and process.returncode is not None:
                 await self._restart("process_exited")
 
-    async def _restart(self, reason):
+    async def _restart(self, reason: str) -> None:
         if self.restart_lock is None:
             raise RuntimeError("Engine has not started")
         async with self.restart_lock:
@@ -187,12 +201,15 @@ class EngineBridge:
                     await self.supervisor.restart()
                 else:
                     deadline = asyncio.get_running_loop().time() + 5
-                    while self.socket_path.exists() and asyncio.get_running_loop().time() < deadline:
-                        await asyncio.sleep(.05)
+                    while (
+                        self.socket_path.exists() and asyncio.get_running_loop().time() < deadline
+                    ):
+                        await asyncio.sleep(0.05)
                     await self.supervisor.start()
                 await self.client.connect()
                 health = await self.client.request("health")
-                self.engine_pid = health.get("pid")
+                pid = health.get("pid") if isinstance(health, dict) else None
+                self.engine_pid = pid if type(pid) is int else None
             except Exception as exc:
                 logger.error("engine restart failed", exc_info=True)
                 self.publish({"type": "backend.error", "occurred_at": time.time(),
@@ -201,7 +218,7 @@ class EngineBridge:
             self.publish({"type": "backend.reconnected", "occurred_at": time.time(),
                           "pid": self.engine_pid})
 
-    async def _close(self):
+    async def _close(self) -> None:
         self.closing = True
         for task in self.background_tasks:
             task.cancel()

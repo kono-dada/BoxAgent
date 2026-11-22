@@ -5,9 +5,9 @@ import importlib
 import json
 import logging
 import os
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 from typing import Literal, TypedDict
 
 Component = Literal['core', 'memory', 'vision', 'prepare-memory']
@@ -22,9 +22,18 @@ class ProbeResult(TypedDict):
 
 def check_component(component: Component, *, data: Path, model: Path) -> ProbeResult:
     if sys.version_info[:2] != (3, 12):
-        return {'state': 'unavailable', 'code': 'python_version_mismatch'}
-    if component == 'core':
-        for name in ('ssl', 'sqlite3', 'pyaudio', 'websockets', 'PIL', 'AppKit', 'Quartz', 'zstandard'):
+        return {"state": "unavailable", "code": "python_version_mismatch"}
+    if component == "core":
+        for name in (
+            "ssl",
+            "sqlite3",
+            "pyaudio",
+            "websockets",
+            "PIL",
+            "AppKit",
+            "Quartz",
+            "zstandard",
+        ):
             importlib.import_module(name)
         return {'state': 'ready', 'code': ''}
     if component == 'prepare-memory':

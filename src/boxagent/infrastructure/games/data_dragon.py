@@ -1,17 +1,16 @@
 """Look up localized, versioned champion and item facts on Riot's static CDN."""
 
 import asyncio
-from html import unescape
 import json
-from pathlib import Path
 import re
 import tempfile
 import time
 import unicodedata
+from html import unescape
+from pathlib import Path
 from urllib.request import urlopen
 
 from boxagent.domain.proactivity.lol_knowledge import LolKnowledgeEntry, LolKnowledgeKind
-
 
 BASE_URL = "https://ddragon.leagueoflegends.com"
 _VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
@@ -58,7 +57,12 @@ class DataDragonKnowledge:
             matches: list[tuple[str, dict[str, object]]] = []
             for ident, value in catalog.items():
                 row = _object(value)
-                if needle in {_key(ident), _key(row.get("name")), _key(row.get("title")), _key(row.get("key"))}:
+                if needle in {
+                    _key(ident),
+                    _key(row.get("name")),
+                    _key(row.get("title")),
+                    _key(row.get("key")),
+                }:
                     matches.append((ident, row))
             if len(matches) != 1:
                 continue
@@ -70,9 +74,13 @@ class DataDragonKnowledge:
                 row = _object(self._catalog(relative).get(ident))
                 details = self._abilities(row)
             else:
-                details = {"description": _plain(row.get("description")) or _plain(row.get("plaintext"))}
+                details = {
+                    "description": _plain(row.get("description")) or _plain(row.get("plaintext"))
+                }
             if row.get("name") and any(details.values()):
-                return LolKnowledgeEntry(_text(row["name"]), details, version, locale, f"{BASE_URL}/{relative}")
+                return LolKnowledgeEntry(
+                    _text(row["name"]), details, version, locale, f"{BASE_URL}/{relative}"
+                )
         return None
 
     @staticmethod
@@ -81,7 +89,7 @@ class DataDragonKnowledge:
         passive = _object(row.get("passive"))
         spells = row.get("spells")
         entries = [passive, *(spells if isinstance(spells, list) else [])]
-        for slot, value in zip(("被动", "Q", "W", "E", "R"), entries):
+        for slot, value in zip(("被动", "Q", "W", "E", "R"), entries, strict=False):
             ability = _object(value)
             if description := _plain(ability.get("description")):
                 details[slot] = f"{_plain(ability.get('name'))}：{description}"
@@ -96,8 +104,18 @@ class DataDragonKnowledge:
         if self.latest is not None and now < self.latest[1]:
             return self.latest[0]
         versions = self._download("api/versions.json")
-        version = next((value for value in versions if isinstance(value, str) and _VERSION.fullmatch(value)), "") \
-            if isinstance(versions, list) else ""
+        version = (
+            next(
+                (
+                    value
+                    for value in versions
+                    if isinstance(value, str) and _VERSION.fullmatch(value)
+                ),
+                "",
+            )
+            if isinstance(versions, list)
+            else ""
+        )
         if not version:
             raise ValueError("Data Dragon 版本列表为空")
         self.latest = (version, now + 3600)
@@ -119,7 +137,9 @@ class DataDragonKnowledge:
         if not data:
             raise ValueError("Data Dragon 资料为空")
         path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as file:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, delete=False
+        ) as file:
             temporary = Path(file.name)
             try:
                 json.dump(payload, file, ensure_ascii=False)

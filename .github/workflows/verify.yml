@@ -28,7 +28,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: brew install portaudio
-      - run: uv sync --locked
-      - run: uv run --locked python scripts/check_python_quality.py
-      - run: uvx --from pyright==1.1.414 pyright --pythonpath "$(uv python find)"
-      - run: uv run --locked python -m pytest -q
+      - id: sync
+        run: uv sync --locked
+      - run: uv run --locked ruff check
+      - if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --locked mypy
+      - if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --locked pytest
+      - if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uvx --from pyright==1.1.414 pyright --pythonpath "$(uv python find)"

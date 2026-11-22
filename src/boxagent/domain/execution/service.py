@@ -13,7 +13,6 @@ from boxagent.core.ids import new_task_id
 from boxagent.core.states import Executor, TaskQueueItem
 from boxagent.domain.conversation.models import InteractionContext
 
-
 TaskCapability = Literal["desktop", "wechat"]
 
 
@@ -147,23 +146,25 @@ class ExecutionService:
             result = await executor.run(goal, self.progress, self.approve)
             if self.state.task == "cancelling":
                 raise asyncio.CancelledError
-            status = "succeeded" if result["outcome"] == "completed" else result["outcome"]
+            outcome, summary = result["outcome"], result["summary"]
+            if not isinstance(outcome, str) or not isinstance(summary, str):
+                raise TypeError("执行结果缺少有效的 outcome 或 summary")
+            status = "succeeded" if outcome == "completed" else outcome
             self.last_result = {"status": status, "task_id": self.state.task_id,
                                 "goal": goal, **result}
             terminal_result = dict(self.last_result)
-            self.events.emit("task." + status, task=status, task_text=result["summary"],
-                             assistant_text=result["summary"], approval="",
+            self.events.emit("task." + status, task=status, task_text=summary,
+                             assistant_text=summary, approval="",
                              task_ended_at=time.time())
             if interaction and self.conversation:
                 await self.conversation.finish_interaction(
-                    interaction, status=status, assistant_content=result["summary"],
+                    interaction, status=status, assistant_content=summary,
                     task_id=task_id,
                     data={key: result[key] for key in
                           ("outcome", "assessment", "steps", "error_code")
                           if key in result})
                 self.events.emit("conversation.updated")
-            await self._notify_terminal(
-                interaction, task_id, status, result["summary"])
+            await self._notify_terminal(interaction, task_id, status, summary)
         except asyncio.CancelledError:
             terminal_result = await self._finish_cancelled(interaction, task_id)
         except Exception as exc:
@@ -240,7 +241,7 @@ class ExecutionService:
             self.events.emit(
                 "notification.error", error="任务已经结束，但完成提醒暂时无法送达")
 
-    async def _monitor(self):
+    async def _monitor(self) -> None:
         while True:
             await asyncio.sleep(5)
             self.events.emit("task.heartbeat")
@@ -273,7 +274,7 @@ class ExecutionService:
             self.events.emit("task.approval_resolved", approval="",
                              task="cancelling" if self.state.task == "cancelling" else "running")
 
-    async def answer_approval(self, allowed):
+    async def answer_approval(self, allowed: bool) -> None:
         if self.approval_future and not self.approval_future.done():
             self.approval_future.set_result(allowed)
 
@@ -320,7 +321,9 @@ class ExecutionService:
         if clear_pending:
             result = {**result, "cancelled_queued": len(cancelled)}
             if stopping or cancelled:
-                result.update(status="cancelled", message="已取消当前及排队任务；已发生的操作不会撤销。")
+                result.update(
+                    status="cancelled", message="已取消当前及排队任务；已发生的操作不会撤销。"
+                )
         return result
 
     async def close(self) -> None:

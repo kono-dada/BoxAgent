@@ -1,19 +1,20 @@
 """Harness execution lifecycle around one Agent Runtime request."""
 
 import asyncio
-from dataclasses import asdict, is_dataclass, replace
 import hashlib
 import inspect
 import json
 import time
 import traceback
+from collections.abc import Callable
+from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
+from boxagent.agent.harness.policies.result import validate_task_result
+from boxagent.agent.harness.request import HarnessInput
 from boxagent.core.errors import append_jsonl, redact, timestamp, write_json
 from boxagent.core.logs import bind_log_context
-from boxagent.agent.harness.request import HarnessInput
-from boxagent.agent.harness.policies.result import validate_task_result
 
 
 class TaskExecutor:
@@ -215,12 +216,20 @@ class TaskExecutor:
                 degraded=bool((memory_retrieval.get("trace") or {}).get(
                     "degraded")))
             environment = self.capture_environment()
-            request = self.request_factory(HarnessInput(
-                goal=goal, turns=self.prior_messages, memories=memories,
-                environment=environment,
-                synced_event_ids=(self.runtime_binding.synced_event_ids if self.runtime_binding else ()),
-                context_cursor=(self.runtime_binding.context_cursor
-                                if self.runtime_binding else 0)))
+            request = self.request_factory(
+                HarnessInput(
+                    goal=goal,
+                    turns=self.prior_messages,
+                    memories=memories,
+                    environment=environment,
+                    synced_event_ids=(
+                        self.runtime_binding.synced_event_ids if self.runtime_binding else ()
+                    ),
+                    context_cursor=(
+                        self.runtime_binding.context_cursor if self.runtime_binding else 0
+                    ),
+                )
+            )
             history = [self._record(item) for item in request.history]
             history_delta = [self._record(item) for item in request.history_delta]
             write_json(self.output / "context.json", {
@@ -252,21 +261,28 @@ class TaskExecutor:
                 "tools": tools,
             }
             write_json(self.output / "request.json", request_snapshot)
-            self.log("runtime_request_compiled",
-                     persona=getattr(request, "persona_source", None),
-                     input_characters=len(request.query),
-                     instruction_characters=len(request.developer_instructions),
-                     history_messages=len(request.history),
-                     history_delta_messages=len(request.history_delta),
-                     evidence_characters=len(request.evidence_context),
-                     memory_evidence_count=len(memories))
-            text = await asyncio.wait_for(self.runtime.execute(
-                replace(request, result_evidence=self.result_evidence), tools, self.call_tool, self.validate_result,
-                lambda message: self.report("model", message)), 300)
-            request_snapshot["runtime_thread_id"] = getattr(
-                self.session, "thread_id", None)
-            request_snapshot["runtime_turn_id"] = getattr(
-                self.session, "turn_id", None)
+            self.log(
+                "runtime_request_compiled",
+                persona=getattr(request, "persona_source", None),
+                input_characters=len(request.query),
+                instruction_characters=len(request.developer_instructions),
+                history_messages=len(request.history),
+                history_delta_messages=len(request.history_delta),
+                evidence_characters=len(request.evidence_context),
+                memory_evidence_count=len(memories),
+            )
+            text = await asyncio.wait_for(
+                self.runtime.execute(
+                    replace(request, result_evidence=self.result_evidence),
+                    tools,
+                    self.call_tool,
+                    self.validate_result,
+                    lambda message: self.report("model", message),
+                ),
+                300,
+            )
+            request_snapshot["runtime_thread_id"] = getattr(self.session, "thread_id", None)
+            request_snapshot["runtime_turn_id"] = getattr(self.session, "turn_id", None)
             write_json(self.output / "request.json", request_snapshot)
             self.report("validating", "正在核对执行结果")
             write_json(self.output / "agent-result.json", {"text": text})
@@ -359,7 +375,7 @@ class TaskExecutor:
             except OSError:
                 temporary_link.unlink(missing_ok=True)
 
-    async def cancel(self):
+    async def cancel(self) -> None:
         self.log("cancel_requested", phase=self.phase, step=self.actions)
         self.stopped = True
         if self.session:
@@ -385,7 +401,7 @@ class TaskExecutor:
             "process_returncode": process.returncode if process else None,
         })
 
-    async def heartbeat(self):
+    async def heartbeat(self) -> None:
         while True:
             self.write_status(True)
             process = self.process

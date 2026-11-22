@@ -2,14 +2,18 @@
 
 import asyncio
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal, NotRequired, TypedDict
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 from boxagent.domain.web.contracts import (
-    WebProvider, WebReference, WebResearchObserver, WebResearchView,
-    WebUnavailable, public_web_url,
+    WebProvider,
+    WebReference,
+    WebResearchObserver,
+    WebResearchView,
+    WebUnavailable,
+    public_web_url,
 )
 
 
@@ -98,7 +102,10 @@ class WebResearchService:
         if scope:
             used = self.calls.get(scope, 0)
             if used >= self.max_calls_per_turn:
-                raise WebUnavailable("budget_exceeded", "本轮检索已达上限，请根据已有资料回答；需要更多时请用户继续提问")
+                raise WebUnavailable(
+                    "budget_exceeded",
+                    "本轮检索已达上限，请根据已有资料回答；需要更多时请用户继续提问",
+                )
             self.calls[scope] = used + 1
             self.calls.move_to_end(scope)
             while len(self.calls) > 256:
@@ -106,8 +113,12 @@ class WebResearchService:
 
     @staticmethod
     def _failed(exc: WebUnavailable | ValueError) -> WebToolPayload:
-        return {"status": "failed", "code": exc.code if isinstance(exc, WebUnavailable) else "invalid_request",
-                "message": str(exc), "speech_guidance": SPEECH_GUIDANCE}
+        return {
+            "status": "failed",
+            "code": exc.code if isinstance(exc, WebUnavailable) else "invalid_request",
+            "message": str(exc),
+            "speech_guidance": SPEECH_GUIDANCE,
+        }
 
     async def research(self, query: object, *, count: object = 5, scope: str = "",
                        requested_version: object = "",
@@ -127,7 +138,9 @@ class WebResearchService:
 
         async def report() -> None:
             if observer is not None:
-                active = await observer({**view, "sources": [item.copy() for item in view["sources"]]})
+                active = await observer(
+                    {**view, "sources": [item.copy() for item in view["sources"]]}
+                )
                 if active is False:
                     raise asyncio.CancelledError
 
@@ -140,9 +153,15 @@ class WebResearchService:
             reference = references[source["url"]]
             if page["status"] == "succeeded":
                 reference["read_status"] = "read"
-                pages.append({"url": source["url"], "title": page.get("title", source["title"]),
-                              "content": page.get("content", "")[:5000],
-                              "truncated": page.get("truncated", False) or len(page.get("content", "")) > 5000})
+                pages.append(
+                    {
+                        "url": source["url"],
+                        "title": page.get("title", source["title"]),
+                        "content": page.get("content", "")[:5000],
+                        "truncated": page.get("truncated", False)
+                        or len(page.get("content", "")) > 5000,
+                    }
+                )
             else:
                 reference["read_status"] = "unavailable"
 
@@ -151,11 +170,17 @@ class WebResearchService:
             async with asyncio.timeout(timeout):
                 priority_query = query
                 if preferred_sites and isinstance(query, str):
-                    candidate = query + " " + " OR ".join("site:" + site for site in preferred_sites)
+                    candidate = (
+                        query + " " + " OR ".join("site:" + site for site in preferred_sites)
+                    )
                     if len(candidate) <= 128:
                         priority_query = candidate
                 result = await self.search(priority_query, count=count, scope=scope)
-                if result["status"] == "empty" and priority_query != query and self.calls.get(scope, 0) < self.max_calls_per_turn:
+                if (
+                    result["status"] == "empty"
+                    and priority_query != query
+                    and self.calls.get(scope, 0) < self.max_calls_per_turn
+                ):
                     result = await self.search(query, count=count, scope=scope)
                 sources = result.get("sources", [])
                 references = {source["url"]: {
@@ -182,7 +207,11 @@ class WebResearchService:
                             if not task.done():
                                 task.cancel()
                         await asyncio.gather(*tasks, return_exceptions=True)
-                    if len(pages) < 2 and len(ordered) > 2 and self.calls.get(scope, 0) < self.max_calls_per_turn:
+                    if (
+                        len(pages) < 2
+                        and len(ordered) > 2
+                        and self.calls.get(scope, 0) < self.max_calls_per_turn
+                    ):
                         fallback = ordered[2]
                         references[fallback["url"]]["read_status"] = "reading"
                         await report()
@@ -199,14 +228,25 @@ class WebResearchService:
             if reference["read_status"] == "reading":
                 reference["read_status"] = "unavailable"
         view["stage"] = "ready" if result["status"] == "succeeded" else result["status"]
-        view["message"] = ("资料已找到" if pages else "找到了摘要，正文未能核对") if result["status"] == "succeeded" else result["message"]
+        view["message"] = (
+            ("资料已找到" if pages else "找到了摘要，正文未能核对")
+            if result["status"] == "succeeded"
+            else result["message"]
+        )
         await report()
-        return {**result, "pages": pages, "requested_version": view["requested_version"],
-                "source_policy": "优先游戏官方社区 Wiki 与游戏 Wiki；没有匹配结果才扩大搜索" if preferred_sites else "通用搜索",
-                "read_source_count": len(pages),
-                "read_site_count": len({source_site(page["url"]) for page in pages}),
-                "speech_guidance": SPEECH_GUIDANCE,
-                "evidence_note": EVIDENCE_NOTE + "读取不同站点不等于事实已经核验，请比较与当前问题有关的正文；正文截断可能遗漏条件。"}
+        return {
+            **result,
+            "pages": pages,
+            "requested_version": view["requested_version"],
+            "source_policy": "优先游戏官方社区 Wiki 与游戏 Wiki；没有匹配结果才扩大搜索"
+            if preferred_sites
+            else "通用搜索",
+            "read_source_count": len(pages),
+            "read_site_count": len({source_site(page["url"]) for page in pages}),
+            "speech_guidance": SPEECH_GUIDANCE,
+            "evidence_note": EVIDENCE_NOTE
+            + "读取不同站点不等于事实已经核验，请比较与当前问题有关的正文；正文截断可能遗漏条件。",
+        }
 
     async def search(self, query: object, *, count: object = 5, scope: str = "") -> WebToolPayload:
         try:
@@ -219,15 +259,27 @@ class WebResearchService:
             if provider is None:
                 raise WebUnavailable("not_configured", "联网检索未启用")
             results = await provider.search(query.strip(), count=count)
-            sources: list[SourcePayload] = [{
-                "title": source.title[:250], "url": source.url,
-                "summary": source.summary[:800], "snippet": source.snippet[:200],
-                "published_at": source.published_at, "site_name": source.site_name,
-            } for source in results[:count]]
-            return {"status": "succeeded" if sources else "empty",
-                    "message": "已获取网页资料" if sources else "没有得到可用的搜索结果，请调整关键词，不能编造攻略或来源",
-                    "query": query.strip(), "sources": sources,
-                    "retrieved_at": datetime.now(timezone.utc).isoformat(), "evidence_note": EVIDENCE_NOTE}
+            sources: list[SourcePayload] = [
+                {
+                    "title": source.title[:250],
+                    "url": source.url,
+                    "summary": source.summary[:800],
+                    "snippet": source.snippet[:200],
+                    "published_at": source.published_at,
+                    "site_name": source.site_name,
+                }
+                for source in results[:count]
+            ]
+            return {
+                "status": "succeeded" if sources else "empty",
+                "message": "已获取网页资料"
+                if sources
+                else "没有得到可用的搜索结果，请调整关键词，不能编造攻略或来源",
+                "query": query.strip(),
+                "sources": sources,
+                "retrieved_at": datetime.now(UTC).isoformat(),
+                "evidence_note": EVIDENCE_NOTE,
+            }
         except (WebUnavailable, ValueError) as exc:
             return self._failed(exc)
 
@@ -244,7 +296,7 @@ class WebResearchService:
             return {"status": "succeeded", "message": "已读取网页正文", "url": page.url,
                     "title": page.title[:250], "content": page.content[:12000],
                     "truncated": len(page.content) > 12000,
-                    "retrieved_at": datetime.now(timezone.utc).isoformat(), "evidence_note": EVIDENCE_NOTE,
+                    "retrieved_at": datetime.now(UTC).isoformat(), "evidence_note": EVIDENCE_NOTE,
                     "speech_guidance": SPEECH_GUIDANCE}
         except (WebUnavailable, ValueError) as exc:
             return self._failed(exc)

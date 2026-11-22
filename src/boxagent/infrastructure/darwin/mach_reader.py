@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 import ctypes as c
-from dataclasses import dataclass, field
 import os
-from pathlib import Path
 import struct
 import sys
 import time
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from pathlib import Path
 from types import TracebackType
 
 
@@ -83,7 +83,7 @@ class MachReader:
             self.close()
             raise
 
-    def __enter__(self) -> "MachReader":
+    def __enter__(self) -> MachReader:
         return self
 
     def __exit__(
@@ -118,11 +118,17 @@ class MachReader:
             if not self.port:
                 raise TaskReadError("Task right is closed")
             task_pid = c.c_int()
-            if int(self.lib.pid_for_task(self.port, c.byref(task_pid))) != 0 or task_pid.value != self.pid:
+            if (
+                int(self.lib.pid_for_task(self.port, c.byref(task_pid))) != 0
+                or task_pid.value != self.pid
+            ):
                 raise TaskReadError("Task PID mismatch")
             audit = (c.c_uint32 * 8)()
             count = c.c_uint32(8)
-            if int(self.lib.task_info(self.port, 15, c.byref(audit), c.byref(count))) != 0 or count.value != 8:
+            if (
+                int(self.lib.task_info(self.port, 15, c.byref(audit), c.byref(count))) != 0
+                or count.value != 8
+            ):
                 raise TaskReadError("Task audit token unavailable")
             token = bytes(audit)
         return TaskIdentity(self.pid, executable, uid, (start[0], start[1]), token)

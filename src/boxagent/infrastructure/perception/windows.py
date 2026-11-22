@@ -1,8 +1,8 @@
 """Windows foreground window access; loaded only on Windows."""
 
 import ctypes
-from ctypes import wintypes
 import os
+from ctypes import wintypes
 from pathlib import Path
 from typing import NotRequired, TypedDict
 

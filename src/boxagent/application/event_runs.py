@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import replace
+import contextlib
 import logging
-from typing import Protocol
 from collections.abc import Mapping
+from dataclasses import replace
+from typing import Protocol
 
 from boxagent.agent.runtime.contracts import EventAgent
 from boxagent.agent.runtime.models import RuntimeRequest
@@ -165,10 +166,8 @@ class EventRuns:
 
     async def _run(self) -> None:
         while not self._closing:
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._wake.wait(), 2)
-            except TimeoutError:
-                pass
             self._wake.clear()
             if self._closing:
                 break
@@ -195,7 +194,9 @@ def validate_decision(decision: EventDecision, events: tuple[EventEnvelope, ...]
         raise ValueError("Unknown external event decision")
     if not set(decision.source_event_ids) <= identifiers:
         raise ValueError("Agent cited an event outside the current batch")
-    if decision.action == "notify" and (not decision.summary.strip() or not decision.source_event_ids):
+    if decision.action == "notify" and (
+        not decision.summary.strip() or not decision.source_event_ids
+    ):
         raise ValueError("Notification lacks content or source evidence")
     if len(decision.summary) > 1000 or (decision.action == "silent" and decision.summary):
         raise ValueError("Invalid notification content budget")

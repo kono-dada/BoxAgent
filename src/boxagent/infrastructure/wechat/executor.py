@@ -7,9 +7,10 @@ import os
 import signal
 import subprocess
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Protocol, cast
+from typing import Protocol, cast
 
 from boxagent.core.paths import RESOURCE_ROOT, SOURCE_ROOT
 from boxagent.infrastructure.darwin.mach_reader import MachReader
@@ -89,7 +90,9 @@ class Session:
     def attach(self) -> None:
         target = self.debugger.CreateTarget(self.snapshot.executable)
         error = self.module.SBError()
-        process = target.AttachToProcessWithID(self.debugger.GetListener(), self.snapshot.pid, error)
+        process = target.AttachToProcessWithID(
+            self.debugger.GetListener(), self.snapshot.pid, error
+        )
         self.process = process
         if error.Fail() or process.GetProcessID() != self.snapshot.pid:
             raise RuntimeError("Attach failed: " + str(error.GetCString()))
@@ -147,7 +150,9 @@ def execute_file(debugger: Debugger, filename: str) -> None:
     image = Path(snapshot.executable).parents[1] / "Resources/wechat.dylib"
     try:
         session.attach()
-        with MachReader(snapshot.pid, Path(snapshot.executable), max_bytes=32*1024*1024, seconds=30) as reader:
+        with MachReader(
+            snapshot.pid, Path(snapshot.executable), max_bytes=32 * 1024 * 1024, seconds=30
+        ) as reader:
             snapshot.check(reader, image)
         values: dict[str, int] = {}
         for name, expression in expressions.items():
@@ -200,13 +205,17 @@ class LLDBExecutor:
                     pass_fds=(lease,), start_new_session=True)
                 try:
                     process.wait(timeout=self.timeout)
-                except (subprocess.TimeoutExpired, KeyboardInterrupt):
+                except (subprocess.TimeoutExpired, KeyboardInterrupt) as interrupted:
                     process.send_signal(signal.SIGINT)
                     try:
                         process.wait(timeout=20)
                     except subprocess.TimeoutExpired as error:
-                        raise ExecutionError("Native executor did not exit; its inherited lock remains held") from error
-                    raise ExecutionError("Native call interrupted; inspect its result before retrying")
+                        raise ExecutionError(
+                            "Native executor did not exit; its inherited lock remains held"
+                        ) from error
+                    raise ExecutionError(
+                        "Native call interrupted; inspect its result before retrying"
+                    ) from interrupted
             result = directory / "result.json"
             if not result.exists():
                 raise ExecutionError("Native worker produced no result; see private executor.log")

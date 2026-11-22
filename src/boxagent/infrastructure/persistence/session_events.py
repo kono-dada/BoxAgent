@@ -6,9 +6,8 @@ separate cursor so migration does not silently move existing runtime bindings.
 
 from __future__ import annotations
 
-from boxagent.core import file_lock as fcntl
-import json
 import gzip
+import json
 import math
 import os
 import re
@@ -17,6 +16,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
+
+from boxagent.core import file_lock as fcntl
 
 SESSION_ID = re.compile(r"^ses_[A-Za-z0-9]{1,64}$")
 
@@ -151,8 +152,12 @@ class SessionEventStore:
             raw = path.read_text(encoding="utf-8")
         lines = raw.splitlines()
         header = json.loads(lines[0]) if lines else {}
-        if not isinstance(header, dict) or header.get("type") != "session" or header.get("version") != 1 \
-                or header.get("session_id") != session_id:
+        if (
+            not isinstance(header, dict)
+            or header.get("type") != "session"
+            or header.get("version") != 1
+            or header.get("session_id") != session_id
+        ):
             raise ValueError("Session 事件流表头无效")
         events: list[SessionEvent] = []
         torn = False
@@ -169,7 +174,9 @@ class SessionEventStore:
                     or not isinstance(value.get("type"), str) or not value["type"].strip() \
                     or not isinstance(value.get("data"), dict):
                 raise ValueError(f"Session 事件流第 {position + 1} 行格式或 seq 无效")
-            if isinstance(value.get("time"), bool) or not isinstance(value.get("time"), (int, float)):
+            if isinstance(value.get("time"), bool) or not isinstance(
+                value.get("time"), (int, float)
+            ):
                 raise ValueError("Session time 必须是数值")
             events.append(SessionEvent(value["seq"], value["type"],
                                        float(value["time"]), value["data"]))
@@ -214,7 +221,9 @@ class SessionEventStore:
 
     def state(self, session_id: str) -> dict[str, Any]:
         with self.lock:
-            value = json.loads((self.directory(session_id) / "state.json").read_text(encoding="utf-8"))
+            value = json.loads(
+                (self.directory(session_id) / "state.json").read_text(encoding="utf-8")
+            )
             if not isinstance(value, dict):
                 raise ValueError("Session state 必须是 object")
             return value

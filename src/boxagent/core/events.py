@@ -1,16 +1,17 @@
 """State-changing event publication with one revision owner."""
 
 import time
+from collections.abc import Callable
 
 from boxagent.core.states import Snapshot
 
 
 class StateEvents:
-    def __init__(self, publish):
+    def __init__(self, publish: Callable[[dict[str, object]], None]) -> None:
         self.state = Snapshot()
         self.publish = publish
 
-    def emit(self, kind: str, **changes):
+    def emit(self, kind: str, **changes: object) -> None:
         for key, value in changes.items():
             if not hasattr(self.state, key):
                 raise ValueError(f"未知状态字段：{key}")

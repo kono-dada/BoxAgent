@@ -5,7 +5,7 @@ from typing import Protocol
 
 
 class SkillPolicyProvider(Protocol):
-    def runtime_policy(self): ...
+    def runtime_policy(self) -> None: ...
 
 
 class CodexSkillAdapter:

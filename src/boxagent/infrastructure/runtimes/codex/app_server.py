@@ -8,8 +8,8 @@ import shutil
 import sys
 import time
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from boxagent.agent.runtime.contracts import ToolObservationSink
 from boxagent.agent.runtime.models import ModelProfile
@@ -40,7 +40,12 @@ def resolve_codex_runtime(workspace=PROJECT_ROOT):
         candidates.append(Path(executable))
     for candidate in candidates:
         candidate = candidate.resolve()
-        if candidate.is_file() and candidate.with_name("codex-code-mode-host.exe" if os.name == "nt" else "codex-code-mode-host").is_file():
+        if (
+            candidate.is_file()
+            and candidate.with_name(
+                "codex-code-mode-host.exe" if os.name == "nt" else "codex-code-mode-host"
+            ).is_file()
+        ):
             return candidate
     raise RuntimeError("找不到同时包含 codex 和 codex-code-mode-host 的运行时；"
                        "可通过 BOXAGENT_CODEX_BIN 指定")
@@ -124,8 +129,22 @@ class CodexAppServer:
         self.cleanup_status = "not_started"
 
     def launch_environment(self) -> dict[str, str]:
-        env = {key: os.environ[key] for key in ("HOME", "PATH", "TMPDIR", "LANG", "CODEX_HOME", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE")
-               if key in os.environ}
+        env = {
+            key: os.environ[key]
+            for key in (
+                "HOME",
+                "PATH",
+                "TMPDIR",
+                "LANG",
+                "CODEX_HOME",
+                "SYSTEMROOT",
+                "WINDIR",
+                "TEMP",
+                "TMP",
+                "USERPROFILE",
+            )
+            if key in os.environ
+        }
         profile = self.model_profile
         if self.codex_home:
             self.codex_home.mkdir(parents=True, exist_ok=True)
@@ -166,11 +185,19 @@ class CodexAppServer:
         if not self.computer_use_enabled:
             arguments = [str(executable), "app-server", "--stdio"]
             # Dedicated event hosts have no CU server, shell or delegated agents.
-            for override in ("mcp_servers={}", "features.shell_tool=false", "features.apps=false",
-                             "features.multi_agent=false", "features.multi_agent_v2=false",
-                             "features.code_mode_host=false", "features.skill_search=false",
-                             "features.skill_mcp_dependency_install=false", "features.view_image=false",
-                             "project_doc_max_bytes=0", "web_search=\"disabled\""):
+            for override in (
+                "mcp_servers={}",
+                "features.shell_tool=false",
+                "features.apps=false",
+                "features.multi_agent=false",
+                "features.multi_agent_v2=false",
+                "features.code_mode_host=false",
+                "features.skill_search=false",
+                "features.skill_mcp_dependency_install=false",
+                "features.view_image=false",
+                "project_doc_max_bytes=0",
+                'web_search="disabled"',
+            ):
                 arguments.extend(("-c", override))
             for override in self.model_config_overrides():
                 arguments.extend(("-c", override))
@@ -184,11 +211,19 @@ class CodexAppServer:
         mcp = 'mcp_servers.boxagent_cua={command=' + json.dumps(str(client)) + ',args=["mcp"]}'
         # 保留原生结束通知；显式清理用于取消和异常路径。
         # 两条路径都依赖工具调用携带同一轮次的元数据，返回成功不等于浮层已消失。
-        notifier = ([sys.executable, "-c",
-                     "import os,subprocess,sys; os.environ['CODEX_HOME']=sys.argv[1]; "
-                     "sys.exit(subprocess.call(sys.argv[2:]))",
-                     str(self.computer_use_home), str(client), "turn-ended"] if os.name == "nt" else
-                    ["/usr/bin/env", f"CODEX_HOME={self.computer_use_home}", str(client), "turn-ended"])
+        notifier = (
+            [
+                sys.executable,
+                "-c",
+                "import os,subprocess,sys; os.environ['CODEX_HOME']=sys.argv[1]; "
+                "sys.exit(subprocess.call(sys.argv[2:]))",
+                str(self.computer_use_home),
+                str(client),
+                "turn-ended",
+            ]
+            if os.name == "nt"
+            else ["/usr/bin/env", f"CODEX_HOME={self.computer_use_home}", str(client), "turn-ended"]
+        )
         notify = "notify=" + json.dumps(notifier)
         arguments = [str(executable), "app-server", "--stdio", "-c", mcp,
                      "-c", notify]
@@ -223,7 +258,7 @@ class CodexAppServer:
         finally:
             self.pending.pop(request_id, None)
 
-    async def read(self):
+    async def read(self) -> None:
         error = RuntimeError("Codex 执行器连接已结束")
         try:
             process = self.process
@@ -291,7 +326,9 @@ class CodexAppServer:
         native_operation = item.get("tool")
         if not isinstance(native_operation, str):
             return
-        operation = (WINDOWS_TOOL_NAMES.get(native_operation) if self.windows_skill else native_operation)
+        operation = (
+            WINDOWS_TOOL_NAMES.get(native_operation) if self.windows_skill else native_operation
+        )
         allowed = {tool.get("name") for tool in self.tools}
         if not isinstance(call_id, str) or f"desktop_{operation}" not in allowed:
             return
@@ -302,7 +339,10 @@ class CodexAppServer:
         started = self.native_tool_calls.pop(call_id, None)
         if started is None or call_id in self.observed_native_calls:
             return
-        if started.get("tool") != native_operation or item.get("status") not in {"completed", "failed"}:
+        if started.get("tool") != native_operation or item.get("status") not in {
+            "completed",
+            "failed",
+        }:
             return
         arguments = started.get("arguments")
         result = item.get("result")
@@ -311,8 +351,13 @@ class CodexAppServer:
         if not isinstance(result, dict) or not isinstance(result.get("content"), list):
             if item.get("status") != "failed":
                 return
-            result = {"content": [{"type": "text", "text": str(item.get("error") or "原生工具调用失败")}]}
-        response = {**result, "isError": item.get("status") != "completed" or bool(result.get("isError"))}
+            result = {
+                "content": [{"type": "text", "text": str(item.get("error") or "原生工具调用失败")}]
+            }
+        response = {
+            **result,
+            "isError": item.get("status") != "completed" or bool(result.get("isError")),
+        }
         await self.on_tool_observed(str(operation), arguments, response)
         self.observed_native_calls.add(call_id)
         self.log("native_tool_observed", call_id=call_id, operation=operation,
@@ -345,16 +390,26 @@ class CodexAppServer:
             self.log("callback_failed", method=method, error=repr(exc),
                      traceback=traceback.format_exc())
             with contextlib.suppress(Exception):
-                await self.send({"id": message["id"], "error": {"code": -32603, "message": str(exc)}})
+                await self.send(
+                    {"id": message["id"], "error": {"code": -32603, "message": str(exc)}}
+                )
 
     async def discover_tools(self):
-        bootstrap = await self.rpc("thread/start", {"cwd": str(self.workspace), "ephemeral": True,
-                                                   "approvalPolicy": "on-request", "sandbox": "read-only"})
-        self.log("tool_discovery_thread_started",
-                 thread_id=bootstrap.get("thread", {}).get("id"))
+        bootstrap = await self.rpc(
+            "thread/start",
+            {
+                "cwd": str(self.workspace),
+                "ephemeral": True,
+                "approvalPolicy": "on-request",
+                "sandbox": "read-only",
+            },
+        )
+        self.log("tool_discovery_thread_started", thread_id=bootstrap.get("thread", {}).get("id"))
         self.discovery_thread_id = bootstrap.get("thread", {}).get("id")
         server_name = "node_repl" if self.windows_skill else "boxagent_cua"
-        async with asyncio.timeout(self.windows_skill.startup_timeout + 10 if self.windows_skill else 30):
+        async with asyncio.timeout(
+            self.windows_skill.startup_timeout + 10 if self.windows_skill else 30
+        ):
             while True:
                 inventory = await self.rpc("mcpServerStatus/list", {})
                 server = next((item for item in inventory.get("data", [])
@@ -519,16 +574,26 @@ class CodexAppServer:
             if self.stopped or result.get("status") == "interrupted":
                 raise asyncio.CancelledError
             if result.get("status") != "completed":
-                raise RuntimeError("后台执行未结束：" + str(result.get("error") or result.get("status")))
+                raise RuntimeError(
+                    "后台执行未结束：" + str(result.get("error") or result.get("status"))
+                )
         finally:
             if evidence_context and product_session_id:
                 # Remove the closed task turn containing temporary evidence;
                 # the next task restores formal query/outcome from Product
                 # Session. Audit and side effects remain in task artifacts.
                 try:
-                    await self.rpc("thread/revert", {"threadId": thread_id, "beforeTurnId": self.turn_id}, timeout=5)
-                    self.log("runtime_reference_removed", thread_id=thread_id,
-                             turn_id=self.turn_id, strategy="closed_turn_revert")
+                    await self.rpc(
+                        "thread/revert",
+                        {"threadId": thread_id, "beforeTurnId": self.turn_id},
+                        timeout=5,
+                    )
+                    self.log(
+                        "runtime_reference_removed",
+                        thread_id=thread_id,
+                        turn_id=self.turn_id,
+                        strategy="closed_turn_revert",
+                    )
                 except (Exception, asyncio.CancelledError) as exc:
                     self.log("runtime_reference_removal_failed", thread_id=thread_id)
                     # Never reuse a context whose reference expiry is unknown.
@@ -601,8 +666,13 @@ class CodexAppServer:
         self.report("connecting", "正在连接执行器")
         self.process = await asyncio.create_subprocess_exec(
             *arguments,
-            cwd=self.workspace, env=env, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=self.stderr, limit=64 * 1024 * 1024)
+            cwd=self.workspace,
+            env=env,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=self.stderr,
+            limit=64 * 1024 * 1024,
+        )
         self.log("process_started", pid=self.process.pid)
         if self.stopped:
             raise asyncio.CancelledError
@@ -623,7 +693,7 @@ class CodexAppServer:
         self.skills_changed = False
         return self.discovered_skills
 
-    async def end_turn(self):
+    async def end_turn(self) -> None:
         if not self.thread_id or not self.turn_id:
             self.cleanup_status = "not_needed"
             return
@@ -672,14 +742,14 @@ class CodexAppServer:
             self.turn_input_messages = []
             self.turn_metadata = None
 
-    async def interrupt(self):
+    async def interrupt(self) -> None:
         self.stopped = True
         if self.thread_id and self.turn_id and self.process and self.process.returncode is None:
             with contextlib.suppress(Exception):
                 await self.rpc("turn/interrupt", {"threadId": self.thread_id,
                                                   "turnId": self.turn_id}, timeout=3)
 
-    async def release_task(self):
+    async def release_task(self) -> None:
         self.report("cleanup", "正在结束执行会话")
         for task in list(self.callbacks):
             task.cancel()
@@ -690,7 +760,7 @@ class CodexAppServer:
         self.completed = None
         self.agent_text = ""
 
-    async def close(self):
+    async def close(self) -> None:
         self.stopped = True
         await self.release_task()
         if self.process and self.process.returncode is None:

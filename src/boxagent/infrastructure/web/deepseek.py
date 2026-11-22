@@ -47,7 +47,9 @@ def post_json(url: str, payload: Mapping[str, object], *,
         code, message = HTTP_ERRORS.get(exc.code, ("service_unavailable", "联网检索服务暂不可用"))
         raise WebUnavailable(code, message) from None
     except (urllib.error.URLError, TimeoutError, OSError):
-        raise WebUnavailable("network_failed", "暂时无法连接联网检索服务，请检查网络后重试") from None
+        raise WebUnavailable(
+            "network_failed", "暂时无法连接联网检索服务，请检查网络后重试"
+        ) from None
     if len(raw) > 2 * 1024 * 1024:
         raise WebUnavailable("response_too_large", "网页内容超过本次读取上限")
     try:
@@ -75,7 +77,14 @@ class DeepSeekWebProvider:
     def __init__(self, *, api_key: str, base_url: str = "https://api.deepseek.com",
                  timeout: float = 20, poster: JsonPoster = post_json) -> None:
         parts = urlsplit(base_url)
-        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment:
+        if (
+            parts.scheme != "https"
+            or not parts.hostname
+            or parts.username
+            or parts.password
+            or parts.query
+            or parts.fragment
+        ):
             raise ValueError("DeepSeek 搜索服务地址必须是 HTTPS，且不含账号密码或查询参数")
         self.base_url = base_url.rstrip("/").removesuffix("/v1")
         self.api_key = api_key
@@ -90,7 +99,10 @@ class DeepSeekWebProvider:
                                            api_key=self.api_key, timeout=self.timeout)
         except WebUnavailable as exc:
             if path.endswith("/search") and exc.code == "page_unavailable":
-                raise WebUnavailable("capability_unavailable", "当前服务地址不支持搜索接口，请使用 DeepSeek 官方地址或支持工具 API 的网关") from None
+                raise WebUnavailable(
+                    "capability_unavailable",
+                    "当前服务地址不支持搜索接口，请使用 DeepSeek 官方地址或支持工具 API 的网关",
+                ) from None
             raise
         return object_record(value)
 

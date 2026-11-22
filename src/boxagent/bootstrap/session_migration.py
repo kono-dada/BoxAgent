@@ -3,21 +3,25 @@
 from __future__ import annotations
 
 import asyncio
-from boxagent.core import file_lock as fcntl
-import json
 import hashlib
+import json
 import math
 import shutil
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from collections.abc import Iterator
 from typing import Any
 
+from boxagent.core import file_lock as fcntl
+from boxagent.domain.conversation.models import (
+    ContextCheckpoint,
+    ProductEvent,
+    RuntimeContextSegment,
+)
 from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
 from boxagent.infrastructure.persistence.jsonl_session_repository import JsonlSessionStore
 from boxagent.infrastructure.persistence.session_events import SessionEventStore, write_json
 from boxagent.infrastructure.persistence.unified_session import ledger_kind, product_kind
-from boxagent.domain.conversation.models import ContextCheckpoint, ProductEvent, RuntimeContextSegment
 
 
 def validate_legacy_log(path: Path) -> None:
@@ -43,12 +47,18 @@ def validate_legacy_log(path: Path) -> None:
             raise ValueError("迁移源正式事件无效")
         if path.name == "events.jsonl":
             event = ProductEvent.from_payload(value)
-            if type(event.sequence) is not int or not isinstance(event.occurred_at, (int, float)) \
-                    or not math.isfinite(event.occurred_at) or not isinstance(event.session_id, str):
+            if (
+                type(event.sequence) is not int
+                or not isinstance(event.occurred_at, (int, float))
+                or not math.isfinite(event.occurred_at)
+                or not isinstance(event.session_id, str)
+            ):
                 raise ValueError("迁移源正式事件字段无效")
-        if path.name == "context.jsonl" and (value.get("record_type") not in {"checkpoint", "segment"}
-                or not isinstance(value.get("payload"), dict)
-                or value["payload"].get("schema_version") != 1):
+        if path.name == "context.jsonl" and (
+            value.get("record_type") not in {"checkpoint", "segment"}
+            or not isinstance(value.get("payload"), dict)
+            or value["payload"].get("schema_version") != 1
+        ):
             raise ValueError("迁移源 checkpoint/segment 无效")
         if path.name == "context.jsonl":
             if value["record_type"] == "checkpoint":
@@ -108,12 +118,20 @@ async def _migrate_sessions(data_dir: Path) -> dict[str, Any]:
                 rows.append((event.occurred_at, event.sequence, product_kind(event),
                              {"product_event": event.payload()}, "product:" + event.event_id))
             for event in contexts:
-                rows.append((event.time, event.seq, ledger_kind(event.type),
-                             {"ledger_type": event.type, "legacy_ledger_seq": event.seq,
-                              **event.data}, f"{'rollback' if rolled_back else 'legacy'}-ledger:{event.seq}"))
+                rows.append(
+                    (
+                        event.time,
+                        event.seq,
+                        ledger_kind(event.type),
+                        {"ledger_type": event.type, "legacy_ledger_seq": event.seq, **event.data},
+                        f"{'rollback' if rolled_back else 'legacy'}-ledger:{event.seq}",
+                    )
+                )
             checkpoints, segments = legacy._read_context(directory / "context.jsonl", repair=False)
             for checkpoint in checkpoints:
-                segment = next((s for s in segments if s.checkpoint_id == checkpoint.checkpoint_id), None)
+                segment = next(
+                    (s for s in segments if s.checkpoint_id == checkpoint.checkpoint_id), None
+                )
                 if segment is None:
                     raise ValueError(f"迁移 checkpoint 缺少 segment：{checkpoint.checkpoint_id}")
                 rows.append((checkpoint.created_at, 0, "compaction/checkpoint", {
@@ -121,16 +139,27 @@ async def _migrate_sessions(data_dir: Path) -> dict[str, Any]:
                     "checkpoint:" + checkpoint.checkpoint_id))
             for at, _, kind, value, key in sorted(rows, key=lambda r: (r[0], r[1])):
                 target.append(sid, kind, value, at=at, dedup_key=key)
-            target.append(sid, "migration/source", {
-                "source": str(source_root.relative_to(data_dir)),
-                "formal_events": len(events), "ledger_events": len(contexts),
-                "context_history_complete": (directory / "context.v1.jsonl").exists(),
-                "note": "无旧账本的会话无法从正式消息还原 provider 输入；原始诊断 trace 保留供只读回放。"
-                        if not (directory / "context.v1.jsonl").exists() else "旧账本已迁移"},
-                at=meta["created_at"], dedup_key="migration-source:" + source_root.name)
+            target.append(
+                sid,
+                "migration/source",
+                {
+                    "source": str(source_root.relative_to(data_dir)),
+                    "formal_events": len(events),
+                    "ledger_events": len(contexts),
+                    "context_history_complete": (directory / "context.v1.jsonl").exists(),
+                    "note": "无旧账本的会话无法从正式消息还原 provider 输入；原始诊断 trace "
+                        "保留供只读回放。"
+                    if not (directory / "context.v1.jsonl").exists()
+                    else "旧账本已迁移",
+                },
+                at=meta["created_at"],
+                dedup_key="migration-source:" + source_root.name,
+            )
             state_path = target.directory(sid) / "state.json"
             if not state_path.exists() or rolled_back:
-                bindings = json.loads((directory / "runtime-bindings.json").read_text(encoding="utf-8"))
+                bindings = json.loads(
+                    (directory / "runtime-bindings.json").read_text(encoding="utf-8")
+                )
                 target.save_state(sid, {"metadata": meta, "bindings": bindings["bindings"]})
             migrated = target.read(sid)
             original_keys = {"product:" + e.event_id for e in events}
@@ -139,7 +168,9 @@ async def _migrate_sessions(data_dir: Path) -> dict[str, Any]:
                                     key=lambda e: e["sequence"])
             if actual_product != [e.payload() for e in events]:
                 raise ValueError(f"迁移正式事件校验失败：{sid}")
-            if not rolled_back and len([e for e in migrated if "legacy_ledger_seq" in e.data]) != len(contexts):
+            if not rolled_back and len(
+                [e for e in migrated if "legacy_ledger_seq" in e.data]
+            ) != len(contexts):
                 raise ValueError(f"迁移上下文事件校验失败：{sid}")
             for task_id in {e.task_id for e in events if e.task_id}:
                 if not isinstance(task_id, str) or "/" in task_id or ".." in task_id:
@@ -153,11 +184,15 @@ async def _migrate_sessions(data_dir: Path) -> dict[str, Any]:
                     if temporary.exists():
                         shutil.rmtree(temporary)
                     await asyncio.to_thread(shutil.copytree, source, temporary)
-                    if await asyncio.to_thread(task_manifest, source) != await asyncio.to_thread(task_manifest, temporary):
+                    if await asyncio.to_thread(task_manifest, source) != await asyncio.to_thread(
+                        task_manifest, temporary
+                    ):
                         raise ValueError(f"迁移任务附件校验失败：{task_id}")
                     temporary.rename(destination)
                     totals["tasks"] += 1
-                elif source and await asyncio.to_thread(task_manifest, source) != await asyncio.to_thread(task_manifest, destination):
+                elif source and await asyncio.to_thread(
+                    task_manifest, source
+                ) != await asyncio.to_thread(task_manifest, destination):
                     raise ValueError(f"已迁移任务与源文件不一致：{task_id}")
             totals["sessions"] += 1
             totals["events"] += len(rows)
@@ -201,13 +236,29 @@ def rollback_sessions(data_dir: Path) -> None:
                             for kind, key in (("segment", "segment"), ("checkpoint", "payload"))]
                 JsonlSessionStore._write_lines(directory / "context.jsonl", contexts)
                 ledger_rows = [e for e in rows if "ledger_type" in e.data]
-                JsonlSessionStore._write_lines(directory / "context.v1.jsonl", [
-                    json.dumps({"type": "ledger", "version": 1, "session_id": sid}),
-                    *(json.dumps({"seq": i, "type": e.data["ledger_type"], "time": e.time,
-                                  "data": {k: v for k, v in e.data.items()
-                                           if k not in {"ledger_type", "dedup_key", "legacy_ledger_seq"}}},
-                                 ensure_ascii=False)
-                      for i, e in enumerate(ledger_rows, 1))])
+                JsonlSessionStore._write_lines(
+                    directory / "context.v1.jsonl",
+                    [
+                        json.dumps({"type": "ledger", "version": 1, "session_id": sid}),
+                        *(
+                            json.dumps(
+                                {
+                                    "seq": i,
+                                    "type": e.data["ledger_type"],
+                                    "time": e.time,
+                                    "data": {
+                                        k: v
+                                        for k, v in e.data.items()
+                                        if k
+                                        not in {"ledger_type", "dedup_key", "legacy_ledger_seq"}
+                                    },
+                                },
+                                ensure_ascii=False,
+                            )
+                            for i, e in enumerate(ledger_rows, 1)
+                        ),
+                    ],
+                )
             write_json(projection / "index.json", index)
             write_json(root / ".rollback-v1", {"version": 1, "projection": projection.name})
             marker.unlink()

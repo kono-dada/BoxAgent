@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterator
-from contextlib import contextmanager
 import hashlib
 import importlib
 import io
 import json
 import os
-from pathlib import Path
 import sqlite3
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 
-from boxagent.domain.memory.visual import VisualEvidence, VisualEpisode
+from boxagent.domain.memory.visual import VisualEpisode, VisualEvidence
 
 
 class LocalVisualEvidenceStore:
@@ -48,7 +48,11 @@ class LocalVisualEvidenceStore:
             return await asyncio.to_thread(self._put, evidence, image)
 
     def _put(self, evidence: VisualEvidence, image: bytes) -> VisualEvidence:
-        if not image or len(image) > 4 * 1024 * 1024 or hashlib.sha256(image).hexdigest() != evidence.sha256:
+        if (
+            not image
+            or len(image) > 4 * 1024 * 1024
+            or hashlib.sha256(image).hexdigest() != evidence.sha256
+        ):
             raise ValueError("画面大小或校验无效")
         image_module = importlib.import_module("PIL.Image")
         with image_module.open(io.BytesIO(image)) as decoded:
@@ -56,12 +60,16 @@ class LocalVisualEvidenceStore:
                 raise ValueError("画面必须是尺寸受限的 PNG")
             decoded.verify()
         with self._db() as db:
-            existing = db.execute("SELECT status,payload FROM evidence WHERE id=?", (evidence.evidence_id,)).fetchone()
+            existing = db.execute(
+                "SELECT status,payload FROM evidence WHERE id=?", (evidence.evidence_id,)
+            ).fetchone()
             if existing:
                 if existing[0] in ("deleting", "deleted"):
                     raise ValueError("已删除的来源不能重新写入")
                 return VisualEvidence.from_payload(json.loads(existing[1]))
-            retained = {row[0] for row in db.execute("SELECT sha FROM evidence WHERE status <> 'deleted'")}
+            retained = {
+                row[0] for row in db.execute("SELECT sha FROM evidence WHERE status <> 'deleted'")
+            }
             for orphan in self.root.glob("*.png"):
                 if orphan.stem not in retained:
                     orphan.unlink(missing_ok=True)
@@ -79,8 +87,14 @@ class LocalVisualEvidenceStore:
                     os.replace(temporary, destination)
                 finally:
                     temporary.unlink(missing_ok=True)
-            db.execute("INSERT INTO evidence(id,payload,sha) VALUES(?,?,?)",
-                       (evidence.evidence_id, json.dumps(evidence.payload(), ensure_ascii=False), evidence.sha256))
+            db.execute(
+                "INSERT INTO evidence(id,payload,sha) VALUES(?,?,?)",
+                (
+                    evidence.evidence_id,
+                    json.dumps(evidence.payload(), ensure_ascii=False),
+                    evidence.sha256,
+                ),
+            )
         return evidence
 
     async def pending(self) -> list[VisualEvidence]:
@@ -89,7 +103,9 @@ class LocalVisualEvidenceStore:
 
     def _pending(self) -> list[VisualEvidence]:
         with self._db() as db:
-            rows = db.execute("SELECT payload FROM evidence WHERE status='pending' AND attempts<3 ORDER BY rowid").fetchall()
+            rows = db.execute(
+                "SELECT payload FROM evidence WHERE status='pending' AND attempts<3 ORDER BY rowid"
+            ).fetchall()
         return [VisualEvidence.from_payload(json.loads(row[0])) for row in rows]
 
     async def attempt(self, evidence_id: str) -> bool:
@@ -98,8 +114,11 @@ class LocalVisualEvidenceStore:
 
     def _attempt(self, evidence_id: str) -> bool:
         with self._db() as db:
-            cursor = db.execute("UPDATE evidence SET attempts=attempts+1 WHERE id=? AND status='pending' AND attempts<3",
-                                (evidence_id,))
+            cursor = db.execute(
+                "UPDATE evidence SET attempts=attempts+1 WHERE id=? AND status='pending' AND "
+                "attempts<3",
+                (evidence_id,),
+            )
             return cursor.rowcount == 1
 
     async def bind(self, evidence_id: str, memory_ids: list[str]) -> None:
@@ -116,7 +135,10 @@ class LocalVisualEvidenceStore:
 
     def _compiled(self, evidence_id: str) -> VisualEpisode | None:
         with self._db() as db:
-            row = db.execute("SELECT compiled FROM evidence WHERE id=? AND status IN ('pending','committed')", (evidence_id,)).fetchone()
+            row = db.execute(
+                "SELECT compiled FROM evidence WHERE id=? AND status IN ('pending','committed')",
+                (evidence_id,),
+            ).fetchone()
         return VisualEpisode.from_payload(json.loads(row[0])) if row and row[0] else None
 
     async def save_compiled(self, episode: VisualEpisode) -> None:
@@ -135,18 +157,33 @@ class LocalVisualEvidenceStore:
     def _save_compiled(self, episode: VisualEpisode) -> None:
         validated = VisualEpisode.from_payload(episode.payload())
         with self._db() as db:
-            row = db.execute("SELECT payload FROM evidence WHERE id=? AND status='pending'", (episode.evidence.evidence_id,)).fetchone()
+            row = db.execute(
+                "SELECT payload FROM evidence WHERE id=? AND status='pending'",
+                (episode.evidence.evidence_id,),
+            ).fetchone()
             if not row:
                 return
             if VisualEvidence.from_payload(json.loads(row[0])) != episode.evidence:
                 raise ValueError("经历不能替换来源证据")
-            db.execute("UPDATE evidence SET compiled=? WHERE id=? AND status='pending' AND compiled=''",
-                       (json.dumps(validated.payload(), ensure_ascii=False), episode.evidence.evidence_id))
+            db.execute(
+                "UPDATE evidence SET compiled=? WHERE id=? AND status='pending' AND compiled=''",
+                (json.dumps(validated.payload(), ensure_ascii=False), episode.evidence.evidence_id),
+            )
 
-    def _update(self, evidence_id: str, status: str, memory_ids: list[str] | None, error: str) -> None:
+    def _update(
+        self, evidence_id: str, status: str, memory_ids: list[str] | None, error: str
+    ) -> None:
         with self._db() as db:
-            db.execute("UPDATE evidence SET status=?, memory_ids=COALESCE(?,memory_ids), error=? WHERE id=? AND status='pending'",
-                       (status, json.dumps(memory_ids) if memory_ids is not None else None, error, evidence_id))
+            db.execute(
+                "UPDATE evidence SET status=?, memory_ids=COALESCE(?,memory_ids), error=? WHERE "
+                "id=? AND status='pending'",
+                (
+                    status,
+                    json.dumps(memory_ids) if memory_ids is not None else None,
+                    error,
+                    evidence_id,
+                ),
+            )
 
     async def for_memory(self, memory_id: str) -> VisualEvidence | None:
         async with self.lock:
@@ -154,7 +191,9 @@ class LocalVisualEvidenceStore:
 
     def _for_memory(self, memory_id: str) -> VisualEvidence | None:
         with self._db() as db:
-            rows = db.execute("SELECT payload,memory_ids FROM evidence WHERE status='committed'").fetchall()
+            rows = db.execute(
+                "SELECT payload,memory_ids FROM evidence WHERE status='committed'"
+            ).fetchall()
         for payload, ids in rows:
             if memory_id in json.loads(ids):
                 return VisualEvidence.from_payload(json.loads(payload))
@@ -166,7 +205,9 @@ class LocalVisualEvidenceStore:
 
     def _memory_ids(self, evidence_id: str) -> list[str]:
         with self._db() as db:
-            row = db.execute("SELECT memory_ids FROM evidence WHERE id=?", (evidence_id,)).fetchone()
+            row = db.execute(
+                "SELECT memory_ids FROM evidence WHERE id=?", (evidence_id,)
+            ).fetchone()
         return json.loads(row[0]) if row else []
 
     async def read(self, evidence: VisualEvidence) -> bytes:
@@ -176,7 +217,9 @@ class LocalVisualEvidenceStore:
     def _read(self, evidence: VisualEvidence) -> bytes:
         VisualEvidence.from_payload(evidence.payload())
         with self._db() as db:
-            row = db.execute("SELECT status FROM evidence WHERE id=?", (evidence.evidence_id,)).fetchone()
+            row = db.execute(
+                "SELECT status FROM evidence WHERE id=?", (evidence.evidence_id,)
+            ).fetchone()
         if not row or row[0] != "committed":
             raise ValueError("来源不存在或已删除")
         content = (self.root / (evidence.sha256 + ".png")).read_bytes()
@@ -190,7 +233,11 @@ class LocalVisualEvidenceStore:
 
     def _tombstone(self, evidence_id: str) -> None:
         with self._db() as db:
-            db.execute("UPDATE evidence SET status='deleting', payload='{}', compiled='', error='' WHERE id=?", (evidence_id,))
+            db.execute(
+                "UPDATE evidence SET status='deleting', payload='{}', compiled='', error='' WHERE "
+                "id=?",
+                (evidence_id,),
+            )
 
     async def deleting(self) -> list[tuple[str, list[str]]]:
         async with self.lock:
@@ -198,7 +245,9 @@ class LocalVisualEvidenceStore:
 
     def _deleting(self) -> list[tuple[str, list[str]]]:
         with self._db() as db:
-            rows = db.execute("SELECT id,memory_ids FROM evidence WHERE status='deleting'").fetchall()
+            rows = db.execute(
+                "SELECT id,memory_ids FROM evidence WHERE status='deleting'"
+            ).fetchall()
         return [(row[0], json.loads(row[1])) for row in rows]
 
     async def finish_delete(self, evidence_id: str) -> None:
@@ -207,11 +256,19 @@ class LocalVisualEvidenceStore:
 
     def _finish_delete(self, evidence_id: str) -> None:
         with self._db() as db:
-            row = db.execute("SELECT sha FROM evidence WHERE id=? AND status='deleting'", (evidence_id,)).fetchone()
+            row = db.execute(
+                "SELECT sha FROM evidence WHERE id=? AND status='deleting'", (evidence_id,)
+            ).fetchone()
             if not row:
                 return
-            other = db.execute("SELECT 1 FROM evidence WHERE sha=? AND id<>? AND status NOT IN ('deleting','deleted')",
-                               (row[0], evidence_id)).fetchone()
+            other = db.execute(
+                "SELECT 1 FROM evidence WHERE sha=? AND id<>? AND status NOT IN ('deleting',"
+                "'deleted')",
+                (row[0], evidence_id),
+            ).fetchone()
             if not other:
                 (self.root / (row[0] + ".png")).unlink(missing_ok=True)
-            db.execute("UPDATE evidence SET status='deleted', memory_ids='[]', sha='' WHERE id=?", (evidence_id,))
+            db.execute(
+                "UPDATE evidence SET status='deleted', memory_ids='[]', sha='' WHERE id=?",
+                (evidence_id,),
+            )

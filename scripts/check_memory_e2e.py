@@ -3,19 +3,17 @@
 
 import argparse
 import asyncio
-from contextlib import nullcontext
-from dataclasses import replace
 import json
 import shutil
 import sys
 import tempfile
 import time
+from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from boxagent.bootstrap.engine import create_application
 from boxagent.bootstrap.settings import load_settings
@@ -62,7 +60,11 @@ async def run(root, *, backend):
             return [{"op": "add", "path": "identity.name", "value": "小明"}]
         return []
 
-    profile_provider = patch("boxagent.bootstrap.memory.DeepSeekProfileConstructor") if backend == "mock" else nullcontext()
+    profile_provider = (
+        patch("boxagent.bootstrap.memory.DeepSeekProfileConstructor")
+        if backend == "mock"
+        else nullcontext()
+    )
     with profile_provider as constructor:
         if constructor is not None:
             constructor.return_value.propose = AsyncMock(side_effect=fixture_patches)

@@ -3,25 +3,31 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import asdict, is_dataclass
 import json
 import logging
 import sqlite3
 import subprocess
-from pathlib import Path
-from typing import Sequence
 import uuid
+from collections.abc import Sequence
+from dataclasses import asdict, is_dataclass
+from pathlib import Path
 
 from boxagent.application.wechat.module import WeChatModule
 from boxagent.application.wechat.service import PeerResolutionError
-from boxagent.bootstrap.wechat import DEFAULT_KEYS, REPLICA_APP, ROOT, WeChatConfig, build_local_wechat_module
+from boxagent.bootstrap.wechat import (
+    DEFAULT_KEYS,
+    REPLICA_APP,
+    ROOT,
+    WeChatConfig,
+    build_local_wechat_module,
+)
 
 
 def jsonable(value: object) -> object:
     if is_dataclass(value) and not isinstance(value, type):
         result = asdict(value)
         if hasattr(value, "status"):
-            result["status"] = getattr(value, "status")
+            result["status"] = value.status
         return jsonable(result)
     if isinstance(value, (tuple, list)):
         return [jsonable(item) for item in value]
@@ -36,7 +42,9 @@ async def listen(module: WeChatModule, duration: float) -> dict[str, object]:
         raise ValueError("Invalid duration")
     try:
         await module.start()
-        print(json.dumps({"type": "ready", "monitoring": True, "agent_connected": False}), flush=True)
+        print(
+            json.dumps({"type": "ready", "monitoring": True, "agent_connected": False}), flush=True
+        )
         await asyncio.sleep(duration)
         return {"status": "stopped", "error": module.monitor.last_error}
     finally:
@@ -83,7 +91,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands.add_parser("doctor")
     args = parser.parse_args(argv)
     if args.command == "send" and not args.dry_run and not args.request_id:
-        parser.error("Actual sending requires --request-id; reuse it to prevent duplicate submission")
+        parser.error(
+            "Actual sending requires --request-id; reuse it to prevent duplicate submission"
+        )
     if args.command == "moments" and args.publish and not args.request_id:
         parser.error("Publishing requires --request-id")
     logging.basicConfig(level=logging.WARNING)
@@ -111,11 +121,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             module.clear_draft(args.recipient)
             result = {"status": "cleared"}
         elif args.command == "send":
-            result = module.send(args.recipient, args.text, request_id=args.request_id or "dry-"+uuid.uuid4().hex,
-                                 dry_run=args.dry_run, mention=args.mention)
+            result = module.send(
+                args.recipient,
+                args.text,
+                request_id=args.request_id or "dry-" + uuid.uuid4().hex,
+                dry_run=args.dry_run,
+                mention=args.mention,
+            )
         elif args.command == "moments":
-            result = module.publish(args.text, args.visibility, request_id=args.request_id or "dry-"+uuid.uuid4().hex,
-                                    dry_run=not args.publish)
+            result = module.publish(
+                args.text,
+                args.visibility,
+                request_id=args.request_id or "dry-" + uuid.uuid4().hex,
+                dry_run=not args.publish,
+            )
         elif args.command == "listen":
             result = asyncio.run(listen(module, args.duration))
         else:

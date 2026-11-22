@@ -1,14 +1,21 @@
 """Resolve stable identities and coordinate one idempotent send attempt."""
 from __future__ import annotations
 
-from dataclasses import replace
 import hashlib
 import json
 import logging
 import threading
+from dataclasses import replace
 from typing import Protocol
 
-from boxagent.domain.wechat.contracts import MessageHistory, OperationRejected, PeerResolutionError, SendRequests, WeChatReader, WeChatTransport
+from boxagent.domain.wechat.contracts import (
+    MessageHistory,
+    OperationRejected,
+    PeerResolutionError,
+    SendRequests,
+    WeChatReader,
+    WeChatTransport,
+)
 from boxagent.domain.wechat.models import Contact, GroupMember, SendOutcome
 
 logger = logging.getLogger(__name__)
@@ -34,7 +41,11 @@ class WeChatService:
         exact_id = [c for c in candidates if c.peer == query]
         if len(exact_id) == 1:
             return exact_id[0]
-        exact = [c for c in candidates if query.casefold() in (c.nickname.casefold(), c.remark.casefold())]
+        exact = [
+            c
+            for c in candidates
+            if query.casefold() in (c.nickname.casefold(), c.remark.casefold())
+        ]
         choices = exact or list(candidates)
         if len(choices) != 1:
             raise PeerResolutionError(query, tuple(choices))
@@ -45,10 +56,19 @@ class WeChatService:
         contacts = {c.peer: c for c in self.reader.contacts(limit=10000)}
         selected = [m for m in members if m.peer == query]
         if not selected:
-            selected = [m for m in members if query.casefold() in {
-                m.display_name.casefold(), contacts[m.peer].remark.casefold() if m.peer in contacts else ""}]
+            selected = [
+                m
+                for m in members
+                if query.casefold()
+                in {
+                    m.display_name.casefold(),
+                    contacts[m.peer].remark.casefold() if m.peer in contacts else "",
+                }
+            ]
         if len(selected) != 1:
-            raise PeerResolutionError(query, tuple(Contact(m.peer, m.display_name) for m in selected))
+            raise PeerResolutionError(
+                query, tuple(Contact(m.peer, m.display_name) for m in selected)
+            )
         return selected[0]
 
     def send(self, recipient: str, text: str, *, request_id: str, dry_run: bool = False,
@@ -66,30 +86,41 @@ class WeChatService:
             ], ensure_ascii=False).encode()).hexdigest()
             claimed, previous = self.requests.claim(request_id, fingerprint)
             if not claimed:
-                return previous or SendOutcome(target.peer, text, request_id=request_id, error_code="outcome_unknown")
+                return previous or SendOutcome(
+                    target.peer, text, request_id=request_id, error_code="outcome_unknown"
+                )
             attempted = False
             outcome = SendOutcome(target.peer, text, request_id=request_id)
             try:
                 cursor = self.history.delivery_cursor(target.peer) if not dry_run else None
                 transport = self.transport()
                 attempted = True
-                outcome = (transport.send_mention(target.peer, member, text, dry_run=dry_run) if member
-                           else transport.send(target.peer, text, dry_run=dry_run))
+                outcome = (
+                    transport.send_mention(target.peer, member, text, dry_run=dry_run)
+                    if member
+                    else transport.send(target.peer, text, dry_run=dry_run)
+                )
                 outcome = replace(outcome, request_id=request_id)
                 if cursor is not None and outcome.submitted:
                     try:
                         check = self.history.find_delivery(target.peer, text, after=cursor,
                                                            mention=member.peer if member else None)
                         if check.matched:
-                            outcome = replace(outcome, local_id=check.local_id, server_id=check.server_id)
+                            outcome = replace(
+                                outcome, local_id=check.local_id, server_id=check.server_id
+                            )
                     except Exception:
-                        logger.exception("WeChat receipt lookup failed after submission; do not resend")
+                        logger.exception(
+                            "WeChat receipt lookup failed after submission; do not resend"
+                        )
                         outcome = replace(outcome, error_code="receipt_unavailable")
             except OperationRejected as error:
                 logger.info("WeChat send rejected: %s", type(error).__name__)
                 outcome = replace(outcome, error_code=type(error).__name__)
             except Exception:
                 logger.exception("WeChat native send failed; keeping durable request identity")
-                outcome = replace(outcome, error_code="outcome_unknown" if attempted else "preflight_failed")
+                outcome = replace(
+                    outcome, error_code="outcome_unknown" if attempted else "preflight_failed"
+                )
             self.requests.finish(request_id, outcome)
             return outcome

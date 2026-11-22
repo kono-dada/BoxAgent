@@ -1,13 +1,26 @@
 """Private cursor/outbox storage for the standalone listener experiment."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
 import hashlib
 import json
 import os
-from pathlib import Path
 import sqlite3
+import threading
+import time
+from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import TypedDict, cast
+
+from boxagent.domain.events.models import EventEnvelope, EventReceipt
+from boxagent.domain.wechat.models import CALL_PREVIEW, PendingMessage
+from boxagent.infrastructure.wechat._private import private_dir
+from boxagent.infrastructure.wechat.database.reader import TABLE, text
+from boxagent.infrastructure.wechat.database.snapshot import (
+    FileStamp,
+    SnapshotRepository,
+    signature,
+)
 
 
 class MessageEvent(TypedDict):
@@ -63,7 +76,9 @@ class _ListenerState:
         row = self.connection.execute("SELECT value FROM binding").fetchone()
         if row is not None and row[0] != binding:
             self.close()
-            raise ValueError("State belongs to another account/path/filter; use a different --state-dir")
+            raise ValueError(
+                "State belongs to another account/path/filter; use a different --state-dir"
+            )
         with self.connection:
             self.connection.execute("INSERT OR IGNORE INTO binding VALUES (?)", (binding,))
 
@@ -71,7 +86,9 @@ class _ListenerState:
         self.connection.close()
 
     def cursors(self, source: str, generation: str) -> dict[str, int] | None:
-        row = self.connection.execute("SELECT generation FROM sources WHERE name=?", (source,)).fetchone()
+        row = self.connection.execute(
+            "SELECT generation FROM sources WHERE name=?", (source,)
+        ).fetchone()
         if row is None:
             return None
         if row[0] != generation:
@@ -82,15 +99,19 @@ class _ListenerState:
     def baseline(self, source: str, generation: str, maxima: dict[str, int]) -> None:
         with self.connection:
             self.connection.execute("INSERT INTO sources VALUES (?,?)", (source, generation))
-            self.connection.executemany("INSERT INTO cursors VALUES (?,?,?)",
-                                        [(source, table, identifier) for table, identifier in maxima.items()])
+            self.connection.executemany(
+                "INSERT INTO cursors VALUES (?,?,?)",
+                [(source, table, identifier) for table, identifier in maxima.items()],
+            )
 
     def stage(self, source: str, generation: str, maxima: dict[str, int], rows: list[MessageRow],
               *, detected_at: float, observed_at: float) -> int:
         cursors = self.cursors(source, generation)
         if cursors is None:
             raise ValueError("Source baseline is missing")
-        if any(table not in maxima or maxima[table] < previous for table, previous in cursors.items()):
+        if any(
+            table not in maxima or maxima[table] < previous for table, previous in cursors.items()
+        ):
             raise ValueError("Source table disappeared or local_id regressed; cursors retained")
         inserted = 0
         with self.connection:
@@ -107,12 +128,16 @@ class _ListenerState:
                     "local_type": row.local_type, "created_at": row.created_at,
                     "detected_at": detected_at, "observed_at": observed_at,
                 }
-                result = self.connection.execute("INSERT OR IGNORE INTO events(event_id,payload) VALUES (?,?)",
-                                                 (event_id, json.dumps(event, ensure_ascii=False)))
+                result = self.connection.execute(
+                    "INSERT OR IGNORE INTO events(event_id,payload) VALUES (?,?)",
+                    (event_id, json.dumps(event, ensure_ascii=False)),
+                )
                 inserted += result.rowcount
-            self.connection.executemany("INSERT INTO cursors VALUES (?,?,?) ON CONFLICT(source,table_name) "
-                                        "DO UPDATE SET local_id=excluded.local_id",
-                                        [(source, table, identifier) for table, identifier in maxima.items()])
+            self.connection.executemany(
+                "INSERT INTO cursors VALUES (?,?,?) ON CONFLICT(source,table_name) "
+                "DO UPDATE SET local_id=excluded.local_id",
+                [(source, table, identifier) for table, identifier in maxima.items()],
+            )
         return inserted
 
     def pending(self, now: float, *, limit: int = 100) -> list[tuple[MessageEvent, int]]:
@@ -126,10 +151,14 @@ class _ListenerState:
             integers = ("local_id", "local_type", "created_at")
             if not isinstance(value, dict):
                 raise ValueError("Stored source event is not an object")
-            if (not all(isinstance(value.get(k), str) for k in strings)
-                    or not all(type(value.get(k)) is int for k in integers)
-                    or not all(isinstance(value.get(k), (int, float)) for k in ("detected_at", "observed_at"))
-                    or not (value.get("chat_id") is None or isinstance(value.get("chat_id"), str))):
+            if (
+                not all(isinstance(value.get(k), str) for k in strings)
+                or not all(type(value.get(k)) is int for k in integers)
+                or not all(
+                    isinstance(value.get(k), (int, float)) for k in ("detected_at", "observed_at")
+                )
+                or not (value.get("chat_id") is None or isinstance(value.get("chat_id"), str))
+            ):
                 raise ValueError("Stored source event does not match the validated schema")
             result.append((cast(MessageEvent, value), int(attempts)))
         return result
@@ -147,17 +176,7 @@ class _ListenerState:
         return {"total": int(total), "delivered": int(delivered),
                 "pending": int(total)-int(delivered), "exhausted": int(exhausted)}
 
-import threading
-import time
-import asyncio
-from dataclasses import asdict
-from boxagent.domain.events.models import EventReceipt
-from boxagent.domain.events.models import EventEnvelope
-from boxagent.domain.wechat.models import CALL_PREVIEW, PendingMessage
-from boxagent.infrastructure.wechat._private import private_dir
-from boxagent.infrastructure.wechat.database.snapshot import SnapshotRepository, FileStamp, signature
-from boxagent.infrastructure.wechat.database.reader import text
-from boxagent.infrastructure.wechat.database.reader import TABLE
+
 
 _CALL_TYPE = 50
 
@@ -178,15 +197,20 @@ def _scan_snapshot(path: Path, cursors: dict[str, int] | None, *, self_wxid: str
             "SELECT rowid,user_name FROM Name2Id")}
         if self_wxid not in names.values():
             raise ValueError("Current account missing from Name2Id; check --self-wxid")
-        chats = {"Msg_"+hashlib.md5(name.encode()).hexdigest(): name for name in names.values()}
-        tables = [str(row[0]) for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                  if isinstance(row[0], str) and TABLE.fullmatch(row[0])]
+        chats = {"Msg_" + hashlib.md5(name.encode()).hexdigest(): name for name in names.values()}
+        tables = [
+            str(row[0])
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            if isinstance(row[0], str) and TABLE.fullmatch(row[0])
+        ]
         maxima: dict[str, int] = {}
         messages: list[MessageRow] = []
         skipped = 0
         wanted = "Msg_"+hashlib.md5(peer.encode()).hexdigest() if peer else None
         for table in tables:
-            maximum = integer(connection.execute(f'SELECT coalesce(max(local_id),0) FROM "{table}"').fetchone()[0])
+            maximum = integer(
+                connection.execute(f'SELECT coalesce(max(local_id),0) FROM "{table}"').fetchone()[0]
+            )
             maxima[table] = maximum
             if cursors is None or maximum <= cursors.get(table, 0):
                 continue
@@ -194,13 +218,24 @@ def _scan_snapshot(path: Path, cursors: dict[str, int] | None, *, self_wxid: str
             if wanted is not None and table != wanted:
                 continue
             columns = {str(row[1]) for row in connection.execute(f'PRAGMA table_info("{table}")')}
-            required = {"local_id", "server_id", "real_sender_id", "local_type", "create_time", "message_content"}
+            required = {
+                "local_id",
+                "server_id",
+                "real_sender_id",
+                "local_type",
+                "create_time",
+                "message_content",
+            }
             if not required <= columns:
                 raise ValueError("Unsupported message table schema")
             compression = "WCDB_CT_message_content" if "WCDB_CT_message_content" in columns else "0"
             rows = connection.execute(
-                f'SELECT local_id,server_id,real_sender_id,local_type,create_time,message_content,{compression} '
-                f'FROM "{table}" WHERE local_id>? ORDER BY local_id LIMIT 5001', (cursors.get(table, 0),),
+                "SELECT local_id,server_id,real_sender_id,local_type,create_time,message_content,"
+                f"{compression}"
+                " FROM \""
+                f"{table}"
+                "\" WHERE local_id>? ORDER BY local_id LIMIT 5001",
+                (cursors.get(table, 0),),
             ).fetchall()
             if len(rows) > 5000:
                 raise ValueError("Probe backlog exceeds 5000 rows; cursors retained for inspection")
@@ -210,12 +245,16 @@ def _scan_snapshot(path: Path, cursors: dict[str, int] | None, *, self_wxid: str
                     continue  # System records are not incoming person messages.
                 sender_name = names.get(integer(sender))
                 if sender_name is None:
-                    raise ValueError("Unresolved message sender; refusing to guess incoming direction")
+                    raise ValueError(
+                        "Unresolved message sender; refusing to guess incoming direction"
+                    )
                 if sender_name == self_wxid:
                     skipped += 1
                     continue
                 if isinstance(body, bytes):
-                    content = text(body, 4) if compressed == 4 else body.decode("utf-8", errors="replace")
+                    content = (
+                        text(body, 4) if compressed == 4 else body.decode("utf-8", errors="replace")
+                    )
                 elif isinstance(body, str):
                     content = body
                 else:
@@ -231,17 +270,23 @@ def _scan_snapshot(path: Path, cursors: dict[str, int] | None, *, self_wxid: str
 class DatabaseMessageSource:
     """A source outbox hands off to EventSink with stable, account-bound IDs."""
 
-    def __init__(self, snapshots: SnapshotRepository, state_dir: Path, *, peer: str | None = None) -> None:
+    def __init__(
+        self, snapshots: SnapshotRepository, state_dir: Path, *, peer: str | None = None
+    ) -> None:
         import fcntl
         self.snapshots = snapshots
         self.peer = peer
         self._lock = threading.RLock()
         self._closed = False
         directory = private_dir(state_dir)
-        self._lease = os.open(directory / "source.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        self._lease = os.open(
+            directory / "source.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600
+        )
         try:
             fcntl.flock(self._lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            binding = hashlib.sha256(json.dumps([str(snapshots.keys.root), snapshots.keys.account_id, peer]).encode()).hexdigest()
+            binding = hashlib.sha256(
+                json.dumps([str(snapshots.keys.root), snapshots.keys.account_id, peer]).encode()
+            ).hexdigest()
             self._state = _ListenerState(directory / "source.sqlite", binding)
         except BaseException:
             os.close(self._lease)
@@ -282,11 +327,18 @@ class DatabaseMessageSource:
             result: list[PendingMessage] = []
             for item, attempts in self._state.pending(time.time(), limit=limit):
                 # Call records contain protocol metadata rather than user text.
-                content = CALL_PREVIEW if item["local_type"] & 0xffffffff == _CALL_TYPE else item["text"]
+                content = (
+                    CALL_PREVIEW if item["local_type"] & 0xFFFFFFFF == _CALL_TYPE else item["text"]
+                )
                 event = EventEnvelope(
-                    event_id=item["event_id"], source="wechat", account_id=self.snapshots.keys.account_id,
-                    event_type="message.received", subject_id=item["chat_id"] or item["table"],
-                    occurred_at=item["created_at"], observed_at=item["observed_at"], content=content,
+                    event_id=item["event_id"],
+                    source="wechat",
+                    account_id=self.snapshots.keys.account_id,
+                    event_type="message.received",
+                    subject_id=item["chat_id"] or item["table"],
+                    occurred_at=item["created_at"],
+                    observed_at=item["observed_at"],
+                    content=content,
                     sender_id=item["sender_id"],
                     payload_ref=f'{item["database"]}/{item["table"]}/{item["local_id"]}',
                 )

@@ -14,7 +14,9 @@ class PendingTaskReviewer(Protocol):
 
 
 class IntentReference:
-    def __init__(self, worker: DecisionWorker, *, pending_reviewer: PendingTaskReviewer | None = None) -> None:
+    def __init__(
+        self, worker: DecisionWorker, *, pending_reviewer: PendingTaskReviewer | None = None
+    ) -> None:
         self.worker = worker
         self.pending_reviewer = pending_reviewer
         self.prewarm: asyncio.Task[dict[str, Any]] | None = None
@@ -22,14 +24,18 @@ class IntentReference:
     async def estimate(self, query: str, *, context: str = "") -> dict[str, Any]:
         return await self.worker._request("intent", query=query, context=context)
 
-    async def review_delegation(self, query: str, reply: str, *, context: str = "") -> dict[str, Any]:
+    async def review_delegation(
+        self, query: str, reply: str, *, context: str = ""
+    ) -> dict[str, Any]:
         if self.pending_reviewer is not None and "<boxagent_pending_task>" in context:
             return await self.pending_reviewer(query, reply, context=context)
         return await self.worker._request("delegation", query=query, reply=reply, context=context)
 
     async def start(self) -> None:
         self.prewarm = asyncio.create_task(self.worker._request("health"))
-        self.prewarm.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
+        self.prewarm.add_done_callback(
+            lambda task: task.exception() if not task.cancelled() else None
+        )
 
     async def close(self) -> None:
         if self.prewarm is not None:

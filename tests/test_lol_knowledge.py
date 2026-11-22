@@ -13,9 +13,14 @@ class LolKnowledgeTests(unittest.IsolatedAsyncioTestCase):
         fixtures = {
             f"{base}/zh_CN/champion.json": {"data": {"MissFortune": {"name": "赏金猎人"}}},
             f"{base}/zh_TW/champion.json": {"data": {"MissFortune": {"name": "好運姐"}}},
-            f"{base}/zh_TW/champion/MissFortune.json": {"data": {"MissFortune": {
-                "name": "好運姐", "spells": [{"name": "彈射", "description": "子彈會彈向後方目標。"}],
-            }}},
+            f"{base}/zh_TW/champion/MissFortune.json": {
+                "data": {
+                    "MissFortune": {
+                        "name": "好運姐",
+                        "spells": [{"name": "彈射", "description": "子彈會彈向後方目標。"}],
+                    }
+                }
+            },
         }
         with tempfile.TemporaryDirectory() as cache:
             provider = DataDragonKnowledge(Path(cache), version="16.23.1")

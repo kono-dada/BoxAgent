@@ -1,21 +1,29 @@
 """Capture login KDF input from one validated replica; never logs key bytes."""
 from __future__ import annotations
 
-from collections.abc import Callable
+import contextlib
 import hashlib
+import json
 import os
-from pathlib import Path
 import re
 import select
 import signal
-import json
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
+from pathlib import Path
 
-from boxagent.infrastructure.wechat.database._authentication import KeyCandidate, authenticate_first_page
+from boxagent.infrastructure.wechat.database._authentication import (
+    KeyCandidate,
+    authenticate_first_page,
+)
 from boxagent.infrastructure.wechat.database.keys import read_first_page
-from boxagent.infrastructure.wechat.probe import another_replica_running, matching_pids, replica_process
+from boxagent.infrastructure.wechat.probe import (
+    another_replica_running,
+    matching_pids,
+    replica_process,
+)
 from boxagent.infrastructure.wechat.replica import check_client
 
 
@@ -47,9 +55,11 @@ def derive_material(passphrase: bytes, root: Path) -> dict[str, str]:
         if authenticate_first_page(page, KeyCandidate(key, page[:16])) != 'derived-le':
             raise KeyCaptureError('wechat_keys_invalid')
         result[file.relative_to(root).as_posix()] = key.hex()
-    required = {'contact/contact.db', 'session/session.db'}
-    if not required <= result.keys() or not any(name.startswith('message/message_') for name in result):
-        raise KeyCaptureError('wechat_databases_missing')
+    required = {"contact/contact.db", "session/session.db"}
+    if not required <= result.keys() or not any(
+        name.startswith("message/message_") for name in result
+    ):
+        raise KeyCaptureError("wechat_databases_missing")
     return result
 
 
@@ -62,21 +72,34 @@ def _capture_pid(pid: int, lldb: Path, *, cancelled: Callable[[], bool], deadlin
         descriptor = os.open(fifo, os.O_RDWR)
         process: subprocess.Popen[bytes] | None = None
         def send(value: str) -> None:
-            try:
+            with contextlib.suppress(OSError):
                 os.write(descriptor, value.encode())
-            except OSError:
-                pass
         try:
-            process = subprocess.Popen([str(lldb), '--no-lldbinit'], stdin=descriptor, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, start_new_session=True, env={**os.environ, 'TERM': 'dumb'})
+            process = subprocess.Popen(
+                [str(lldb), "--no-lldbinit"],
+                stdin=descriptor,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
             assert process.stdout is not None
-            attach = (f'target create {json.dumps(str(executable), ensure_ascii=False)}\nprocess launch --stop-at-entry\n'
-                      if executable is not None else f'process attach -p {pid}\n')
-            send('settings set target.preload-symbols false\n' + attach +
-                 "breakpoint set -n CCKeyDerivationPBKDF -c '$x2 == 32 && $x6 == 256000'\n"
-                 'breakpoint command add 1\nmemory read --size 1 --count 32 --format x $x1\n'
-                 'memory read --size 1 --count 16 --format x $x3\nprocess detach\nDONE\nprocess continue\n')
-            output = ''
+            attach = (
+                "target create "
+                f"{json.dumps(str(executable), ensure_ascii=False)}"
+                "\nprocess launch --stop-at-entry\n"
+                if executable is not None
+                else f"process attach -p {pid}\n"
+            )
+            send(
+                "settings set target.preload-symbols false\n"
+                + attach
+                + "breakpoint set -n CCKeyDerivationPBKDF -c '$x2 == 32 && $x6 == "
+                    "256000'\nbreakpoint command add 1\nmemory read --size 1 --count 32 --format "
+                    "x $x1\nmemory read --size 1 --count 16 --format x $x3\nprocess "
+                    "detach\nDONE\nprocess continue\n"
+            )
+            output = ""
             stopped_at: float | None = None
             while process.poll() is None and time.monotonic() < deadline and not cancelled():
                 ready, _, _ = select.select([process.stdout], [], [], .2)
@@ -94,14 +117,17 @@ def _capture_pid(pid: int, lldb: Path, *, cancelled: Callable[[], bool], deadlin
                             stopped_at = time.monotonic()
                         elif 'resuming' in line or 'detached' in line:
                             stopped_at = None
-                    if 'error: attach failed' in output or 'Not allowed to attach' in output:
-                        raise KeyCaptureError('wechat_debug_permission_missing')
-                    if executable is not None and ('error: process exited with status' in output or
-                            'error: Cannot launch' in output or 'error: process launch failed' in output):
-                        raise KeyCaptureError('wechat_client_launch_failed')
-                    if 'exited with status' in output:
-                        raise KeyCaptureError('wechat_client_exited')
-                    if 'detached' in output:
+                    if "error: attach failed" in output or "Not allowed to attach" in output:
+                        raise KeyCaptureError("wechat_debug_permission_missing")
+                    if executable is not None and (
+                        "error: process exited with status" in output
+                        or "error: Cannot launch" in output
+                        or "error: process launch failed" in output
+                    ):
+                        raise KeyCaptureError("wechat_client_launch_failed")
+                    if "exited with status" in output:
+                        raise KeyCaptureError("wechat_client_exited")
+                    if "detached" in output:
                         return None
                 if stopped_at is not None and time.monotonic()-stopped_at > 5:
                     raise KeyCaptureError('wechat_capture_stopped')
@@ -132,10 +158,18 @@ def capture_passphrase(app: Path, *, lldb: Path, cancelled: Callable[[], bool],
         raise KeyCaptureError('wechat_debugger_missing')
     deadline = time.monotonic()+timeout
     if launch:
-        if matching_pids((app/'Contents/MacOS/WeChat').resolve(strict=True)) or another_replica_running():
-            raise KeyCaptureError('wechat_close_replica_first')
-        found = _capture_pid(0, lldb, cancelled=cancelled, deadline=deadline,
-                             executable=(app/'Contents/MacOS/WeChat').resolve(strict=True))
+        if (
+            matching_pids((app / "Contents/MacOS/WeChat").resolve(strict=True))
+            or another_replica_running()
+        ):
+            raise KeyCaptureError("wechat_close_replica_first")
+        found = _capture_pid(
+            0,
+            lldb,
+            cancelled=cancelled,
+            deadline=deadline,
+            executable=(app / "Contents/MacOS/WeChat").resolve(strict=True),
+        )
         if found is not None:
             return found
         raise KeyCaptureError('cancelled' if cancelled() else 'wechat_capture_timeout')
@@ -152,6 +186,9 @@ def capture_passphrase(app: Path, *, lldb: Path, cancelled: Callable[[], bool],
     raise KeyCaptureError('cancelled' if cancelled() else 'wechat_capture_timeout')
 
 
-def capture_keys(app: Path, root: Path, *, lldb: Path, cancelled: Callable[[], bool],
-                 timeout: float = 300) -> dict[str, str]:
-    return derive_material(capture_passphrase(app, lldb=lldb, cancelled=cancelled, timeout=timeout), root)
+def capture_keys(
+    app: Path, root: Path, *, lldb: Path, cancelled: Callable[[], bool], timeout: float = 300
+) -> dict[str, str]:
+    return derive_material(
+        capture_passphrase(app, lldb=lldb, cancelled=cancelled, timeout=timeout), root
+    )

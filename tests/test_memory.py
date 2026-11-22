@@ -1,15 +1,15 @@
 """Jev-Mem-first delivery, projection, retrieval and worker contracts."""
 
 import asyncio
-from dataclasses import replace
 import json
 import os
 import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
 
 from boxagent.application.memory import MemoryModule
 from boxagent.application.memory_context import MemoryContextProvider
@@ -17,7 +17,9 @@ from boxagent.application.memory_ingestion import MemoryIngestionCoordinator
 from boxagent.application.memory_migration import LegacyCanonicalMemoryImporter
 from boxagent.application.memory_narrative import NarrativeProjector
 from boxagent.application.memory_profile import (
-    DeepSeekProfileConstructor, JsonProfileStore, ProfileProjector,
+    DeepSeekProfileConstructor,
+    JsonProfileStore,
+    ProfileProjector,
 )
 from boxagent.domain.conversation import ConversationService
 from boxagent.domain.conversation.models import ContextCheckpoint, RuntimeContextSegment
@@ -460,9 +462,17 @@ class IngestionTests(unittest.IsolatedAsyncioTestCase):
     async def test_short_facts_and_explicit_writes_reach_backend(self):
         backend = RecordingBackend()
         service = MemoryService(backend)
-        for text in ("我不吃辣", "我叫李明", "我喜欢猫", "周五面试", "可以叫我小李", "我可以周五陪你"):
-            await service.observe_user_message(text, session_id="ses-1",
-                                               interaction_id="int-1", source_event_id=text)
+        for text in (
+            "我不吃辣",
+            "我叫李明",
+            "我喜欢猫",
+            "周五面试",
+            "可以叫我小李",
+            "我可以周五陪你",
+        ):
+            await service.observe_user_message(
+                text, session_id="ses-1", interaction_id="int-1", source_event_id=text
+            )
         self.assertEqual(len(backend.observations), 6)
         await service.remember("项目名称是 OK", source="explicit")
         self.assertTrue(backend.observations[-1]["metadata"]["explicit"])
@@ -612,11 +622,15 @@ class ProjectionAndRecallTests(unittest.IsolatedAsyncioTestCase):
                 await service.observe_user_message("我叫 Leon", session_id="s", interaction_id="i",
                                                    source_event_id="e")
             self.assertEqual(len(backend.nodes), 1)
-            backend.remember = AsyncMock(return_value={
-                "admitted": 1, "created": [], "reused": backend.nodes})
-            await service.observe_user_message("我叫 Leon", session_id="s", interaction_id="i",
-                                               source_event_id="e")
-            self.assertEqual((await store.load())["fields"]["identity.preferred_name"]["value"], "Leon")
+            backend.remember = AsyncMock(
+                return_value={"admitted": 1, "created": [], "reused": backend.nodes}
+            )
+            await service.observe_user_message(
+                "我叫 Leon", session_id="s", interaction_id="i", source_event_id="e"
+            )
+            self.assertEqual(
+                (await store.load())["fields"]["identity.preferred_name"]["value"], "Leon"
+            )
 
     async def test_l2_direct_split_and_l3_deep(self):
         backend = RecordingBackend()

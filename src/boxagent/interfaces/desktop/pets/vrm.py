@@ -21,7 +21,9 @@ def resource_files(directory, manifest):
     if not isinstance(actions, dict):
         raise ValueError("VRM 动作清单必须为对象")
     pack = manifest.get("motionPack")
-    if pack is not None and (not isinstance(pack, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", pack)):
+    if pack is not None and (
+        not isinstance(pack, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", pack)
+    ):
         raise ValueError("共享动作包标识无效")
     pack_root = WEB_ROOT / "motions" / pack if pack else None
     resources = [(manifest["model"], directory, manifest["model"])]
@@ -68,7 +70,7 @@ class AssetServer:
         token = self.token
 
         class Handler(BaseHTTPRequestHandler):
-            def do_GET(self):
+            def do_GET(self) -> None:
                 route = unquote(urlsplit(self.path).path)
                 prefix = f"/{token}/"
                 path = files.get(route[len(prefix):]) if route.startswith(prefix) else None
@@ -81,10 +83,16 @@ class AssetServer:
                     self.send_error(404)
                     return
                 self.send_response(200)
-                self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+                self.send_header(
+                    "Content-Type", mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+                )
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("Cache-Control", "no-store")
-                self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' blob:")
+                self.send_header(
+                    "Content-Security-Policy",
+                    "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src "
+                    "'self' blob: data:; connect-src 'self' blob:",
+                )
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -97,6 +105,6 @@ class AssetServer:
         self.thread.start()
         self.url = f"http://127.0.0.1:{self.http.server_port}/{token}/index.html"
 
-    def close(self):
+    def close(self) -> None:
         self.http.shutdown()
         self.http.server_close()

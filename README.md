@@ -225,10 +225,11 @@ Python 依赖由 `uv.lock` 固定。日常开发可运行 `uv sync --locked`，
 用 `uv run --locked boxagent --help` 检查已注册的桌宠命令。
 
 ```sh
-# 与 CI 一致的 Ruff 和 strict mypy 增量门禁
-uv run --locked python scripts/check_python_quality.py
+# 与 CI 一致的 Python 检查
+uv run --locked ruff check
+uv run --locked mypy
+uv run --locked pytest
 uvx --from pyright==1.1.414 pyright --pythonpath "$(uv python find)"
-uv run --locked python -m pytest -q
 
 # 本地替身检查，不调用模型或操作其他应用
 uv run --script scripts/pet.py --check
@@ -245,12 +246,8 @@ pnpm --dir web/panel test
 pnpm --dir web/panel start
 ```
 
-Ruff 的六组规则覆盖第一方 Python 文件。mypy 对 `src/`、CLI 冒烟测试和检查脚本启用
-`strict`。两者的既有诊断记录在 [质量基线](.github/python-quality/)，CI 会拦截新增诊断。
-`uv run --locked ruff check` 和 `uv run --locked mypy` 可查看完整诊断，
-`uv run --locked ruff format <文件>` 可按 100 字符、双引号和空格缩进格式化指定文件。
-修复已有诊断后，可用 `uv run --locked python scripts/check_python_quality.py --prune-baseline`
-删除对应的基线条目。
+Ruff 的六组规则覆盖第一方 Python 文件。mypy 对 `src/` 和 CLI 冒烟测试启用
+`strict`。`uv run --locked ruff format <文件>` 可按 100 字符、双引号和空格缩进格式化指定文件。
 
 真实语音、Computer Use 和屏幕总结测试可能产生模型用量、读取屏幕或改变应用状态。运行前请先阅读 [脚本用途与副作用](scripts/README.md)。
 

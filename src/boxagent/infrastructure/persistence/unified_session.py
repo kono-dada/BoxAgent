@@ -11,7 +11,10 @@ from typing import Any
 from boxagent.core.ids import new_session_id
 from boxagent.domain.context.models import LedgerEvent
 from boxagent.domain.conversation.models import (
-    ContextCheckpoint, ProductEvent, RuntimeBinding, RuntimeContextSegment,
+    ContextCheckpoint,
+    ProductEvent,
+    RuntimeBinding,
+    RuntimeContextSegment,
     SessionMetadata,
 )
 from boxagent.infrastructure.persistence.jsonl_context_ledger import _scrub
@@ -159,9 +162,14 @@ class UnifiedSessionRepository:
             self.events.save_state(session_id, state)
 
     async def latest_checkpoint(self, session_id: str, runtime: str) -> ContextCheckpoint | None:
-        rows = await asyncio.to_thread(self.events.read, session_id, types={"compaction/checkpoint"})
-        matches = [ContextCheckpoint.from_payload(e.data["payload"]) for e in rows
-                   if e.data["payload"]["runtime"] == runtime]
+        rows = await asyncio.to_thread(
+            self.events.read, session_id, types={"compaction/checkpoint"}
+        )
+        matches = [
+            ContextCheckpoint.from_payload(e.data["payload"])
+            for e in rows
+            if e.data["payload"]["runtime"] == runtime
+        ]
         return matches[-1] if matches else None
 
     async def append_checkpoint(self, checkpoint: ContextCheckpoint,
@@ -171,15 +179,25 @@ class UnifiedSessionRepository:
             checkpoint.covered_through_sequence) != (
                 segment.session_id, segment.runtime, segment.checkpoint_id, segment.end_sequence):
             raise ValueError("Checkpoint 与 Segment 不匹配")
-        await asyncio.to_thread(self.events.append, checkpoint.session_id, "compaction/checkpoint",
-                                {"payload": checkpoint.payload(), "segment": segment.payload()},
-                                at=checkpoint.created_at, dedup_key="checkpoint:" + checkpoint.checkpoint_id)
+        await asyncio.to_thread(
+            self.events.append,
+            checkpoint.session_id,
+            "compaction/checkpoint",
+            {"payload": checkpoint.payload(), "segment": segment.payload()},
+            at=checkpoint.created_at,
+            dedup_key="checkpoint:" + checkpoint.checkpoint_id,
+        )
         return checkpoint
 
     async def context_segments(self, session_id: str, runtime: str) -> list[RuntimeContextSegment]:
-        rows = await asyncio.to_thread(self.events.read, session_id, types={"compaction/checkpoint"})
-        return [RuntimeContextSegment.from_payload(e.data["segment"]) for e in rows
-                if e.data["segment"]["runtime"] == runtime]
+        rows = await asyncio.to_thread(
+            self.events.read, session_id, types={"compaction/checkpoint"}
+        )
+        return [
+            RuntimeContextSegment.from_payload(e.data["segment"])
+            for e in rows
+            if e.data["segment"]["runtime"] == runtime
+        ]
 
     def _meta(self, session_id: str) -> SessionMetadata:
         return SessionMetadata.from_payload(self.events.state(session_id)["metadata"])

@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import os
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import TypedDict
 
 from boxagent.infrastructure.wechat.addresses import BUILD, VERSION
@@ -35,8 +35,21 @@ def verify_archive(archive: Path) -> None:
     mount.mkdir()
     attached = False
     try:
-        subprocess.run(['/usr/bin/hdiutil', 'attach', '-readonly', '-nobrowse', '-noautoopen',
-                        '-mountpoint', str(mount), str(archive)], check=True, capture_output=True, timeout=60)
+        subprocess.run(
+            [
+                "/usr/bin/hdiutil",
+                "attach",
+                "-readonly",
+                "-nobrowse",
+                "-noautoopen",
+                "-mountpoint",
+                str(mount),
+                str(archive),
+            ],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
         attached = True
         apps = list(mount.glob('*.app'))
         if len(apps) != 1:
@@ -44,7 +57,9 @@ def verify_archive(archive: Path) -> None:
         check_client(apps[0], replica=False)
     finally:
         if attached or os.path.ismount(mount):
-            detached = subprocess.run(['/usr/bin/hdiutil', 'detach', str(mount)], capture_output=True, timeout=30)
+            detached = subprocess.run(
+                ["/usr/bin/hdiutil", "detach", str(mount)], capture_output=True, timeout=30
+            )
             if detached.returncode:
                 raise ValueError('wechat_archive_detach_failed')
         # Deliberately never recurse into the mount, even after a failed attach.
@@ -81,11 +96,18 @@ def build_client_archive(source: Path, output: Path) -> ArchiveManifest:
                            check=True, capture_output=True, timeout=300)
             verify_archive(image)
             os.rename(image, archive)
-    with archive.open('rb') as stream:
-        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    manifest: ArchiveManifest = {'version': 1, 'clientVersion': VERSION, 'build': BUILD,
-        'bundledPath': 'wechat/'+name, 'url': None, 'sha256': digest, 'size': archive.stat().st_size}
-    temporary_manifest = output/'manifest.json.tmp'
-    temporary_manifest.write_text(json.dumps(manifest, indent=2)+'\n')
-    os.replace(temporary_manifest, output/'manifest.json')
+    with archive.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    manifest: ArchiveManifest = {
+        "version": 1,
+        "clientVersion": VERSION,
+        "build": BUILD,
+        "bundledPath": "wechat/" + name,
+        "url": None,
+        "sha256": digest,
+        "size": archive.stat().st_size,
+    }
+    temporary_manifest = output / "manifest.json.tmp"
+    temporary_manifest.write_text(json.dumps(manifest, indent=2) + "\n")
+    os.replace(temporary_manifest, output / "manifest.json")
     return manifest

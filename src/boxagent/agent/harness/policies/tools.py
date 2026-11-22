@@ -7,8 +7,8 @@ import traceback
 from pathlib import Path
 from typing import Protocol
 
-from boxagent.core.errors import redact
 from boxagent.agent.harness.policies.applications import computer_use_denial
+from boxagent.core.errors import redact
 
 
 class ApplicationTools(Protocol):
@@ -37,10 +37,16 @@ def model_content(response: dict, step: int, goal: str = "") -> list[dict]:
             content.append({"type": "inputImage",
                             "imageUrl": f"data:{item['mimeType']};base64,{item['data']}"})
     if goal:
-        content.append({"type": "inputText", "text":
-            "以上为工具观察数据。以下为 BoxAgent 保留的原始用户目标（未发生变更）：\n"
-            + json.dumps(goal, ensure_ascii=False)
-            + f"\n当前观察步骤为 {step}。继续完成此目标；若结束，依据观察汇报实际结果并引用步骤编号。"})
+        content.append(
+            {
+                "type": "inputText",
+                "text": "以上为工具观察数据。以下为 BoxAgent 保留的原始用户目标（未发生变更）：\n"
+                + json.dumps(goal, ensure_ascii=False)
+                + "\n当前观察步骤为 "
+                    f"{step}"
+                    "。继续完成此目标；若结束，依据观察汇报实际结果并引用步骤编号。",
+            }
+        )
     return content
 
 
@@ -110,9 +116,16 @@ class ComputerUseToolGateway:
                     items = result.get("contentItems", [])
                     if not isinstance(items, list):
                         raise ValueError("Application tool returned invalid content")
-                    response = {"isError": not result.get("success", False), "content": [
-                        {"type": "text", "text": item["text"]} for item in items
-                        if isinstance(item, dict) and item.get("type") == "inputText" and isinstance(item.get("text"), str)]}
+                    response = {
+                        "isError": not result.get("success", False),
+                        "content": [
+                            {"type": "text", "text": item["text"]}
+                            for item in items
+                            if isinstance(item, dict)
+                            and item.get("type") == "inputText"
+                            and isinstance(item.get("text"), str)
+                        ],
+                    }
                 else:
                     denied = computer_use_denial(arguments)
                     if denied is not None:
@@ -150,7 +163,9 @@ class ComputerUseToolGateway:
                 continue
             suffix = "png" if item.get("mimeType") == "image/png" else "jpg"
             if self.image_store is not None:
-                reference = self.image_store(base64.b64decode(item["data"]), item.get("mimeType", "image/jpeg"))
+                reference = self.image_store(
+                    base64.b64decode(item["data"]), item.get("mimeType", "image/jpeg")
+                )
                 observation.setdefault("attachments", []).append(reference)
                 observation["screenshot"] = reference["path"]
                 (self.output / f"step-{step}-{index}.attachment.json").write_text(

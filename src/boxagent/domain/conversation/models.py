@@ -1,8 +1,7 @@
 """Versioned product-session records owned by BoxAgent."""
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
-
+from typing import Any, Self
 
 SCHEMA_VERSION = 1
 
@@ -19,7 +18,7 @@ class SessionMetadata:
         return {"schema_version": SCHEMA_VERSION, **asdict(self)}
 
     @classmethod
-    def from_payload(cls, value: dict[str, Any]):
+    def from_payload(cls, value: dict[str, Any]) -> Self:
         if value.get("schema_version") != SCHEMA_VERSION:
             raise ValueError("不支持的 Session metadata 版本")
         return cls(**{key: value[key] for key in cls.__dataclass_fields__})
@@ -45,11 +44,18 @@ class ProductEvent:
         return {"schema_version": SCHEMA_VERSION, **asdict(self)}
 
     @classmethod
-    def from_payload(cls, value: dict[str, Any]):
+    def from_payload(cls, value: dict[str, Any]) -> Self:
         if value.get("schema_version") != SCHEMA_VERSION:
             raise ValueError("不支持的 Product Event 版本")
-        fields = cls.__dataclass_fields__
-        return cls(**{key: value.get(key) for key in fields})
+        data: dict[str, Any] = {key: value.get(key) for key in cls.__dataclass_fields__}
+        if not isinstance(data["sequence"], int) or not isinstance(
+            data["occurred_at"], (int, float)
+        ):
+            raise ValueError("Product Event 序号或时间无效")
+        if any(not isinstance(data[key], str) for key in ("event_id", "type", "session_id")):
+            raise ValueError("Product Event 标识无效")
+        data["data"] = dict(data["data"] or {})
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -69,8 +75,8 @@ class RuntimeBinding:
         return value
 
     @classmethod
-    def from_payload(cls, value: dict[str, Any]):
-        data = {key: value.get(key) for key in cls.__dataclass_fields__}
+    def from_payload(cls, value: dict[str, Any]) -> Self:
+        data: dict[str, Any] = {key: value.get(key) for key in cls.__dataclass_fields__}
         data["context_cursor"] = int(data.get("context_cursor") or 0)
         data["previous_threads"] = tuple(data.get("previous_threads") or ())
         data["synced_event_ids"] = tuple(data.get("synced_event_ids") or ())
@@ -96,11 +102,11 @@ class ContextCheckpoint:
         return {"schema_version": SCHEMA_VERSION, **asdict(self)}
 
     @classmethod
-    def from_payload(cls, value: dict[str, Any]):
+    def from_payload(cls, value: dict[str, Any]) -> Self:
         if value.get("schema_version") != SCHEMA_VERSION:
             raise ValueError("不支持的 Context Checkpoint 版本")
         fields = cls.__dataclass_fields__
-        data = {key: value.get(key) for key in fields}
+        data: dict[str, Any] = {key: value.get(key) for key in fields}
         data["source_from_sequence"] = int(data.get("source_from_sequence") or 0)
         data["covered_through_sequence"] = int(
             data.get("covered_through_sequence") or 0)
@@ -124,11 +130,11 @@ class RuntimeContextSegment:
         return {"schema_version": SCHEMA_VERSION, **asdict(self)}
 
     @classmethod
-    def from_payload(cls, value: dict[str, Any]):
+    def from_payload(cls, value: dict[str, Any]) -> Self:
         if value.get("schema_version") != SCHEMA_VERSION:
             raise ValueError("不支持的 Runtime Context Segment 版本")
         fields = cls.__dataclass_fields__
-        data = {key: value.get(key) for key in fields}
+        data: dict[str, Any] = {key: value.get(key) for key in fields}
         data["start_sequence"] = int(data.get("start_sequence") or 0)
         data["end_sequence"] = int(data.get("end_sequence") or 0)
         return cls(**data)

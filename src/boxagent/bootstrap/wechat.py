@@ -47,8 +47,11 @@ class WeChatConfig:
 def account_root(config: WeChatConfig) -> Path:
     if config.db_root is not None:
         return config.db_root.expanduser().resolve(strict=True)
-    base = Path.home() / 'Library/Containers/com.tencent.xinWeChatBoxAgent/Data/Documents/xwechat_files'
-    matches = list(base.glob('*/db_storage'))
+    base = (
+        Path.home()
+        / "Library/Containers/com.tencent.xinWeChatBoxAgent/Data/Documents/xwechat_files"
+    )
+    matches = list(base.glob("*/db_storage"))
     if len(matches) != 1:
         raise ValueError('Exactly one account required; provide db_root explicitly')
     return matches[0]
@@ -66,17 +69,27 @@ def build_native_wechat_sender(pid: int, *, build: str = SUPPORTED_BUILD,
                              LLDBExecutor(pid, app=app, output=output, lldb=lldb), profile)
 
 
-def build_wechat_module(config: WeChatConfig | None = None, *, event_sink: EventSink | None = None) -> WeChatModule:
+def build_wechat_module(
+    config: WeChatConfig | None = None, *, event_sink: EventSink | None = None
+) -> WeChatModule:
     config = config or WeChatConfig()
-    keys = DatabaseKeys(account_root(config), config.key_report, self_wxid=config.self_wxid,
-                        material=config.key_material)
-    directory = private_dir(config.data_dir / hashlib.sha256(keys.account_id.encode()).hexdigest()[:16])
-    snapshots = SnapshotRepository(keys, directory / 'snapshots')
+    keys = DatabaseKeys(
+        account_root(config),
+        config.key_report,
+        self_wxid=config.self_wxid,
+        material=config.key_material,
+    )
+    directory = private_dir(
+        config.data_dir / hashlib.sha256(keys.account_id.encode()).hexdigest()[:16]
+    )
+    snapshots = SnapshotRepository(keys, directory / "snapshots")
     reader = DatabaseReader(snapshots)
 
     def transport() -> NativeWeChatSender:
         pid, _executable = replica_process(config.app)
-        return build_native_wechat_sender(pid, app=config.app, output=directory / 'native', lldb=config.lldb)
+        return build_native_wechat_sender(
+            pid, app=config.app, output=directory / "native", lldb=config.lldb
+        )
 
     requests = SQLiteSendRequests(directory / 'send-requests.sqlite')
     service = WeChatService(reader, reader, transport, requests)
@@ -87,8 +100,12 @@ def build_wechat_module(config: WeChatConfig | None = None, *, event_sink: Event
         return DatabaseMessageSource(snapshots, directory / 'listeners' / name, peer=peer)
 
     monitor = WeChatMonitor(source, event_sink, interval=config.interval)
-    return WeChatModule(service, monitor, NativeMomentsPublisher(config.app, directory / 'native/moments'),
-                        LocalWeChatHealth(keys, config.app))
+    return WeChatModule(
+        service,
+        monitor,
+        NativeMomentsPublisher(config.app, directory / "native/moments"),
+        LocalWeChatHealth(keys, config.app),
+    )
 
 
 def build_local_wechat_module(config: WeChatConfig | None = None) -> WeChatModule:

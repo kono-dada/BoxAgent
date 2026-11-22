@@ -4,8 +4,8 @@ import asyncio
 import time
 from dataclasses import replace
 
-from boxagent.domain.memory.policy import redact_memory_source
 from boxagent.domain.memory.models import MemoryIngestionCounts
+from boxagent.domain.memory.policy import redact_memory_source
 
 
 class MemoryIngestionCoordinator:
@@ -25,7 +25,7 @@ class MemoryIngestionCoordinator:
         self.session_locks = {}
         self.closed = False
 
-    async def start(self):
+    async def start(self) -> None:
         self.closed = False
         await self.job_store.start()
         recoverable = await self.job_store.jobs(
@@ -145,7 +145,7 @@ class MemoryIngestionCoordinator:
     def _empty_counts() -> MemoryIngestionCounts:
         return {"observation_count": 0, "admitted": 0, "rejected": 0}
 
-    async def drain(self):
+    async def drain(self) -> None:
         while self.tasks:
             await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
 
@@ -160,7 +160,7 @@ class MemoryIngestionCoordinator:
             "job_statuses": statuses,
         }
 
-    async def close(self):
+    async def close(self) -> None:
         self.closed = True
         for task in tuple(self.tasks):
             task.cancel()

@@ -7,7 +7,6 @@ from typing import Literal
 
 from boxagent.domain.events.models import EventEnvelope
 
-
 CALL_PREVIEW = "[音视频通话]"
 
 

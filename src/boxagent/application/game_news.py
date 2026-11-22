@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
+
 from boxagent.domain.proactivity.game_news import Game, GameNews
 
 logger = logging.getLogger(__name__)

@@ -1,11 +1,11 @@
 """Assemble onboarding using the same account, snapshot, listener and send adapters."""
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from pathlib import Path
 import tempfile
 import time
 import uuid
+from collections.abc import Callable, Mapping
+from pathlib import Path
 
 from boxagent.application.wechat.onboarding import SetupResult, WeChatOnboarding
 from boxagent.bootstrap.wechat import WeChatConfig, build_wechat_module
@@ -26,8 +26,11 @@ def acquire_keys(app: Path, root: Path | None, *, lldb: Path,
     last_error: RuntimeError | None = None
     while not cancelled() and time.monotonic() < deadline:
         if root is None:
-            parent = Path.home()/'Library/Containers/com.tencent.xinWeChatBoxAgent/Data/Documents/xwechat_files'
-            candidates = list(parent.glob('*/db_storage'))
+            parent = (
+                Path.home()
+                / "Library/Containers/com.tencent.xinWeChatBoxAgent/Data/Documents/xwechat_files"
+            )
+            candidates = list(parent.glob("*/db_storage"))
             if len(candidates) > 1:
                 raise ValueError('wechat_choose_account')
             candidate = candidates[0] if candidates else None
@@ -73,13 +76,27 @@ def verify_account(app: Path, root: Path, material: Mapping[str, str], *,
             'sending': {'state': 'missing', 'code': 'wechat_native_check_required'},
         }
         if native:
-            module = build_wechat_module(WeChatConfig(app=app, db_root=root, key_report=None,
-                key_material=material, data_dir=directory/'native-check', lldb=str(lldb)))
-            outcome = module.send('filehelper', 'BoxAgent connection check',
-                                  request_id='setup-'+uuid.uuid4().hex, dry_run=True)
-            result['sending'] = ({'state': 'ready', 'code': 'wechat_dry_run_only'}
-                                 if outcome.dry_run and not outcome.submitted and not outcome.error_code else
-                                 {'state': 'unavailable', 'code': 'wechat_open_main_window_or_clear_draft'})
+            module = build_wechat_module(
+                WeChatConfig(
+                    app=app,
+                    db_root=root,
+                    key_report=None,
+                    key_material=material,
+                    data_dir=directory / "native-check",
+                    lldb=str(lldb),
+                )
+            )
+            outcome = module.send(
+                "filehelper",
+                "BoxAgent connection check",
+                request_id="setup-" + uuid.uuid4().hex,
+                dry_run=True,
+            )
+            result["sending"] = (
+                {"state": "ready", "code": "wechat_dry_run_only"}
+                if outcome.dry_run and not outcome.submitted and not outcome.error_code
+                else {"state": "unavailable", "code": "wechat_open_main_window_or_clear_draft"}
+            )
         return result
 
 

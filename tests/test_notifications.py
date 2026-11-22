@@ -5,11 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from boxagent.infrastructure.persistence import JsonNotificationRepository
-from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.domain.conversation import ConversationService
 from boxagent.domain.notification import NotificationOutbox
+from boxagent.infrastructure.persistence import JsonlSessionStore, JsonNotificationRepository
 
 
 class NotificationOutboxTests(unittest.IsolatedAsyncioTestCase):

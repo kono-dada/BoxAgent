@@ -1,7 +1,7 @@
 import asyncio
 import json
-from pathlib import Path
 import tomllib
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -9,7 +9,9 @@ import pytest
 from boxagent.core.errors import TaskFailure
 from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
 from boxagent.infrastructure.runtimes.codex.windows_skill import (
-    WindowsSkill, load_windows_skill, refresh_pipe_environment,
+    WindowsSkill,
+    load_windows_skill,
+    refresh_pipe_environment,
 )
 
 
@@ -39,13 +41,16 @@ def test_live_pipe_is_preserved_when_multiple_services_exist() -> None:
     assert refresh_pipe_environment(environment, lambda: (first, second)) == environment
 
 
-def test_loader_refreshes_task_override_without_rewriting_global_config(installed_skill: WindowsSkill) -> None:
-    home = Path(installed_skill.environment['CODEX_HOME'])
-    config = home / 'config.toml'
-    text = config.read_text(encoding='utf-8') + (
-        '\nSKY_CUA_NATIVE_PIPE="1"\nSKY_CUA_NATIVE_PIPE_DIRECTORY="stale"\n')
-    config.write_text(text, encoding='utf-8')
-    name = 'codex-computer-use-11111111-1111-1111-1111-111111111111'
+def test_loader_refreshes_task_override_without_rewriting_global_config(
+    installed_skill: WindowsSkill,
+) -> None:
+    home = Path(installed_skill.environment["CODEX_HOME"])
+    config = home / "config.toml"
+    text = config.read_text(encoding="utf-8") + (
+        '\nSKY_CUA_NATIVE_PIPE="1"\nSKY_CUA_NATIVE_PIPE_DIRECTORY="stale"\n'
+    )
+    config.write_text(text, encoding="utf-8")
+    name = "codex-computer-use-11111111-1111-1111-1111-111111111111"
     skill = load_windows_skill(home, pipe_names=lambda: (name,))
     override = tomllib.loads(skill.config_override())['mcp_servers']['node_repl']['env']
     assert override['SKY_CUA_NATIVE_PIPE_DIRECTORY'].endswith(name)
@@ -79,12 +84,16 @@ def make_server(tmp_path: Path, skill: WindowsSkill) -> CodexAppServer:
     return server
 
 
-def test_skill_configuration_round_trips_without_modifying_native_home(installed_skill: WindowsSkill) -> None:
+def test_skill_configuration_round_trips_without_modifying_native_home(
+    installed_skill: WindowsSkill,
+) -> None:
     config = tomllib.loads(installed_skill.config_override())["mcp_servers"]["node_repl"]
     assert config["command"] == str(installed_skill.command)
     assert config["env"] == installed_skill.environment
     assert config["env_vars"] == ["SYSTEMROOT"]
-    assert all(name in installed_skill.instructions for name in ("guidance", "api", "confirmations"))
+    assert all(
+        name in installed_skill.instructions for name in ("guidance", "api", "confirmations")
+    )
 
 
 def test_missing_skill_reports_setup_failure(tmp_path: Path) -> None:
@@ -103,7 +112,9 @@ def test_disabled_node_tool_is_respected(installed_skill: WindowsSkill) -> None:
     assert "js 工具已被禁用" in error.value.detail
 
 
-def test_windows_launch_uses_registered_node_server(installed_skill: WindowsSkill, tmp_path: Path) -> None:
+def test_windows_launch_uses_registered_node_server(
+    installed_skill: WindowsSkill, tmp_path: Path
+) -> None:
     server = make_server(tmp_path, installed_skill)
     arguments = server.launch_arguments(tmp_path / "codex.exe", installed_skill.command)
     assert installed_skill.config_override() in arguments
@@ -128,7 +139,9 @@ def test_windows_tool_routing_and_cleanup(installed_skill: WindowsSkill, tmp_pat
     asyncio.run(check())
 
 
-def test_windows_cleanup_error_is_not_reported_as_success(installed_skill: WindowsSkill, tmp_path: Path) -> None:
+def test_windows_cleanup_error_is_not_reported_as_success(
+    installed_skill: WindowsSkill, tmp_path: Path
+) -> None:
     async def check() -> None:
         server = make_server(tmp_path, installed_skill)
         server.thread_id, server.turn_id = "thread", "turn"
@@ -138,7 +151,9 @@ def test_windows_cleanup_error_is_not_reported_as_success(installed_skill: Windo
     asyncio.run(check())
 
 
-def test_native_node_results_are_recorded_as_windows_evidence(installed_skill: WindowsSkill, tmp_path: Path) -> None:
+def test_native_node_results_are_recorded_as_windows_evidence(
+    installed_skill: WindowsSkill, tmp_path: Path
+) -> None:
     async def check() -> None:
         server = make_server(tmp_path, installed_skill)
         server.thread_id, server.turn_id = "thread", "turn"

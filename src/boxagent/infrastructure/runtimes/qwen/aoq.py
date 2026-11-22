@@ -8,6 +8,7 @@ unless an explicit output device opts into the SDK's external-rendering path.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ctypes
 import json
 import sys
@@ -163,7 +164,7 @@ class AoqFramework:
         self._media_enabled = False
         self._owns_singleton = False
 
-    def _load(self):
+    def _load(self) -> None:
         try:
             import objc
             from Foundation import NSData, NSObject
@@ -342,7 +343,7 @@ class AoqFramework:
         engine_class = self._classes.get("AoqClientEngine")
         return str(engine_class.getVersion()) if engine_class is not None else ""
 
-    def _configure_audio_codecs(self):
+    def _configure_audio_codecs(self) -> None:
         for method in (self.engine.setAudioEncoderConfig_,
                        self.engine.setAudioDecoderConfig_):
             config = self._classes["AoqAudioCodecConfig"].alloc().init()
@@ -433,22 +434,22 @@ class AoqFramework:
         # native audio track. Data-track audio deltas must not be played twice.
         return None
 
-    def interrupt(self):
+    def interrupt(self) -> None:
         self.mark_playback_idle()
         if self.engine is not None and not self._closed:
             self.engine.interruptAudioPlayer_fadeMs_(0, 20)
         if self.output is not None:
             self.output.clear()
 
-    def begin_playback(self):
+    def begin_playback(self) -> None:
         return None
 
-    def mark_playback_idle(self):
+    def mark_playback_idle(self) -> None:
         if self._playback_observed:
             self._playback_observed = False
             self.playback_callback(False)
 
-    def close(self):
+    def close(self) -> None:
         if self._closed:
             return
         self._closed = True
@@ -456,27 +457,19 @@ class AoqFramework:
         engine, self.engine = self.engine, None
         if engine is not None:
             if self.output is not None:
-                try:
+                with contextlib.suppress(Exception):
                     engine.setAudioFrameObserver_(None)
-                except Exception:
-                    pass
             for method in (engine.stopAudioCapture, engine.stopAudioPlayer,
                            engine.disconnect):
-                try:
+                with contextlib.suppress(Exception):
                     method()
-                except Exception:
-                    pass
         if self.output is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.output.close()
-            except Exception:
-                pass
             self.output = None
         if self._owns_singleton and "AoqClientEngine" in self._classes:
-            try:
+            with contextlib.suppress(Exception):
                 self._classes["AoqClientEngine"].destroy()
-            except Exception:
-                pass
         self.delegate = None
         if self._owns_singleton:
             with self._active_lock:
@@ -488,13 +481,13 @@ class _AoqAudioControl:
     def __init__(self, transport):
         self.transport = transport
 
-    def clear(self):
+    def clear(self) -> None:
         self.transport.interrupt()
 
     def append(self, data):
         self.transport.append_audio(data)
 
-    def close(self):
+    def close(self) -> None:
         self.transport.close()
 
 
@@ -542,7 +535,7 @@ class AoqRealtimeSession(QwenRealtimeSession):
             self.trace("client.request", request=message)
         self.transport.send(message)
 
-    async def run(self):
+    async def run(self) -> None:
         config = MODELS.get(self.model)
         if not config:
             raise ValueError("不支持的语音模型配置")
@@ -699,10 +692,12 @@ class AoqRealtimeSession(QwenRealtimeSession):
         if self.playback_finish_task:
             self.playback_finish_task.cancel()
 
-        async def finish():
+        async def finish() -> None:
             await asyncio.sleep(delay)
             while not response_id or self.response_id == response_id:
-                quiet_for = time.monotonic() - getattr(self.transport, "last_playback_frame_at", 0.0)
+                quiet_for = time.monotonic() - getattr(
+                    self.transport, "last_playback_frame_at", 0.0
+                )
                 if quiet_for >= delay:
                     self.transport.mark_playback_idle()
                     return
@@ -724,7 +719,7 @@ class AoqRealtimeSession(QwenRealtimeSession):
             self.transport.close()
         self.ws = None
 
-    async def stop(self):
+    async def stop(self) -> None:
         if self.closed:
             return
         self.closed = True

@@ -5,15 +5,15 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
-from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, TOOLS, QwenRealtimeSession
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.memory import MemoryModule
 from boxagent.core.states import Snapshot, presentation_state
-from boxagent.domain.memory.service import MemoryService
 from boxagent.domain.interaction.delegation import DecisionAdvice, delegation_exclusion
+from boxagent.domain.memory.service import MemoryService
+from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, TOOLS, QwenRealtimeSession
 
 
 class HeldExecutor:
@@ -121,7 +121,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         original_task_id = self.runtime.state.task_id
         for query in ("？", "你现在在干嘛呢？", "我可以继续和你聊吗？不要操作或取消任务"):
             with self.subTest(query=query):
-                await self.runtime.interaction_service._conversation_event("user_final", {"transcript": query})
+                await self.runtime.interaction_service._conversation_event(
+                    "user_final", {"transcript": query}
+                )
                 service = self.runtime.interaction_service
                 service.decisions[service.interaction.interaction_id] = DecisionAdvice(.01, .99, 0)
                 result = await service._handle_tool("run_task", "{}")
@@ -134,7 +136,15 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await original
 
     def test_delegation_exclusions_preserve_contextual_confirmations_and_new_actions(self):
-        for query in ("继续", "可以", "好", "播放", "打开计算器", "你现在在干嘛呢？再帮我放首歌", "🙂"):
+        for query in (
+            "继续",
+            "可以",
+            "好",
+            "播放",
+            "打开计算器",
+            "你现在在干嘛呢？再帮我放首歌",
+            "🙂",
+        ):
             with self.subTest(query=query):
                 self.assertIsNone(delegation_exclusion(query))
 
@@ -144,7 +154,13 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.job
         accepted = await self.runtime.handle_tool("run_task", {"goal": "帮我选首歌"})
         async def needs_input(*_args):
-            return {"outcome": "needs_input", "summary": "你想听哪种风格？", "evidence": [], "steps": 0}
+            return {
+                "outcome": "needs_input",
+                "summary": "你想听哪种风格？",
+                "evidence": [],
+                "steps": 0,
+            }
+
         self.runtime.executor.run = needs_input
         await self.runtime.job
         self.assertEqual(accepted["status"], "accepted")
@@ -295,7 +311,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(second_executor.stopped)
         self.assertEqual(self.runtime.state.task_goal, "第二个目标")
         self.assertEqual([item["goal"] for item in self.runtime.state.task_queue], ["第三个目标"])
-        self.assertEqual(len(queued_snapshot["task_queue"]), 2)  # Published snapshots stay independent.
+        self.assertEqual(
+            len(queued_snapshot["task_queue"]), 2
+        )  # Published snapshots stay independent.
         self.assertEqual(self.runtime.last_result["status"], "running")
         self.assertEqual([item["task_id"] for item in self.runtime.execution_service.pending],
                          [third["task_id"]])
@@ -379,7 +397,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.runtime.executor)
 
     async def test_blocked_is_not_reported_as_success(self):
-        caller = await self.start_job()
+        await self.start_job()
         async def blocked(*_args):
             return {"outcome": "blocked", "summary": "需要先登录"}
         await self.runtime.cancel_task()
@@ -406,7 +424,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_memory_tools_keep_voice_payload_small_and_use_exact_ids(self):
         memory = FakeMemory()
         self.use_memory_backend(memory)
-        remembered = await self.runtime.handle_tool("remember_memory", {"content": "  用户喜欢简洁回答  "})
+        remembered = await self.runtime.handle_tool(
+            "remember_memory", {"content": "  用户喜欢简洁回答  "}
+        )
         self.assertEqual(remembered["status"], "succeeded")
         self.assertEqual(memory.calls[0][1][0]["content"], "用户喜欢简洁回答")
         self.assertEqual(memory.calls[0][1][0]["metadata"]["source"], "voice_explicit")
@@ -547,7 +567,9 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         voice.audio, voice.ws = FakeAudio(), FakeSocket()
         voice.response_id, voice.response_active = "old", True
         await voice.receive({"type": "input_audio_buffer.speech_started"})
-        await voice.receive({"type": "response.audio.delta", "response_id": "old", "delta": "old audio"})
+        await voice.receive(
+            {"type": "response.audio.delta", "response_id": "old", "delta": "old audio"}
+        )
         self.assertTrue(voice.audio.cleared)
         self.assertFalse(voice.audio.chunks)
         self.assertFalse(calls)
@@ -812,7 +834,9 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
 
         voice = QwenRealtimeSession(
             handle_tool,
-            lambda kind, **payload: emitted.append((kind, payload)), delegation_review=AsyncMock(return_value=True))
+            lambda kind, **payload: emitted.append((kind, payload)),
+            delegation_review=AsyncMock(return_value=True),
+        )
         await voice.run_implicit_delegation("r-queued", "我继续处理")
 
         self.assertNotIn("voice.error", [kind for kind, _payload in emitted])
@@ -869,7 +893,13 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
                                     delegation_review=AsyncMock(return_value=True))
         await voice.receive({"type": "response.created", "response": {"id": "empty"}})
         await voice.receive({"type": "response.created", "response": {"id": "promise"}})
-        await voice.receive({"type": "response.text.delta", "response_id": "promise", "delta": "我这就去打开计算器。"})
+        await voice.receive(
+            {
+                "type": "response.text.delta",
+                "response_id": "promise",
+                "delta": "我这就去打开计算器。",
+            }
+        )
         await voice.receive({"type": "response.done", "response": {"id": "empty"}})
         await asyncio.sleep(0)
         self.assertEqual(calls, [])

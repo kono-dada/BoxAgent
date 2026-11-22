@@ -12,12 +12,11 @@ from pathlib import Path
 
 from boxagent.domain.context.models import LedgerEvent
 
-
 MEMORY_PREFIX = "<boxagent_memory_context>"
 
 
 class MemoryLedgerStore:
-    def __init__(self):
+    def __init__(self) -> None:
         self.events = defaultdict(list)
 
     def append(self, session_id, event_type, data, *, at=None):

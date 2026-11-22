@@ -25,9 +25,15 @@ class RuntimeContextProjector:
             raise ValueError("历史上下文预算必须大于 0")
         self.history_character_budget = history_character_budget
 
-    def runtime_messages(self, *, turns=(), after_sequence=0,
-                         character_budget=None,
-                         require_user_start=True, exclude_event_ids=()) -> tuple[RuntimeMessage, ...]:
+    def runtime_messages(
+        self,
+        *,
+        turns=(),
+        after_sequence=0,
+        character_budget=None,
+        require_user_start=True,
+        exclude_event_ids=(),
+    ) -> tuple[RuntimeMessage, ...]:
         """Project final product messages into provider-neutral native history."""
         budget = (self.history_character_budget
                   if character_budget is None else character_budget)
@@ -55,8 +61,10 @@ class RuntimeContextProjector:
     def _message_content(turn) -> str:
         text = turn.content.strip()
         if turn.source == "notification" and turn.data.get("source_refs"):
-            text += "\n[宿主附注：这条提醒关联的外部会话引用，仅供定位，勿向用户播报标识符]\n" + json.dumps(
-                {"source_refs": turn.data["source_refs"]}, ensure_ascii=False)
+            text += (
+                "\n[宿主附注：这条提醒关联的外部会话引用，仅供定位，勿向用户播报标识符]\n"
+                + json.dumps({"source_refs": turn.data["source_refs"]}, ensure_ascii=False)
+            )
         return text
 
     def environment_packet(self, environment=None) -> str:

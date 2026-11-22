@@ -5,8 +5,12 @@ import unittest
 from pathlib import Path
 
 from boxagent.interfaces.desktop.pets.size import (
-    load_pet_scale, resized_pet_frame, save_pet_scale, scaled_pet_size,
-    validated_render_bounds)
+    load_pet_scale,
+    resized_pet_frame,
+    save_pet_scale,
+    scaled_pet_size,
+    validated_render_bounds,
+)
 
 
 class PetSizeTests(unittest.TestCase):
@@ -27,7 +31,9 @@ class PetSizeTests(unittest.TestCase):
 
         message = {"viewport": [BridgedFloat(504), BridgedFloat(364)],
                    "bounds": {key: BridgedFloat(value) for key, value in
-                              zip(("x", "y", "width", "height"), (180, 30, 140, 300))}}
+                              zip(("x", "y", "width", (
+                                  "height"
+                              )), (180, 30, 140, 300), strict=False)}}
         self.assertEqual(validated_render_bounds(message, (504, 364)),
                          ((180, 30), (140, 300)))
 

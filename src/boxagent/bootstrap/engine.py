@@ -1,10 +1,10 @@
 """Compose the application services that live inside the Engine process."""
 
-from collections.abc import Callable
-from functools import partial
 import os
 import sys
 import time
+from collections.abc import Callable
+from functools import partial
 
 from boxagent.agent.harness import RuntimeRequestBuilder, TaskExecutor
 from boxagent.agent.harness.context import RuntimeContextProjector
@@ -12,35 +12,35 @@ from boxagent.agent.harness.instructions import append_persona
 from boxagent.agent.harness.persona import Persona, load_persona
 from boxagent.agent.harness.policies import ComputerUseToolGateway, can_auto_approve_computer_use
 from boxagent.agent.harness.policies.tools import ApplicationTools
-from boxagent.domain.execution.service import TaskCapability
 from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
 from boxagent.application.lol_companion import LolCompanion
-from boxagent.domain.proactivity.lol import LolCompanionPolicy, LolMoment
-from boxagent.infrastructure.games.lol import LolLiveClient
-from boxagent.infrastructure.games.data_dragon import DataDragonKnowledge
-from boxagent.bootstrap.memory import create_memory_module
-from boxagent.bootstrap.web import create_web_research
 from boxagent.application.skill_authoring import SkillAuthoringService
+from boxagent.bootstrap.memory import create_memory_module
 from boxagent.bootstrap.settings import load_settings, read_optional_setting
-from boxagent.domain.conversation import ConversationService
-from boxagent.domain.notification import NotificationOutbox
-from boxagent.domain.skill import SkillService
+from boxagent.bootstrap.web import create_web_research
 from boxagent.core.errors import append_jsonl
 from boxagent.core.states import Snapshot
-from boxagent.infrastructure.environment import LocalSystemEnvironmentProvider
-from boxagent.infrastructure.perception import WindowSummary
-from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
+from boxagent.domain.conversation import ConversationService
+from boxagent.domain.execution.service import TaskCapability
+from boxagent.domain.notification import NotificationOutbox
+from boxagent.domain.proactivity.lol import LolCompanionPolicy, LolMoment
+from boxagent.domain.skill import SkillService
 from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
 from boxagent.infrastructure.context.qwen_trace_history import QwenTraceHistory
+from boxagent.infrastructure.environment import LocalSystemEnvironmentProvider
+from boxagent.infrastructure.games.data_dragon import DataDragonKnowledge
+from boxagent.infrastructure.games.lol import LolLiveClient
+from boxagent.infrastructure.perception import WindowSummary
 from boxagent.infrastructure.persistence import (
+    JsonlSessionStore,
     JsonNotificationRepository,
     JsonSkillDraftRepository,
     JsonTaskTraceReader,
-    JsonlSessionStore,
     SkillFileRepository,
 )
+from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
 from boxagent.infrastructure.runtimes.codex import (
     CodexAgentRuntime,
     CodexCheckpointGenerator,
@@ -69,7 +69,9 @@ def current_screen_reference(state: Snapshot) -> str:
         return ""
     from boxagent.infrastructure.perception import focused_window
     window = focused_window()
-    if state.lol_companion_enabled and (not window or window["app"].casefold() != "league of legends"):
+    if state.lol_companion_enabled and (
+        not window or window["app"].casefold() != "league of legends"
+    ):
         return ""
     if not window or window["app"] != state.context_app \
             or window["id"] != state.context_window_id:
@@ -83,9 +85,9 @@ def create_voice_factory(app_settings, *, persona=None,
                          environment_provider=None, context_projector=None,
                          context_recorder=None, host_turn_control=False):
     # Keep realtime audio dependencies out of task-runtime imports and tests.
-    from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
-    from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession, aoq_preflight
     from boxagent.agent.harness.wechat_tools import WECHAT_FRONT_INSTRUCTIONS
+    from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession, aoq_preflight
+    from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
 
     environment_provider = environment_provider or LocalSystemEnvironmentProvider()
     context_projector = context_projector or RuntimeContextProjector()
@@ -143,8 +145,10 @@ def create_voice_factory(app_settings, *, persona=None,
         model=app_settings.voice_model,
         key=app_settings.qwen_api_key,
         instructions=append_persona(
-            INSTRUCTIONS + (WECHAT_FRONT_INSTRUCTIONS if getattr(app_settings, "wechat_enabled", False) else ""),
-            persona),
+            INSTRUCTIONS
+            + (WECHAT_FRONT_INSTRUCTIONS if getattr(app_settings, "wechat_enabled", False) else ""),
+            persona,
+        ),
         trace=qwen_trace,
         environment_context=lambda: context_projector.environment_packet(
             environment_provider.capture()),
@@ -184,8 +188,12 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
     if application_tools is not None:
         tool_gateway_factory = partial(tool_gateway_factory, application_tools=application_tools)
     def record_task(kind, data):
-        mapping = {"task_started": "task/start", "task_ended": "task/end",
-                   "runtime_request_sent": "context/request", "runtime_reference_removed": "context/expired"}
+        mapping = {
+            "task_started": "task/start",
+            "task_ended": "task/end",
+            "runtime_request_sent": "context/request",
+            "runtime_reference_removed": "context/expired",
+        }
         if session_events is not None and session_id and kind in mapping:
             session_events.append(session_id, mapping[kind], {
                 **data, "task_id": task_id, "interaction_id": interaction_id,
@@ -247,7 +255,8 @@ def create_application(publish, *, task_provider=None, task_model=None,
     environment_provider = LocalSystemEnvironmentProvider()
     from boxagent.infrastructure.persistence.session_events import SessionEventStore
     from boxagent.infrastructure.persistence.unified_session import (
-        UnifiedContextLedger, UnifiedSessionRepository,
+        UnifiedContextLedger,
+        UnifiedSessionRepository,
     )
     use_unified = app_settings.uses_unified_sessions
     session_events = None
@@ -365,8 +374,13 @@ def create_application(publish, *, task_provider=None, task_model=None,
     application = BoxAgentApplication(
         publish,
         lambda task_id, capability="desktop", **context: create_task_executor(
-            task_id, provider=task_provider, model=task_model, auto_approve=auto_approve,
-            session_factory=(wechat_runtime_host if capability == "wechat" else runtime_host).create_session,
+            task_id,
+            provider=task_provider,
+            model=task_model,
+            auto_approve=auto_approve,
+            session_factory=(
+                wechat_runtime_host if capability == "wechat" else runtime_host
+            ).create_session,
             capability=capability,
             request_builder=RuntimeRequestBuilder(
                 persona=current_persona(), context_assembler=context_projector),
@@ -393,11 +407,18 @@ def create_application(publish, *, task_provider=None, task_model=None,
         context_history=QwenTraceHistory(
             app_settings.log_dir / "runtime/qwen/events.jsonl",
             lambda store, clock: QwenContextRecorder(
-                store, model=app_settings.voice_model, clock=clock),
-            memory_log_path=memory_log_path),
-        runtime_resources=(runtime_host, wechat_runtime_host, *((conversation_store,) if use_unified else ()),
-                           *((intent_reference,) if intent_reference else ()),
-                           turn_preparer, checkpoint_coordinator),
+                store, model=app_settings.voice_model, clock=clock
+            ),
+            memory_log_path=memory_log_path,
+        ),
+        runtime_resources=(
+            runtime_host,
+            wechat_runtime_host,
+            *((conversation_store,) if use_unified else ()),
+            *((intent_reference,) if intent_reference else ()),
+            turn_preparer,
+            checkpoint_coordinator,
+        ),
         voice_history_builder=partial(
             context_projector.restore_context,
             character_budget=app_settings.qwen_history_character_budget),
@@ -406,14 +427,23 @@ def create_application(publish, *, task_provider=None, task_model=None,
     game_entry_inbox = None
     if app_settings.wechat_enabled or game_enabled:
         from boxagent.bootstrap.external_events import configure_external_events
-        event_host, game_entry_inbox = configure_external_events(application, app_settings,
-            builder=RuntimeRequestBuilder(persona=current_persona(), context_assembler=context_projector),
-            profile=selected.profile, environment=environment_provider, game_enabled=game_enabled)
+
+        event_host, game_entry_inbox = configure_external_events(
+            application,
+            app_settings,
+            builder=RuntimeRequestBuilder(
+                persona=current_persona(), context_assembler=context_projector
+            ),
+            profile=selected.profile,
+            environment=environment_provider,
+            game_enabled=game_enabled,
+        )
         application.runtime_resources = (*application.runtime_resources, event_host)
     from boxagent.application.camera import CameraInteractionService
 
     if sys.platform == "darwin":
         from pathlib import Path
+
         from boxagent.application.game_news import GameNewsMonitor
         from boxagent.infrastructure.games.steam import SteamGames, steam_game_topic
 
@@ -424,7 +454,9 @@ def create_application(publish, *, task_provider=None, task_model=None,
             from boxagent.bootstrap.game_companion import install_game_companion
             install_game_companion(application, app_settings, game_entry_inbox)
     application.interaction_service.companion_name = lambda: current_persona().name
-    application.camera = CameraInteractionService(application.events, application.interaction_service)
+    application.camera = CameraInteractionService(
+        application.events, application.interaction_service
+    )
     application.observer = WindowSummary(
         application.emit, context_interval or 15,
         model=app_settings.perception_model,
@@ -452,9 +484,17 @@ def create_application(publish, *, task_provider=None, task_model=None,
     def publish_lol(status: str, text: str) -> None:
         if status == "active" and not application.interaction_service.is_connected:
             status = "voice_waiting"
-            text = "对局数据正常；语音正在恢复连接" if application.state.voice == "connecting" else "对局数据正常；请开启语音以接收陪玩提醒"
-        application.events.emit("lol.companion", lol_companion_enabled=status != "off",
-                                lol_companion_status=status, lol_companion_text=text)
+            text = (
+                "对局数据正常；语音正在恢复连接"
+                if application.state.voice == "connecting"
+                else "对局数据正常；请开启语音以接收陪玩提醒"
+            )
+        application.events.emit(
+            "lol.companion",
+            lol_companion_enabled=status != "off",
+            lol_companion_status=status,
+            lol_companion_text=text,
+        )
 
     lol_client = LolLiveClient()
     application.lol_companion = LolCompanion(

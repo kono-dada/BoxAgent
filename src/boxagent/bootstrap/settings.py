@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from typing import Self
 
 from boxagent.core.paths import RESOURCE_ROOT as ROOT
 
@@ -68,12 +69,12 @@ class Settings:
             (root / ".migrated-v1").exists()
             or not (self.data_dir / "conversations/index.json").exists())
 
-    def task_run_dir(self, task_id: str, *, now=None) -> Path:
+    def task_run_dir(self, task_id: str, *, now: datetime | None = None) -> Path:
         moment = now or datetime.now().astimezone()
         return (self.runs_dir / moment.strftime("%Y-%m-%d")
                 / f"{moment.strftime('%H%M%S')}-{task_id}")
 
-    def with_log_dir(self, path: Path):
+    def with_log_dir(self, path: str | Path) -> Self:
         return replace(self, log_dir=Path(path).expanduser().resolve())
 
 
@@ -94,13 +95,13 @@ def read_optional_secret(name: str) -> str:
     return read_optional_setting(name)
 
 
-def read_secret(name, message):
+def read_secret(name: str, message: str) -> str:
     if value := read_optional_secret(name):
         return value
     raise RuntimeError(message)
 
 
-def resolve_soul_file(data_dir=None) -> Path:
+def resolve_soul_file(data_dir: str | Path | None = None) -> Path:
     if configured := os.environ.get("BOXAGENT_SOUL_FILE"):
         return Path(configured).expanduser().resolve()
     local = Path(data_dir or ROOT / ".runtime/pet") / "SOUL.md"
@@ -109,14 +110,14 @@ def resolve_soul_file(data_dir=None) -> Path:
     return ROOT / "assets/personas/default/SOUL.md"
 
 
-def read_bool(name, default=False):
+def read_bool(name: str, default: bool = False) -> bool:
     value = os.environ.get(name)
     if value is None:
         return default
     return value.strip().lower() not in {"", "0", "false", "no", "off"}
 
 
-def read_positive_int(name, default):
+def read_positive_int(name: str, default: int) -> int:
     raw = os.environ.get(name)
     value = int(raw) if raw is not None else default
     if value <= 0:
@@ -129,7 +130,7 @@ def read_renamed_setting(current: str, legacy: str, default: str | Path) -> str:
     return os.environ.get(current, os.environ.get(legacy, str(default)))
 
 
-def resolve_jev_mem_cache(data_dir):
+def resolve_jev_mem_cache(data_dir: str | Path) -> Path:
     configured = read_renamed_setting(
         "BOXAGENT_JEV_MEM_CACHE", "BOXAGENT_JEV_MEMORY_CACHE", "")
     if configured:
@@ -145,8 +146,14 @@ def resolve_jev_mem_cache(data_dir):
 DECISION_PROVIDERS = ("auto", "aliyun", "typesafe")
 
 
-def resolve_decision_model(*, provider, dashscope_key, workspace_id, region,
-                           typesafe_key):
+def resolve_decision_model(
+    *,
+    provider: str | None,
+    dashscope_key: str,
+    workspace_id: str,
+    region: str,
+    typesafe_key: str,
+) -> tuple[str, str, str, str]:
     """Choose the System One decision service shared by memory and intent.
 
     Aliyun Model Studio hosts the same System One protocol under the
@@ -170,9 +177,12 @@ def resolve_decision_model(*, provider, dashscope_key, workspace_id, region,
 
 
 def load_settings(*, log_dir: str | Path | None = None) -> Settings:
-    default_data = Path.home() / 'Library/Application Support/BoxAgent' if os.environ.get('BOXAGENT_PACKAGED') == '1' else ROOT / '.runtime/pet'
-    data = Path(os.environ.get(
-        "BOXAGENT_DATA_DIR", default_data)).expanduser().resolve()
+    default_data = (
+        Path.home() / "Library/Application Support/BoxAgent"
+        if os.environ.get("BOXAGENT_PACKAGED") == "1"
+        else ROOT / ".runtime/pet"
+    )
+    data = Path(os.environ.get("BOXAGENT_DATA_DIR", default_data)).expanduser().resolve()
     configured_log = Path(log_dir).expanduser().resolve() if log_dir else data / "logs"
     runtime = data / 'runtimes' if os.environ.get('BOXAGENT_PACKAGED') == '1' else ROOT / '.runtime'
     qwen_api_key = read_optional_secret("DASHSCOPE_API_KEY")
@@ -209,7 +219,8 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         qwen_websocket_proxy=(read_optional_setting("BOXAGENT_QWEN_WEBSOCKET_PROXY")
                               or "auto").strip().lower(),
         aoq_output_device=os.environ.get(
-            "BOXAGENT_AOQ_OUTPUT_DEVICE", read_optional_setting("BOXAGENT_AOQ_OUTPUT_DEVICE")).strip(),
+            "BOXAGENT_AOQ_OUTPUT_DEVICE", read_optional_setting("BOXAGENT_AOQ_OUTPUT_DEVICE")
+        ).strip(),
         qwen_workspace_id=qwen_workspace_id,
         qwen_region=qwen_region,
         aoq_sdk_dir=Path(read_optional_setting("BOXAGENT_AOQ_SDK_DIR")
@@ -222,9 +233,18 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         deepseek_base_url=os.environ.get("BOXAGENT_DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         deepseek_api_key=read_optional_secret("DEEPSEEK_API_KEY"),
         web_search_enabled=read_bool("BOXAGENT_WEB_SEARCH_ENABLED", True),
-        jev_mem_python=Path(read_renamed_setting(
-            "BOXAGENT_JEV_MEM_PYTHON", "BOXAGENT_JEV_MEMORY_PYTHON",
-            runtime / ("jev-mem-venv/Scripts/python.exe" if os.name == "nt" else "jev-mem-venv/bin/python"))),
+        jev_mem_python=Path(
+            read_renamed_setting(
+                "BOXAGENT_JEV_MEM_PYTHON",
+                "BOXAGENT_JEV_MEMORY_PYTHON",
+                runtime
+                / (
+                    "jev-mem-venv/Scripts/python.exe"
+                    if os.name == "nt"
+                    else "jev-mem-venv/bin/python"
+                ),
+            )
+        ),
         jev_mem_cache=resolve_jev_mem_cache(data),
         jev_mem_backend=read_renamed_setting(
             "BOXAGENT_JEV_MEM_BACKEND", "BOXAGENT_JEV_MEMORY_BACKEND", "auto"),
@@ -233,21 +253,38 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         decision_api_key=decision[1],
         decision_base_url=decision[2],
         decision_model=decision[3],
-        perception_python=Path(read_optional_setting("BOXAGENT_PERCEPTION_PYTHON")
-                               or runtime / ("vision-venv/Scripts/python.exe" if os.name == "nt" else "vision-venv/bin/python")).expanduser().absolute(),
-        perception_model=Path(read_optional_setting("BOXAGENT_PERCEPTION_MODEL")
-                              or runtime / ("models/qwen3.5-0.8b" if os.name == "nt" else "models/qwen3.5-0.8b-mlx")).expanduser().resolve(),
+        perception_python=Path(
+            read_optional_setting("BOXAGENT_PERCEPTION_PYTHON")
+            or runtime
+            / ("vision-venv/Scripts/python.exe" if os.name == "nt" else "vision-venv/bin/python")
+        )
+        .expanduser()
+        .absolute(),
+        perception_model=Path(
+            read_optional_setting("BOXAGENT_PERCEPTION_MODEL")
+            or runtime / ("models/qwen3.5-0.8b" if os.name == "nt" else "models/qwen3.5-0.8b-mlx")
+        )
+        .expanduser()
+        .resolve(),
         soul_file=resolve_soul_file(data),
         engine_watch=read_bool("BOXAGENT_ENGINE_WATCH", default=(ROOT / ".git").exists()),
-        intent_reference_enabled=(read_optional_setting("BOXAGENT_INTENT_REFERENCE") or "1").strip().lower()
-                                 not in {"0", "false", "no", "off"},
+        intent_reference_enabled=(read_optional_setting("BOXAGENT_INTENT_REFERENCE") or "1")
+        .strip()
+        .lower()
+        not in {"0", "false", "no", "off"},
         wechat_enabled=(read_optional_setting("BOXAGENT_WECHAT_ENABLED") or "0").strip().lower()
                        not in {"0", "false", "no", "off"},
         wechat_notify_all=read_bool("BOXAGENT_WECHAT_NOTIFY_ALL", default=False),
-        game_companion_enabled=(read_optional_setting("BOXAGENT_GAME_COMPANION") or "0").strip().lower()
-                               not in {"0", "false", "no", "off"},
-        wuwa_cloud_vision_enabled=(read_optional_setting("BOXAGENT_WUWA_CLOUD_VISION") or "0").strip().lower()
-                                   not in {"0", "false", "no", "off"},
-        wuwa_scene_vision_enabled=(read_optional_setting("BOXAGENT_WUWA_SCENE_VISION") or "0").strip().lower()
-                                   not in {"0", "false", "no", "off"},
+        game_companion_enabled=(read_optional_setting("BOXAGENT_GAME_COMPANION") or "0")
+        .strip()
+        .lower()
+        not in {"0", "false", "no", "off"},
+        wuwa_cloud_vision_enabled=(read_optional_setting("BOXAGENT_WUWA_CLOUD_VISION") or "0")
+        .strip()
+        .lower()
+        not in {"0", "false", "no", "off"},
+        wuwa_scene_vision_enabled=(read_optional_setting("BOXAGENT_WUWA_SCENE_VISION") or "0")
+        .strip()
+        .lower()
+        not in {"0", "false", "no", "off"},
     )

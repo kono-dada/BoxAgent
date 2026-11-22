@@ -14,8 +14,14 @@ from uuid import uuid4
 from boxagent.application.game_entry import MAX_SAMPLE_GAP, GameEntry
 from boxagent.domain.proactivity.game_entry import GameCapture, TrackedQuest
 from boxagent.domain.proactivity.game_highlight import (
-    FOLLOWUP_WINDOW, FRAME_WINDOW, HIGHLIGHT_RECEIPT_PREFIX, SCENE_MAX_AGE,
-    GameFrame, GameHighlight, GameObservation, HighlightReview,
+    FOLLOWUP_WINDOW,
+    FRAME_WINDOW,
+    HIGHLIGHT_RECEIPT_PREFIX,
+    SCENE_MAX_AGE,
+    GameFrame,
+    GameHighlight,
+    GameObservation,
+    HighlightReview,
     game_scene_reference,
 )
 
@@ -101,8 +107,11 @@ class GameCompanion:
 
     async def start(self) -> None:
         if self.task is None:
-            logger.info("wuwa.companion.start reader=%s scene=%s",
-                        "cloud" if self.recognize_quest else "local", "cloud" if self.cloud_scene else "local")
+            logger.info(
+                "wuwa.companion.start reader=%s scene=%s",
+                "cloud" if self.recognize_quest else "local",
+                "cloud" if self.cloud_scene else "local",
+            )
             self.task = asyncio.create_task(self._run(), name="wuwa-companion")
 
     async def close(self) -> None:
@@ -126,7 +135,9 @@ class GameCompanion:
     def _reset(self, source: GameSource | None) -> None:
         if self.entry is not None and (source is None or not source.same_window(self.source)):
             if source is not None:
-                logger.info("wuwa.companion.window launch=%s window=%s", source.launch, source.window)
+                logger.info(
+                    "wuwa.companion.window launch=%s window=%s", source.launch, source.window
+                )
             self.entry.pause()
             self.quest_generation += 1
             self.next_quest = 0.0
@@ -169,10 +180,16 @@ class GameCompanion:
         if source is None:
             await self.vision.pause_capture()
             return
-        if (self.active_voice() is None and self.prepare_audio is not None and now >= self.next_audio
-                and (self.audio_task is None or self.audio_task.done())):
+        if (
+            self.active_voice() is None
+            and self.prepare_audio is not None
+            and now >= self.next_audio
+            and (self.audio_task is None or self.audio_task.done())
+        ):
             self.next_audio = now + 20.0
-            self.audio_task = asyncio.create_task(self._prepare_audio(self.prepare_audio), name="wuwa-audio")
+            self.audio_task = asyncio.create_task(
+                self._prepare_audio(self.prepare_audio), name="wuwa-audio"
+            )
         if self.pending is not None and now > self.pending.expires_at:
             self.pending = None
         if self.spoken is not None and now - self.spoken[1] > FOLLOWUP_WINDOW:
@@ -200,15 +217,23 @@ class GameCompanion:
         if self.cloud_scene:
             if now >= self.next_review:
                 self.next_review = now + 3.0
-                self.review_task = asyncio.create_task(self._review(source, tuple(self.frames)[-3:]), name="wuwa-scene")
+                self.review_task = asyncio.create_task(
+                    self._review(source, tuple(self.frames)[-3:]), name="wuwa-scene"
+                )
             return
-        if self.described_since_review and len(self.frames) >= REVIEW_FRAMES and now >= self.next_review:
+        if (
+            self.described_since_review
+            and len(self.frames) >= REVIEW_FRAMES
+            and now >= self.next_review
+        ):
             frames = tuple(self.frames)
             selected = tuple(frames[round(i * (len(frames) - 1) / (REVIEW_FRAMES - 1))]
                              for i in range(REVIEW_FRAMES))
             self.next_review = now + REVIEW_PERIOD
             self.described_since_review = False
-            self.review_task = asyncio.create_task(self._review(source, selected), name="wuwa-review")
+            self.review_task = asyncio.create_task(
+                self._review(source, selected), name="wuwa-review"
+            )
         elif now >= self.next_description:
             self.next_description = now + FRAME_PERIOD
             self.described_since_review = True
@@ -222,7 +247,9 @@ class GameCompanion:
         except Exception:
             logger.warning("Wuthering Waves speaker connection unavailable", exc_info=True)
 
-    def _record_quest_frame(self, source: GameSource, capture: GameCapture, sampled_at: float) -> None:
+    def _record_quest_frame(
+        self, source: GameSource, capture: GameCapture, sampled_at: float
+    ) -> None:
         if self.recognize_quest is None:
             self._observe_quest(source, capture.quest, sampled_at)
             return
@@ -231,8 +258,11 @@ class GameCompanion:
             return
         self.next_quest = sampled_at + QUEST_PERIOD
         self.quest_task = asyncio.create_task(
-            self._read_quest(self.recognize_quest, source, capture.quest_image, sampled_at, self.quest_generation),
-            name="wuwa-quest")
+            self._read_quest(
+                self.recognize_quest, source, capture.quest_image, sampled_at, self.quest_generation
+            ),
+            name="wuwa-quest",
+        )
 
     async def _read_quest(
         self, recognize: Callable[[bytes], Awaitable[TrackedQuest | None]], source: GameSource,
@@ -248,19 +278,31 @@ class GameCompanion:
         else:
             self.quest_failed = False
         current = self.source
-        if (current is not None and generation == self.quest_generation and source.same_window(current)
-                and source.same_window(self._current_source()) and self.clock() - sampled_at <= MAX_SAMPLE_GAP):
+        if (
+            current is not None
+            and generation == self.quest_generation
+            and source.same_window(current)
+            and source.same_window(self._current_source())
+            and self.clock() - sampled_at <= MAX_SAMPLE_GAP
+        ):
             self._observe_quest(current, quest, sampled_at)
 
-    def _observe_quest(self, source: GameSource, quest: TrackedQuest | None, sampled_at: float) -> None:
+    def _observe_quest(
+        self, source: GameSource, quest: TrackedQuest | None, sampled_at: float
+    ) -> None:
         if self.entry is not None:
-            self.entry.observe(source.launch, quest, sampled_at,
-                               lambda: self.source is source and self._current_source() == source,
-                               can_announce=source.voice is not None or self.prepare_audio is not None)
+            self.entry.observe(
+                source.launch,
+                quest,
+                sampled_at,
+                lambda: self.source is source and self._current_source() == source,
+                can_announce=source.voice is not None or self.prepare_audio is not None,
+            )
 
     def _observe(self, observation: GameObservation | None) -> None:
-        if observation is not None and (not self.observations
-                                        or observation.last_seen_at > self.observations[-1].last_seen_at):
+        if observation is not None and (
+            not self.observations or observation.last_seen_at > self.observations[-1].last_seen_at
+        ):
             self.observations.append(observation)
 
     async def _describe(self, source: GameSource, frame: GameFrame) -> None:
@@ -281,13 +323,19 @@ class GameCompanion:
             result = await self.vision.review(frames)
             now = self.clock()
             highlight = GameHighlight(HIGHLIGHT_RECEIPT_PREFIX + uuid4().hex, result, latest)
-            if self.source is not source or self._current_source() != source or now >= highlight.expires_at:
+            if (
+                self.source is not source
+                or self._current_source() != source
+                or now >= highlight.expires_at
+            ):
                 return
             self._observe(result.observation)
             if self.entry is not None and self.entry.opening_pending(source.launch):
                 return
             previous = self.last_candidate_at
-            if result.scene == "fighting" and (previous is None or frames[0].captured_at > previous):
+            if result.scene == "fighting" and (
+                previous is None or frames[0].captured_at > previous
+            ):
                 self.armed = True
             is_moment = self.cloud_scene and result.scene == "moment"
             if is_moment and result.praise == self.last_moment:
@@ -352,7 +400,11 @@ class GameCompanion:
                         (now - highlight.latest_frame_at) * 1000)
 
     def entry_playback_started(self, receipt_id: str) -> None:
-        if self.entry is None or self.entry.greeting is None or self.entry.greeting.receipt != receipt_id:
+        if (
+            self.entry is None
+            or self.entry.greeting is None
+            or self.entry.greeting.receipt != receipt_id
+        ):
             return
         self.entry.playback_started(receipt_id)
         self.last_candidate_at = self.clock()

@@ -7,8 +7,7 @@ composition.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
-
+from typing import Any, Self
 
 LEDGER_VERSION = 1
 
@@ -51,7 +50,7 @@ class LedgerEvent:
                 "data": self.data}
 
     @classmethod
-    def from_payload(cls, value: dict[str, Any]):
+    def from_payload(cls, value: dict[str, Any]) -> Self:
         if not isinstance(value, dict) or not isinstance(value.get("type"), str):
             raise ValueError("Context Ledger 记录缺少 type")
         seq = value.get("seq")
@@ -105,7 +104,9 @@ def _composition(entries):
             "chars": sum(item["chars"] for item in selected),
             "tokens": sum(item["tokens"] for item in selected),
         })
-    for row, percent in zip(rows, distribute_percent([row["tokens"] for row in rows])):
+    for row, percent in zip(rows, distribute_percent([row[(
+        "tokens"
+    )] for row in rows]), strict=False):
         row["percent"] = percent
     return rows
 

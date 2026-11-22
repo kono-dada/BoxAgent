@@ -5,7 +5,6 @@ import json
 import sys
 import time
 
-
 memories = []
 for line in sys.stdin:
     request = json.loads(line)
@@ -44,7 +43,9 @@ for line in sys.stdin:
     elif operation == "forget":
         requested = set(request["memory_ids"])
         deleted = [item for item in memories if item["id"] in requested]
-        missing = [item for item in request["memory_ids"] if not any(m["id"] == item for m in memories)]
+        missing = [
+            item for item in request["memory_ids"] if not any(m["id"] == item for m in memories)
+        ]
         memories[:] = [item for item in memories if item["id"] not in requested]
         result = {"deleted": deleted, "missing": missing, "memory_count": len(memories)}
     elif operation == "shutdown":

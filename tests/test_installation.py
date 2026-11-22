@@ -1,11 +1,11 @@
 """验证安装配置保留虚拟环境身份，且读取本机配置不会执行命令。"""
 
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from boxagent.bootstrap import settings
@@ -43,7 +43,9 @@ class InstallationTests(unittest.TestCase):
         self.assertIn("需要 Python 3.12", result.stderr)
         self.assertNotIn('"run"', calls)
 
-    def _launch_fixture(self, mode: str, arguments: list[str]) -> tuple[subprocess.CompletedProcess[str], str]:
+    def _launch_fixture(
+        self, mode: str, arguments: list[str]
+    ) -> tuple[subprocess.CompletedProcess[str], str]:
         """Exercise the real shell entrypoints without network or app startup."""
         import shutil
         repo = Path(__file__).resolve().parents[1]
@@ -57,19 +59,17 @@ class InstallationTests(unittest.TestCase):
             uv_bin.mkdir(parents=True)
             log = root / "calls.jsonl"
             uv = uv_bin / "uv"
-            uv.write_text(f'''#!{sys.executable}
-import json, os, sys
-from pathlib import Path
-args = sys.argv[1:]
-with Path(os.environ["LAUNCHER_LOG"]).open("a") as stream:
-    stream.write(json.dumps({{"args": args, "UV_PYTHON_INSTALL_DIR": os.environ.get("UV_PYTHON_INSTALL_DIR")}}) + "\\n")
-if args[:2] == ["python", "find"]:
-    if os.environ["LAUNCHER_MODE"] == "missing": sys.exit(1)
-    if os.environ["LAUNCHER_MODE"] == "global" and os.environ.get("UV_PYTHON_INSTALL_DIR") and args[-1] == "3.12": sys.exit(1)
-    print(os.environ.get("LAUNCHER_PYTHON", sys.executable))
-elif args[0] == "run": sys.exit(0)
-else: sys.exit(2)
-''')
+            uv.write_text("#!"
+                f"{sys.executable}"
+                "\nimport json, os, sys\nfrom pathlib import Path\nargs = sys.argv[1:]\nwith "
+                "Path(os.environ[\"LAUNCHER_LOG\"]).open(\"a\") as stream:\n    stream.write(json."
+                "dumps({\"args\": args, \"UV_PYTHON_INSTALL_DIR\": os.environ."
+                "get(\"UV_PYTHON_INSTALL_DIR\")}) + \"\\n\")\nif args[:2] == [\"python\", "
+                "\"find\"]:\n    if os.environ[\"LAUNCHER_MODE\"] == \"missing\": sys.exit(1)\n   "
+                " if os.environ[\"LAUNCHER_MODE\"] == \"global\" and os.environ."
+                "get(\"UV_PYTHON_INSTALL_DIR\") and args[-1] == \"3.12\": sys.exit(1)\n    "
+                "print(os.environ.get(\"LAUNCHER_PYTHON\", sys.executable))\nelif args[0] == "
+                "\"run\": sys.exit(0)\nelse: sys.exit(2)\n")
             uv.chmod(0o755)
             # run-pet prepends HOME/.local/bin; use a fixture HOME to reach our uv.
             env = {"HOME": str(root), "PATH": f"{uv_bin}:/usr/bin:/bin",
@@ -114,19 +114,32 @@ else: sys.exit(2)
             state.parent.mkdir(parents=True)
             state.write_text('{}')
             registry = Mock()
-            registry.runtime.return_value.provider = 'codex'
-            with patch('boxagent.bootstrap.engine.TaskExecutor') as executor:
-                create_task_executor('abc123abc123', app_settings=configured,
-                                     registry=registry, session_id='ses_one',
-                                     session_factory=Mock(), request_builder=Mock())
-                self.assertEqual(executor.call_args.kwargs['output'],
-                                 state.parent / 'tasks/abc123abc123')
-                (root / 'sessions/.rollback-v1').touch()
-                create_task_executor('abc123abc123', app_settings=configured,
-                                     registry=registry, session_id='ses_one',
-                                     session_factory=Mock(), request_builder=Mock())
-                self.assertTrue(executor.call_args.kwargs['output'].is_relative_to(root / 'runs'))
-                self.assertEqual(executor.call_args.kwargs['run_index_path'], root / 'runs/index.jsonl')
+            registry.runtime.return_value.provider = "codex"
+            with patch("boxagent.bootstrap.engine.TaskExecutor") as executor:
+                create_task_executor(
+                    "abc123abc123",
+                    app_settings=configured,
+                    registry=registry,
+                    session_id="ses_one",
+                    session_factory=Mock(),
+                    request_builder=Mock(),
+                )
+                self.assertEqual(
+                    executor.call_args.kwargs["output"], state.parent / "tasks/abc123abc123"
+                )
+                (root / "sessions/.rollback-v1").touch()
+                create_task_executor(
+                    "abc123abc123",
+                    app_settings=configured,
+                    registry=registry,
+                    session_id="ses_one",
+                    session_factory=Mock(),
+                    request_builder=Mock(),
+                )
+                self.assertTrue(executor.call_args.kwargs["output"].is_relative_to(root / "runs"))
+                self.assertEqual(
+                    executor.call_args.kwargs["run_index_path"], root / "runs/index.jsonl"
+                )
 
     def test_perception_python_keeps_virtual_environment_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -164,7 +177,12 @@ else: sys.exit(2)
                  '"${DEEPSEEK_API_KEY-unset}" "$UV_PYTHON_BIN_DIR"',
                  "runtime-config-test", str(root), str(loader)],
                 env={"PATH": os.environ["PATH"], "UV_CACHE_DIR": str(root / "from-env")},
-                capture_output=True, text=True, check=True)
-            self.assertEqual(result.stdout.splitlines(),
-                             [str(root / "from-env"), literal, "unset", str(root / ".runtime/python/bin")])
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual(
+                result.stdout.splitlines(),
+                [str(root / "from-env"), literal, "unset", str(root / ".runtime/python/bin")],
+            )
             self.assertFalse(marker.exists())

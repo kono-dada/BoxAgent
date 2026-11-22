@@ -141,15 +141,22 @@ class DeepSeekProfileConstructor:
                 "Use add, replace, or remove. Keep values compact.",
             ],
         }
-        body = json.dumps({
-            "model": self.model,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {"role": "system", "content": "You construct a compact user profile from one admitted observation."},
-                {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
-            ],
-        }).encode()
+        body = json.dumps(
+            {
+                "model": self.model,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You construct a compact user profile from one admitted observation."
+                        ),
+                    },
+                    {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
+                ],
+            }
+        ).encode()
         request = urllib.request.Request(
             self.base_url + "/chat/completions", data=body,
             headers={"Authorization": "Bearer " + self.api_key,

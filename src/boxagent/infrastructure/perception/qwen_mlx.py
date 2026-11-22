@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal, NotRequired, TypedDict
+
 from boxagent.domain.memory.visual import VisualFrame
 from boxagent.infrastructure.perception.windows import WindowInfo, WindowRect
 
@@ -44,7 +45,9 @@ def clean_summary(text):
 def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
     """选择前台应用最上层的普通窗口；不截整屏，也不改变焦点。"""
     if sys.platform == "win32":
-        from boxagent.infrastructure.perception.windows import focused_window as windows_focused_window
+        from boxagent.infrastructure.perception.windows import (
+            focused_window as windows_focused_window,
+        )
         return windows_focused_window()
     if sys.platform != "darwin":
         raise RuntimeError(f"不支持的桌面操作系统：{sys.platform}")
@@ -53,7 +56,9 @@ def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
     if (not app or app.processIdentifier() == os.getpid()
             or (bundle_id is not None and app.bundleIdentifier() != bundle_id)):
         return None
-    return _mac_window(app.processIdentifier(), str(app.localizedName()), str(app.bundleIdentifier() or ""), {0})
+    return _mac_window(
+        app.processIdentifier(), str(app.localizedName()), str(app.bundleIdentifier() or ""), {0}
+    )
 
 
 def _mac_window(pid: int, app: str, bundle_id: str, layers: set[int]) -> WindowInfo | None:
@@ -87,14 +92,25 @@ def foreground_game() -> ForegroundGame | None:
         import AppKit as AK
         import Quartz as Q
         front = AK.NSWorkspace.sharedWorkspace().frontmostApplication()
-        if front and str(front.bundleIdentifier() or "").casefold() == "com.riotgames.leagueoflegends.gameclient":
+        if (
+            front
+            and str(front.bundleIdentifier() or "").casefold()
+            == "com.riotgames.leagueoflegends.gameclient"
+        ):
             shield = Q.CGShieldingWindowLevel()
-            window = _mac_window(front.processIdentifier(), str(front.localizedName()), str(front.bundleIdentifier()), {0, shield})
+            window = _mac_window(
+                front.processIdentifier(),
+                str(front.localizedName()),
+                str(front.bundleIdentifier()),
+                {0, shield},
+            )
             if window is None:
                 return None
             result: ForegroundGame = {"game": "lol", "bounds": window.get("bounds")}
             if window.get("layer") == shield:
-                result["shield_offset"] = shield + 1 - Q.CGWindowLevelForKey(Q.kCGScreenSaverWindowLevelKey)
+                result["shield_offset"] = (
+                    shield + 1 - Q.CGWindowLevelForKey(Q.kCGScreenSaverWindowLevelKey)
+                )
             return result
     window = focused_window()
     if window is None:
@@ -114,9 +130,27 @@ class WindowSummary:
                  window_allowed: Callable[[WindowInfo], bool] | None = None):
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
-        self.model = Path(model or self.workspace / (".runtime/models/qwen3.5-0.8b" if os.name == "nt" else ".runtime/models/qwen3.5-0.8b-mlx"))
-        self.python = Path(python or self.workspace / (".runtime/vision-venv/Scripts/python.exe" if os.name == "nt" else ".runtime/vision-venv/bin/python"))
-        self.worker_script = Path(worker_script or self.workspace / "scripts/window_summary_worker.py")
+        self.model = Path(
+            model
+            or self.workspace
+            / (
+                ".runtime/models/qwen3.5-0.8b"
+                if os.name == "nt"
+                else ".runtime/models/qwen3.5-0.8b-mlx"
+            )
+        )
+        self.python = Path(
+            python
+            or self.workspace
+            / (
+                ".runtime/vision-venv/Scripts/python.exe"
+                if os.name == "nt"
+                else ".runtime/vision-venv/bin/python"
+            )
+        )
+        self.worker_script = Path(
+            worker_script or self.workspace / "scripts/window_summary_worker.py"
+        )
         self.log_path = Path(log_path or self.workspace / ".runtime/pet/context-worker.log")
         self.max_size = max_size
         self.process = self.task = None
@@ -126,7 +160,7 @@ class WindowSummary:
         self.model_errors = None
         self.window_allowed = window_allowed
 
-    async def stop(self):
+    async def stop(self) -> None:
         self.latest_frame = None
         if self.task:
             self.task.cancel()
@@ -239,7 +273,7 @@ class WindowSummary:
             raise RuntimeError(result["error"])
         return result
 
-    async def run(self):
+    async def run(self) -> None:
         self.task = asyncio.current_task()
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -260,7 +294,7 @@ class WindowSummary:
             self.latest_frame = None
             await self._stop_model()
 
-    async def observe(self):
+    async def observe(self) -> None:
         from PIL import Image
         window = focused_window()
         if not window:

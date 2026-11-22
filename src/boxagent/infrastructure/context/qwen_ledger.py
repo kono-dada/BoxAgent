@@ -14,8 +14,12 @@ import logging
 import queue
 import threading
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Protocol
 
 from boxagent.agent.harness.instructions import PERSONA_BOUNDARY
+from boxagent.domain.context.contracts import ContextLedgerStore
 from boxagent.domain.context.estimate import estimate_tokens
 
 logger = logging.getLogger(__name__)
@@ -32,24 +36,35 @@ SYSTEM_PREFIXES = (
 NOTIFICATION_PREFIX = "[可信任务结果]"
 
 
-def _hash(text):
+def _hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
-def _measure(content, **extra):
+def _measure(content: object, **extra: object) -> dict[str, object]:
     text = content if isinstance(content, str) else json.dumps(
         content, ensure_ascii=False, separators=(",", ":"))
     return {"content": text, "chars": len(text), "tokens": estimate_tokens(text),
             **extra}
 
 
+@dataclass
 class _SessionState:
-    def __init__(self):
-        self.restoring = False
-        self.turn_open = False
-        self.turn_has_user = False
-        self.pending_reference = None
-        self.provider_items = {}
+    restoring: bool = False
+    turn_open: bool = False
+    turn_has_user: bool = False
+    pending_reference: str | None = None
+
+
+@dataclass(frozen=True)
+class _LedgerWrite:
+    session_id: str
+    kind: str
+    data: dict[str, object]
+    at: float
+
+
+class _Report(Protocol):
+    def __call__(self, event: str, /, **fields: object) -> None: ...
 
 
 class QwenContextRecorder:
@@ -57,23 +72,32 @@ class QwenContextRecorder:
 
     runtime = "qwen_realtime"
 
-    def __init__(self, store, *, model="", log=None, clock=time.time,
-                 background=False):
+    def __init__(
+        self,
+        store: ContextLedgerStore,
+        *,
+        model: str = "",
+        log: _Report | None = None,
+        clock: Callable[[], float] = time.time,
+        background: bool = False,
+    ) -> None:
         self.store = store
         self.model = model
-        self.log = log or (lambda *_args, **_kwargs: None)
+        self.log = log
         self.clock = clock
-        self.states = {}
+        self.states: dict[str, _SessionState] = {}
         self.lock = threading.Lock()
         # fsync costs milliseconds; in production the trace callback runs on
         # the Engine event loop, so a single writer thread keeps it off the
         # realtime receive path while preserving append order.
-        self.pending = queue.Queue() if background else None
+        self.pending: queue.Queue[_LedgerWrite | threading.Event] | None = (
+            queue.Queue() if background else None
+        )
         if background:
             threading.Thread(target=self._drain, name="boxagent-context-ledger",
                              daemon=True).start()
 
-    def flush(self, timeout=5.0):
+    def flush(self, timeout: float = 5.0) -> bool:
         """Block until every queued record is written (tests and shutdown)."""
         if self.pending is None:
             return True
@@ -81,27 +105,29 @@ class QwenContextRecorder:
         self.pending.put(done)
         return done.wait(timeout)
 
-    def _drain(self):
+    def _drain(self) -> None:
+        if self.pending is None:
+            return
         while True:
             item = self.pending.get()
             if isinstance(item, threading.Event):
                 item.set()
                 continue
-            self._write(*item)
+            self._write(item)
 
     # ContextObserver ---------------------------------------------------------------
 
-    def turn_started(self, session_id, *, channel):
+    def turn_started(self, session_id: str, *, channel: str) -> None:
         self._guard(session_id, "turn/start",
                     lambda state: self._start_turn(session_id, state, channel))
 
-    def turn_prepared(self, session_id, **data):
+    def turn_prepared(self, session_id: str, **data: object) -> None:
         self._guard(session_id, "turn/prepare",
                     lambda _state: self._append(session_id, "turn/prepare", data))
 
     # Trace observer ----------------------------------------------------------------
 
-    def observe(self, event, **data):
+    def observe(self, event: str, **data: object) -> None:
         """Trace-compatible observer: ``observe(event_name, **payload)``."""
         session_id = str(data.get("product_session_id") or "")
         self._guard(session_id, event,
@@ -109,7 +135,9 @@ class QwenContextRecorder:
 
     # Internal ----------------------------------------------------------------------
 
-    def _guard(self, session_id, event, action):
+    def _guard(
+        self, session_id: str, event: str, action: Callable[[_SessionState], None]
+    ) -> None:
         if not session_id:
             return
         try:
@@ -118,22 +146,24 @@ class QwenContextRecorder:
         except Exception as exc:  # noqa: BLE001 - accounting must fail open
             self._report(event, session_id, exc)
 
-    def _append(self, session_id, kind, data):
-        record = (session_id, kind, data, self.clock())
+    def _append(self, session_id: str, kind: str, data: dict[str, object]) -> None:
+        record = _LedgerWrite(session_id, kind, data, self.clock())
         if self.pending is None:
-            self._write(*record, raise_errors=True)
+            self._write(record, raise_errors=True)
         else:
             self.pending.put(record)
 
-    def _write(self, session_id, kind, data, at, *, raise_errors=False):
+    def _write(self, record: _LedgerWrite, *, raise_errors: bool = False) -> None:
         try:
-            self.store.append(session_id, kind, data, at=at)
+            self.store.append(record.session_id, record.kind, record.data, at=record.at)
         except Exception as exc:  # noqa: BLE001 - accounting must fail open
             if raise_errors:
                 raise
-            self._report(kind, session_id, exc)
+            self._report(record.kind, record.session_id, exc)
 
-    def _report(self, event, session_id, exc):
+    def _report(self, event: str, session_id: str, exc: Exception) -> None:
+        if self.log is None:
+            return
         try:
             self.log("context_ledger.record_failed", source_event=event,
                      session_id=session_id, error=repr(exc))
@@ -141,22 +171,26 @@ class QwenContextRecorder:
             logger.warning("context ledger %s failed for %s", event, session_id,
                            exc_info=exc)
 
-    def _start_turn(self, session_id, state, channel):
+    def _start_turn(self, session_id: str, state: _SessionState, channel: str) -> None:
         state.restoring = False
         state.turn_open = True
         state.turn_has_user = False
         self._append(session_id, "turn/start", {"channel": channel})
 
-    def _user(self, session_id, state, text, channel):
+    def _user(self, session_id: str, state: _SessionState, text: str, channel: str) -> None:
         if not state.turn_open or state.turn_has_user:
             self._start_turn(session_id, state, channel)
         state.turn_has_user = True
         self._append(session_id, "user/message", _measure(
             text, category="user", role="user", channel=channel))
 
-    def _observe(self, session_id, state, event, data):
+    def _observe(
+        self, session_id: str, state: _SessionState, event: str, data: dict[str, object]
+    ) -> None:
         if event == "client.request":
-            self._request(session_id, state, data.get("request") or {})
+            request = data.get("request")
+            if isinstance(request, dict):
+                self._request(session_id, state, request)
         elif event == "history.injected":
             state.restoring = False
         elif event == "input_audio_buffer.speech_started":
@@ -173,7 +207,6 @@ class QwenContextRecorder:
             self._append(session_id, "context/bound", {
                 "content": seq, "item_id": data.get("item_id"),
                 "query_id": data.get("query_id")})
-            state.provider_items[data.get("item_id")] = seq
         elif event == "reference.expired":
             self._append(session_id, "context/expired", {
                 "item_id": data.get("item_id"), "query_id": data.get("query_id")})
@@ -194,21 +227,32 @@ class QwenContextRecorder:
                 name=str(data.get("name") or ""),
                 call_id=str(data.get("call_id") or "")))
 
-    def _request(self, session_id, state, request):
+    def _request(
+        self, session_id: str, state: _SessionState, request: dict[str, object]
+    ) -> None:
         kind = request.get("type")
         if kind == "session.update":
-            self._session_update(session_id, state, request.get("session") or {})
+            session = request.get("session")
+            self._session_update(session_id, state, session if isinstance(session, dict) else {})
         elif kind == "response.create":
             state.restoring = False
             self._append(session_id, "response/requested", {})
         elif kind == "conversation.item.create":
-            self._item(session_id, state, request.get("item") or {})
+            item = request.get("item")
+            if isinstance(item, dict):
+                self._item(session_id, state, item)
         elif kind == "conversation.item.delete":
-            self._append(session_id, "context/delete_requested", {"item_id": request.get("item_id")})
+            self._append(
+                session_id, "context/delete_requested", {"item_id": request.get("item_id")}
+            )
 
-    def _session_update(self, session_id, state, session):
+    def _session_update(
+        self, session_id: str, state: _SessionState, session: dict[str, object]
+    ) -> None:
         instructions = str(session.get("instructions") or "")
-        tools = session.get("tools") or []
+        raw_tools = session.get("tools")
+        tools = raw_tools if isinstance(raw_tools, list) else []
+        turn_detection = session.get("turn_detection")
         state.restoring = True
         state.turn_open = False
         state.turn_has_user = False
@@ -216,7 +260,9 @@ class QwenContextRecorder:
             "runtime": self.runtime, "model": self.model,
             "instructions_hash": _hash(instructions),
             "tools_hash": _hash(json.dumps(tools, ensure_ascii=False, sort_keys=True)),
-            "turn_detection": (session.get("turn_detection") or {}).get("type", ""),
+            "turn_detection": (
+                turn_detection.get("type", "") if isinstance(turn_detection, dict) else ""
+            ),
         })
         base, marker, persona = instructions.partition(PERSONA_MARKER)
         self._append(session_id, "system/message", _measure(
@@ -229,7 +275,7 @@ class QwenContextRecorder:
             names=[(item.get("function") or item).get("name", "")
                    for item in tools if isinstance(item, dict)]))
 
-    def _item(self, session_id, state, item):
+    def _item(self, session_id: str, state: _SessionState, item: dict[str, object]) -> None:
         item_type = item.get("type")
         if item_type == "function_call_output":
             self._append(session_id, "tool/result", _measure(
@@ -239,8 +285,9 @@ class QwenContextRecorder:
         if item_type != "message":
             return
         role = item.get("role")
-        text = "".join(str(part.get("text") or "")
-                       for part in item.get("content") or [] if isinstance(part, dict))
+        raw_content = item.get("content")
+        content = raw_content if isinstance(raw_content, list) else []
+        text = "".join(str(part.get("text") or "") for part in content if isinstance(part, dict))
         if role == "system":
             category = next((name for prefix, name in SYSTEM_PREFIXES
                              if text.startswith(prefix)), "system_other")

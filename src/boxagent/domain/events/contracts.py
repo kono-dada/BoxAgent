@@ -1,5 +1,6 @@
 """An accepted receipt means the consumer durably owns the event."""
 from typing import Protocol
+
 from boxagent.domain.events.models import EventBatch, EventDecision, EventEnvelope, EventReceipt
 
 

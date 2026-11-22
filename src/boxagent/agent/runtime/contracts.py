@@ -1,10 +1,10 @@
 """Stable ports implemented by Agent Runtimes."""
 
-from typing import Awaitable, Callable, Protocol
+from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 from boxagent.agent.runtime.models import RuntimeRequest
 from boxagent.domain.events.models import EventDecision
-
 
 ToolCall = Callable[[str, dict], Awaitable[dict]]
 ResultValidator = Callable[[str], dict]

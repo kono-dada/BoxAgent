@@ -10,14 +10,14 @@ import email
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import shutil
 import subprocess
 import sys
 import tempfile
-from typing import TypedDict
 import zipfile
+from pathlib import Path
+from typing import TypedDict
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_VERSION = '3.12.9'
@@ -41,7 +41,11 @@ def command(arguments: list[str], *, env: dict[str, str] | None = None) -> None:
 
 def wheel_identity(file: Path) -> tuple[str, str]:
     with zipfile.ZipFile(file) as archive:
-        names = [name for name in archive.namelist() if len(Path(name).parts) == 2 and name.endswith('.dist-info/METADATA')]
+        names = [
+            name
+            for name in archive.namelist()
+            if len(Path(name).parts) == 2 and name.endswith(".dist-info/METADATA")
+        ]
         if len(names) != 1 or archive.testzip() is not None:
             raise ValueError(f'Invalid wheel: {file.name}')
         metadata = email.message_from_bytes(archive.read(names[0]))
@@ -53,8 +57,12 @@ def wheel_identity(file: Path) -> tuple[str, str]:
 
 def sign_wheel(file: Path, output: Path, *, identity: str) -> Path:
     with zipfile.ZipFile(file) as archive:
-        native = any(archive.read(name)[:4] in {b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'}
-                     for name in archive.namelist() if not name.endswith('/') and name.endswith(('.so', '.dylib')))
+        native = any(
+            archive.read(name)[:4]
+            in {b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca"}
+            for name in archive.namelist()
+            if not name.endswith("/") and name.endswith((".so", ".dylib"))
+        )
     if not native:
         shutil.copy2(file, output / file.name)
         return output / file.name
@@ -66,10 +74,15 @@ def sign_wheel(file: Path, output: Path, *, identity: str) -> Path:
             if member.is_file() and not member.is_symlink():
                 with member.open('rb') as stream:
                     magic = stream.read(4)
-                if magic in {b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'}:
-                    args = ['codesign', '--force', '--sign', identity]
-                    if identity != '-':
-                        args.extend(['--options', 'runtime', '--timestamp'])
+                if magic in {
+                    b"\xcf\xfa\xed\xfe",
+                    b"\xfe\xed\xfa\xcf",
+                    b"\xca\xfe\xba\xbe",
+                    b"\xbe\xba\xfe\xca",
+                }:
+                    args = ["codesign", "--force", "--sign", identity]
+                    if identity != "-":
+                        args.extend(["--options", "runtime", "--timestamp"])
                     command([*args, str(member)])
         command([sys.executable, '-m', 'wheel', 'pack', str(unpacked), '--dest-dir', str(output)])
     return output / file.name
@@ -83,23 +96,57 @@ def prepare_wheels(group: str, output: Path, *, identity: str) -> None:
         source.mkdir()
         repaired = working / 'repaired'
         repaired.mkdir()
-        requirements = working / 'requirements.txt'
-        if group == 'core':
-            command(['uv', 'export', '--script', 'scripts/pet.py', '--locked', '--output-file', str(requirements)])
+        requirements = working / "requirements.txt"
+        if group == "core":
+            command(
+                [
+                    "uv",
+                    "export",
+                    "--script",
+                    "scripts/pet.py",
+                    "--locked",
+                    "--output-file",
+                    str(requirements),
+                ]
+            )
         else:
-            requirements.write_bytes((ROOT / f'scripts/requirements/{"jev-mem" if group == "jev" else "vision"}.lock.txt').read_bytes())
-        if group == 'core':
+            requirements.write_bytes(
+                (
+                    ROOT
+                    / f"scripts/requirements/{'jev-mem' if group == 'jev' else 'vision'}.lock.txt"
+                ).read_bytes()
+            )
+        if group == "core":
             # PyAudio is built on the maker's machine and its PortAudio is vendored below.
             command([sys.executable, '-m', 'pip', 'wheel', '--no-deps', '--no-cache-dir',
                      '--wheel-dir', str(source), '-r', str(requirements)],
                     env={**os.environ, 'MACOSX_DEPLOYMENT_TARGET': '14.0'})
         else:
-            command([sys.executable, '-m', 'pip', 'download', '--no-deps', '--only-binary=:all:',
-                     '--platform', 'macosx_14_0_arm64', '--python-version', '312', '--implementation', 'cp',
-                     '--abi', 'cp312', '--dest', str(source), '-r', str(requirements)])
-        identities = dict(wheel_identity(wheel) for wheel in source.glob('*.whl'))
-        if 'mlx' in identities and identities.get('mlx-metal') != identities['mlx']:
-            raise RuntimeError('MLX requires its matching mlx-metal wheel')
+            command(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "download",
+                    "--no-deps",
+                    "--only-binary=:all:",
+                    "--platform",
+                    "macosx_14_0_arm64",
+                    "--python-version",
+                    "312",
+                    "--implementation",
+                    "cp",
+                    "--abi",
+                    "cp312",
+                    "--dest",
+                    str(source),
+                    "-r",
+                    str(requirements),
+                ]
+            )
+        identities = dict(wheel_identity(wheel) for wheel in source.glob("*.whl"))
+        if "mlx" in identities and identities.get("mlx-metal") != identities["mlx"]:
+            raise RuntimeError("MLX requires its matching mlx-metal wheel")
         provenance: dict[str, str] = {}
         for wheel in sorted(source.glob('*.whl')):
             provenance[wheel.name] = digest(wheel)
@@ -110,9 +157,19 @@ def prepare_wheels(group: str, output: Path, *, identity: str) -> None:
                 shutil.copy2(wheel, repaired / wheel.name)
                 continue
             # delocate vendors Homebrew/other non-system libraries and repairs load paths.
-            command([sys.executable, '-m', 'delocate.cmd.delocate_wheel', '--require-archs', 'arm64',
-                     '--wheel-dir', str(repaired), str(wheel)])
-        final = output / 'wheels'
+            command(
+                [
+                    sys.executable,
+                    "-m",
+                    "delocate.cmd.delocate_wheel",
+                    "--require-archs",
+                    "arm64",
+                    "--wheel-dir",
+                    str(repaired),
+                    str(wheel),
+                ]
+            )
+        final = output / "wheels"
         final.mkdir()
         locks: list[str] = []
         for wheel in sorted(repaired.glob('*.whl')):
@@ -134,16 +191,28 @@ def copy_source(stage: Path) -> None:
         shutil.copytree(ROOT / directory, target / directory, ignore=ignored)
     scripts = target / 'scripts'
     scripts.mkdir()
-    for name in ('jev_mem_worker.py', 'window_summary_worker.py', 'game-window-stream.swift', 'intent_worker.py', 'codex_computer_use.py',
-                 'computer_use.py', 'computer-use-mcp-client.mjs', 'verify-computer-use.mjs'):
-        shutil.copy2(ROOT / 'scripts' / name, scripts / name)
-    shutil.copytree(ROOT / 'scripts/model-manifests', scripts / 'model-manifests')
-    shutil.copytree(ROOT / 'scripts/wechat-clients', scripts / 'wechat-clients')
-    if not (target / 'assets/vrm/viewer.js').is_file():
-        raise RuntimeError('Build the VRM viewer first: pnpm --dir web/vrm build')
-    for file in (target / 'assets').rglob('*'):
-        if file.is_file() and file.stat().st_size < 200 and file.read_bytes().startswith(b'version https://git-lfs.github.com'):
-            raise RuntimeError(f'Unresolved Git LFS asset: {file.relative_to(target)}')
+    for name in (
+        "jev_mem_worker.py",
+        "window_summary_worker.py",
+        "game-window-stream.swift",
+        "intent_worker.py",
+        "codex_computer_use.py",
+        "computer_use.py",
+        "computer-use-mcp-client.mjs",
+        "verify-computer-use.mjs",
+    ):
+        shutil.copy2(ROOT / "scripts" / name, scripts / name)
+    shutil.copytree(ROOT / "scripts/model-manifests", scripts / "model-manifests")
+    shutil.copytree(ROOT / "scripts/wechat-clients", scripts / "wechat-clients")
+    if not (target / "assets/vrm/viewer.js").is_file():
+        raise RuntimeError("Build the VRM viewer first: pnpm --dir web/vrm build")
+    for file in (target / "assets").rglob("*"):
+        if (
+            file.is_file()
+            and file.stat().st_size < 200
+            and file.read_bytes().startswith(b"version https://git-lfs.github.com")
+        ):
+            raise RuntimeError(f"Unresolved Git LFS asset: {file.relative_to(target)}")
 
 
 def prepare_notices(resources: Path) -> None:
@@ -163,12 +232,19 @@ def prepare_notices(resources: Path) -> None:
             with zipfile.ZipFile(wheel) as archive:
                 for member in archive.namelist():
                     parts = Path(member).parts
-                    if len(parts) < 2 or not parts[0].endswith('.dist-info') or member.endswith('/'):
+                    if (
+                        len(parts) < 2
+                        or not parts[0].endswith(".dist-info")
+                        or member.endswith("/")
+                    ):
                         continue
-                    if '..' in parts or Path(member).is_absolute():
-                        raise ValueError('Invalid wheel license path')
-                    if parts[1] == 'licenses' or any(word in Path(member).name.lower() for word in ('license', 'copying', 'notice')):
-                        target = notices / group / f'{name}-{version}' / Path(*parts[1:])
+                    if ".." in parts or Path(member).is_absolute():
+                        raise ValueError("Invalid wheel license path")
+                    if parts[1] == "licenses" or any(
+                        word in Path(member).name.lower()
+                        for word in ("license", "copying", "notice")
+                    ):
+                        target = notices / group / f"{name}-{version}" / Path(*parts[1:])
                         target.parent.mkdir(parents=True, exist_ok=True)
                         target.write_bytes(archive.read(member))
     (notices / 'python-packages.md').write_text('\n'.join(inventory) + '\n')
@@ -203,18 +279,36 @@ def prepare(output: Path, *, identity: str, aoq: Path | None,
         stage = Path(temporary)
         uv = shutil.which('uv')
         if not uv:
-            raise RuntimeError('uv is required on the build machine')
-        install = stage / 'managed-python'
-        command([uv, 'python', 'install', '--install-dir', str(install), PYTHON_VERSION])
-        python_root = next(path for path in install.iterdir() if path.is_dir() and path.name.startswith('cpython-'))
-        shutil.copytree(python_root, stage / 'python', symlinks=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+            raise RuntimeError("uv is required on the build machine")
+        install = stage / "managed-python"
+        command([uv, "python", "install", "--install-dir", str(install), PYTHON_VERSION])
+        python_root = next(
+            path for path in install.iterdir() if path.is_dir() and path.name.startswith("cpython-")
+        )
+        shutil.copytree(
+            python_root,
+            stage / "python",
+            symlinks=True,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
         shutil.rmtree(install)
         shutil.copy2(uv, stage / 'uv')
         copy_source(stage)
-        command([sys.executable, '-m', 'boxagent.entrypoints.wechat_distribution',
-                 '--source', str(wechat_source), '--output', str(stage / 'wechat')],
-                env={**os.environ, 'PYTHONPATH': str(ROOT / 'src')})
-        (stage / 'build-identity.json').write_text(json.dumps({'wheelSigningIdentity': identity}) + '\n')
+        command(
+            [
+                sys.executable,
+                "-m",
+                "boxagent.entrypoints.wechat_distribution",
+                "--source",
+                str(wechat_source),
+                "--output",
+                str(stage / "wechat"),
+            ],
+            env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        )
+        (stage / "build-identity.json").write_text(
+            json.dumps({"wheelSigningIdentity": identity}) + "\n"
+        )
         if aoq:
             for framework in ('AoqClientSdk.framework', 'PluginOpus.framework'):
                 if not (aoq / framework).is_dir():
@@ -223,23 +317,52 @@ def prepare(output: Path, *, identity: str, aoq: Path | None,
                 shutil.copytree(aoq / framework, stage / 'native/aoq' / framework, symlinks=True,
                                 ignore=shutil.ignore_patterns('__MACOSX', '.DS_Store', '._*'))
         else:
-            raise RuntimeError('Provide official AOQ frameworks with --aoq-dir; do not ship a silent fallback')
+            raise RuntimeError(
+                "Provide official AOQ frameworks with --aoq-dir; do not ship a silent fallback"
+            )
         for group in GROUPS:
-            lock = ROOT / ('scripts/pet.py.lock' if group == 'core' else f'scripts/requirements/{"jev-mem" if group == "jev" else "vision"}.lock.txt')
-            recipe = hashlib.sha256((digest(lock) + PYTHON_VERSION + identity + WHEEL_RECIPE).encode()).hexdigest()
-            cached = ROOT / '.runtime/package-cache' / group / recipe
-            complete = cached / 'complete.json'
+            lock = ROOT / (
+                "scripts/pet.py.lock"
+                if group == "core"
+                else f"scripts/requirements/{'jev-mem' if group == 'jev' else 'vision'}.lock.txt"
+            )
+            recipe = hashlib.sha256(
+                (digest(lock) + PYTHON_VERSION + identity + WHEEL_RECIPE).encode()
+            ).hexdigest()
+            cached = ROOT / ".runtime/package-cache" / group / recipe
+            complete = cached / "complete.json"
             if not complete.is_file():
                 cached.parent.mkdir(parents=True, exist_ok=True)
                 if cached.exists():
                     shutil.rmtree(cached)
                 prepare_wheels(group, cached, identity=identity)
-                complete.write_text(json.dumps({'files': [{'path': p.relative_to(cached).as_posix(), 'sha256': digest(p)}
-                    for p in sorted(cached.rglob('*')) if p.is_file()]}) + '\n')
+                complete.write_text(
+                    json.dumps(
+                        {
+                            "files": [
+                                {"path": p.relative_to(cached).as_posix(), "sha256": digest(p)}
+                                for p in sorted(cached.rglob("*"))
+                                if p.is_file()
+                            ]
+                        }
+                    )
+                    + "\n"
+                )
             inventory = json.loads(complete.read_text())
-            if any(digest(cached / record['path']) != record['sha256'] for record in inventory['files']):
-                raise RuntimeError(f'Invalid prepared cache for {group}; remove only this cache directory: {cached}')
-            shutil.copytree(cached, stage / 'python-dependencies' / group, ignore=shutil.ignore_patterns('complete.json'))
+            if any(
+                digest(cached / record["path"]) != record["sha256"] for record in inventory["files"]
+            ):
+                raise RuntimeError(
+                    "Invalid prepared cache for "
+                    f"{group}"
+                    "; remove only this cache directory: "
+                    f"{cached}"
+                )
+            shutil.copytree(
+                cached,
+                stage / "python-dependencies" / group,
+                ignore=shutil.ignore_patterns("complete.json"),
+            )
         clean_aoq(stage)
         prepare_notices(stage)
         refresh_manifest(stage)
@@ -252,16 +375,38 @@ def prepare(output: Path, *, identity: str, aoq: Path | None,
 def refresh_manifest(resources: Path) -> None:
     """Recompute identities after signing; Engine source is independent of venv identity."""
     records: list[FileRecord] = []
-    for file in sorted(resources.rglob('*')):
-        if file.is_file() and not file.is_symlink() and file.name != 'runtime-manifest.json':
-            records.append({'path': file.relative_to(resources).as_posix(), 'sha256': digest(file)})
-    python_hash = hashlib.sha256(json.dumps([r for r in records if r['path'].startswith('python/')], sort_keys=True).encode()).hexdigest()
-    groups = {group: hashlib.sha256((python_hash + digest(resources / f'python-dependencies/{group}/requirements.lock')).encode()).hexdigest() for group in GROUPS}
-    (resources / 'runtime-manifest.json').write_text(json.dumps({'version': 1, 'pythonVersion': PYTHON_VERSION,
-        'platform': 'macos-arm64', 'groups': groups, 'files': records}, indent=2) + '\n')
+    for file in sorted(resources.rglob("*")):
+        if file.is_file() and not file.is_symlink() and file.name != "runtime-manifest.json":
+            records.append({"path": file.relative_to(resources).as_posix(), "sha256": digest(file)})
+    python_hash = hashlib.sha256(
+        json.dumps([r for r in records if r["path"].startswith("python/")], sort_keys=True).encode()
+    ).hexdigest()
+    groups = {
+        group: hashlib.sha256(
+            (
+                python_hash + digest(resources / f"python-dependencies/{group}/requirements.lock")
+            ).encode()
+        ).hexdigest()
+        for group in GROUPS
+    }
+    (resources / "runtime-manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "pythonVersion": PYTHON_VERSION,
+                "platform": "macos-arm64",
+                "groups": groups,
+                "files": records,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
 
 
-def refresh_source(resources: Path, *, wechat_source: Path = Path('/Applications/WeChat.app')) -> None:
+def refresh_source(
+    resources: Path, *, wechat_source: Path = Path("/Applications/WeChat.app")
+) -> None:
     resources = resources.resolve()
     if not resources.is_relative_to(ROOT / '.runtime'):
         raise ValueError('Source refresh is limited to .runtime staging')
@@ -280,20 +425,29 @@ def refresh_source(resources: Path, *, wechat_source: Path = Path('/Applications
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, default=ROOT / '.runtime/package-resources')
-    parser.add_argument('--aoq-dir', type=Path)
-    archive = ROOT / '.runtime/package-resources/wechat/4.1.15.270115.dmg'
-    parser.add_argument('--wechat-source', type=Path, default=archive if archive.is_file() else Path('/Applications/WeChat.app'))
-    parser.add_argument('--sign-identity', default='-')
-    parser.add_argument('--refresh-manifest', type=Path)
-    parser.add_argument('--refresh-source', type=Path)
+    parser.add_argument("--output", type=Path, default=ROOT / ".runtime/package-resources")
+    parser.add_argument("--aoq-dir", type=Path)
+    archive = ROOT / ".runtime/package-resources/wechat/4.1.15.270115.dmg"
+    parser.add_argument(
+        "--wechat-source",
+        type=Path,
+        default=archive if archive.is_file() else Path("/Applications/WeChat.app"),
+    )
+    parser.add_argument("--sign-identity", default="-")
+    parser.add_argument("--refresh-manifest", type=Path)
+    parser.add_argument("--refresh-source", type=Path)
     args = parser.parse_args()
     if args.refresh_source:
         refresh_source(args.refresh_source, wechat_source=args.wechat_source)
     elif args.refresh_manifest:
         refresh_manifest(args.refresh_manifest)
     else:
-        prepare(args.output, identity=args.sign_identity, aoq=args.aoq_dir, wechat_source=args.wechat_source)
+        prepare(
+            args.output,
+            identity=args.sign_identity,
+            aoq=args.aoq_dir,
+            wechat_source=args.wechat_source,
+        )
 
 
 if __name__ == '__main__':

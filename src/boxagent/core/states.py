@@ -1,8 +1,9 @@
 """Immutable-shape application state and presentation projection."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Awaitable, Callable, Literal, Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict
 
 
 class VoiceState(StrEnum):
@@ -101,17 +102,17 @@ class Snapshot:
     avatar_action_id: str = ""
     revision: int = 0
 
-    def payload(self):
+    def payload(self) -> dict[str, object]:
         return asdict(self)
 
 
 Emit = Callable[..., None]
-Approval = Callable[[dict], Awaitable[bool]]
+Approval = Callable[[dict[str, object]], Awaitable[bool]]
 
 
 class Executor(Protocol):
     async def run(self, goal: str, progress: Callable[[str], None],
-                  approve: Approval) -> dict: ...
+                  approve: Approval) -> dict[str, object]: ...
 
     async def cancel(self) -> None: ...
 

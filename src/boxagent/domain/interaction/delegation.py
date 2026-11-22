@@ -7,9 +7,13 @@ from typing import Literal
 
 
 def probability(value: object) -> float | None:
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        if math.isfinite(value) and 0 <= value <= 1:
-            return float(value)
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and 0 <= value <= 1
+    ):
+        return float(value)
     return None
 
 

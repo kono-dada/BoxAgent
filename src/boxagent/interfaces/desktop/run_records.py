@@ -54,7 +54,9 @@ class SessionRunRecords:
             name = f"{date}-{directory.name}"
             expected.add(name)
             link = view / name
-            if (link.is_symlink() or link.is_junction()) and link.resolve(strict=False) == directory:
+            if (link.is_symlink() or link.is_junction()) and link.resolve(
+                strict=False
+            ) == directory:
                 continue
             if link.is_symlink():
                 link.unlink()

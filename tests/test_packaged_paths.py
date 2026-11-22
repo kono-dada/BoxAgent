@@ -24,6 +24,7 @@ def test_packaged_mode_does_not_read_source_env_file(monkeypatch) -> None:
 
 def test_startup_memory_probe_uses_the_selected_dashscope_decision_service(monkeypatch) -> None:
     import os
+
     from boxagent.bootstrap import startup
 
     monkeypatch.setenv('BOXAGENT_PACKAGED', '1')
@@ -34,9 +35,16 @@ def test_startup_memory_probe_uses_the_selected_dashscope_decision_service(monke
     for name in ('TYPESAFE_API_KEY', 'TYPESAFE_BASE_URL', 'TYPESAFE_DEFAULT_MODEL'):
         monkeypatch.delenv(name, raising=False)
     observed = {}
-    monkeypatch.setattr(startup, 'run_probe', lambda: observed.update({
-        key: os.environ.get(key) for key in ('TYPESAFE_API_KEY', 'TYPESAFE_BASE_URL', 'TYPESAFE_DEFAULT_MODEL')
-    }))
+    monkeypatch.setattr(
+        startup,
+        "run_probe",
+        lambda: observed.update(
+            {
+                key: os.environ.get(key)
+                for key in ("TYPESAFE_API_KEY", "TYPESAFE_BASE_URL", "TYPESAFE_DEFAULT_MODEL")
+            }
+        ),
+    )
     startup.main()
     assert observed['TYPESAFE_API_KEY'] == 'test-local-key'
     assert observed['TYPESAFE_BASE_URL'] == 'https://test-workspace.cn-beijing.maas.aliyuncs.com/compatible-mode'

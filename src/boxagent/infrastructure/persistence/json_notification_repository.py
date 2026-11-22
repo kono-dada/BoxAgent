@@ -7,7 +7,6 @@ from pathlib import Path
 
 from boxagent.domain.notification import NotificationItem
 
-
 SCHEMA_VERSION = 1
 
 
@@ -16,7 +15,7 @@ class JsonNotificationRepository:
         self.path = Path(path)
         self.lock = threading.RLock()
 
-    def start(self):
+    def start(self) -> None:
         with self.lock:
             if not self.path.exists():
                 self._write({"schema_version": SCHEMA_VERSION, "items": []})
@@ -52,7 +51,9 @@ class JsonNotificationRepository:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         temporary = self.path.with_name(self.path.name + ".tmp")
-        descriptor = os.open(temporary, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+        descriptor = os.open(
+            temporary, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_NOFOLLOW, 0o600
+        )
         os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             json.dump(value, stream, ensure_ascii=False, separators=(",", ":"))

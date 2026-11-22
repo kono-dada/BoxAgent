@@ -1,9 +1,9 @@
 """Privacy-bounded local time context capture."""
 
 import os
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
 
 from boxagent.domain.environment import EnvironmentContext
 

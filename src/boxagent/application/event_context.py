@@ -13,7 +13,9 @@ from boxagent.domain.events.models import EventBatch
 
 
 class EventMemory(Protocol):
-    async def evidence(self, query: str, *, session_id: str = "", top_k: int = 5) -> Iterable[object]: ...
+    async def evidence(
+        self, query: str, *, session_id: str = "", top_k: int = 5
+    ) -> Iterable[object]: ...
 
 
 class SourceContext(Protocol):

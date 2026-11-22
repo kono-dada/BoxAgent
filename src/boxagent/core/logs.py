@@ -17,7 +17,8 @@ import json
 import logging
 import logging.handlers
 import traceback
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from datetime import UTC, datetime
 
 from boxagent.core.errors import redact
 
@@ -26,7 +27,7 @@ _context = {name: contextvars.ContextVar(f"boxagent_{name}", default="")
             for name in _CONTEXT_FIELDS}
 
 
-def bind_log_context(**ids):
+def bind_log_context(**ids: object) -> None:
     """Attach correlation ids to every record logged later in this context.
 
     ``contextvars`` follow asyncio tasks: values set inside a task are visible
@@ -41,7 +42,7 @@ def bind_log_context(**ids):
 
 
 @contextlib.contextmanager
-def log_context(**ids):
+def log_context(**ids: object) -> Iterator[None]:
     """Temporarily bind correlation ids; restores the previous values."""
     tokens = []
     for name, value in ids.items():
@@ -55,23 +56,23 @@ def log_context(**ids):
             _context[name].reset(token)
 
 
-def current_log_context():
+def current_log_context() -> dict[str, str]:
     return {name: var.get() for name, var in _context.items() if var.get()}
 
 
-def iso_time(created):
-    return datetime.fromtimestamp(created, timezone.utc).isoformat(
+def iso_time(created: float) -> str:
+    return datetime.fromtimestamp(created, UTC).isoformat(
         timespec="milliseconds")
 
 
 class JsonFormatter(logging.Formatter):
     """One redacted JSON object per record."""
 
-    def __init__(self, process):
+    def __init__(self, process: str) -> None:
         super().__init__()
         self.process = process
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         entry = {
             "ts": iso_time(record.created),
             "level": record.levelname.lower(),
@@ -90,7 +91,7 @@ class JsonFormatter(logging.Formatter):
             exc_text = "".join(traceback.format_exception(*record.exc_info))
         if exc_text:
             entry["exc_type"] = getattr(record, "exc_type", "") or (
-                record.exc_info[0].__name__ if record.exc_info else "")
+                record.exc_info[0].__name__ if record.exc_info and record.exc_info[0] else "")
             entry["exc"] = exc_text
         if record.stack_info:
             entry["stack"] = record.stack_info
@@ -101,22 +102,26 @@ class JsonFormatter(logging.Formatter):
 class EnqueueHandler(logging.handlers.QueueHandler):
     """Capture everything time- or context-dependent before crossing threads."""
 
-    def prepare(self, record):
+    def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
         record = copy.copy(record)
         record.message = record.getMessage()
         record.msg, record.args = record.message, None
         if record.exc_info:
-            record.exc_type = record.exc_info[0].__name__
+            exc_type = record.exc_info[0]
+            if exc_type is not None:
+                vars(record)["exc_type"] = exc_type.__name__
             record.exc_text = "".join(traceback.format_exception(*record.exc_info))
             record.exc_info = None
-        record.boxagent_context = current_log_context()
+        vars(record)["boxagent_context"] = current_log_context()
         return record
 
 
 crash_logger = logging.getLogger("boxagent.crash")
 
 
-def asyncio_exception_handler(loop, context):
+def asyncio_exception_handler(
+    loop: asyncio.AbstractEventLoop, context: dict[str, object]
+) -> None:
     """Log an asyncio loop error as one structured record.
 
     It replaces the loop's default handler, which would only print the same
@@ -126,12 +131,14 @@ def asyncio_exception_handler(loop, context):
     crash_logger.error(
         "asyncio: %s", context.get("message") or repr(exception),
         exc_info=(type(exception), exception, exception.__traceback__)
-        if exception is not None else None,
+        if isinstance(exception, BaseException) else None,
         extra={"data": {key: repr(value) for key, value in context.items()
                         if key not in {"message", "exception"}}})
 
 
-def install_asyncio_handler(loop=None):
+def install_asyncio_handler(
+    loop: asyncio.AbstractEventLoop | None = None,
+) -> asyncio.AbstractEventLoop:
     loop = loop or asyncio.get_running_loop()
     loop.set_exception_handler(asyncio_exception_handler)
     return loop

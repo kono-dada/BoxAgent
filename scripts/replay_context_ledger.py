@@ -27,7 +27,6 @@ from boxagent.infrastructure.persistence.jsonl_context_ledger import (  # noqa: 
     JsonlContextLedgerStore,
 )
 
-
 DATA = ROOT / ".runtime/pet"
 
 

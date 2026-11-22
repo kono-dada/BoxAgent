@@ -8,7 +8,6 @@ from pathlib import Path
 
 from boxagent.domain.skill import SkillDraft
 
-
 DRAFT_ID = re.compile(r"^skd_[a-f0-9]{16}$")
 
 

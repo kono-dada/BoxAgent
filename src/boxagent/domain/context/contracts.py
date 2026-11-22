@@ -1,13 +1,14 @@
 """Ports for per-Session Context Ledgers."""
 
-from typing import Any, Protocol
+from typing import Protocol
 
 from boxagent.domain.context.models import LedgerEvent
 
 
 class ContextLedgerStore(Protocol):
-    def append(self, session_id: str, event_type: str,
-               data: dict[str, Any]) -> LedgerEvent: ...
+    def append(
+        self, session_id: str, event_type: str, data: dict[str, object], *, at: float | None = None
+    ) -> LedgerEvent: ...
 
     def read(self, session_id: str) -> list[LedgerEvent]: ...
 
@@ -20,12 +21,12 @@ class ContextObserver(Protocol):
 
     def turn_started(self, session_id: str, *, channel: str) -> None: ...
 
-    def turn_prepared(self, session_id: str, **data: Any) -> None: ...
+    def turn_prepared(self, session_id: str, **data: object) -> None: ...
 
 
 class NullContextObserver:
-    def turn_started(self, session_id, *, channel):
+    def turn_started(self, session_id: str, *, channel: str) -> None:
         return None
 
-    def turn_prepared(self, session_id, **data):
+    def turn_prepared(self, session_id: str, **data: object) -> None:
         return None

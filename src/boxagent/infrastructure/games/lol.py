@@ -4,7 +4,7 @@ import json
 import math
 import ssl
 from urllib.error import HTTPError, URLError
-from urllib.request import HTTPSHandler, HTTPRedirectHandler, ProxyHandler, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, build_opener
 
 from boxagent.domain.proactivity.lol import LolEvent, LolRead, LolSnapshot
 
@@ -78,15 +78,33 @@ def parse_lol_snapshot(value: object) -> LolSnapshot | None:
             event_id, at = _integer(event.get("EventID")), _number(event.get("EventTime"))
             name = _text(event.get("EventName"))
             if event_id is not None and at is not None and name:
-                events.append(LolEvent(event_id, name, at, actor(event.get("KillerName")),
-                    actor(event.get("VictimName")), _text(event.get("Result")),
-                    _text(event.get("KillerName")), _text(event.get("VictimName")),
-                    multikill_count=_integer(event.get("KillStreak")) if name == "Multikill" else None))
-    return LolSnapshot(game_time, identity, _text(selected.get("championName")),
-        _number(stats.get("currentHealth")), _number(stats.get("maxHealth")),
-        _number(active.get("currentGold")), _integer(scores.get("kills")),
-        _integer(scores.get("deaths")), _integer(scores.get("assists")),
-        tuple(sorted(events, key=lambda e: e.event_id)))
+                events.append(
+                    LolEvent(
+                        event_id,
+                        name,
+                        at,
+                        actor(event.get("KillerName")),
+                        actor(event.get("VictimName")),
+                        _text(event.get("Result")),
+                        _text(event.get("KillerName")),
+                        _text(event.get("VictimName")),
+                        multikill_count=_integer(event.get("KillStreak"))
+                        if name == "Multikill"
+                        else None,
+                    )
+                )
+    return LolSnapshot(
+        game_time,
+        identity,
+        _text(selected.get("championName")),
+        _number(stats.get("currentHealth")),
+        _number(stats.get("maxHealth")),
+        _number(active.get("currentGold")),
+        _integer(scores.get("kills")),
+        _integer(scores.get("deaths")),
+        _integer(scores.get("assists")),
+        tuple(sorted(events, key=lambda e: e.event_id)),
+    )
 
 
 class _NoRedirect(HTTPRedirectHandler):

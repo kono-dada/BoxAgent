@@ -51,7 +51,12 @@ def public_web_url(value: str) -> str:
         _ = parts.port
     except ValueError as exc:
         raise ValueError("请输入有效的公开网页链接") from exc
-    if parts.scheme not in {"http", "https"} or not host or parts.username is not None or parts.password is not None:
+    if (
+        parts.scheme not in {"http", "https"}
+        or not host
+        or parts.username is not None
+        or parts.password is not None
+    ):
         raise ValueError("仅支持不含账号密码的公开 HTTP/HTTPS 网页链接")
     host = host.lower().rstrip(".")
     if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
@@ -60,7 +65,7 @@ def public_web_url(value: str) -> str:
         address = ipaddress.ip_address(host)
     except ValueError:
         if "." not in host or host.isdecimal():
-            raise ValueError("仅支持公开网页，不能读取本机或内网地址")
+            raise ValueError("仅支持公开网页，不能读取本机或内网地址") from None
     else:
         if not address.is_global:
             raise ValueError("仅支持公开网页，不能读取本机或内网地址")

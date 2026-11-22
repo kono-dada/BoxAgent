@@ -3,8 +3,9 @@
 import base64
 import binascii
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Mapping, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 MAX_IMAGE_BASE64 = 256_000
 
@@ -21,7 +22,11 @@ class CameraFrame:
             payload.get("sequence"), payload.get("captured_at"), payload.get("image"))
         if type(sequence) is not int or sequence < 0:
             raise ValueError("Invalid camera frame sequence")
-        if not isinstance(captured_at, (int, float)) or isinstance(captured_at, bool) or not math.isfinite(captured_at):
+        if (
+            not isinstance(captured_at, (int, float))
+            or isinstance(captured_at, bool)
+            or not math.isfinite(captured_at)
+        ):
             raise ValueError("Invalid camera frame time")
         if not isinstance(image, str) or not 4 <= len(image) <= MAX_IMAGE_BASE64:
             raise ValueError("Camera JPEG must be below 256 KB after Base64 encoding")

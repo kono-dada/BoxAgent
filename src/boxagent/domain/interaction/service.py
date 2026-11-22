@@ -11,11 +11,16 @@ from collections.abc import Callable
 from boxagent.core.states import Voice
 from boxagent.domain.context.contracts import NullContextObserver
 from boxagent.domain.conversation.models import InteractionContext
-from boxagent.domain.interaction.contracts import CompanionSpeechVoice, GameHighlightVoice, GameLineVoice, LolSpeechVoice
+from boxagent.domain.interaction.contracts import (
+    CompanionSpeechVoice,
+    GameHighlightVoice,
+    GameLineVoice,
+    LolSpeechVoice,
+)
 from boxagent.domain.interaction.delegation import DecisionAdvice
 from boxagent.domain.perception.camera import CameraFeed
 from boxagent.domain.proactivity.game_entry import ENTRY_RECEIPT_PREFIX
-from boxagent.domain.proactivity.game_highlight import GameHighlight, HIGHLIGHT_RECEIPT_PREFIX
+from boxagent.domain.proactivity.game_highlight import HIGHLIGHT_RECEIPT_PREFIX, GameHighlight
 from boxagent.domain.web.game_context import game_clarification_reference
 
 logger = logging.getLogger(__name__)
@@ -66,7 +71,9 @@ def _is_voice_end_request(transcript: str, companion_name: str) -> bool:
 def _lol_companion_command(command: str) -> bool | None:
     text = re.sub(r"[\s，,。！!]+", "", command).casefold()
     game = r"(?:lol|英雄联盟|撸啊撸)"
-    match = re.fullmatch(rf"(进入|开启|打开|启动|退出|关闭|结束)(?:{game}陪玩(?:模式)?|陪玩(?:模式)?{game}的?)", text)
+    match = re.fullmatch(
+        rf"(进入|开启|打开|启动|退出|关闭|结束)(?:{game}陪玩(?:模式)?|陪玩(?:模式)?{game}的?)", text
+    )
     return None if match is None else match[1] in {"进入", "开启", "打开", "启动"}
 
 
@@ -154,7 +161,7 @@ class InteractionService:
     def is_connected(self):
         return bool(self.voice and self.task and not self.task.done())
 
-    async def toggle(self):
+    async def toggle(self) -> None:
         # A retry may be waiting for the provider handshake. User stop must
         # revoke intent immediately, rather than wait behind that handshake.
         if self.voice_requested and self.reconnect_task is not None:
@@ -274,17 +281,27 @@ class InteractionService:
                 game_reference = self.game_reference()
                 report["game_vision"] = {
                     "status": "ready" if game_reference else "empty",
-                    "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference,
+                    "chars": len(game_reference),
+                    "quest": "<boxagent_game_quest>" in game_reference,
                 }
                 self.context_observer.turn_prepared(context.session.session_id, **report)
                 self._store_decision(context, report)
-                reference = (self.companion_mode_reference() + self.task_reference(context) + game_clarification_reference(text)
-                             + game_reference + packet)
+                reference = (
+                    self.companion_mode_reference()
+                    + self.task_reference(context)
+                    + game_clarification_reference(text)
+                    + game_reference
+                    + packet
+                )
                 await submit(text, reference=reference, query_id=context.interaction_id)
             else:
-                clarification = (self.task_reference(self.interaction) if self.interaction else "") + game_clarification_reference(text)
+                clarification = (
+                    self.task_reference(self.interaction) if self.interaction else ""
+                ) + game_clarification_reference(text)
                 if clarification and self.interaction is not None:
-                    await submit(text, reference=clarification, query_id=self.interaction.interaction_id)
+                    await submit(
+                        text, reference=clarification, query_id=self.interaction.interaction_id
+                    )
                 else:
                     await submit(text)
         except Exception:
@@ -399,11 +416,18 @@ class InteractionService:
                         raise RuntimeError(str(self.connection_error))
                     raise RuntimeError("前台交互 Runtime 已断开")
                 if waiter not in done:
-                    raise TimeoutError("千问语音连接超时，正在自动重连" if microphone and self.voice_requested
-                                       else "千问语音连接超时，请稍后重试；本次连接已关闭")
+                    raise TimeoutError(
+                        "千问语音连接超时，正在自动重连"
+                        if microphone and self.voice_requested
+                        else "千问语音连接超时，请稍后重试；本次连接已关闭"
+                    )
             except BaseException as exc:
                 # A timed-out startup must not become a live microphone session later.
-                retrying = microphone and self.voice_requested and not isinstance(exc, asyncio.CancelledError)
+                retrying = (
+                    microphone
+                    and self.voice_requested
+                    and not isinstance(exc, asyncio.CancelledError)
+                )
                 if self.voice is voice:
                     await self.stop(preserve_request=retrying)
                 raise
@@ -438,7 +462,10 @@ class InteractionService:
                 if self.voice is not voice or self.user_speaking or self.voice_end_task is not None:
                     return
                 now = loop.time()
-                if self.events.state.game_companion_enabled or self.events.state.lol_companion_enabled:
+                if (
+                    self.events.state.game_companion_enabled
+                    or self.events.state.lol_companion_enabled
+                ):
                     # Explicit mode holds the call even while the game is hidden.
                     deadline = now + self.voice_idle_timeout
                     was_game_active = True
@@ -487,7 +514,9 @@ class InteractionService:
                     self._cancel_voice_idle_timer()
                     self.events.emit("voice.farewell_requested")
                     # Keep the provider's receive loop free to deliver the farewell audio.
-                    self.voice_end_task = asyncio.create_task(self._say_farewell_and_close(self.voice))
+                    self.voice_end_task = asyncio.create_task(
+                        self._say_farewell_and_close(self.voice)
+                    )
                     return
         if not self.conversation or not self.conversation.store:
             return
@@ -501,17 +530,30 @@ class InteractionService:
                     transcript, source="voice",
                     runtime="qwen_realtime")
                 self.events.emit("web.research.reset", web_research=None)
-                if lol_command is not None and self.voice is not None and self.connection_microphone and self.voice_requested:
+                if (
+                    lol_command is not None
+                    and self.voice is not None
+                    and self.connection_microphone
+                    and self.voice_requested
+                ):
                     context = self.interaction
                     voice = self.voice
                     result = await self.handle_tool(
-                        "set_game_companion_mode", json.dumps({"game": "lol", "enabled": lol_command}), interaction=context)
+                        "set_game_companion_mode",
+                        json.dumps({"game": "lol", "enabled": lol_command}),
+                        interaction=context,
+                    )
                     if self.interaction is not context or self.voice is not voice:
                         return
-                    message = ("LoL 陪玩已开启。" if lol_command else "LoL 陪玩已退出。") if result.get("status") == "succeeded" else (
-                        str(result.get("message") or "这次没能切换 LoL 陪玩。"))
+                    message = (
+                        ("LoL 陪玩已开启。" if lol_command else "LoL 陪玩已退出。")
+                        if result.get("status") == "succeeded"
+                        else (str(result.get("message") or "这次没能切换 LoL 陪玩。"))
+                    )
                     await voice.respond_to_query(
-                        f"<boxagent_local_action>宿主已处理本轮陪玩指令。用一句话告诉用户执行结果：{message} 不再调用工具。</boxagent_local_action>",
+                        "<boxagent_local_action>宿主已处理本轮陪玩指令。用一句话告诉用户执行结果："
+                        f"{message}"
+                        " 不再调用工具。</boxagent_local_action>",
                         query_id=context.interaction_id)
                 elif self.turn_preparer is not None:
                     context = self.interaction
@@ -524,12 +566,18 @@ class InteractionService:
                     game_reference = self.game_reference()
                     report["game_vision"] = {
                         "status": "ready" if game_reference else "empty",
-                        "chars": len(game_reference), "quest": "<boxagent_game_quest>" in game_reference,
+                        "chars": len(game_reference),
+                        "quest": "<boxagent_game_quest>" in game_reference,
                     }
                     self.context_observer.turn_prepared(context.session.session_id, **report)
                     self._store_decision(context, report)
-                    reference = (self.companion_mode_reference() + self.task_reference(context) + game_clarification_reference(transcript)
-                                 + game_reference + packet)
+                    reference = (
+                        self.companion_mode_reference()
+                        + self.task_reference(context)
+                        + game_clarification_reference(transcript)
+                        + game_reference
+                        + packet
+                    )
                     await voice.respond_to_query(reference, query_id=context.interaction_id)
                 else:
                     await self._inject_memory_context(transcript, self.interaction)
@@ -654,7 +702,7 @@ class InteractionService:
                 item for item in self.pending_user_responses
                 if item != response_id]
 
-    def _clear_response_tracking(self):
+    def _clear_response_tracking(self) -> None:
         self.pending_user_responses.clear()
         self.response_interactions.clear()
         self.tool_interactions.clear()
@@ -664,9 +712,15 @@ class InteractionService:
     def _close_interaction(self, context):
         self.closed_interactions.add(context.interaction_id)
         research = self.events.state.web_research
-        if isinstance(research, dict) and research["interaction_id"] == context.interaction_id and research["stage"] in {"searching", "reading"}:
-            self.events.emit("web.research.updated", web_research={
-                **research, "stage": "cancelled", "message": "本轮已打断"})
+        if (
+            isinstance(research, dict)
+            and research["interaction_id"] == context.interaction_id
+            and research["stage"] in {"searching", "reading"}
+        ):
+            self.events.emit(
+                "web.research.updated",
+                web_research={**research, "stage": "cancelled", "message": "本轮已打断"},
+            )
         self.decisions.pop(context.interaction_id, None)
         self.reviewed_delegations.discard(context.interaction_id)
         if self.interaction is context:
@@ -680,7 +734,12 @@ class InteractionService:
         interaction = self._response_interaction(metadata)
         if name == "run_task" and interaction is None:
             return {"status": "failed", "message": "此请求已被打断或结束，未启动任务"}
-        if name in {"search_web", "read_webpage"} and self.conversation and self.conversation.store and interaction is None:
+        if (
+            name in {"search_web", "read_webpage"}
+            and self.conversation
+            and self.conversation.store
+            and interaction is None
+        ):
             return {"status": "failed", "message": "此请求已被打断或结束，未发起联网检索"}
         advice = self.decisions.get(interaction.interaction_id) if interaction is not None else None
         if name == "run_task" and advice is not None and advice.exclusion is not None:
@@ -704,7 +763,11 @@ class InteractionService:
                 }
         else:
             result = await self.handle_tool(name, arguments, interaction=interaction)
-        if name == "run_task" and interaction is not None and result.get("status") in {"accepted", "queued"}:
+        if (
+            name == "run_task"
+            and interaction is not None
+            and result.get("status") in {"accepted", "queued"}
+        ):
             self._close_interaction(interaction)
         elif interaction is not None and (metadata or {}).get("call_id"):
             self.tool_interactions[(metadata or {})["call_id"]] = interaction
@@ -742,8 +805,11 @@ class InteractionService:
     def _decision_context(self, context: InteractionContext) -> str:
         # Stable chronological suffix; excludes ephemeral references and old
         # decision scores. Short confirmations can refer to the last exchange.
-        history = "\n".join(f"{event.role}: {event.content}" for event in context.prior_messages[-8:]
-                            if event.content)[-2400:]
+        history = "\n".join(
+            f"{event.role}: {event.content}"
+            for event in context.prior_messages[-8:]
+            if event.content
+        )[-2400:]
         return history + self.companion_mode_reference() + self.task_reference(context)
 
     def _store_decision(self, context: InteractionContext, report: dict[str, object]) -> None:
@@ -761,7 +827,9 @@ class InteractionService:
         approved = await self.turn_preparer.review_delegation(
             context.user_event.content or "", reply, context=self._decision_context(context))
         # A new utterance may have interrupted while the model was reviewing.
-        current = bool(approved and self._response_interaction({"response_id": response_id}) is context)
+        current = bool(
+            approved and self._response_interaction({"response_id": response_id}) is context
+        )
         if current:
             self.reviewed_delegations.add(context.interaction_id)
         return current
@@ -801,8 +869,13 @@ class InteractionService:
             and still_current()) if voice else False
 
     async def prepare_game_audio(self) -> None:
-        if (not self.events.state.game_companion_enabled or self.game_speech_paused
-                or self.events.state.companion_speech_muted or self.voice_requested or self.voice_factory is None):
+        if (
+            not self.events.state.game_companion_enabled
+            or self.game_speech_paused
+            or self.events.state.companion_speech_muted
+            or self.voice_requested
+            or self.voice_factory is None
+        ):
             return
         async with self.toggle_lock:
             if (self.events.state.game_companion_enabled and not self.game_speech_paused
@@ -854,17 +927,28 @@ class InteractionService:
 
     async def _notification_event(self, kind: str, payload: dict[str, object]) -> None:
         receipt = payload.get("notification_id")
-        if isinstance(receipt, str) and receipt.startswith((ENTRY_RECEIPT_PREFIX, HIGHLIGHT_RECEIPT_PREFIX)):
+        if isinstance(receipt, str) and receipt.startswith(
+            (ENTRY_RECEIPT_PREFIX, HIGHLIGHT_RECEIPT_PREFIX)
+        ):
             if kind == "playback_started":
-                playback_started = (self.game_entry_playback_started if receipt.startswith(ENTRY_RECEIPT_PREFIX)
-                                    else self.game_playback_started)
+                playback_started = (
+                    self.game_entry_playback_started
+                    if receipt.startswith(ENTRY_RECEIPT_PREFIX)
+                    else self.game_playback_started
+                )
                 if playback_started is not None:
                     playback_started(receipt)
                 line, session_id = payload.get("game_line"), payload.get("session_id")
                 if isinstance(line, str) and line.strip():
                     self.events.emit("companion.comment", companion_comment=line)
-                if (self.conversation and self.conversation.store and isinstance(line, str) and line.strip()
-                        and isinstance(session_id, str) and session_id):
+                if (
+                    self.conversation
+                    and self.conversation.store
+                    and isinstance(line, str)
+                    and line.strip()
+                    and isinstance(session_id, str)
+                    and session_id
+                ):
                     await self.conversation.append_game_comment(session_id, receipt, line)
                     self.events.emit("conversation.updated")
             return
@@ -913,11 +997,11 @@ class InteractionService:
                                      voice="off", speaking=False,
                                      user_speaking=False)
 
-    def _schedule_voice_reconnect(self):
+    def _schedule_voice_reconnect(self) -> None:
         if self.reconnect_task and not self.reconnect_task.done():
             return
 
-        async def reconnect():
+        async def reconnect() -> None:
             attempt = 0
             delays = self.reconnect_delays or (.5, 1.5, 3.0)
             while self.voice_requested:
@@ -989,10 +1073,10 @@ class InteractionService:
                              voice="connecting" if requested else "off", speaking=False,
                              user_speaking=False, voice_input_level=-1)
 
-    async def close(self):
+    async def close(self) -> None:
         await self.stop()
 
-    async def reset_session(self):
+    async def reset_session(self) -> None:
         """Detach provider state before the active Product Session changes."""
         if (self.interaction is not None and self.conversation
                 and self.conversation.store):

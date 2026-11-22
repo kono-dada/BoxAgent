@@ -2,13 +2,20 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 import re
 import sqlite3
 import time
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
-from boxagent.domain.wechat.models import Contact, Conversation, DeliveryCheck, DeliveryCursor, GroupMember, Message
+from boxagent.domain.wechat.models import (
+    Contact,
+    Conversation,
+    DeliveryCheck,
+    DeliveryCursor,
+    GroupMember,
+    Message,
+)
 from boxagent.infrastructure.wechat.database.snapshot import SnapshotRepository
 
 TABLE = re.compile(r"Msg_[0-9a-f]{32}\Z")
@@ -84,12 +91,24 @@ class DatabaseReader:
             connection = connect(self.snapshots.refresh("session/session.db"))
             try:
                 where = "WHERE unread_count>0" if unread_only else ""
-                rows = connection.execute("SELECT username,unread_count,summary,sort_timestamp FROM SessionTable "
-                                          + where + " ORDER BY sort_timestamp DESC LIMIT ?", (limit,)).fetchall()
+                rows = connection.execute(
+                    "SELECT username,unread_count,summary,sort_timestamp FROM SessionTable "
+                    + where
+                    + " ORDER BY sort_timestamp DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
             finally:
                 connection.close()
-        return tuple(Conversation(str(peer), names.get(str(peer), str(peer)), int(unread or 0),
-                                  text(summary), int(updated or 0)) for peer, unread, summary, updated in rows)
+        return tuple(
+            Conversation(
+                str(peer),
+                names.get(str(peer), str(peer)),
+                int(unread or 0),
+                text(summary),
+                int(updated or 0),
+            )
+            for peer, unread, summary, updated in rows
+        )
 
     def _messages(self, database: str, peer: str | None, *, after: int = 0) -> list[Message]:
         with self.snapshots.lock:
@@ -98,43 +117,87 @@ class DatabaseReader:
                 names = {int(identifier): str(name) for identifier, name in connection.execute(
                     "SELECT rowid,user_name FROM Name2Id")}
                 peers = {table_for(name): name for name in names.values()}
-                tables = [str(row[0]) for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                          if isinstance(row[0], str) and TABLE.fullmatch(row[0])]
+                tables = [
+                    str(row[0])
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                    if isinstance(row[0], str) and TABLE.fullmatch(row[0])
+                ]
                 result: list[Message] = []
                 for table in tables:
                     if peer is not None and table != table_for(peer):
                         continue
-                    columns = {str(row[1]) for row in connection.execute(f'PRAGMA table_info("{table}")')}
-                    compression = "WCDB_CT_message_content" if "WCDB_CT_message_content" in columns else "0"
+                    columns = {
+                        str(row[1]) for row in connection.execute(f'PRAGMA table_info("{table}")')
+                    }
+                    compression = (
+                        "WCDB_CT_message_content" if "WCDB_CT_message_content" in columns else "0"
+                    )
                     source = "source" if "source" in columns else "NULL"
                     source_compression = "WCDB_CT_source" if "WCDB_CT_source" in columns else "0"
                     rows = connection.execute(
-                        f'SELECT local_id,server_id,real_sender_id,local_type,create_time,message_content,'
-                        f'{compression},{source},{source_compression} FROM "{table}" WHERE local_id>? ORDER BY local_id',
+                        "SELECT local_id,server_id,real_sender_id,local_type,create_time,"
+                        "message_content,"
+                        f"{compression}"
+                        ","
+                        f"{source}"
+                        ","
+                        f"{source_compression}"
+                        " FROM \""
+                        f"{table}"
+                        "\" WHERE local_id>? ORDER BY local_id",
                         (after,),
                     )
-                    for identifier, server, sender, kind, created, body, compressed, raw_source, compressed_source in rows:
-                        result.append(Message(peer or peers.get(table, table), database, int(identifier),
-                                              str(server or 0), names.get(int(sender or 0), ""),
-                                              text(body, compressed), int(kind or 0), int(created or 0),
-                                              text(raw_source, compressed_source)))
+                    for (
+                        identifier,
+                        server,
+                        sender,
+                        kind,
+                        created,
+                        body,
+                        compressed,
+                        raw_source,
+                        compressed_source,
+                    ) in rows:
+                        result.append(
+                            Message(
+                                peer or peers.get(table, table),
+                                database,
+                                int(identifier),
+                                str(server or 0),
+                                names.get(int(sender or 0), ""),
+                                text(body, compressed),
+                                int(kind or 0),
+                                int(created or 0),
+                                text(raw_source, compressed_source),
+                            )
+                        )
                 return result
             finally:
                 connection.close()
 
     def history(self, peer: str, *, limit: int = 50) -> tuple[Message, ...]:
         bounded(limit)
-        records = [row for source in self.snapshots.keys.messages() for row in self._messages(source, peer)]
+        records = [
+            row for source in self.snapshots.keys.messages() for row in self._messages(source, peer)
+        ]
         records.sort(key=lambda m: (m.created_at, m.database, m.local_id))
         return tuple(records[-limit:])
 
-    def search(self, query: str, *, peer: str | None = None, limit: int = 50) -> tuple[Message, ...]:
+    def search(
+        self, query: str, *, peer: str | None = None, limit: int = 50
+    ) -> tuple[Message, ...]:
         bounded(limit)
         if not query.strip():
             raise ValueError("Search text is empty")
         result: list[Message] = []
         for source in self.snapshots.keys.messages():
-            result.extend(row for row in self._messages(source, peer) if query.casefold() in row.text.casefold())
+            result.extend(
+                row
+                for row in self._messages(source, peer)
+                if query.casefold() in row.text.casefold()
+            )
         result.sort(key=lambda m: (m.created_at, m.database, m.local_id), reverse=True)
         return tuple(result[:limit])
 
@@ -154,7 +217,9 @@ class DatabaseReader:
                 connection.close()
         # Nickname is used, never the local remark. Native per-room aliases
         # are not decoded yet; callers can provide an explicit display name.
-        return tuple(GroupMember(group, str(peer), text(nick) or str(peer), True) for peer, nick in rows)
+        return tuple(
+            GroupMember(group, str(peer), text(nick) or str(peer), True) for peer, nick in rows
+        )
 
     def delivery_cursor(self, peer: str) -> DeliveryCursor:
         values: list[tuple[str, int]] = []
@@ -175,9 +240,12 @@ class DatabaseReader:
                 for row in self._messages(source, peer, after=cursor):
                     if row.sender_id != self.self_wxid:
                         continue
-                    if mention is None and row.text == text:
-                        matches.append(row)
-                    elif mention is not None and self._mention_matches(row, text, mention):
+                    if (
+                        mention is None
+                        and row.text == text
+                        or mention is not None
+                        and self._mention_matches(row, text, mention)
+                    ):
                         matches.append(row)
             if len(matches) > 1:
                 raise ValueError("Multiple new outgoing records match; delivery is ambiguous")

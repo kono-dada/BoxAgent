@@ -18,12 +18,18 @@ def resolve_computer_use_client(codex_home: str | Path | None = None) -> Path:
     if configured:
         client = Path(configured).expanduser().resolve()
         if not client.is_file():
-            raise TaskFailure("computer_use_unavailable", "配置的电脑操作执行器不存在，请检查 BOXAGENT_COMPUTER_USE_CLIENT",
-                              detail=str(client))
+            raise TaskFailure(
+                "computer_use_unavailable",
+                "配置的电脑操作执行器不存在，请检查 BOXAGENT_COMPUTER_USE_CLIENT",
+                detail=str(client),
+            )
         return client
     if sys.platform != "darwin":
-        raise TaskFailure("computer_use_unavailable",
-                          "尚未配置 Windows 电脑操作执行器，无法执行此任务。请安装兼容的 Computer Use MCP 执行器并设置 BOXAGENT_COMPUTER_USE_CLIENT，然后重启。")
+        raise TaskFailure(
+            "computer_use_unavailable",
+            "尚未配置 Windows 电脑操作执行器，无法执行此任务。请安装兼容的 Computer Use MCP "
+            "执行器并设置 BOXAGENT_COMPUTER_USE_CLIENT，然后重启。",
+        )
     client = root / (
         "computer-use/Codex Computer Use.app/Contents/SharedSupport/"
         "SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient"

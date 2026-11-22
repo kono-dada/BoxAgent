@@ -10,7 +10,6 @@ The estimate is a display heuristic, never a billing figure:
 import json
 import math
 
-
 _WIDE_RANGES = (
     (0x3000, 0x303F),   # CJK symbols and punctuation
     (0x3040, 0x30FF),   # Hiragana and Katakana
@@ -27,7 +26,7 @@ def _is_wide(character: str) -> bool:
     return any(start <= point <= end for start, end in _WIDE_RANGES)
 
 
-def estimate_tokens(value) -> int:
+def estimate_tokens(value: object) -> int:
     """Return the heuristic token count of a string or JSON-serializable value."""
     if value is None:
         return 0

@@ -3,7 +3,8 @@
 import asyncio
 import secrets
 import time
-from typing import Callable, Mapping, TypedDict
+from collections.abc import Callable, Mapping
+from typing import TypedDict
 
 from boxagent.core.events import StateEvents
 from boxagent.domain.perception.camera import CameraFeed, CameraFrame, CameraRuntime

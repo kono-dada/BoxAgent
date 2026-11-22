@@ -13,7 +13,9 @@ def game_reference_question(question: str, *, game: str = "", target: str = "",
     if not deictic:
         return None
     known = (question + "\n" + known_text).casefold().replace("鸣朝", "鸣潮")
-    named = bool(game.strip() and target.strip() and game.casefold() in known and target.casefold() in known)
+    named = bool(
+        game.strip() and target.strip() and game.casefold() in known and target.casefold() in known
+    )
     if not named and not has_visual_context:
         return "你说的是哪款游戏、哪个Boss？"
     return None

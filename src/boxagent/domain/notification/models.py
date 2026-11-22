@@ -1,6 +1,7 @@
 """Notification domain records."""
 
 from dataclasses import dataclass
+from typing import Any, Self
 
 
 @dataclass(frozen=True)
@@ -14,14 +15,14 @@ class NotificationItem:
     summary: str
     policy: str
     status: str
-    attempts: tuple[dict, ...]
+    attempts: tuple[dict[str, object], ...]
     created_at: float
     updated_at: float
     kind: str = "task_result"
     source_event_ids: tuple[str, ...] = ()
     source_refs: tuple[dict[str, str], ...] = ()
 
-    def payload(self) -> dict:
+    def payload(self) -> dict[str, object]:
         return {
             "notification_id": self.notification_id,
             "dedupe_key": self.dedupe_key,
@@ -41,7 +42,7 @@ class NotificationItem:
         }
 
     @classmethod
-    def from_payload(cls, value: dict):
+    def from_payload(cls, value: dict[str, Any]) -> Self:
         return cls(
             notification_id=str(value["notification_id"]),
             dedupe_key=str(value["dedupe_key"]),

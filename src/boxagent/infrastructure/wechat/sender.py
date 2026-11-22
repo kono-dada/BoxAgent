@@ -1,16 +1,19 @@
 """Guarded native composer operations using the verified 4.1.15 static metacalls."""
 from __future__ import annotations
-from dataclasses import asdict
+
 import json
 import os
-from pathlib import Path
 import sqlite3
-from boxagent.domain.wechat.models import DraftSnapshot, GroupMember, SendOutcome
+from dataclasses import asdict
+from pathlib import Path
+
 from boxagent.domain.wechat.contracts import OperationRejected
+from boxagent.domain.wechat.models import DraftSnapshot, GroupMember, SendOutcome
+from boxagent.infrastructure.wechat._private import private_dir
 from boxagent.infrastructure.wechat.addresses import BuildProfile
 from boxagent.infrastructure.wechat.executor import ExpressionExecutor
 from boxagent.infrastructure.wechat.probe import LiveObjects, ObjectProbe
-from boxagent.infrastructure.wechat._private import private_dir
+
 
 class DraftNotEmpty(OperationRejected):
     """An existing user draft must be preserved."""
@@ -35,7 +38,9 @@ def code_units(text: str) -> tuple[int, ...]:
     return tuple(int.from_bytes(raw[i:i+2],'little') for i in range(0,len(raw),2))
 
 class NativeWeChatSender:
-    def __init__(self, probe: ObjectProbe, executor: ExpressionExecutor, profile: BuildProfile) -> None:
+    def __init__(
+        self, probe: ObjectProbe, executor: ExpressionExecutor, profile: BuildProfile
+    ) -> None:
         self._probe = probe
         self._executor = executor
         self._profile = profile
@@ -53,30 +58,59 @@ class NativeWeChatSender:
         numbers = ','.join(str(u) for u in (*units,0))
         expected_numbers = ','.join(str(u) for u in (*expected,0))
         peer_numbers = ','.join(str(u) for u in (*peer.encode(),0))
-        address = lambda rva: f'{base+rva}ULL'
+        def address(rva: int) -> str:
+            return f"{base + rva}ULL"
+
         # Every native mutation is guarded in the SAME Qt-main-thread expression.
         parts = [
-            '([]()->long {',
-            f'unsigned long wxvm={live.vm}ULL,wxeditor={live.editor}ULL,wxview={live.view}ULL,wxcell={live.cell}ULL;',
-            f'if(*(unsigned long*)wxvm!={address(p.vm_vptr)}||*(unsigned long*)wxeditor!={address(p.editor_vptr)}||*(unsigned long*)wxview!={address(p.view_vptr)}||*(unsigned long*)wxcell!={address(p.cell_vptr)})return -10L;',
-            f'unsigned char wxpeer[]={{{peer_numbers}}};',
-            'unsigned char* wxs=(unsigned char*)(wxcell+0x158);unsigned long wxlen=wxs[23];',
-            'if(wxlen&128){wxlen=*(unsigned long*)(wxs+8);wxs=*(unsigned char**)wxs;}',
-            f'if(wxlen!={len(peer.encode())})return -10L;',
-            f'for(int wxi=0;wxi<{len(peer.encode())};++wxi)if(wxs[wxi]!=wxpeer[wxi])return -10L;',
-            'struct WxOrigin{void*p;void*c;};WxOrigin wxorigin={0,0};',
-            f'if(!((bool(*)(void*,const void*,const void*)){address(p.navigate)})((void*)wxvm,(void*){live.peer_object}ULL,&wxorigin))return -1L;',
-            f'auto wxselected=[&]()->bool{{return *(unsigned long*)(*(unsigned long*)(wxvm+0xf8)+0x40)=={live.cell}ULL;}};',
-            'if(!wxselected())return -1L;',
-            'struct WxString{void*d;~WxString(){int wxr=*(int*)d;if(wxr==0||(wxr!=-1&&__atomic_fetch_sub((int*)d,1,4)==1))',
-            f'((void(*)(void*,unsigned long,unsigned long)){address(p.qarray_dealloc)})(d,2,8);}}}};',
-            'auto wxread=[&](const unsigned short* wxwanted,int wxn)->long{',
-            f'WxString wxout={{(void*){address(p.shared_null)}}};void*wxargs[]={{&wxout}};',
-            f'((void(*)(void*,int,int,void**)){address(p.metacall)})((void*)wxeditor,1,9,wxargs);',
-            'int wxsize=*((int*)wxout.d+1);long wxoffset=*(long*)((char*)wxout.d+16);',
-            'if(wxsize<0||wxsize>65536||wxoffset<24||wxoffset>1048576)return -10L;',
-            'if(wxn<0)return wxsize;if(wxsize!=wxn)return -3L;',
-            'for(int wxi=0;wxi<wxn;++wxi)if(((unsigned short*)((char*)wxout.d+wxoffset))[wxi]!=wxwanted[wxi])return -3L;return 1L;};',
+            "([]()->long {",
+            "unsigned long wxvm="
+            f"{live.vm}"
+            "ULL,wxeditor="
+            f"{live.editor}"
+            "ULL,wxview="
+            f"{live.view}"
+            "ULL,wxcell="
+            f"{live.cell}"
+            "ULL;",
+            "if(*(unsigned long*)wxvm!="
+            f"{address(p.vm_vptr)}"
+            "||*(unsigned long*)wxeditor!="
+            f"{address(p.editor_vptr)}"
+            "||*(unsigned long*)wxview!="
+            f"{address(p.view_vptr)}"
+            "||*(unsigned long*)wxcell!="
+            f"{address(p.cell_vptr)}"
+            ")return -10L;",
+            f"unsigned char wxpeer[]={{{peer_numbers}}};",
+            "unsigned char* wxs=(unsigned char*)(wxcell+0x158);unsigned long wxlen=wxs[23];",
+            "if(wxlen&128){wxlen=*(unsigned long*)(wxs+8);wxs=*(unsigned char**)wxs;}",
+            f"if(wxlen!={len(peer.encode())})return -10L;",
+            f"for(int wxi=0;wxi<{len(peer.encode())};++wxi)if(wxs[wxi]!=wxpeer[wxi])return -10L;",
+            "struct WxOrigin{void*p;void*c;};WxOrigin wxorigin={0,0};",
+            "if(!((bool(*)(void*,const void*,const void*))"
+            f"{address(p.navigate)}"
+            ")((void*)wxvm,(void*)"
+            f"{live.peer_object}"
+            "ULL,&wxorigin))return -1L;",
+            "auto wxselected=[&]()->bool{return *(unsigned long*)(*(unsigned "
+            "long*)(wxvm+0xf8)+0x40)=="
+            f"{live.cell}"
+            "ULL;};",
+            "if(!wxselected())return -1L;",
+            "struct WxString{void*d;~WxString(){int wxr=*(int*)d;if(wxr==0||(wxr!=-1&&__atomic_fet"
+            "ch_sub((int*)d,1,4)==1))",
+            "((void(*)(void*,unsigned long,unsigned long))"
+            f"{address(p.qarray_dealloc)}"
+            ")(d,2,8);}};",
+            "auto wxread=[&](const unsigned short* wxwanted,int wxn)->long{",
+            f"WxString wxout={{(void*){address(p.shared_null)}}};void*wxargs[]={{&wxout}};",
+            f"((void(*)(void*,int,int,void**)){address(p.metacall)})((void*)wxeditor,1,9,wxargs);",
+            "int wxsize=*((int*)wxout.d+1);long wxoffset=*(long*)((char*)wxout.d+16);",
+            "if(wxsize<0||wxsize>65536||wxoffset<24||wxoffset>1048576)return -10L;",
+            "if(wxn<0)return wxsize;if(wxsize!=wxn)return -3L;",
+            "for(int wxi=0;wxi<wxn;++wxi)if(((unsigned short*)((char*)wxout."
+            "d+wxoffset))[wxi]!=wxwanted[wxi])return -3L;return 1L;};",
         ]
         if operation == 'select':
             return ''.join(parts+['return 1L;})()'])
@@ -89,29 +123,49 @@ class NativeWeChatSender:
         if member is not None:
             from boxagent.infrastructure.wechat.mentions import native_member_expression
             parts.append(native_member_expression(base, p, member))
-        parts.extend([
-            f'unsigned short wxwant[]={{{numbers}}},wxexpected[]={{{expected_numbers}}};',
-            f'void*wxdata=((void*(*)(unsigned long)){address(p.operator_new)})({26+2*len(units)});',
-            f'*(int*)wxdata=1;*(int*)((char*)wxdata+4)={len(units)};*(unsigned int*)((char*)wxdata+8)={len(units)+1};',
-            '*(unsigned int*)((char*)wxdata+12)=0;*(long*)((char*)wxdata+16)=24;',
-            f'for(int wxi=0;wxi<={len(units)};++wxi)((unsigned short*)((char*)wxdata+24))[wxi]=wxwant[wxi];',
-            'WxString wxinput={wxdata};void*wxset[]={0,&wxinput};',
-            f'((void(*)(void*,int,int,void**)){address(p.metacall)})((void*)wxeditor,0,{27 if member else 16},wxset);',
-            f'if(wxread(wxexpected,{len(expected)})!=1)return -3L;',
-            'if(!wxselected())return -1L;',
-        ])
-        if operation == 'send':
-            parts.extend([
-                f'if(wxread(wxexpected,{len(expected)})!=1)return -3L;',
-                f'int wxaction={p.send_action};void*wxsend[]={{0,&wxaction}};',
-                f'((void(*)(void*,int,int,void**)){address(p.send)})((void*)wxview,0,{p.send_index},wxsend);',
-            ])
-        return ''.join(parts+['return 1L;})()'])
+        parts.extend(
+            [
+                f"unsigned short wxwant[]={{{numbers}}},wxexpected[]={{{expected_numbers}}};",
+                "void*wxdata=((void*(*)(unsigned long))"
+                f"{address(p.operator_new)}"
+                ")("
+                f"{26 + 2 * len(units)}"
+                ");",
+                "*(int*)wxdata=1;*(int*)((char*)wxdata+4)="
+                f"{len(units)}"
+                ";*(unsigned int*)((char*)wxdata+8)="
+                f"{len(units) + 1}"
+                ";",
+                "*(unsigned int*)((char*)wxdata+12)=0;*(long*)((char*)wxdata+16)=24;",
+                "for(int wxi=0;wxi<="
+                f"{len(units)}"
+                ";++wxi)((unsigned short*)((char*)wxdata+24))[wxi]=wxwant[wxi];",
+                "WxString wxinput={wxdata};void*wxset[]={0,&wxinput};",
+                "((void(*)(void*,int,int,void**))"
+                f"{address(p.metacall)}"
+                ")((void*)wxeditor,0,"
+                f"{27 if member else 16}"
+                ",wxset);",
+                f"if(wxread(wxexpected,{len(expected)})!=1)return -3L;",
+                "if(!wxselected())return -1L;",
+            ]
+        )
+        if operation == "send":
+            parts.extend(
+                [
+                    f"if(wxread(wxexpected,{len(expected)})!=1)return -3L;",
+                    f"int wxaction={p.send_action};void*wxsend[]={{0,&wxaction}};",
+                    f"((void(*)(void*,int,int,void**)){address(p.send)})((void*)wxview,0,{p.send_index},wxsend);",
+                ]
+            )
+        return "".join(parts + ["return 1L;})()"])
 
     def _run(self, peer: str, text: str, operation: str, *, dry_run: bool = False,
              member: GroupMember | None = None) -> int:
         base, live = self._objects(peer)
-        expression = self.expression(base, live, peer, text, operation=operation, dry_run=dry_run, member=member)
+        expression = self.expression(
+            base, live, peer, text, operation=operation, dry_run=dry_run, member=member
+        )
         result = self._executor.evaluate({operation: expression}).get(operation)
         if result is None:
             raise SendRejected('Native operation returned no result')
@@ -148,7 +202,9 @@ class NativeWeChatSender:
         self._run(peer,text,'send',dry_run=dry_run)
         return SendOutcome(peer,text,submitted=not dry_run,dry_run=dry_run)
 
-    def send_mention(self, peer: str, member: GroupMember, text: str, *, dry_run: bool = False) -> SendOutcome:
+    def send_mention(
+        self, peer: str, member: GroupMember, text: str, *, dry_run: bool = False
+    ) -> SendOutcome:
         from boxagent.infrastructure.wechat.mentions import validate_member
         validate_member(peer,member)
         if not text.strip():
@@ -178,7 +234,9 @@ class SQLiteSendRequests:
         connection = sqlite3.connect(self.path)
         try:
             connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute("SELECT fingerprint,outcome FROM sends WHERE request_id=?", (request_id,)).fetchone()
+            row = connection.execute(
+                "SELECT fingerprint,outcome FROM sends WHERE request_id=?", (request_id,)
+            ).fetchone()
             if row is not None:
                 if row[0] != fingerprint:
                     raise ValueError("request_id already belongs to another message/action")
@@ -204,14 +262,18 @@ def parse_outcome(raw: str) -> SendOutcome:
     value: object = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("Invalid stored send outcome")
-    peer, text, request_id, error = (value.get(k) for k in ("peer", "text", "request_id", "error_code"))
+    peer, text, request_id, error = (
+        value.get(k) for k in ("peer", "text", "request_id", "error_code")
+    )
     local, server = value.get("local_id"), value.get("server_id")
     submitted, dry = value.get("submitted"), value.get("dry_run")
     if not isinstance(peer, str) or not isinstance(text, str) or not isinstance(request_id, str):
         raise ValueError("Invalid stored outcome identity")
     if not (error is None or isinstance(error, str)):
         raise ValueError("Invalid stored outcome error")
-    if not (local is None or isinstance(local, int)) or not (server is None or isinstance(server, int)):
+    if not (local is None or isinstance(local, int)) or not (
+        server is None or isinstance(server, int)
+    ):
         raise ValueError("Invalid stored receipt identifiers")
     if not isinstance(submitted, bool) or not isinstance(dry, bool):
         raise ValueError("Invalid stored outcome state")

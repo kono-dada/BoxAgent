@@ -32,7 +32,11 @@ def load_turns() -> tuple[ReplayTurn, ...]:
         raise ValueError("FIX-03 requires the six recorded turns")
     turns = []
     for row in rows:
-        if not isinstance(row, dict) or not isinstance(row.get("query"), str) or not isinstance(row.get("reply"), str):
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("query"), str)
+            or not isinstance(row.get("reply"), str)
+        ):
             raise ValueError("Replay turns must contain text query and reply")
         turns.append(ReplayTurn(row["query"], row["reply"]))
     return tuple(turns)
@@ -91,8 +95,10 @@ class VoiceTaskSequenceTests(unittest.IsolatedAsyncioTestCase):
                 return {"p_action": .98 if action else .01,
                         "p_status": .0, "p_conversation": .01 if action else .99}
 
-            async def review_delegation(self, query: str, reply: str, *, context: str = "") -> dict[str, Any]:
-                return {"p_delegation": .99 if query == turns[3].query else .01}
+            async def review_delegation(
+                self, query: str, reply: str, *, context: str = ""
+            ) -> dict[str, Any]:
+                return {"p_delegation": 0.99 if query == turns[3].query else 0.01}
 
         def record_trace(event: str, **data: Any) -> None:
             trace.append((event, data))
@@ -104,8 +110,12 @@ class VoiceTaskSequenceTests(unittest.IsolatedAsyncioTestCase):
             app = BoxAgentApplication(
                 lambda _: None, Executor, None, memory=memory,
                 conversation_service=ConversationService(JsonlSessionStore(root)),
-                notification_outbox=NotificationOutbox(JsonNotificationRepository(root / "notifications")),
-                turn_preparer=preparer, runtime_resources=(preparer,))
+                notification_outbox=NotificationOutbox(
+                    JsonNotificationRepository(root / "notifications")
+                ),
+                turn_preparer=preparer,
+                runtime_resources=(preparer,),
+            )
             interaction = app.interaction_service
             voice = QwenRealtimeSession(
                 interaction._handle_tool, app.events.emit, host_turn_control=True,
@@ -131,10 +141,19 @@ class VoiceTaskSequenceTests(unittest.IsolatedAsyncioTestCase):
                         await voice.receive({"type": "response.created", "response": {
                             "id": f"reply-{self.response_count}"}})
                     elif row["type"] == "conversation.item.delete":
-                        await voice.receive({"type": "conversation.item.deleted", "item_id": row["item_id"]})
-                    elif row["type"] == "conversation.item.create" and row["item"].get("role") == "system":
-                        await voice.receive({"type": "conversation.item.created", "item": {
-                            **row["item"], "id": f"reference-{len(self.sent)}"}})
+                        await voice.receive(
+                            {"type": "conversation.item.deleted", "item_id": row["item_id"]}
+                        )
+                    elif (
+                        row["type"] == "conversation.item.create"
+                        and row["item"].get("role") == "system"
+                    ):
+                        await voice.receive(
+                            {
+                                "type": "conversation.item.created",
+                                "item": {**row["item"], "id": f"reference-{len(self.sent)}"},
+                            }
+                        )
 
                 async def close(self) -> None:
                     pass
@@ -158,10 +177,19 @@ class VoiceTaskSequenceTests(unittest.IsolatedAsyncioTestCase):
             async def begin(index: int) -> asyncio.Task[None]:
                 await voice.receive({"type": "input_audio_buffer.speech_started"})
                 await voice.receive({"type": "input_audio_buffer.speech_stopped"})
-                await voice.receive({"type": "conversation.item.input_audio_transcription.completed",
-                                     "item_id": f"asr-{index}", "transcript": turns[index].query})
-                await wait_until(lambda: interaction.interaction is not None
-                                 and interaction.interaction.user_event.content == turns[index].query)
+                await voice.receive(
+                    {
+                        "type": "conversation.item.input_audio_transcription.completed",
+                        "item_id": f"asr-{index}",
+                        "transcript": turns[index].query,
+                    }
+                )
+                await wait_until(
+                    lambda: (
+                        interaction.interaction is not None
+                        and interaction.interaction.user_event.content == turns[index].query
+                    )
+                )
                 query_ids.append(interaction.interaction.interaction_id)
                 return voice.preparation_task
 
@@ -209,9 +237,16 @@ class VoiceTaskSequenceTests(unittest.IsolatedAsyncioTestCase):
                 await wait_until(lambda: bool(voice.pending_notifications))
                 # Deliver the old call result after the new input is durable.
                 workers.append(asyncio.create_task(voice.deliver_results()))
-                await wait_until(lambda: any(event == "tool.stale_followup_suppressed" for event, _ in trace))
+                await wait_until(
+                    lambda: any(event == "tool.stale_followup_suppressed" for event, _ in trace)
+                )
                 self.assertEqual(socket.response_count, 3)
-                self.assertFalse(any("[可信任务结果]" in json.dumps(row, ensure_ascii=False) for row in socket.sent))
+                self.assertFalse(
+                    any(
+                        "[可信任务结果]" in json.dumps(row, ensure_ascii=False)
+                        for row in socket.sent
+                    )
+                )
                 preparation_release.set()
                 await science
                 self.assertEqual(voice.response_context["reply-4"]["query_id"], query_ids[3])
@@ -233,8 +268,13 @@ class VoiceTaskSequenceTests(unittest.IsolatedAsyncioTestCase):
                 await wait_until(lambda: bool(voice.notification_responses))
                 notification_id = next(iter(voice.notification_responses))
                 self.assertEqual(voice.response_context[notification_id]["kind"], "notification")
-                await voice.receive({"type": "response.audio_transcript.done", "response_id": notification_id,
-                                     "transcript": "旧任务需要澄清，这次没有操作电脑。"})
+                await voice.receive(
+                    {
+                        "type": "response.audio_transcript.done",
+                        "response_id": notification_id,
+                        "transcript": "旧任务需要澄清，这次没有操作电脑。",
+                    }
+                )
                 await voice.receive({"type": "response.done", "response": {"id": notification_id}})
 
                 active = await app.conversation_service.active_session()
@@ -246,8 +286,13 @@ class VoiceTaskSequenceTests(unittest.IsolatedAsyncioTestCase):
                                 and event.interaction_id == query_ids[index]]
                     self.assertEqual([event.status for event in terminal], ["succeeded"])
                     self.assertTrue(all(event.task_id is None for event in terminal))
-                self.assertFalse(any(event.type == "interaction.finalized" and event.interaction_id == query_ids[3]
-                                     for event in events))
+                self.assertFalse(
+                    any(
+                        event.type == "interaction.finalized"
+                        and event.interaction_id == query_ids[3]
+                        for event in events
+                    )
+                )
                 notices = await app.list_notifications(pending_only=False)
                 self.assertEqual([notice["interaction_id"] for notice in notices], [query_ids[0]])
                 self.assertEqual([notice["task_id"] for notice in notices], [goals[0][2]])

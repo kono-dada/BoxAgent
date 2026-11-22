@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import signal
 import sys
 import threading
+from pathlib import Path
 from typing import cast
 
 from boxagent.bootstrap.wechat_onboarding import build_wechat_onboarding
@@ -34,26 +34,41 @@ def main() -> None:
             result = setup.prepare(Path(string(request, 'source')), app)
         elif action == 'client':
             setup.check_client(app)
-            result = {'client': {'state': 'ready', 'code': ''}}
-        elif action == 'capture':
-            root = string(request, 'root')
-            result = setup.capture(app, Path(root) if root else None,
-                lldb=Path(string(request, 'lldb', '/usr/bin/lldb')), cancelled=cancelled.is_set)
-        elif action in ('verify', 'native'):
-            value = request.get('material')
-            if not isinstance(value, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
-                raise ValueError('wechat_keys_invalid')
-            result = setup.verify(app, Path(string(request, 'root')), cast(dict[str, str], value),
-                lldb=Path(string(request, 'lldb', '/usr/bin/lldb')), native=action == 'native')
+            result = {"client": {"state": "ready", "code": ""}}
+        elif action == "capture":
+            root = string(request, "root")
+            result = setup.capture(
+                app,
+                Path(root) if root else None,
+                lldb=Path(string(request, "lldb", "/usr/bin/lldb")),
+                cancelled=cancelled.is_set,
+            )
+        elif action in ("verify", "native"):
+            value = request.get("material")
+            if not isinstance(value, dict) or not all(
+                isinstance(k, str) and isinstance(v, str) for k, v in value.items()
+            ):
+                raise ValueError("wechat_keys_invalid")
+            result = setup.verify(
+                app,
+                Path(string(request, "root")),
+                cast(dict[str, str], value),
+                lldb=Path(string(request, "lldb", "/usr/bin/lldb")),
+                native=action == "native",
+            )
         else:
             raise ValueError('invalid_setup_method')
         print(json.dumps({'ok': True, 'result': result}))
     except Exception as error:
         # Do not expose debugger output, keys, local filenames or chat content.
         code = str(error)
-        if not code.startswith(('wechat_', 'cancelled', 'invalid_')) or len(code) > 100:
-            code = 'wechat_permission_denied' if isinstance(error, PermissionError) else 'wechat_setup_failed'
-        print(json.dumps({'ok': False, 'code': code}))
+        if not code.startswith(("wechat_", "cancelled", "invalid_")) or len(code) > 100:
+            code = (
+                "wechat_permission_denied"
+                if isinstance(error, PermissionError)
+                else "wechat_setup_failed"
+            )
+        print(json.dumps({"ok": False, "code": code}))
 
 
 if __name__ == '__main__':

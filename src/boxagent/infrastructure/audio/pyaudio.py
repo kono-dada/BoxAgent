@@ -57,7 +57,7 @@ class AudioIO:
                 self.playback_finished = False
             self.buffer.extend(chunk)
 
-    def begin(self):
+    def begin(self) -> None:
         """Open an explicitly delimited provider playback response."""
         with self.lock:
             self.explicit_playback_lifecycle = True
@@ -73,7 +73,7 @@ class AudioIO:
         with self.lock:
             return self.playing or bool(self.buffer)
 
-    def clear(self):
+    def clear(self) -> None:
         with self.lock:
             self.buffer.clear()
             self.playback_finished = True
@@ -88,7 +88,7 @@ class AudioIO:
                 raise RuntimeError("麦克风已关闭")
             return self.mic.read(1600, exception_on_overflow=False)
 
-    def close(self):
+    def close(self) -> None:
         with self.device_lock:
             for stream in (self.mic, self.speaker):
                 if stream:

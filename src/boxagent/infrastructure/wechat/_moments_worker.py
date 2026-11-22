@@ -1,16 +1,33 @@
 """Private native Moments worker; loaded by LLDB Python 3.9."""
 from __future__ import annotations
-from pathlib import Path
+
 import struct
 import time
+from pathlib import Path
+
 from boxagent.infrastructure.darwin.mach_reader import MachReader
+from boxagent.infrastructure.wechat._private import object_json, write_json
+from boxagent.infrastructure.wechat.executor import Debugger
+from boxagent.infrastructure.wechat.executor import Session as NativeSession
 from boxagent.infrastructure.wechat.moments import (
-    ARENA_SIZE, COMPLETE, CONTROL, EDITOR, Expressions, FUTURE, MAGIC, PANEL,
-    PHASE, SUBMIT_STAGE, SUCCESS, VM, WEAK_GUARD, Visibility, utf16_units,
+    ARENA_SIZE,
+    COMPLETE,
+    CONTROL,
+    EDITOR,
+    FUTURE,
+    MAGIC,
+    PANEL,
+    PHASE,
+    SUBMIT_STAGE,
+    SUCCESS,
+    VM,
+    WEAK_GUARD,
+    Expressions,
+    Visibility,
+    utf16_units,
 )
 from boxagent.infrastructure.wechat.probe import Snapshot, allocate, deallocate
-from boxagent.infrastructure.wechat._private import object_json, write_json
-from boxagent.infrastructure.wechat.executor import Debugger, Session as NativeSession
+
 
 class Session(NativeSession):
     def evaluate(self, expression: str) -> int:
@@ -41,8 +58,13 @@ def verify_payload(reader: MachReader, expressions: Expressions) -> None:
             raise RuntimeError("Malformed inline text")
         body = raw[:raw[23]]
     privacy = struct.unpack("<I", reader.read(core + 0x1F8, 4))[0]
-    if body != expressions.text.encode("utf-8") and body == expressions.text.strip().encode("utf-8"):
-        raise RuntimeError("WeChat trimmed leading/trailing whitespace; remove it explicitly from requested text/file")
+    if body != expressions.text.encode("utf-8") and body == expressions.text.strip().encode(
+        "utf-8"
+    ):
+        raise RuntimeError(
+            "WeChat trimmed leading/trailing whitespace; remove it explicitly from requested "
+            "text/file"
+        )
     if body != expressions.text.encode("utf-8") or privacy != expressions.visibility.native_mode:
         raise RuntimeError("Prepared payload text/visibility differs from requested content")
 
@@ -51,8 +73,15 @@ def run(debugger: Debugger, context_path: str) -> None:
     context_file = Path(context_path)
     context = object_json(context_file)
     snapshot = Snapshot.parse(context.get("snapshot"))
-    text, visibility, publish, nonce = (context.get(k) for k in ("text", "visibility", "publish", "nonce"))
-    if not isinstance(text, str) or not isinstance(visibility, str) or type(publish) is not bool or not isinstance(nonce, str):
+    text, visibility, publish, nonce = (
+        context.get(k) for k in ("text", "visibility", "publish", "nonce")
+    )
+    if (
+        not isinstance(text, str)
+        or not isinstance(visibility, str)
+        or type(publish) is not bool
+        or not isinstance(nonce, str)
+    ):
         raise ValueError("Invalid invocation context")
     utf16_units(text)
     selected_visibility = Visibility(visibility)
@@ -68,7 +97,9 @@ def run(debugger: Debugger, context_path: str) -> None:
     expressions: Expressions | None = None
 
     def reader() -> MachReader:
-        return MachReader(snapshot.pid, Path(snapshot.executable), max_bytes=32*1024*1024, seconds=60)
+        return MachReader(
+            snapshot.pid, Path(snapshot.executable), max_bytes=32 * 1024 * 1024, seconds=60
+        )
 
     def check_owned(memory: MachReader) -> None:
         snapshot.check(memory, app_image)
@@ -107,8 +138,10 @@ def run(debugger: Debugger, context_path: str) -> None:
         else:
             report["status"] = "dry_run_passed"
     except Exception as error:
-        report.update(status="outcome_unknown" if report["status"] == "submission_started" else "failed",
-                      error=str(error))
+        report.update(
+            status="outcome_unknown" if report["status"] == "submission_started" else "failed",
+            error=str(error),
+        )
     finally:
         # Native deleteLater must run on the main thread; detach lets Qt execute it.
         try:
@@ -160,7 +193,10 @@ def run(debugger: Debugger, context_path: str) -> None:
                     control = u64(memory, arena + CONTROL)
                     if u64(memory, control) != snapshot.base + 0x9B59D88:
                         raise RuntimeError("Owned model control vtable mismatch")
-                    if u64(memory, arena + SUBMIT_STAGE) != 0 or u64(memory, arena + FUTURE + 24) != 0:
+                    if (
+                        u64(memory, arena + SUBMIT_STAGE) != 0
+                        or u64(memory, arena + FUTURE + 24) != 0
+                    ):
                         raise RuntimeError("Dry run unexpectedly created a subscription")
                 session.evaluate(expressions.release(submitted=False))
                 with reader() as memory:

@@ -1,9 +1,9 @@
 """Product-level Skill records independent from a concrete Agent Runtime."""
 
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-import time
 
 
 class SkillSource(StrEnum):

@@ -83,7 +83,9 @@ class PetCatalog:
                                    "motionPack", "motionProfile"}}
         identity = {
             "model": digest(files[manifest["model"]]),
-            "actions": {key: digest(files[value]) for key, value in manifest.get("actions", {}).items()},
+            "actions": {
+                key: digest(files[value]) for key, value in manifest.get("actions", {}).items()
+            },
             "settings": settings,
         }
         return json.dumps(identity, sort_keys=True, ensure_ascii=False)
@@ -119,7 +121,10 @@ class PetCatalog:
 
     def commit(self, directory):
         directory = Path(directory)
-        if directory.resolve() != directory or directory.parent not in (self.bundled_root, self.root):
+        if directory.resolve() != directory or directory.parent not in (
+            self.bundled_root,
+            self.root,
+        ):
             raise ValueError("形象不在允许的 VRM 目录内，保留原选择")
         identity = valid_id(directory.name)
         read_manifest(directory)

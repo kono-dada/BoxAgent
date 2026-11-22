@@ -7,17 +7,27 @@ import os
 import re
 import shutil
 import threading
+from collections.abc import Sequence
 from pathlib import Path
+from typing import NotRequired, TypedDict, cast
 
 from boxagent.domain.skill.models import SkillRecord, SkillSource
-
 
 SCHEMA_VERSION = 1
 SKILL_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 
+class _SkillFlags(TypedDict):
+    enabled: NotRequired[bool]
+
+
+class _SkillRegistry(TypedDict):
+    schema_version: int
+    skills: dict[str, _SkillFlags]
+
+
 class SkillFileRepository:
-    def __init__(self, *, builtin_root: Path, user_root: Path):
+    def __init__(self, *, builtin_root: Path, user_root: Path) -> None:
         self.builtin_root = Path(builtin_root).resolve()
         self.user_root = Path(user_root).resolve()
         self.registry_path = self.user_root / "registry.json"
@@ -100,7 +110,9 @@ class SkillFileRepository:
             self._ensure()
             return self.builtin_root, self.user_root
 
-    def _scan(self, root: Path, source: SkillSource, registry) -> list[SkillRecord]:
+    def _scan(
+        self, root: Path, source: SkillSource, registry: _SkillRegistry
+    ) -> Sequence[SkillRecord]:
         if not root.is_dir():
             return []
         records = []
@@ -133,12 +145,10 @@ class SkillFileRepository:
         lines = content.splitlines()
         if not lines or lines[0].strip() != "---":
             raise ValueError("SKILL.md 必须以 YAML frontmatter 开始")
-        fields = {}
-        closed = False
+        fields: dict[str, object] = {}
         closing_index = None
         for index, line in enumerate(lines[1:], start=1):
             if line.strip() == "---":
-                closed = True
                 closing_index = index
                 break
             key, separator, value = line.partition(":")
@@ -148,15 +158,16 @@ class SkillFileRepository:
                     fields[key.strip()] = json.loads(raw)
                 except json.JSONDecodeError:
                     fields[key.strip()] = raw.strip("\"'")
-        if not closed:
+        if closing_index is None:
             raise ValueError("SKILL.md frontmatter 未结束")
-        if not isinstance(fields.get("name"), str) or not fields["name"].strip():
+        name = fields.get("name")
+        if not isinstance(name, str) or not name.strip():
             raise ValueError("SKILL.md 缺少 name")
-        if not isinstance(fields.get("description"), str) or not fields["description"].strip():
+        description = fields.get("description")
+        if not isinstance(description, str) or not description.strip():
             raise ValueError("SKILL.md 缺少 description")
         instructions = "\n".join(lines[closing_index + 1:]).strip()
-        return (fields["name"].strip(), fields["description"].strip(),
-                instructions)
+        return name.strip(), description.strip(), instructions
 
     @staticmethod
     def _render(name: str, description: str, instructions: str) -> str:
@@ -176,7 +187,7 @@ class SkillFileRepository:
         )
 
     @staticmethod
-    def _require_text(value, name, limit):
+    def _require_text(value: object, name: str, limit: int) -> str:
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{name} 不能为空")
         cleaned = value.strip()
@@ -193,36 +204,43 @@ class SkillFileRepository:
             raise ValueError("Skill 路径越界")
         return target
 
-    def _ensure(self):
+    def _ensure(self) -> None:
         self.user_root.mkdir(parents=True, exist_ok=True)
         if not self.registry_path.exists():
             self._write_registry(self._empty_registry())
 
-    def _set_registry(self, skill_id: str, enabled: bool):
+    def _set_registry(self, skill_id: str, enabled: bool) -> None:
         registry = self._read_registry()
         registry["skills"][skill_id] = {"enabled": bool(enabled)}
         self._write_registry(registry)
 
-    def _read_registry(self):
+    def _read_registry(self) -> _SkillRegistry:
         if not self.registry_path.exists():
             return self._empty_registry()
-        value = json.loads(self.registry_path.read_text(encoding="utf-8"))
-        if value.get("schema_version") != SCHEMA_VERSION \
-                or not isinstance(value.get("skills"), dict):
+        value: object = json.loads(self.registry_path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("schema_version") != SCHEMA_VERSION:
             raise ValueError("Skill registry 格式无效")
-        return value
+        skills = value.get("skills")
+        if not isinstance(skills, dict) or any(
+            not isinstance(skill_id, str)
+            or not isinstance(flags, dict)
+            or ("enabled" in flags and not isinstance(flags["enabled"], bool))
+            for skill_id, flags in skills.items()
+        ):
+            raise ValueError("Skill registry 格式无效")
+        return cast(_SkillRegistry, value)
 
-    def _write_registry(self, value):
+    def _write_registry(self, value: _SkillRegistry) -> None:
         self._atomic_write(
             self.registry_path,
             json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n")
 
     @staticmethod
-    def _empty_registry():
+    def _empty_registry() -> _SkillRegistry:
         return {"schema_version": SCHEMA_VERSION, "skills": {}}
 
     @staticmethod
-    def _atomic_write(path: Path, content: str):
+    def _atomic_write(path: Path, content: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + ".tmp")
         with temporary.open("w", encoding="utf-8") as stream:

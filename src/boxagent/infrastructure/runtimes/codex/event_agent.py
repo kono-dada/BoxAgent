@@ -1,9 +1,9 @@
 """Short isolated structured runs over the existing App Server transport."""
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import asdict
-import json
 from typing import Protocol
 
 from boxagent.agent.runtime.models import RuntimeRequest

@@ -16,7 +16,9 @@ class SourceFactory(Protocol):
 
 
 class WeChatMonitor:
-    def __init__(self, factory: SourceFactory, sink: EventSink | None, *, interval: float = 0.5) -> None:
+    def __init__(
+        self, factory: SourceFactory, sink: EventSink | None, *, interval: float = 0.5
+    ) -> None:
         if not 0.1 <= interval <= 60:
             raise ValueError("Invalid monitoring interval")
         self.factory = factory
@@ -50,7 +52,9 @@ class WeChatMonitor:
             except Exception as error:
                 self.last_error = type(error).__name__
                 logger.exception("WeChat event sink failed; retaining source outbox record")
-            await asyncio.to_thread(self._source.acknowledge, item.event.event_id, accepted=accepted)
+            await asyncio.to_thread(
+                self._source.acknowledge, item.event.event_id, accepted=accepted
+            )
         return count
 
     async def start(self) -> None:

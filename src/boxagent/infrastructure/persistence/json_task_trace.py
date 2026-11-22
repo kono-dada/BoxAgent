@@ -6,7 +6,6 @@ from pathlib import Path
 
 from boxagent.core.errors import redact
 
-
 TASK_ID = re.compile(r"^[a-f0-9]{12}$")
 RELEVANT_EVENTS = {
     "task_started", "phase", "action", "tool_result", "tool_exception",

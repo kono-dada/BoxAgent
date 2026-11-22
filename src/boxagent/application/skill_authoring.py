@@ -13,7 +13,6 @@ from boxagent.domain.skill import (
     SkillSource,
 )
 
-
 SKILL_DRAFT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -221,7 +220,7 @@ class SkillAuthoringService:
             rationale=str(error or "Skill 草稿生成失败"))
         return self.draft_repository.save(failed)
 
-    def recover_interrupted(self):
+    def recover_interrupted(self) -> None:
         for draft in self.draft_repository.list(
                 statuses=(SkillDraftStatus.PREPARING.value,)):
             self.draft_repository.save(replace(

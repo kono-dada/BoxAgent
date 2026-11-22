@@ -13,9 +13,7 @@ from pathlib import Path
 
 import pyaudio
 import websockets
-
 from calculator import TOOL, run_calculator
-
 
 MODELS = {
     "qwen-audio-3.0-realtime-plus": {
@@ -99,22 +97,31 @@ async def main(model):
             additional_headers={"Authorization": f"Bearer {key}"},
             max_size=16 * 1024 * 1024,
         ) as ws:
-            await ws.send(json.dumps({
-                "type": "session.update",
-                "session": {
-                    "modalities": ["text", "audio"],
-                    "voice": config["voice"],
-                    "instructions": (
-                        "你是桌面语音助手，用自然、简洁的中文语音回答。需要算数时必须调用 calculate 工具。"
-                        "如果工具描述表明结果需要等待，先用一句简短语音告诉用户你将开始处理、预计要等多久；"
-                        "先把这句提醒说出来，再发起工具调用，不要等工具返回后才第一次开口。"
-                        "工具返回之前不要猜测答案，也不要声称任务已经完成。拿到工具结果后，再用语音报告结果。"
-                    ),
-                    "turn_detection": config["turn_detection"],
-                    "tools": [TOOL],
-                },
-            }))
-            print(f"已连接 {model}。戴耳机直接说话；可要求计算并在回复时插话。按 Ctrl+C 退出。", flush=True)
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "session.update",
+                        "session": {
+                            "modalities": ["text", "audio"],
+                            "voice": config["voice"],
+                            "instructions": (
+                                "你是桌面语音助手，用自然、简洁的中文语音回答。"
+                                "需要算数时必须调用 calculate 工具。"
+                                "如果工具描述表明结果需要等待，先用一句简短语音告诉用户你将开始"
+                                "处理、预计要等多久；先把这句提醒说出来，再发起工具调用，"
+                                "不要等工具返回后才第一次开口。工具返回之前不要猜测答案，"
+                                "也不要声称任务已经完成。拿到工具结果后，再用语音报告结果。"
+                            ),
+                            "turn_detection": config["turn_detection"],
+                            "tools": [TOOL],
+                        },
+                    }
+                )
+            )
+            print(
+                f"已连接 {model}。戴耳机直接说话；可要求计算并在回复时插话。按 Ctrl+C 退出。",
+                flush=True,
+            )
 
             async def send_mic():
                 while True:
@@ -127,18 +134,36 @@ async def main(model):
             async def receive():
                 async def deliver_calculator_results(calls):
                     for call_id, name, arguments, requested_at in calls:
-                        await asyncio.sleep(max(0, 7 - (asyncio.get_running_loop().time() - requested_at)))
-                        result = run_calculator(arguments) if name == "calculate" else json.dumps({"error": "未知工具"}, ensure_ascii=False)
+                        await asyncio.sleep(
+                            max(0, 7 - (asyncio.get_running_loop().time() - requested_at))
+                        )
+                        result = (
+                            run_calculator(arguments)
+                            if name == "calculate"
+                            else json.dumps({"error": "未知工具"}, ensure_ascii=False)
+                        )
                         elapsed = asyncio.get_running_loop().time() - requested_at
                         print(f"[计算器] {elapsed:.2f} 秒后返回：{result}", flush=True)
-                        await ws.send(json.dumps({
-                            "type": "conversation.item.create",
-                            "item": {"type": "function_call_output", "call_id": call_id, "output": result},
-                        }))
-                    await ws.send(json.dumps({
-                        "type": "response.create",
-                        "response": {"modalities": ["audio", "text"]},
-                    }))
+                        await ws.send(
+                            json.dumps(
+                                {
+                                    "type": "conversation.item.create",
+                                    "item": {
+                                        "type": "function_call_output",
+                                        "call_id": call_id,
+                                        "output": result,
+                                    },
+                                }
+                            )
+                        )
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "response.create",
+                                "response": {"modalities": ["audio", "text"]},
+                            }
+                        )
+                    )
 
                 async for raw in ws:
                     event = json.loads(raw)
@@ -161,14 +186,19 @@ async def main(model):
                             else:
                                 arguments = json.dumps({"expression": ""})
                                 print(f"[拒绝未知工具] {event.get('name')}", flush=True)
-                            pending_tool_calls.append((event["call_id"], event.get("name"), arguments, requested_at))
+                            pending_tool_calls.append(
+                                (event["call_id"], event.get("name"), arguments, requested_at)
+                            )
                     elif kind == "response.done":
                         if pending_tool_calls:
                             calls = pending_tool_calls.copy()
                             pending_tool_calls.clear()
                             asyncio.create_task(deliver_calculator_results(calls))
                     elif kind == "error":
-                        print(f"服务端错误：{event.get('error', {}).get('message', event)}", flush=True)
+                        print(
+                            f"服务端错误：{event.get('error', {}).get('message', event)}",
+                            flush=True,
+                        )
 
             await asyncio.gather(send_mic(), receive())
     finally:

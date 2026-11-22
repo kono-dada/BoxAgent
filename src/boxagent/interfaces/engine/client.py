@@ -1,9 +1,11 @@
 """Async client for the local BoxAgent Engine."""
 
 import asyncio
+import contextlib
 import itertools
 import json
 import os
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from boxagent.interfaces.engine.protocol import PROTOCOL_VERSION, STREAM_LIMIT, decode, encode
@@ -14,30 +16,37 @@ class EngineDisconnected(ConnectionError):
 
 
 class EngineClient:
-    def __init__(self, socket_path, publish):
+    def __init__(
+        self, socket_path: str | Path, publish: Callable[[dict[str, object]], None]
+    ) -> None:
         self.socket_path = str(socket_path)
         self.publish = publish
-        self.reader = self.writer = self.reader_task = None
-        self.pending = {}
+        self.reader: asyncio.StreamReader | None = None
+        self.writer: asyncio.StreamWriter | None = None
+        self.reader_task: asyncio.Task[None] | None = None
+        self.pending: dict[str, asyncio.Future[object]] = {}
         self.sequence = itertools.count(1)
         self.write_lock = asyncio.Lock()
         self.connected = asyncio.Event()
         self.closed = False
 
-    async def connect(self, timeout: float = 20):
+    async def connect(self, timeout: float = 20) -> None:
         deadline = asyncio.get_running_loop().time() + timeout
-        last_error = None
+        last_error: Exception | None = None
         while not self.closed and asyncio.get_running_loop().time() < deadline:
             try:
                 if os.name == "nt":
-                    endpoint = json.loads(Path(self.socket_path).read_text(encoding="utf-8"))
-                    if (not isinstance(endpoint, dict) or type(endpoint.get("port")) is not int
-                            or not 0 < endpoint["port"] < 65536
-                            or not isinstance(endpoint.get("token"), str)):
+                    endpoint: object = json.loads(
+                        Path(self.socket_path).read_text(encoding="utf-8")
+                    )
+                    if not isinstance(endpoint, dict):
+                        raise ConnectionError("Invalid Engine endpoint")
+                    port, token = endpoint.get("port"), endpoint.get("token")
+                    if type(port) is not int or not 0 < port < 65536 or not isinstance(token, str):
                         raise ConnectionError("Invalid Engine endpoint")
                     self.reader, self.writer = await asyncio.open_connection(
-                        "127.0.0.1", endpoint["port"], limit=STREAM_LIMIT)
-                    self.writer.write((endpoint["token"] + "\n").encode())
+                        "127.0.0.1", port, limit=STREAM_LIMIT)
+                    self.writer.write((token + "\n").encode())
                     await self.writer.drain()
                 else:
                     self.reader, self.writer = await asyncio.open_unix_connection(
@@ -50,7 +59,12 @@ class EngineClient:
                 await asyncio.sleep(.1)
         raise EngineDisconnected(f"无法连接 BoxAgent Engine：{last_error}")
 
-    async def request(self, method, params=None, timeout=60):
+    async def request(
+        self,
+        method: str,
+        params: Mapping[str, object] | None = None,
+        timeout: float = 60,
+    ) -> object:
         if self.closed:
             raise EngineDisconnected("BoxAgent Engine 客户端已关闭")
         try:
@@ -58,7 +72,7 @@ class EngineClient:
         except TimeoutError as exc:
             raise EngineDisconnected("BoxAgent Engine 尚未就绪") from exc
         request_id = str(next(self.sequence))
-        future = asyncio.get_running_loop().create_future()
+        future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
         self.pending[request_id] = future
         try:
             async with self.write_lock:
@@ -69,20 +83,25 @@ class EngineClient:
                     "type": "request",
                     "id": request_id,
                     "method": method,
-                    "params": params or {},
+                    "params": dict(params or {}),
                 }))
                 await self.writer.drain()
             return await asyncio.wait_for(future, timeout=timeout)
         finally:
             self.pending.pop(request_id, None)
 
-    async def _read(self):
+    async def _read(self) -> None:
         reason = "BoxAgent Engine 连接已关闭"
         try:
-            while line := await self.reader.readline():
+            reader = self.reader
+            if reader is None:
+                raise EngineDisconnected("BoxAgent Engine 连接已断开")
+            while line := await reader.readline():
                 message = decode(line)
                 if message.get("type") == "event":
-                    self.publish(message.get("event") or {})
+                    event = message.get("event")
+                    if isinstance(event, dict):
+                        self.publish(event)
                     continue
                 if message.get("type") != "response":
                     continue
@@ -104,20 +123,20 @@ class EngineClient:
                 if not future.done():
                     future.set_exception(EngineDisconnected(reason))
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         self.connected.clear()
         task, writer = self.reader_task, self.writer
-        self.reader_task = self.reader = self.writer = None
+        self.reader_task = None
+        self.reader = None
+        self.writer = None
         if writer:
             writer.close()
-            try:
+            with contextlib.suppress(ConnectionError, OSError):
                 await writer.wait_closed()
-            except (ConnectionError, OSError):
-                pass
         if task and task is not asyncio.current_task():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
 
-    async def close(self):
+    async def close(self) -> None:
         self.closed = True
         await self.disconnect()

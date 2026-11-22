@@ -1,12 +1,22 @@
 """One application-facing surface for CLI, tools and future Engine wiring."""
 from __future__ import annotations
+
 import asyncio
 from collections.abc import Callable
 
 from boxagent.application.wechat.monitor import WeChatMonitor
 from boxagent.application.wechat.service import WeChatService
 from boxagent.domain.wechat.contracts import HealthProvider, MomentsPublisher, OperationRejected
-from boxagent.domain.wechat.models import Capability, Contact, Conversation, GroupMember, Message, PublishOutcome, SendOutcome, WeChatHealth
+from boxagent.domain.wechat.models import (
+    Capability,
+    Contact,
+    Conversation,
+    GroupMember,
+    Message,
+    PublishOutcome,
+    SendOutcome,
+    WeChatHealth,
+)
 
 
 class WeChatModule:
@@ -29,21 +39,34 @@ class WeChatModule:
     def history(self, recipient: str, *, limit: int = 50) -> tuple[Message, ...]:
         return self.service.reader.history(self.service.resolve(recipient).peer, limit=limit)
 
-    def search(self, query: str, *, recipient: str | None = None, limit: int = 50) -> tuple[Message, ...]:
+    def search(
+        self, query: str, *, recipient: str | None = None, limit: int = 50
+    ) -> tuple[Message, ...]:
         peer = self.service.resolve(recipient).peer if recipient else None
         return self.service.reader.search(query, peer=peer, limit=limit)
 
     def members(self, group: str) -> tuple[GroupMember, ...]:
         return self.service.reader.members(self.service.resolve(group).peer)
 
-    def send(self, recipient: str, text: str, *, request_id: str, dry_run: bool = False,
-             mention: str | None = None) -> SendOutcome:
-        return self.service.send(recipient, text, request_id=request_id, dry_run=dry_run, mention=mention)
+    def send(
+        self,
+        recipient: str,
+        text: str,
+        *,
+        request_id: str,
+        dry_run: bool = False,
+        mention: str | None = None,
+    ) -> SendOutcome:
+        return self.service.send(
+            recipient, text, request_id=request_id, dry_run=dry_run, mention=mention
+        )
 
     def clear_draft(self, recipient: str) -> None:
         self.service.transport().clear_draft(self.service.resolve(recipient).peer)
 
-    def publish(self, text: str, visibility: str, *, request_id: str, dry_run: bool = True) -> PublishOutcome:
+    def publish(
+        self, text: str, visibility: str, *, request_id: str, dry_run: bool = True
+    ) -> PublishOutcome:
         return self.moments.publish(text, visibility, request_id=request_id, dry_run=dry_run)
 
     def health(self) -> WeChatHealth:
@@ -82,17 +105,30 @@ class DeferredWeChatModule:
     def history(self, recipient: str, *, limit: int = 50) -> tuple[Message, ...]:
         return self._ready().history(recipient, limit=limit)
 
-    def search(self, query: str, *, recipient: str | None = None, limit: int = 50) -> tuple[Message, ...]:
+    def search(
+        self, query: str, *, recipient: str | None = None, limit: int = 50
+    ) -> tuple[Message, ...]:
         return self._ready().search(query, recipient=recipient, limit=limit)
 
     def members(self, group: str) -> tuple[GroupMember, ...]:
         return self._ready().members(group)
 
-    def send(self, recipient: str, text: str, *, request_id: str, dry_run: bool = False,
-             mention: str | None = None) -> SendOutcome:
-        return self._ready().send(recipient, text, request_id=request_id, dry_run=dry_run, mention=mention)
+    def send(
+        self,
+        recipient: str,
+        text: str,
+        *,
+        request_id: str,
+        dry_run: bool = False,
+        mention: str | None = None,
+    ) -> SendOutcome:
+        return self._ready().send(
+            recipient, text, request_id=request_id, dry_run=dry_run, mention=mention
+        )
 
-    def publish(self, text: str, visibility: str, *, request_id: str, dry_run: bool = True) -> PublishOutcome:
+    def publish(
+        self, text: str, visibility: str, *, request_id: str, dry_run: bool = True
+    ) -> PublishOutcome:
         return self._ready().publish(text, visibility, request_id=request_id, dry_run=dry_run)
 
     def health(self) -> WeChatHealth:
@@ -107,7 +143,11 @@ class DeferredWeChatModule:
         await self.module.start()
 
     def status(self) -> dict[str, object]:
-        return self.module.status() if self.module is not None else {'running': False, 'error': 'wechat_setup_required'}
+        return (
+            self.module.status()
+            if self.module is not None
+            else {"running": False, "error": "wechat_setup_required"}
+        )
 
     async def close(self) -> None:
         if self.module is not None:

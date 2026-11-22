@@ -1,17 +1,27 @@
 """Validated private snapshots; reuses the verified page decrypter and WAL replay."""
 from __future__ import annotations
-from dataclasses import dataclass, field
+
 import hashlib
 import os
-from pathlib import Path
 import sqlite3
 import tempfile
 import threading
 import time
-from boxagent.infrastructure.wechat.database._authentication import KeyCandidate, authenticate_first_page
-from boxagent.infrastructure.wechat.database._cipher import SnapshotError, copy_snapshot, decrypt_database
-from boxagent.infrastructure.wechat.database.keys import DatabaseKeys, read_first_page
+from dataclasses import dataclass, field
+from pathlib import Path
+
 from boxagent.infrastructure.wechat._private import private_dir
+from boxagent.infrastructure.wechat.database._authentication import (
+    KeyCandidate,
+    authenticate_first_page,
+)
+from boxagent.infrastructure.wechat.database._cipher import (
+    SnapshotError,
+    copy_snapshot,
+    decrypt_database,
+)
+from boxagent.infrastructure.wechat.database.keys import DatabaseKeys, read_first_page
+
 
 @dataclass(frozen=True)
 class FileStamp:
@@ -29,7 +39,9 @@ def stamp(path: Path) -> FileStamp | None:
         return None
     if path.is_symlink() or not path.is_file() or value.st_uid != os.getuid():
         raise ValueError("Unexpected source ownership/type")
-    return FileStamp(value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+    return FileStamp(
+        value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns
+    )
 
 
 def signature(path: Path) -> tuple[FileStamp | None, FileStamp | None]:
@@ -58,14 +70,18 @@ class SnapshotDatabase:
     generation: str = ""
     last_signature: tuple[FileStamp | None, FileStamp | None] | None = None
 
-    def refresh(self, reason: str) -> tuple[Path, RefreshCost, tuple[FileStamp | None, FileStamp | None]]:
+    def refresh(
+        self, reason: str
+    ) -> tuple[Path, RefreshCost, tuple[FileStamp | None, FileStamp | None]]:
         started, cpu = time.perf_counter(), time.process_time()
         copied = 0
         copy_ms = 0.0
+        attempts = 0
         with tempfile.TemporaryDirectory(prefix="snapshot-", dir=self.run_dir) as directory:
             encrypted = Path(directory) / "encrypted.db"
             stable: tuple[FileStamp | None, FileStamp | None] | None = None
-            for attempt in range(1, 4):
+            for _ in range(3):
+                attempts += 1
                 before = signature(self.path)
                 if before[0] is None:
                     raise SnapshotError("Source database disappeared")
@@ -81,8 +97,10 @@ class SnapshotDatabase:
                     # Concurrent checkpoint: bounded retry, never advance cursors.
                     continue
                 finally:
-                    copy_ms += (time.perf_counter()-tick)*1000
-                    copied += sum(p.stat().st_size for p in Path(directory).iterdir() if p.is_file())
+                    copy_ms += (time.perf_counter() - tick) * 1000
+                    copied += sum(
+                        p.stat().st_size for p in Path(directory).iterdir() if p.is_file()
+                    )
                 after = signature(self.path)
                 if before == after:
                     stable = after
@@ -91,7 +109,10 @@ class SnapshotDatabase:
             if stable is None or stable[0] is None:
                 raise SnapshotError("Database/WAL changed during all snapshot attempts")
             page = read_first_page(encrypted)
-            if page is None or authenticate_first_page(page, KeyCandidate(self.key, page[:16])) != "derived-le":
+            if (
+                page is None
+                or authenticate_first_page(page, KeyCandidate(self.key, page[:16])) != "derived-le"
+            ):
                 raise SnapshotError("Existing key does not authenticate this account/database")
             generation = hashlib.sha256(
                 str(self.path).encode() + page[:16] +
@@ -101,8 +122,10 @@ class SnapshotDatabase:
                 raise SnapshotError("Source generation changed; restart with reviewed state")
             self.generation = generation
             tick = time.perf_counter()
-            plaintext = decrypt_database(encrypted, self.key, encrypted.with_name(encrypted.name+"-wal"))
-            decrypt_ms = (time.perf_counter()-tick)*1000
+            plaintext = decrypt_database(
+                encrypted, self.key, encrypted.with_name(encrypted.name + "-wal")
+            )
+            decrypt_ms = (time.perf_counter() - tick) * 1000
             output = self.run_dir / (self.path.name + ".sqlite")
             temporary = output.with_suffix(".tmp")
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
@@ -118,7 +141,7 @@ class SnapshotDatabase:
             connection.close()
         cost = RefreshCost(self.name, reason, copy_ms, decrypt_ms,
                            (time.perf_counter()-tick)*1000, (time.process_time()-cpu)*1000,
-                           (time.perf_counter()-started)*1000, copied, len(plaintext), attempt)
+                           (time.perf_counter()-started)*1000, copied, len(plaintext), attempts)
         return output, cost, stable
 
 
@@ -143,8 +166,12 @@ class SnapshotRepository:
     def refresh(self, relative: str, *, force: bool = False) -> Path:
         with self.lock:
             database = self.source(relative)
-            output = database.run_dir / (database.path.name + '.sqlite')
-            if not force and database.last_signature == signature(database.path) and output.exists():
+            output = database.run_dir / (database.path.name + ".sqlite")
+            if (
+                not force
+                and database.last_signature == signature(database.path)
+                and output.exists()
+            ):
                 return output
             output, _cost, current = database.refresh('query')
             database.last_signature = current

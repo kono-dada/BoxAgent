@@ -34,7 +34,7 @@ class ContextCheckpointCoordinator:
         self.locks = {}
         self.closed = False
 
-    async def start(self):
+    async def start(self) -> None:
         self.closed = False
 
     async def interaction_finalized(self, *, session_id, interaction_id,
@@ -174,11 +174,11 @@ class ContextCheckpointCoordinator:
                                for item in content["salient_events"]):
             raise ValueError("Checkpoint salient_events 引用了范围外的 Event")
 
-    async def drain(self):
+    async def drain(self) -> None:
         while self.tasks:
             await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
 
-    async def close(self):
+    async def close(self) -> None:
         self.closed = True
         for task in tuple(self.tasks):
             task.cancel()

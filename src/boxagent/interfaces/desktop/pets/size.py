@@ -5,14 +5,17 @@ import math
 from pathlib import Path
 from typing import TypeGuard
 
-
 PET_MIN_SCALE = 0.5
 PET_MAX_SCALE = 6.0
 
 
 def valid_pet_scale(scale: object) -> TypeGuard[int | float]:
     """接受范围内的连续比例，拒绝布尔值与非有限数。"""
-    return isinstance(scale, (int, float)) and not isinstance(scale, bool) and PET_MIN_SCALE <= scale <= PET_MAX_SCALE
+    return (
+        isinstance(scale, (int, float))
+        and not isinstance(scale, bool)
+        and PET_MIN_SCALE <= scale <= PET_MAX_SCALE
+    )
 
 
 def load_pet_scale(data_dir: Path) -> float:

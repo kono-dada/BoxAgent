@@ -4,28 +4,41 @@ import asyncio
 import json
 import os
 import time
+from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
+from typing import Any, NotRequired, TypedDict, cast
 
 from boxagent.core.ids import new_session_id
 from boxagent.domain.conversation.models import (
+    SCHEMA_VERSION,
     ContextCheckpoint,
     ProductEvent,
     RuntimeBinding,
     RuntimeContextSegment,
-    SCHEMA_VERSION,
     SessionMetadata,
 )
 
 
+class _SessionIndex(TypedDict):
+    schema_version: int
+    active_session_id: NotRequired[str | None]
+    sessions: list[str]
+
+
+class _RuntimeBindings(TypedDict):
+    schema_version: int
+    bindings: dict[str, dict[str, Any]]
+
+
 class JsonlSessionStore:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
         self.root = Path(root)
         self.index_path = self.root / "index.json"
         self.sessions_path = self.root / "sessions"
         self.lock = asyncio.Lock()
 
-    async def start(self):
+    async def start(self) -> None:
         async with self.lock:
             self.sessions_path.mkdir(parents=True, exist_ok=True)
             if not self.index_path.exists():
@@ -33,7 +46,7 @@ class JsonlSessionStore:
             else:
                 self._read_index()
 
-    async def create_session(self, title="新会话"):
+    async def create_session(self, title: str = "新会话") -> SessionMetadata:
         async with self.lock:
             self.sessions_path.mkdir(parents=True, exist_ok=True)
             index = self._read_index()
@@ -53,7 +66,7 @@ class JsonlSessionStore:
             self._write_json(self.index_path, index)
             return metadata
 
-    async def list_sessions(self, *, include_archived=False):
+    async def list_sessions(self, *, include_archived: bool = False) -> list[SessionMetadata]:
         async with self.lock:
             index = self._read_index()
             sessions = [self._read_metadata(item) for item in index["sessions"]]
@@ -61,7 +74,7 @@ class JsonlSessionStore:
                 sessions = [item for item in sessions if not item.archived]
             return sorted(sessions, key=lambda item: item.updated_at, reverse=True)
 
-    async def active_session(self):
+    async def active_session(self) -> SessionMetadata | None:
         async with self.lock:
             index = self._read_index()
             session_id = index.get("active_session_id")
@@ -75,7 +88,7 @@ class JsonlSessionStore:
                 return None
             return None if metadata.archived else metadata
 
-    async def activate_session(self, session_id):
+    async def activate_session(self, session_id: str) -> SessionMetadata:
         async with self.lock:
             metadata = self._read_metadata(session_id)
             if metadata.archived:
@@ -85,7 +98,7 @@ class JsonlSessionStore:
             self._write_json(self.index_path, index)
             return metadata
 
-    async def archive_session(self, session_id):
+    async def archive_session(self, session_id: str) -> SessionMetadata:
         async with self.lock:
             metadata = self._read_metadata(session_id)
             archived = replace(metadata, archived=True, updated_at=time.time())
@@ -98,14 +111,14 @@ class JsonlSessionStore:
                 self._write_json(self.index_path, index)
             return archived
 
-    async def rename_session(self, session_id, title):
+    async def rename_session(self, session_id: str, title: str) -> SessionMetadata:
         async with self.lock:
             metadata = self._read_metadata(session_id)
             updated = replace(metadata, title=self._clean_title(title), updated_at=time.time())
             self._write_json(self._session_path(session_id) / "metadata.json", updated.payload())
             return updated
 
-    async def append_event(self, event):
+    async def append_event(self, event: ProductEvent) -> ProductEvent:
         async with self.lock:
             metadata = self._read_metadata(event.session_id)
             path = self._session_path(event.session_id) / "events.jsonl"
@@ -120,10 +133,14 @@ class JsonlSessionStore:
                 stream.flush()
                 os.fsync(stream.fileno())
             updated = replace(metadata, updated_at=max(metadata.updated_at, stored.occurred_at))
-            self._write_json(self._session_path(event.session_id) / "metadata.json", updated.payload())
+            self._write_json(
+                self._session_path(event.session_id) / "metadata.json", updated.payload()
+            )
             return stored
 
-    async def read_events(self, session_id, *, after_sequence=0, limit=None):
+    async def read_events(
+        self, session_id: str, *, after_sequence: int = 0, limit: int | None = None
+    ) -> list[ProductEvent]:
         async with self.lock:
             self._read_metadata(session_id)
             events = [event for event in self._read_events(
@@ -131,20 +148,20 @@ class JsonlSessionStore:
                       if event.sequence > after_sequence]
             return events[-limit:] if limit is not None else events
 
-    async def runtime_binding(self, session_id, runtime):
+    async def runtime_binding(self, session_id: str, runtime: str) -> RuntimeBinding | None:
         async with self.lock:
             bindings = self._read_bindings(session_id)
             value = bindings["bindings"].get(runtime)
             return RuntimeBinding.from_payload(value) if value else None
 
-    async def save_runtime_binding(self, session_id, binding):
+    async def save_runtime_binding(self, session_id: str, binding: RuntimeBinding) -> None:
         async with self.lock:
             bindings = self._read_bindings(session_id)
             bindings["bindings"][binding.runtime] = binding.payload()
             self._write_json(
                 self._session_path(session_id) / "runtime-bindings.json", bindings)
 
-    async def latest_checkpoint(self, session_id, runtime):
+    async def latest_checkpoint(self, session_id: str, runtime: str) -> ContextCheckpoint | None:
         async with self.lock:
             self._read_metadata(session_id)
             checkpoints, _segments = self._read_context(
@@ -152,7 +169,9 @@ class JsonlSessionStore:
             matches = [item for item in checkpoints if item.runtime == runtime]
             return matches[-1] if matches else None
 
-    async def append_checkpoint(self, checkpoint, segment):
+    async def append_checkpoint(
+        self, checkpoint: ContextCheckpoint, segment: RuntimeContextSegment
+    ) -> ContextCheckpoint:
         if checkpoint.session_id != segment.session_id:
             raise ValueError("Checkpoint 与 Segment 必须属于同一 Session")
         if checkpoint.runtime != segment.runtime:
@@ -181,59 +200,74 @@ class JsonlSessionStore:
                 os.fsync(stream.fileno())
             return checkpoint
 
-    async def context_segments(self, session_id, runtime):
+    async def context_segments(
+        self, session_id: str, runtime: str
+    ) -> list[RuntimeContextSegment]:
         async with self.lock:
             self._read_metadata(session_id)
             _checkpoints, segments = self._read_context(
                 self._session_path(session_id) / "context.jsonl", repair=True)
             return [item for item in segments if item.runtime == runtime]
 
-    def _session_path(self, session_id):
+    def _session_path(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not session_id.startswith("ses_") \
                 or "/" in session_id or ".." in session_id:
             raise ValueError("Session ID 无效")
         return self.sessions_path / session_id
 
-    def _read_metadata(self, session_id):
+    def _read_metadata(self, session_id: str) -> SessionMetadata:
         path = self._session_path(session_id) / "metadata.json"
         return SessionMetadata.from_payload(self._read_json(path))
 
-    def _read_bindings(self, session_id):
+    def _read_bindings(self, session_id: str) -> _RuntimeBindings:
         self._read_metadata(session_id)
         path = self._session_path(session_id) / "runtime-bindings.json"
         if not path.exists():
             return {"schema_version": SCHEMA_VERSION, "bindings": {}}
         value = self._read_json(path)
-        if value.get("schema_version") != SCHEMA_VERSION \
-                or not isinstance(value.get("bindings"), dict):
+        bindings = value.get("bindings")
+        if (
+            value.get("schema_version") != SCHEMA_VERSION
+            or not isinstance(bindings, dict)
+            or any(not isinstance(binding, dict) for binding in bindings.values())
+        ):
             raise ValueError("Runtime Binding 文件格式无效")
-        return value
+        return cast(_RuntimeBindings, value)
 
-    def _read_index(self):
+    def _read_index(self) -> _SessionIndex:
         if not self.index_path.exists():
             return self._empty_index()
         value = self._read_json(self.index_path)
-        if value.get("schema_version") != SCHEMA_VERSION \
-                or not isinstance(value.get("sessions"), list):
+        sessions = value.get("sessions")
+        active = value.get("active_session_id")
+        if (
+            value.get("schema_version") != SCHEMA_VERSION
+            or not isinstance(sessions, list)
+            or any(not isinstance(item, str) for item in sessions)
+            or (active is not None and not isinstance(active, str))
+        ):
             raise ValueError("Session index 文件格式无效")
-        return value
+        return cast(_SessionIndex, value)
 
-    def _read_events(self, path, *, repair=False):
+    def _read_events(self, path: Path, *, repair: bool = False) -> list[ProductEvent]:
         if not path.exists():
             return []
         lines = path.read_text(encoding="utf-8").splitlines()
-        events = []
+        events: list[ProductEvent] = []
         truncated = False
         for position, line in enumerate(lines):
             if not line.strip():
                 continue
             try:
-                event = ProductEvent.from_payload(json.loads(line))
-            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                value: object = json.loads(line)
+                if not isinstance(value, dict):
+                    raise ValueError("Product Event 必须是 JSON object")
+                event = ProductEvent.from_payload(value)
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
                 if position == len(lines) - 1:
                     truncated = True
                     break
-                raise ValueError(f"Session Event Log 第 {position + 1} 行损坏")
+                raise ValueError(f"Session Event Log 第 {position + 1} 行损坏") from exc
             expected = len(events) + 1
             if event.sequence != expected:
                 raise ValueError(f"Session Event sequence 不连续：期望 {expected}")
@@ -243,7 +277,9 @@ class JsonlSessionStore:
                                                 separators=(",", ":")) for event in events])
         return events
 
-    def _read_context(self, path, *, repair=False):
+    def _read_context(
+        self, path: Path, *, repair: bool = False
+    ) -> tuple[list[ContextCheckpoint], list[RuntimeContextSegment]]:
         if not path.exists():
             return [], []
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -262,18 +298,18 @@ class JsonlSessionStore:
                     segments.append(RuntimeContextSegment.from_payload(record["payload"]))
                 else:
                     raise ValueError("未知的 Context record 类型")
-            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
                 if position == len(lines) - 1:
                     truncated = True
                     break
-                raise ValueError(f"Session Context Log 第 {position + 1} 行损坏")
+                raise ValueError(f"Session Context Log 第 {position + 1} 行损坏") from exc
             valid_lines.append(line)
         if truncated and repair:
             self._write_lines(path, valid_lines)
         return checkpoints, segments
 
     @staticmethod
-    def _clean_title(title):
+    def _clean_title(title: str) -> str:
         if not isinstance(title, str):
             raise ValueError("Session 标题必须是文本")
         value = " ".join(title.strip().split())
@@ -282,19 +318,19 @@ class JsonlSessionStore:
         return value[:80]
 
     @staticmethod
-    def _empty_index():
+    def _empty_index() -> _SessionIndex:
         return {"schema_version": SCHEMA_VERSION,
                 "active_session_id": None, "sessions": []}
 
     @staticmethod
-    def _read_json(path):
-        value = json.loads(path.read_text(encoding="utf-8"))
+    def _read_json(path: Path) -> dict[str, Any]:
+        value: object = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(value, dict):
             raise ValueError(f"{path.name} 必须是 JSON object")
         return value
 
     @staticmethod
-    def _write_json(path, value):
+    def _write_json(path: Path, value: object) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + ".tmp")
         with temporary.open("w", encoding="utf-8") as stream:
@@ -305,7 +341,7 @@ class JsonlSessionStore:
         os.replace(temporary, path)
 
     @classmethod
-    def _write_lines(cls, path, lines):
+    def _write_lines(cls, path: Path, lines: Iterable[str]) -> None:
         temporary = path.with_name(path.name + ".repair")
         with temporary.open("w", encoding="utf-8") as stream:
             for line in lines:

@@ -2,9 +2,9 @@
 
 import json
 import logging
+from math import isfinite
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from math import isfinite
 
 from boxagent.domain.proactivity.game_entry import EntryHistory, QuestProgress, TrackedQuest
 
@@ -14,10 +14,19 @@ logger = logging.getLogger(__name__)
 def _progress(value: object) -> QuestProgress | None:
     if not isinstance(value, dict):
         return None
-    launch, title, objective, observed_at = (value.get(key) for key in ("launch", "title", "objective", "observed_at"))
-    if (not isinstance(launch, str) or not launch or not isinstance(title, str)
-            or not isinstance(objective, str) or not objective or type(observed_at) not in (int, float)
-            or not isfinite(observed_at)):
+    launch, title, objective, observed_at = (
+        value.get(key) for key in ("launch", "title", "objective", "observed_at")
+    )
+    if (
+        not isinstance(launch, str)
+        or not launch
+        or not isinstance(title, str)
+        or not isinstance(objective, str)
+        or not objective
+        or not isinstance(observed_at, (int, float))
+        or isinstance(observed_at, bool)
+        or not isfinite(observed_at)
+    ):
         return None
     return QuestProgress(launch, TrackedQuest(title, objective), float(observed_at))
 
@@ -49,9 +58,14 @@ class QuestProgressFile:
 
     def write(self, state: EntryHistory) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"current": _record(state.current), "previous": _record(state.previous),
-                "greeted_launch": state.greeted_launch}
-        with NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.path.parent, delete=False) as stream:
+        data = {
+            "current": _record(state.current),
+            "previous": _record(state.previous),
+            "greeted_launch": state.greeted_launch,
+        }
+        with NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=self.path.parent, delete=False
+        ) as stream:
             temporary = Path(stream.name)
             try:
                 json.dump(data, stream, ensure_ascii=False, allow_nan=False)

@@ -6,13 +6,25 @@ resolved or allocated for each invocation; nothing is loaded from old probes.
 
 from __future__ import annotations
 
+import fcntl
+import hashlib
+import json
+import os
+import secrets
+import signal
+import subprocess
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
+from pathlib import Path
 
 from boxagent.core.paths import SOURCE_ROOT
+from boxagent.domain.wechat.models import PublishOutcome
+from boxagent.infrastructure.wechat._private import object_json, private_dir, write_json
+from boxagent.infrastructure.wechat.executor import native_lock
+from boxagent.infrastructure.wechat.probe import discover
 
 
-class Visibility(str, Enum):
+class Visibility(StrEnum):
     PRIVATE = "private"
     PUBLIC = "public"
 
@@ -71,24 +83,40 @@ class Expressions:
 
     def create(self) -> str:
         return (
-            "({ struct BoxSnsPair {void*p;void*c;~BoxSnsPair(){}};"
-            "BoxSnsPair boxempty={0,0};int boxkind=1;"
-            f"BoxSnsPair boxvm=((BoxSnsPair(*)(void*,const BoxSnsPair*,const int*)){self.address(0x19AF500)})(0,&boxempty,&boxkind);"
-            f"{self.load(VM)}=(unsigned long)boxvm.p;{self.load(CONTROL)}=(unsigned long)boxvm.c;{self.load(PHASE)}=1;"
-            "*(unsigned int*)((char*)boxvm.p+0x54)=0;"
-            f"void* boxpanel=((void*(*)(unsigned long)){self.address(0x6FC04A8)})(0x238);"
-            f"{self.load(PANEL)}=(unsigned long)boxpanel;{self.load(PHASE)}=2;"
-            f"((void*(*)(void*,unsigned int,unsigned int,void*)){self.address(0x19A2410)})(boxpanel,1,0,0);"
-            f"{self.load(PHASE)}=3;"
-            f"((void(*)(void*,const BoxSnsPair*)){self.address(0x19A54F4)})(boxpanel,&boxvm);"
-            f"{self.load(PHASE)}=4;"
-            "unsigned long boxinput=*(unsigned long*)((char*)boxpanel+0x1b0);"
-            "unsigned long boxreply=*(unsigned long*)(boxinput+0x190);"
-            f"{self.load(EDITOR)}=*(unsigned long*)(boxreply+0x1e0);"
-            "bool boxvisible=true;void* boxargs[]={&boxvisible};"
-            f"((void(*)(void*,int,int,void**)){self.address(0x6889B54)})(boxpanel,1,35,boxargs);"
-            f"(!boxvisible&&*(unsigned long*)boxpanel=={self.address(0x9A0DDC0)}"
-            f"&&*(unsigned long*)boxvm.p=={self.address(0x9B5D888)})?1L:-1L; }})"
+            "({ struct BoxSnsPair {void*p;void*c;~BoxSnsPair(){}};BoxSnsPair boxempty={0,0};int "
+            "boxkind=1;BoxSnsPair boxvm=((BoxSnsPair(*)(void*,const BoxSnsPair*,const int*))"
+            f"{self.address(0x19AF500)}"
+            ")(0,&boxempty,&boxkind);"
+            f"{self.load(VM)}"
+            "=(unsigned long)boxvm.p;"
+            f"{self.load(CONTROL)}"
+            "=(unsigned long)boxvm.c;"
+            f"{self.load(PHASE)}"
+            "=1;*(unsigned int*)((char*)boxvm.p+0x54)=0;void* boxpanel=((void*(*)(unsigned long))"
+            f"{self.address(0x6FC04A8)}"
+            ")(0x238);"
+            f"{self.load(PANEL)}"
+            "=(unsigned long)boxpanel;"
+            f"{self.load(PHASE)}"
+            "=2;((void*(*)(void*,unsigned int,unsigned int,void*))"
+            f"{self.address(0x19A2410)}"
+            ")(boxpanel,1,0,0);"
+            f"{self.load(PHASE)}"
+            "=3;((void(*)(void*,const BoxSnsPair*))"
+            f"{self.address(0x19A54F4)}"
+            ")(boxpanel,&boxvm);"
+            f"{self.load(PHASE)}"
+            "=4;unsigned long boxinput=*(unsigned long*)((char*)boxpanel+0x1b0);unsigned long "
+            "boxreply=*(unsigned long*)(boxinput+0x190);"
+            f"{self.load(EDITOR)}"
+            "=*(unsigned long*)(boxreply+0x1e0);bool boxvisible=true;void* "
+            "boxargs[]={&boxvisible};((void(*)(void*,int,int,void**))"
+            f"{self.address(0x6889B54)}"
+            ")(boxpanel,1,35,boxargs);(!boxvisible&&*(unsigned long*)boxpanel=="
+            f"{self.address(0x9A0DDC0)}"
+            "&&*(unsigned long*)boxvm.p=="
+            f"{self.address(0x9B5D888)}"
+            ")?1L:-1L; })"
         )
 
     def prepare(self) -> str:
@@ -97,29 +125,51 @@ class Expressions:
         n = len(units)
         return (
             "({ " + self.qstring_type +
-            f"unsigned long boxvm={self.load(VM)},boxeditor={self.load(EDITOR)};"
-            "unsigned long boxprivacy[13]={0};void* boxpv=(void*)(*(unsigned long*)(boxvm+0x20)+0x78);"
-            f"((void(*)(void*,const void*)){self.address(0x19C6FFC)})(boxprivacy,boxpv);"
-            f"*(unsigned int*)boxprivacy={self.visibility.native_mode};"
-            f"((void(*)(void*,const void*)){self.address(0x19DE150)})((void*)boxvm,boxprivacy);"
-            f"((void(*)(void*)){self.address(0x1F68A4)})(boxprivacy);"
-            f"unsigned short boxwant[]={{{numbers}}};"
-            f"void* boxdata=((void*(*)(unsigned long)){self.address(0x6FC04A8)})({24 + 2 * (n + 1)});"
-            f"*(int*)boxdata=1;*(int*)((char*)boxdata+4)={n};"
-            f"*(unsigned int*)((char*)boxdata+8)={n+1};*(unsigned int*)((char*)boxdata+12)=0;"
-            "*(long*)((char*)boxdata+16)=24;"
-            f"for(int boxi=0;boxi<={n};++boxi)((unsigned short*)((char*)boxdata+24))[boxi]=boxwant[boxi];"
-            "BoxSnsQString boxdesired={boxdata};void* boxset[]={0,&boxdesired};"
-            f"((void(*)(void*,int,int,void**)){self.address(0x69A0654)})((void*)boxeditor,0,16,boxset);"
-            f"BoxSnsQString boxout={{(void*){self.address(0xA05B978)}}};void* boxget[]={{&boxout}};"
-            f"((void(*)(void*,int,int,void**)){self.address(0x69A0654)})((void*)boxeditor,1,9,boxget);"
-            "int boxn=*((int*)boxout.d+1);long boxoff=*(long*)((char*)boxout.d+16);"
-            f"bool boxsame=boxn=={n}&&boxoff>=24&&boxoff<=1048576;"
-            f"if(boxsame)for(int boxi=0;boxi<{n};++boxi)if(((unsigned short*)((char*)boxout.d+boxoff))[boxi]!=boxwant[boxi])boxsame=false;"
-            f"((void(*)(void*)){self.address(0x19DECF8)})((void*)boxvm);"
-            "unsigned long boxcore=*(unsigned long*)(boxvm+0x58);"
-            f"bool boxprivate=*(unsigned int*)(boxcore+0x1f8)=={self.visibility.native_mode};"
-            "(boxsame&&boxprivate)?1L:-2L; })"
+            "unsigned long boxvm="
+            f"{self.load(VM)}"
+            ",boxeditor="
+            f"{self.load(EDITOR)}"
+            ";unsigned long boxprivacy[13]={0};void* boxpv=(void*)(*(unsigned "
+            "long*)(boxvm+0x20)+0x78);((void(*)(void*,const void*))"
+            f"{self.address(0x19C6FFC)}"
+            ")(boxprivacy,boxpv);*(unsigned int*)boxprivacy="
+            f"{self.visibility.native_mode}"
+            ";((void(*)(void*,const void*))"
+            f"{self.address(0x19DE150)}"
+            ")((void*)boxvm,boxprivacy);((void(*)(void*))"
+            f"{self.address(0x1F68A4)}"
+            ")(boxprivacy);unsigned short boxwant[]={"
+            f"{numbers}"
+            "};void* boxdata=((void*(*)(unsigned long))"
+            f"{self.address(0x6FC04A8)}"
+            ")("
+            f"{24 + 2 * (n + 1)}"
+            ");*(int*)boxdata=1;*(int*)((char*)boxdata+4)="
+            f"{n}"
+            ";*(unsigned int*)((char*)boxdata+8)="
+            f"{n+1}"
+            ";*(unsigned int*)((char*)boxdata+12)=0;*(long*)((char*)boxdata+16)=24;for(int "
+            "boxi=0;boxi<="
+            f"{n}"
+            ";++boxi)((unsigned short*)((char*)boxdata+24))[boxi]=boxwant[boxi];BoxSnsQString "
+            "boxdesired={boxdata};void* boxset[]={0,&boxdesired};((void(*)(void*,int,int,void**))"
+            f"{self.address(0x69A0654)}"
+            ")((void*)boxeditor,0,16,boxset);BoxSnsQString boxout={(void*)"
+            f"{self.address(0xA05B978)}"
+            "};void* boxget[]={&boxout};((void(*)(void*,int,int,void**))"
+            f"{self.address(0x69A0654)}"
+            ")((void*)boxeditor,1,9,boxget);int boxn=*((int*)boxout.d+1);long "
+            "boxoff=*(long*)((char*)boxout.d+16);bool boxsame=boxn=="
+            f"{n}"
+            "&&boxoff>=24&&boxoff<=1048576;if(boxsame)for(int boxi=0;boxi<"
+            f"{n}"
+            ";++boxi)if(((unsigned short*)((char*)boxout.d+boxoff))[boxi]!=boxwant[boxi])boxsame=f"
+            "alse;((void(*)(void*))"
+            f"{self.address(0x19DECF8)}"
+            ")((void*)boxvm);unsigned long boxcore=*(unsigned long*)(boxvm+0x58);bool "
+            "boxprivate=*(unsigned int*)(boxcore+0x1f8)=="
+            f"{self.visibility.native_mode}"
+            ";(boxsame&&boxprivate)?1L:-2L; })"
         )
 
     def submit(self) -> str:
@@ -147,10 +197,15 @@ class Expressions:
 
     def queue_delete(self) -> str:
         return (
-            f"({{void* boxpanel=(void*){self.load(PANEL)};"
-            f"void* boxguard=((void*(*)(void*)){self.address(0x6D49E54)})(boxpanel);"
-            f"{self.load(WEAK_GUARD)}=(unsigned long)boxguard;void* boxargs[]={{0}};"
-            f"((void(*)(void*,int,int,void**)){self.address(0x6E5D5BC)})(boxpanel,0,3,boxargs);1L; }})"
+            "({void* boxpanel=(void*)"
+            f"{self.load(PANEL)}"
+            ";void* boxguard=((void*(*)(void*))"
+            f"{self.address(0x6D49E54)}"
+            ")(boxpanel);"
+            f"{self.load(WEAK_GUARD)}"
+            "=(unsigned long)boxguard;void* boxargs[]={0};((void(*)(void*,int,int,void**))"
+            f"{self.address(0x6E5D5BC)}"
+            ")(boxpanel,0,3,boxargs);1L; })"
         )
 
     def release(self, submitted: bool) -> str:
@@ -186,19 +241,7 @@ def utf16_units(text: str) -> tuple[int, ...]:
         raise ValueError(f"Text exceeds the experiment's {MAX_UTF16_UNITS} UTF-16 unit budget")
     return tuple(int.from_bytes(raw[i:i+2], "little") for i in range(0, len(raw), 2))
 
-import fcntl
-import hashlib
-import json
-import os
-import secrets
-import signal
-import subprocess
-from pathlib import Path
 
-from boxagent.domain.wechat.models import PublishOutcome
-from boxagent.infrastructure.wechat._private import object_json, private_dir, write_json
-from boxagent.infrastructure.wechat.executor import native_lock
-from boxagent.infrastructure.wechat.probe import discover
 
 
 def request_key(request_id: str) -> str:
@@ -221,7 +264,9 @@ def previous_request(directory: Path, expected: str) -> dict[str, object] | None
         raise ValueError("Request journal incomplete; inspect it before using a new ID")
     context = object_json(context_file)
     if context.get("fingerprint") != expected:
-        raise ValueError("Request ID already used with different content, visibility, action or app")
+        raise ValueError(
+            "Request ID already used with different content, visibility, action or app"
+        )
     result = directory / "result.json"
     report = object_json(result) if result.exists() else {
         "status": "outcome_unknown", "request_id": context["request_id"],
@@ -230,7 +275,15 @@ def previous_request(directory: Path, expected: str) -> dict[str, object] | None
     return {**report, "replayed": True, "executed_again": False}
 
 
-def execute(text: str, visibility: Visibility, publish: bool, request_id: str, app: Path, state: Path, lease: int) -> dict[str, object]:
+def execute(
+    text: str,
+    visibility: Visibility,
+    publish: bool,
+    request_id: str,
+    app: Path,
+    state: Path,
+    lease: int,
+) -> dict[str, object]:
     utf16_units(text)
     app = app.expanduser().resolve()
     state = private_dir(state)
@@ -282,9 +335,14 @@ def execute(text: str, visibility: Visibility, publish: bool, request_id: str, a
                 try:
                     process.wait(timeout=15)
                 except subprocess.TimeoutExpired:
-                    return {"status": "outcome_unknown", "request_id": request_id,
-                            "error": "Executor did not exit; its process retains the lock. Inspect executor.log.",
-                            "journal": str(directory), "delivery_confirmed": False}
+                    return {
+                        "status": "outcome_unknown",
+                        "request_id": request_id,
+                        "error": "Executor did not exit; its process retains the lock. Inspect "
+                            "executor.log.",
+                        "journal": str(directory),
+                        "delivery_confirmed": False,
+                    }
         result_file = directory / "result.json"
         report: dict[str, object] = object_json(result_file) if result_file.exists() else {
             "status": "failed", "request_id": request_id,
@@ -312,7 +370,11 @@ class NativeMomentsPublisher:
         utf16_units(text)
         selected = Visibility(visibility)
         with native_lock(self.state_dir.parent) as lease:
-            report = execute(text, selected, not dry_run, request_id, self.app, self.state_dir, lease)
-        status = str(report.get('status', 'outcome_unknown'))
-        detail = str(report.get('error') or report.get('cleanup_error') or report.get('cleanup') or '')
-        return PublishOutcome(request_id,text,visibility,status,False,detail)
+            report = execute(
+                text, selected, not dry_run, request_id, self.app, self.state_dir, lease
+            )
+        status = str(report.get("status", "outcome_unknown"))
+        detail = str(
+            report.get("error") or report.get("cleanup_error") or report.get("cleanup") or ""
+        )
+        return PublishOutcome(request_id, text, visibility, status, False, detail)

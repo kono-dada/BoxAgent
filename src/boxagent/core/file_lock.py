@@ -1,6 +1,6 @@
 """Nonblocking exclusive file leases on Windows and POSIX."""
 
-import os
+import sys
 from typing import TextIO
 
 LOCK_EX = 2
@@ -9,7 +9,7 @@ LOCK_UN = 8
 
 
 def flock(stream: TextIO, operation: int) -> None:
-    if os.name != "nt":
+    if sys.platform != "win32":
         import fcntl
         fcntl.flock(stream, operation)
         return

@@ -3,18 +3,18 @@
 import json
 import tempfile
 import unittest
-from datetime import datetime
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from boxagent.bootstrap.engine import create_application, create_task_executor
-from boxagent.bootstrap.settings import load_settings
 from boxagent.agent.harness.executor import TaskExecutor
 from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
+from boxagent.agent.runtime.registry import AgentRuntimeRegistry
+from boxagent.bootstrap.engine import create_application, create_task_executor
+from boxagent.bootstrap.settings import load_settings
 from boxagent.infrastructure.runtimes.codex.runtime import CodexAgentRuntime
 from boxagent.infrastructure.runtimes.codex.session import CodexRuntimeHost
-from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 
 
 class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
@@ -32,7 +32,9 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         runtime = CodexAgentRuntime(session, model="codex-test")
         tools = [{"name": "desktop_click", "inputSchema": {"type": "object"}}]
         request = RuntimeRequestBuilder().prepare("测试")
-        result = await runtime.execute(request, tools, AsyncMock(), lambda _text: {}, lambda *_: None)
+        result = await runtime.execute(
+            request, tools, AsyncMock(), lambda _text: {}, lambda *_: None
+        )
         self.assertEqual(session.tools, tools)
         self.assertIn("需要登录", result)
         session.run_codex_turn.assert_awaited_once()

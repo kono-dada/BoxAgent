@@ -1,10 +1,12 @@
 """Private local state helpers; no framework or experiment dependencies."""
 from __future__ import annotations
+
 import json
 import os
-from pathlib import Path
 import stat
+from pathlib import Path
 from typing import cast
+
 
 def object_json(path: Path) -> dict[str, object]:
     value: object = json.loads(path.read_text(encoding="utf-8"))

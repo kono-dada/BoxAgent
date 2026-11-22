@@ -9,7 +9,7 @@ class PerceptionService:
         self.observer = observer
         self.toggle_lock = asyncio.Lock()
 
-    async def toggle(self):
+    async def toggle(self) -> None:
         async with self.toggle_lock:
             if not self.observer:
                 return
@@ -21,6 +21,6 @@ class PerceptionService:
                 self.events.emit("context.enabled", context_enabled=True)
                 self.observer.task = asyncio.create_task(self.observer.run())
 
-    async def close(self):
+    async def close(self) -> None:
         if self.observer:
             await self.observer.stop()

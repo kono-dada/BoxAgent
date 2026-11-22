@@ -13,11 +13,15 @@ from boxagent.core.events import StateEvents
 from boxagent.domain.conversation import ConversationService
 from boxagent.domain.interaction.service import InteractionService
 from boxagent.domain.proactivity.game_entry import GameCapture, TrackedQuest
-from boxagent.domain.proactivity.game_highlight import GameFrame, GameHighlight, GameObservation, HighlightReview
+from boxagent.domain.proactivity.game_highlight import (
+    GameFrame,
+    GameHighlight,
+    GameObservation,
+    HighlightReview,
+)
 from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.infrastructure.persistence.game_entry import QuestProgressFile
 from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
-
 
 PRAISE = HighlightReview("settled", "刚那下躲得好帅！", "攻击扫过时，角色已经闪到了侧面。", (1, 4))
 
@@ -133,7 +137,9 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
     async def test_silent_scene_supplies_conversation_context_until_expired(self) -> None:
         # This observation is available even though there is no proactive line.
         self.vision.result = HighlightReview(
-            "unclear", observation=GameObservation("走进洞里后，前方出现一个高大的黑影。", 102.5, 103))
+            "unclear",
+            observation=GameObservation("走进洞里后，前方出现一个高大的黑影。", 102.5, 103),
+        )
         await self.tick(6)
         self.assertEqual(self.announced, [])
         reference = self.game.reference()
@@ -254,7 +260,11 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
             interaction.voice = Speaker()
 
         interaction._connect = connect
-        self.assertTrue(await interaction.announce_game_line("game-highlight:scene", "这片灯光真好看。", lambda: True))
+        self.assertTrue(
+            await interaction.announce_game_line(
+                "game-highlight:scene", "这片灯光真好看。", lambda: True
+            )
+        )
         self.assertEqual(opened, [False])
         self.assertEqual(delivered, ["这片灯光真好看。"])
 
@@ -348,7 +358,9 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
         await voice.announce_game_line("game-highlight:old", "右边有东西。", lambda: current)
         await voice.receive({"type": "response.created", "response": {"id": "old-scene"}})
         current = False
-        await voice.receive({"type": "response.audio.delta", "response_id": "old-scene", "delta": ""})
+        await voice.receive(
+            {"type": "response.audio.delta", "response_id": "old-scene", "delta": ""}
+        )
         await asyncio.sleep(0)
         self.assertIn("old-scene", voice.cancelled_responses)
         self.assertEqual(messages[-1]["type"], "response.cancel")
@@ -358,13 +370,21 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as directory:
             conversation = ConversationService(JsonlSessionStore(Path(directory)))
             session = await conversation.start()
-            interaction = InteractionService(StateEvents(lambda _event: None), None, None, conversation=conversation)
+            interaction = InteractionService(
+                StateEvents(lambda _event: None), None, None, conversation=conversation
+            )
             receipt = "game-highlight:visible-text"
-            payload = {"notification_id": receipt, "game_line": PRAISE.praise, "session_id": session.session_id}
+            payload = {
+                "notification_id": receipt,
+                "game_line": PRAISE.praise,
+                "session_id": session.session_id,
+            }
             await interaction._notification_event("playback_started", payload)
             await interaction._notification_event("playback_started", payload)
             messages = await conversation.recent_messages(session.session_id)
-            self.assertEqual([(item.event_id, item.content) for item in messages], [(receipt, PRAISE.praise)])
+            self.assertEqual(
+                [(item.event_id, item.content) for item in messages], [(receipt, PRAISE.praise)]
+            )
 
     async def test_normal_voice_turns_use_the_recent_scene_without_phrase_matching(self) -> None:
         self.vision.result = HighlightReview("unclear")
@@ -413,7 +433,9 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
                 conversation=conversation, turn_preparer=Preparation())
             interaction.voice = Voice()
             interaction.game_reference = lambda: evidence[0]
-            await interaction._conversation_event("user_final", {"transcript": "查一下当前任务的攻略"})
+            await interaction._conversation_event(
+                "user_final", {"transcript": "查一下当前任务的攻略"}
+            )
             self.assertIn("新画面任务：和库洛夫互动", delivered[-1])
             self.assertNotIn("已过期的旧场景", delivered[-1])
 
@@ -456,8 +478,13 @@ class GameHighlightContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(HighlightReview.parse(json.dumps(raw), frames).observation)
 
     def test_rejects_invalid_or_duplicate_visual_evidence(self) -> None:
-        frames = tuple(GameFrame(i * .5, bytes([i])) for i in range(6))
-        result = {"scene": "settled", "praise": PRAISE.praise, "detail": PRAISE.detail, "frames": [1, 4]}
+        frames = tuple(GameFrame(i * 0.5, bytes([i])) for i in range(6))
+        result = {
+            "scene": "settled",
+            "praise": PRAISE.praise,
+            "detail": PRAISE.detail,
+            "frames": [1, 4],
+        }
         self.assertEqual(HighlightReview.parse(json.dumps(result), frames), PRAISE)
         repeated = tuple(GameFrame(frame.captured_at, b"same") for frame in frames)
         self.assertEqual(HighlightReview.parse(json.dumps(result), repeated).scene, "unclear")

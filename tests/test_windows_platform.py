@@ -47,7 +47,10 @@ def test_native_capture_targets_window_only(tmp_path: Path) -> None:
     native.GetForegroundWindow.return_value = 123
     native.GetWindowRect.side_effect = rectangle
     native.SetThreadDpiAwarenessContext.return_value = 1
-    with patch("ctypes.WinDLL", return_value=native, create=True), patch("PIL.ImageGrab.grab") as grab:
+    with (
+        patch("ctypes.WinDLL", return_value=native, create=True),
+        patch("PIL.ImageGrab.grab") as grab,
+    ):
         capture_window(123, tmp_path / "window.png")
     grab.assert_called_once_with(bbox=(-1200, 50, -200, 750), all_screens=True)
     grab.return_value.close.assert_called_once()
@@ -59,7 +62,9 @@ def test_native_capture_rejects_switched_window(tmp_path: Path) -> None:
 
     native = Mock()
     native.GetForegroundWindow.return_value = 456
-    with patch("ctypes.WinDLL", return_value=native, create=True), patch("PIL.ImageGrab.grab") as grab:
-        with pytest.raises(RuntimeError, match="前台窗口已切换"):
-            capture_window(123, tmp_path / "window.png")
+    with (
+        patch("ctypes.WinDLL", return_value=native, create=True),
+        patch("PIL.ImageGrab.grab") as grab,pytest.raises(RuntimeError, match="前台窗口已切换")
+    ):
+        capture_window(123, tmp_path / "window.png")
     grab.assert_not_called()

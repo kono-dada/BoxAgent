@@ -1,8 +1,8 @@
 """Load the user-customizable BoxAgent persona from a SOUL.md file."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,7 @@ evidence; job files are delivery state, not a second memory database.
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from boxagent.domain.memory.contracts import MemoryBackend, MemoryUnavailable
 from boxagent.domain.memory.evidence import public_memory_items
@@ -34,12 +34,12 @@ class MemoryService:
         self.recalled_memory_content: dict[str, str] = {}
         self.prewarm_task = None
 
-    async def start(self):
+    async def start(self) -> None:
         if self.prewarm_task is None and self.backend is not None:
             self.prewarm_task = asyncio.create_task(
                 self._prewarm_backend(), name="boxagent-memory-prewarm")
 
-    async def _prewarm_backend(self):
+    async def _prewarm_backend(self) -> None:
         try:
             await self._require_backend().health()
         except asyncio.CancelledError:
@@ -71,7 +71,7 @@ class MemoryService:
         observation = {"content": content, "metadata": metadata}
         if occurred_at:
             observation["timestamp"] = datetime.fromtimestamp(
-                occurred_at, timezone.utc).isoformat()
+                occurred_at, UTC).isoformat()
         result = await self._require_backend().remember([observation])
         if result.get("admitted") and self.profile_projector is not None:
             for node in [*result.get("created", []), *result.get("reused", [])]:
@@ -88,7 +88,7 @@ class MemoryService:
             "content": content,
             # Jev-Mem orders nodes by time; an untimed node cannot be compared
             # with timezone-aware ones and aborts the whole write.
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "metadata": {
                 "source": source,
                 "role": "user",
@@ -219,14 +219,14 @@ class MemoryService:
             {item["id"]: item["content"] for item in memories
              if item.get("id") and item.get("content")})
 
-    async def _refresh_projection(self):
+    async def _refresh_projection(self) -> None:
         if self.projection_callback is None:
             return
         value = self.projection_callback()
         if asyncio.iscoroutine(value):
             await value
 
-    async def close(self):
+    async def close(self) -> None:
         if self.prewarm_task is not None and not self.prewarm_task.done():
             self.prewarm_task.cancel()
             await asyncio.gather(self.prewarm_task, return_exceptions=True)

@@ -2,22 +2,29 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from pathlib import Path
-import struct
-from typing import Protocol, cast
 import ctypes as c
+import hashlib
+import logging
 import os
 import plistlib
+import struct
 import subprocess
-import logging
-import hashlib
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Protocol, cast
+
+from boxagent.domain.wechat.contracts import OperationRejected
+from boxagent.infrastructure.darwin.mach_reader import MachReader, TaskReadError
+from boxagent.infrastructure.wechat.addresses import (
+    ARM64_SHA256,
+    BUILD,
+    BUNDLE_ID,
+    VERSION,
+    BuildProfile,
+)
 
 logger = logging.getLogger(__name__)
 
-from boxagent.infrastructure.darwin.mach_reader import MachReader, TaskReadError
-from boxagent.infrastructure.wechat.addresses import BuildProfile, VERSION, BUILD, ARM64_SHA256, BUNDLE_ID
-from boxagent.domain.wechat.contracts import OperationRejected
 
 
 class PeerUnavailable(OperationRejected):
@@ -57,7 +64,9 @@ class ReplicaProbe:
             "editor": struct.pack("<Q", base + profile.editor_vptr),
             "view": struct.pack("<Q", base + profile.view_vptr),
         }
-        with MachReader(self.pid, self.executable, max_bytes=2 * 1024 * 1024 * 1024, seconds=self.max_seconds) as reader:
+        with MachReader(
+            self.pid, self.executable, max_bytes=2 * 1024 * 1024 * 1024, seconds=self.max_seconds
+        ) as reader:
             hits = self._scan(reader, patterns)
             missing = [name for name in patterns if not hits[name]]
             if missing:
@@ -167,7 +176,9 @@ def replica_process(app: Path) -> tuple[int, Path]:
     executable = (app / "Contents/MacOS/WeChat").resolve(strict=True)
     matches = matching_pids(executable)
     if len(matches) != 1:
-        raise ReplicaNotRunning("The configured WeChat replica must have exactly one running process")
+        raise ReplicaNotRunning(
+            "The configured WeChat replica must have exactly one running process"
+        )
     return matches[0], executable
 
 
@@ -214,9 +225,13 @@ def macho_uuid(header: bytes) -> str:
         if length < 8 or position + length > 32 + size:
             raise ValueError("Invalid load command")
         if command == 0x1B and length == 24:
-            uuids.append(header[position+8:position+24].hex())
-        if command == 0x19 and length >= 72 and header[position+8:position+24].rstrip(b"\0") == b"__TEXT":
-            text_addresses.append(struct.unpack_from("<Q", header, position+24)[0])
+            uuids.append(header[position + 8 : position + 24].hex())
+        if (
+            command == 0x19
+            and length >= 72
+            and header[position + 8 : position + 24].rstrip(b"\0") == b"__TEXT"
+        ):
+            text_addresses.append(struct.unpack_from("<Q", header, position + 24)[0])
         position += length
     if position != 32 + size or len(uuids) != 1 or text_addresses != [0]:
         raise ValueError("Unexpected UUID or preferred image address")
@@ -274,7 +289,9 @@ def image_base(reader: MachReader, image: Path) -> int:
     for index in range(n):
         load, path_address, _ = struct.unpack_from("<QQQ", rows, index * 24)
         try:
-            name = reader.read(path_address, min(1024, 4096-(path_address & 4095))).split(b"\0", 1)[0]
+            name = reader.read(path_address, min(1024, 4096 - (path_address & 4095))).split(
+                b"\0", 1
+            )[0]
         except TaskReadError:
             continue  # Unrelated dyld entries can have inaccessible path storage.
         if name == os.fsencode(image):
@@ -328,7 +345,10 @@ def discover(app: Path) -> Snapshot:
     # Apple's LLDB Python 3.9 (some use evaluated Python 3.10 union types).
 
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
-    if (info.get("CFBundleShortVersionString"), str(info.get("CFBundleVersion"))) != (VERSION, BUILD):
+    if (info.get("CFBundleShortVersionString"), str(info.get("CFBundleVersion"))) != (
+        VERSION,
+        BUILD,
+    ):
         raise ValueError(f"Only WeChat {VERSION} build {BUILD} is supported")
     image = app / "Contents/Resources/wechat.dylib"
     uuid = disk_image(image)
@@ -338,7 +358,9 @@ def discover(app: Path) -> Snapshot:
         if macho_uuid(reader.read(base, 65568)) != uuid:
             raise ValueError("Disk/live image UUID mismatch")
         identity = reader.identity()
-        return Snapshot(pid, str(executable), *identity.start, identity.audit_token.hex(), base, uuid)
+        return Snapshot(
+            pid, str(executable), *identity.start, identity.audit_token.hex(), base, uuid
+        )
 
 
 def allocate(reader: MachReader, size: int, header: bytes) -> int:

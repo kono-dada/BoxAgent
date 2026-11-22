@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 from boxagent.core.ids import new_memory_job_id
@@ -12,13 +13,13 @@ from boxagent.domain.memory.models import MemoryIngestionJob
 
 
 class JsonMemoryJobStore:
-    def __init__(self, root):
+    def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
         self.jobs_path = self.root / "jobs/ingestion.jsonl"
         self.legacy_jobs_path = self.root / "extraction/jobs.jsonl"
         self.lock = asyncio.Lock()
 
-    async def start(self):
+    async def start(self) -> None:
         async with self.lock:
             self.jobs_path.parent.mkdir(parents=True, exist_ok=True)
             if not self.jobs_path.exists() and self.legacy_jobs_path.is_file():
@@ -26,8 +27,14 @@ class JsonMemoryJobStore:
             self.jobs_path.touch(mode=0o600, exist_ok=True)
             self._read_jobs(repair=True)
 
-    async def enqueue_job(self, *, session_id, interaction_id, source_hash,
-                          admission_version="jev-observation-v1"):
+    async def enqueue_job(
+        self,
+        *,
+        session_id: str,
+        interaction_id: str,
+        source_hash: str,
+        admission_version: str = "jev-observation-v1",
+    ) -> MemoryIngestionJob:
         version = admission_version
         key = hashlib.sha256(
             f"{version}:{session_id}:{interaction_id}:{source_hash}".encode()
@@ -47,14 +54,14 @@ class JsonMemoryJobStore:
             self._append(job.payload())
             return job
 
-    async def jobs(self, *, statuses=None):
+    async def jobs(self, *, statuses: set[str] | None = None) -> list[MemoryIngestionJob]:
         async with self.lock:
             jobs = list(self._latest_jobs(self._read_jobs(repair=True)).values())
             if statuses is not None:
                 jobs = [item for item in jobs if item.status in statuses]
             return sorted(jobs, key=lambda item: item.created_at)
 
-    async def update_job(self, job):
+    async def update_job(self, job: MemoryIngestionJob) -> MemoryIngestionJob:
         async with self.lock:
             jobs = self._latest_jobs(self._read_jobs(repair=True))
             if job.job_id not in jobs:
@@ -64,36 +71,40 @@ class JsonMemoryJobStore:
             self._append(job.payload())
             return job
 
-    def _read_jobs(self, *, repair=False):
+    def _read_jobs(self, *, repair: bool = False) -> list[MemoryIngestionJob]:
         if not self.jobs_path.exists():
             return []
         lines = self.jobs_path.read_text(encoding="utf-8").splitlines()
-        values, valid = [], []
+        values: list[MemoryIngestionJob] = []
+        valid: list[str] = []
         for position, line in enumerate(lines):
             if not line.strip():
                 continue
             try:
-                values.append(MemoryIngestionJob.from_payload(json.loads(line)))
-            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                payload: object = json.loads(line)
+                if not isinstance(payload, dict):
+                    raise ValueError("Memory Ingestion Job 必须为对象")
+                values.append(MemoryIngestionJob.from_payload(payload))
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
                 if position == len(lines) - 1 and repair:
                     self._write_lines(valid)
                     break
-                raise ValueError(f"{self.jobs_path.name} 第 {position + 1} 行损坏")
+                raise ValueError(f"{self.jobs_path.name} 第 {position + 1} 行损坏") from exc
             valid.append(line)
         return values
 
     @staticmethod
-    def _latest_jobs(jobs):
+    def _latest_jobs(jobs: Iterable[MemoryIngestionJob]) -> dict[str, MemoryIngestionJob]:
         return {item.job_id: item for item in jobs}
 
-    def _append(self, value):
+    def _append(self, value: dict[str, object]) -> None:
         with self.jobs_path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(value, ensure_ascii=False,
                                     separators=(",", ":")) + "\n")
             stream.flush()
             os.fsync(stream.fileno())
 
-    def _write_lines(self, lines):
+    def _write_lines(self, lines: Iterable[str]) -> None:
         temporary = self.jobs_path.with_name(self.jobs_path.name + ".repair")
         with temporary.open("w", encoding="utf-8") as stream:
             for line in lines:

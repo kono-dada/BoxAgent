@@ -7,9 +7,9 @@ import hashlib
 import json
 import logging
 import time
-from uuid import uuid4
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 MAX_FRAME_AGE = 1.5
@@ -45,12 +45,22 @@ class GameWindowStream:
         if not binary.exists():
             temporary = binary.with_suffix("." + uuid4().hex + ".building")
             compiler = await asyncio.create_subprocess_exec(
-                "/usr/bin/xcrun", "swiftc", "-parse-as-library", str(self.source),
-                "-o", str(temporary), stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+                "/usr/bin/xcrun",
+                "swiftc",
+                "-parse-as-library",
+                str(self.source),
+                "-o",
+                str(temporary),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
             try:
                 _, errors = await asyncio.wait_for(compiler.communicate(), 60)
                 if compiler.returncode:
-                    raise RuntimeError("Native game capture build failed: " + errors.decode(errors="replace")[-1500:])
+                    raise RuntimeError(
+                        "Native game capture build failed: "
+                        + errors.decode(errors="replace")[-1500:]
+                    )
                 temporary.replace(binary)
             finally:
                 if compiler.returncode is None:
@@ -70,18 +80,29 @@ class GameWindowStream:
                 binary = await self._executable()
                 self.window = window
                 self.process = await asyncio.create_subprocess_exec(
-                    str(binary), str(window), stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-                    limit=MAX_FRAME_BYTES)
-                self.reader = asyncio.create_task(self._read(self.process), name="game-frame-reader")
-                self.errors = asyncio.create_task(self._errors(self.process), name="game-capture-errors")
+                    str(binary),
+                    str(window),
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    limit=MAX_FRAME_BYTES,
+                )
+                self.reader = asyncio.create_task(
+                    self._read(self.process), name="game-frame-reader"
+                )
+                self.errors = asyncio.create_task(
+                    self._errors(self.process), name="game-capture-errors"
+                )
                 logger.info("game.capture.started window=%s pid=%s", window, self.process.pid)
             try:
                 async with asyncio.timeout(8):
                     while True:
                         self.updated.clear()
                         frame = self.latest
-                        if frame is not None and 0 <= time.monotonic() - frame.captured_at <= MAX_FRAME_AGE:
+                        if (
+                            frame is not None
+                            and 0 <= time.monotonic() - frame.captured_at <= MAX_FRAME_AGE
+                        ):
                             return frame
                         if self.reader.done():
                             raise RuntimeError("Native game capture disconnected")

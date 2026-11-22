@@ -1,11 +1,11 @@
 """验证本地形象的资源边界、恢复选择和 HTTP 白名单。"""
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import urlopen
-from unittest.mock import patch
 
 from boxagent.interfaces.desktop.pets.catalog import PetCatalog
 from boxagent.interfaces.desktop.pets.vrm import AssetServer, read_manifest
@@ -18,7 +18,12 @@ class VrmTests(unittest.TestCase):
         self.root = Path(self.temp.name).resolve()
         self.directory = self.root / "local-avatar"
         self.directory.mkdir()
-        self.manifest = {"type": "vrm", "version": 1, "model": "model.vrm", "actions": {"idle": "idle.vrma"}}
+        self.manifest = {
+            "type": "vrm",
+            "version": 1,
+            "model": "model.vrm",
+            "actions": {"idle": "idle.vrma"},
+        }
         for name in ("model.vrm", "idle.vrma"):
             (self.directory / name).write_bytes(b"fixture")
         self.save()
@@ -74,7 +79,9 @@ class VrmTests(unittest.TestCase):
         with patch("boxagent.interfaces.desktop.pets.vrm.WEB_ROOT", web):
             server = AssetServer(self.directory, read_manifest(self.directory))
             try:
-                with urlopen(server.url.removesuffix("index.html") + "asset/motions/idle.vrma") as response:
+                with urlopen(
+                    server.url.removesuffix("index.html") + "asset/motions/idle.vrma"
+                ) as response:
                     self.assertEqual(response.read(), b"shared-motion")
             finally:
                 server.close()
@@ -88,7 +95,9 @@ class VrmTests(unittest.TestCase):
                 read_manifest(self.directory)
 
     def test_lfs_pointer_reports_missing_download(self):
-        (self.directory / "model.vrm").write_text("version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 123\n")
+        (self.directory / "model.vrm").write_text(
+            "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 123\n"
+        )
         with self.assertRaisesRegex(ValueError, "git lfs pull"):
             read_manifest(self.directory)
 

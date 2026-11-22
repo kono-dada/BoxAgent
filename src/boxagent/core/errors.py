@@ -2,14 +2,29 @@
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import overload
 
 
-def redact(value):
+@overload
+def redact(value: str) -> str: ...
+
+
+@overload
+def redact(value: object) -> object: ...
+
+
+def redact(value: object) -> object:
     if isinstance(value, dict):
-        return {key: ("[已隐藏]" if re.search(r"authorization|api.?key|token|secret|password", key, re.I)
-                      else redact(item)) for key, item in value.items()}
+        return {
+            key: (
+                "[已隐藏]"
+                if re.search(r"authorization|api.?key|token|secret|password", key, re.I)
+                else redact(item)
+            )
+            for key, item in value.items()
+        }
     if isinstance(value, list):
         return [redact(item) for item in value]
     if isinstance(value, str):
@@ -19,14 +34,14 @@ def redact(value):
     return value
 
 
-def write_json(path: Path, value):
+def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(redact(value), ensure_ascii=False, indent=2), encoding="utf-8")
     temporary.replace(path)
 
 
-def append_jsonl(path: Path, value):
+def append_jsonl(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(redact(value), ensure_ascii=False,
@@ -34,10 +49,10 @@ def append_jsonl(path: Path, value):
 
 
 class TaskFailure(RuntimeError):
-    def __init__(self, code, message, detail=""):
+    def __init__(self, code: str, message: str, detail: str = "") -> None:
         super().__init__(message)
         self.code, self.detail = code, detail
 
 
-def timestamp():
-    return datetime.now(timezone.utc).isoformat()
+def timestamp() -> str:
+    return datetime.now(UTC).isoformat()

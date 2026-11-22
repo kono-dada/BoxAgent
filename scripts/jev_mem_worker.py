@@ -4,11 +4,11 @@
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src" if (ROOT / "src").is_dir() else ROOT))
-
-from boxagent.infrastructure.memory.jev_mem.worker import main
-
-
 if __name__ == "__main__":
+    root = Path(__file__).resolve().parents[1]
+    source = root / "src"
+    sys.path.insert(0, str(source if source.is_dir() else root))
+
+    from boxagent.infrastructure.memory.jev_mem.worker import main
+
     main()

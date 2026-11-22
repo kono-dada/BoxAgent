@@ -2,18 +2,18 @@
 
 import argparse
 import asyncio
-from dataclasses import asdict
 import json
 import os
 import time
+from dataclasses import asdict
 from pathlib import Path
 
+from boxagent.agent.harness import RuntimeRequestBuilder
+from boxagent.agent.harness.persona import load_persona
+from boxagent.agent.harness.request import HarnessInput
 from boxagent.bootstrap.engine import create_application
 from boxagent.bootstrap.settings import load_settings
 from boxagent.core.errors import redact
-from boxagent.agent.harness import RuntimeRequestBuilder
-from boxagent.agent.harness.request import HarnessInput
-from boxagent.agent.harness.persona import load_persona
 
 
 class DisabledMemory:

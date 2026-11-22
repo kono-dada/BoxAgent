@@ -71,8 +71,11 @@ class SyntheticMemory:
 async def run_arm(arm: str, out: Path, limit: int) -> list[dict[str, Any]]:
     settings = load_settings()
     intent = create_intent_reference(settings) if arm == "B" else None
-    preparer = TurnPreparer(SyntheticMemory(), intent=intent,
-                            environment=lambda: "当前为 macOS；没有当前应用、歌曲或执行结果的观测。")
+    preparer = TurnPreparer(
+        SyntheticMemory(),
+        intent=intent,
+        environment=lambda: "当前为 macOS；没有当前应用、歌曲或执行结果的观测。",
+    )
     await preparer.start()
     if intent:
         await intent.start()
@@ -83,7 +86,9 @@ async def run_arm(arm: str, out: Path, limit: int) -> list[dict[str, Any]]:
     settled = asyncio.Event()
 
     def first_output() -> None:
-        current.setdefault("first_output_ms", round((time.perf_counter() - current["start"]) * 1000, 1))
+        current.setdefault(
+            "first_output_ms", round((time.perf_counter() - current["start"]) * 1000, 1)
+        )
 
     def emit(kind: str, **data: Any) -> None:
         if kind == "voice.assistant_text" and data.get("assistant_text"):
@@ -93,7 +98,9 @@ async def run_arm(arm: str, out: Path, limit: int) -> list[dict[str, Any]]:
 
     def trace(kind: str, **data: Any) -> None:
         if kind == "response.created" and "start" in current:
-            current.setdefault("response_created_ms", round((time.perf_counter() - current["start"]) * 1000, 1))
+            current.setdefault(
+                "response_created_ms", round((time.perf_counter() - current["start"]) * 1000, 1)
+            )
 
     async def tool(name: str, arguments: str, context: dict[str, Any]) -> dict[str, Any]:
         first_output()
@@ -134,17 +141,36 @@ async def run_arm(arm: str, out: Path, limit: int) -> list[dict[str, Any]]:
                     await asyncio.sleep(.05)
             await asyncio.sleep(.15)
             current.pop("start")
-            current["provider_run_task"] = any(t["name"] == "run_task" and not t["implicit"] for t in current["tools"])
-            current["host_fallback"] = any(t["name"] == "run_task" and t["implicit"] for t in current["tools"])
+            current["provider_run_task"] = any(
+                t["name"] == "run_task" and not t["implicit"] for t in current["tools"]
+            )
+            current["host_fallback"] = any(
+                t["name"] == "run_task" and t["implicit"] for t in current["tools"]
+            )
             text = " ".join(current["replies"])
             # Conservative, inspectable lexical flag; keep text for human audit.
-            current["unsupported_completion_flag"] = bool(re.search(
-                r"(?:已经|已)(?:帮你|为你)?(?:打开|关闭|播放|暂停|收藏|取消收藏|创建|搜索|最小化|执行)", text))
+            current["unsupported_completion_flag"] = bool(
+                re.search(
+                    r"(?:已经|已)(?:帮你|为你)?(?:打开|关闭|播放|暂停|收藏|取消收藏|创建|搜索|最小化|执行)",
+                    text,
+                )
+            )
             results.append(dict(current))
             with (out / "cases.jsonl").open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(current, ensure_ascii=False) + "\n")
-            print(json.dumps({"arm": arm, "case": index, "provider_call": current["provider_run_task"],
-                              "fallback": current["host_fallback"], "query": query}, ensure_ascii=False), flush=True)
+            print(
+                json.dumps(
+                    {
+                        "arm": arm,
+                        "case": index,
+                        "provider_call": current["provider_run_task"],
+                        "fallback": current["host_fallback"],
+                        "query": query,
+                    },
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
         return results
     finally:
         await session.stop()
@@ -181,13 +207,20 @@ async def main() -> None:
         rows = await run_arm(arm, args.out, args.limit)
         summaries[arm] = summarize(rows)
     a, b = summaries["A"], summaries["B"]
-    report = {"model": load_settings().voice_model, "summaries": summaries,
-              "checks": {"intent_budget": b["prepare_p50_ms"] <= 400,
-                         "no_miss_regression": b["missed"] <= a["missed"],
-                         "no_false_trigger_regression": b["false_triggered"] <= a["false_triggered"],
-                         "no_completion_regression": b["unsupported_completion_flags"] <= a["unsupported_completion_flags"],
-                         "text_latency": b["first_output_p50_ms"] <= a["first_output_p50_ms"]},
-              "limits": "合成输入、每组连续会话、固定顺序且每例一次；编结果为词法筛查，须检查原文。不能证明真实用户总体改善或缓存命中。"}
+    report = {
+        "model": load_settings().voice_model,
+        "summaries": summaries,
+        "checks": {
+            "intent_budget": b["prepare_p50_ms"] <= 400,
+            "no_miss_regression": b["missed"] <= a["missed"],
+            "no_false_trigger_regression": b["false_triggered"] <= a["false_triggered"],
+            "no_completion_regression": b["unsupported_completion_flags"]
+            <= a["unsupported_completion_flags"],
+            "text_latency": b["first_output_p50_ms"] <= a["first_output_p50_ms"],
+        },
+        "limits": "合成输入、每组连续会话、固定顺序且每例一次；编结果为词法筛查，须检查原文。"
+            "不能证明真实用户总体改善或缓存命中。",
+    }
     (args.out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
 

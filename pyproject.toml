@@ -42,7 +42,7 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests/test_cli.py", "scripts/check_python_quality.py"]
+files = ["src", "tests/test_cli.py"]
 exclude = ["^src/boxagent/infrastructure/memory/jev_mem/"]
 
 [[tool.mypy.overrides]]

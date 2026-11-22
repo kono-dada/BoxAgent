@@ -1,7 +1,7 @@
 """Input owned by the Harness before it is compiled for a Runtime."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from boxagent.domain.environment import EnvironmentContext
 from boxagent.domain.events.models import EventEnvelope

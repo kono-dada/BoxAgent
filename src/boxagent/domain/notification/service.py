@@ -18,7 +18,7 @@ class NotificationOutbox:
         self.repository = repository
         self.lock = asyncio.Lock()
 
-    async def start(self):
+    async def start(self) -> None:
         if self.repository is None:
             return
         self.repository.start()
@@ -61,7 +61,9 @@ class NotificationOutbox:
             raise ValueError("External notification requires durable storage, session and sources")
         dedupe_key = "external:" + run_id
         async with self.lock:
-            existing = next((item for item in self.repository.list() if item.dedupe_key == dedupe_key), None)
+            existing = next(
+                (item for item in self.repository.list() if item.dedupe_key == dedupe_key), None
+            )
             if existing:
                 return existing
             now = time.time()

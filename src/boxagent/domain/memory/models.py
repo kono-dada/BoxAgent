@@ -1,7 +1,7 @@
 """Domain records for Jev-Mem-first memory orchestration."""
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, NotRequired, TypedDict
+from typing import Any, NotRequired, Self, TypedDict
 
 MEMORY_SCHEMA_VERSION = 2
 
@@ -42,15 +42,15 @@ class MemoryIngestionJob:
     result: dict[str, Any] = field(default_factory=dict)
     next_retry_at: float | None = None
 
-    def payload(self):
+    def payload(self) -> dict[str, object]:
         return {"schema_version": MEMORY_SCHEMA_VERSION, **asdict(self)}
 
     @classmethod
-    def from_payload(cls, value):
+    def from_payload(cls, value: dict[str, Any]) -> Self:
         version = value.get("schema_version")
         if version not in {1, MEMORY_SCHEMA_VERSION}:
             raise ValueError("不支持的 Memory Ingestion Job 版本")
-        data = {key: value.get(key) for key in cls.__dataclass_fields__}
+        data: dict[str, Any] = {key: value.get(key) for key in cls.__dataclass_fields__}
         data["admission_version"] = (data.get("admission_version")
                                      or value.get("extractor_version")
                                      or "legacy")

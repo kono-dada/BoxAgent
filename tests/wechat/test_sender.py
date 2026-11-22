@@ -1,21 +1,29 @@
 from __future__ import annotations
 
-from pathlib import Path
+import asyncio
 import shutil
 import subprocess
+from pathlib import Path
+from typing import cast
+
 import pytest
 
+from boxagent.agent.harness.wechat_tools import WeChatToolGateway
+from boxagent.application.wechat.module import WeChatModule
 from boxagent.application.wechat.service import PeerResolutionError, WeChatService
-from boxagent.domain.wechat.models import DeliveryCheck, DeliveryCursor, DraftSnapshot, GroupMember, SendOutcome
+from boxagent.domain.wechat.models import (
+    DeliveryCheck,
+    DeliveryCursor,
+    DraftSnapshot,
+    GroupMember,
+    SendOutcome,
+)
 from boxagent.infrastructure.wechat.addresses import profile_for
 from boxagent.infrastructure.wechat.database.reader import DatabaseReader
 from boxagent.infrastructure.wechat.probe import LiveObjects
 from boxagent.infrastructure.wechat.sender import NativeWeChatSender, SQLiteSendRequests
+
 from .conftest import PEER
-from typing import cast
-import asyncio
-from boxagent.agent.harness.wechat_tools import WeChatToolGateway
-from boxagent.application.wechat.module import WeChatModule
 
 
 class Transport:
@@ -32,7 +40,10 @@ class Transport:
         if self.fail:
             raise RuntimeError("simulated interrupted native call")
         return SendOutcome(peer, text, submitted=not dry_run, dry_run=dry_run)
-    def send_mention(self, peer: str, member: GroupMember, text: str, *, dry_run: bool = False) -> SendOutcome:
+
+    def send_mention(
+        self, peer: str, member: GroupMember, text: str, *, dry_run: bool = False
+    ) -> SendOutcome:
         return self.send(peer, text, dry_run=dry_run)
 
 
@@ -46,7 +57,9 @@ class History:
 
 
 def service(reader: DatabaseReader, tmp_path: Path, transport: Transport) -> WeChatService:
-    return WeChatService(reader, History(), lambda: transport, SQLiteSendRequests(tmp_path / "requests.sqlite"))
+    return WeChatService(
+        reader, History(), lambda: transport, SQLiteSendRequests(tmp_path / "requests.sqlite")
+    )
 
 
 def test_send_receipt_and_persistent_replay(reader: DatabaseReader, tmp_path: Path) -> None:
@@ -72,7 +85,10 @@ def test_existing_unfinished_request_does_not_send(reader: DatabaseReader, tmp_p
     # Simulate a crash after durable intent, before finish().
     import hashlib
     import json
-    fingerprint = hashlib.sha256(json.dumps([reader.account_id, PEER, "hello", False, None], ensure_ascii=False).encode()).hexdigest()
+
+    fingerprint = hashlib.sha256(
+        json.dumps([reader.account_id, PEER, "hello", False, None], ensure_ascii=False).encode()
+    ).hexdigest()
     requests = SQLiteSendRequests(tmp_path / "requests.sqlite")
     assert requests.claim("one", fingerprint)[0]
     transport = Transport()
@@ -80,16 +96,22 @@ def test_existing_unfinished_request_does_not_send(reader: DatabaseReader, tmp_p
     assert outcome.status == "outcome_unknown" and transport.calls == 0
 
 
-def test_ambiguous_name_returns_candidates_without_native_call(reader: DatabaseReader, tmp_path: Path) -> None:
+def test_ambiguous_name_returns_candidates_without_native_call(
+    reader: DatabaseReader, tmp_path: Path
+) -> None:
     transport = Transport()
     with pytest.raises(PeerResolutionError) as caught:
         service(reader, tmp_path, transport).send("同名", "hello", request_id="one")
     assert len(caught.value.candidates) == 2 and transport.calls == 0
 
 
-def test_dry_run_identity_cannot_be_reused_to_publish(reader: DatabaseReader, tmp_path: Path) -> None:
+def test_dry_run_identity_cannot_be_reused_to_publish(
+    reader: DatabaseReader, tmp_path: Path
+) -> None:
     transport = Transport()
-    result = service(reader, tmp_path, transport).send(PEER, "hello", request_id="one", dry_run=True)
+    result = service(reader, tmp_path, transport).send(
+        PEER, "hello", request_id="one", dry_run=True
+    )
     assert result.status == "dry_run_passed" and not result.submitted
     with pytest.raises(ValueError):
         service(reader, tmp_path, transport).send(PEER, "hello", request_id="one", dry_run=False)
@@ -112,13 +134,31 @@ def test_generated_native_branches_compile_without_a_client() -> None:
             raise AssertionError("Compilation must never execute a native call")
 
     sender = NativeWeChatSender(Probe(), Executor(), profile_for("4.1.15.270115"))
-    expressions = [sender.expression(0x100000000, live, "filehelper", "中文🙂", operation=op, dry_run=dry)
-                   for op in ("send", "clear", "select", "draft") for dry in (False, True)]
-    expressions.append(sender.expression(0x100000000, live, "room@chatroom", "你好", operation="send",
-                                         member=GroupMember("room@chatroom", "wxid_test", "老师", True)))
-    source = "\n".join(f"long test{i}(){{return {expression};}}" for i, expression in enumerate(expressions))
-    process = subprocess.run([compiler, "-std=c++17", "-fsyntax-only", "-x", "c++", "-"],
-                             input=source, text=True, capture_output=True, timeout=30)
+    expressions = [
+        sender.expression(0x100000000, live, "filehelper", "中文🙂", operation=op, dry_run=dry)
+        for op in ("send", "clear", "select", "draft")
+        for dry in (False, True)
+    ]
+    expressions.append(
+        sender.expression(
+            0x100000000,
+            live,
+            "room@chatroom",
+            "你好",
+            operation="send",
+            member=GroupMember("room@chatroom", "wxid_test", "老师", True),
+        )
+    )
+    source = "\n".join(
+        f"long test{i}(){{return {expression};}}" for i, expression in enumerate(expressions)
+    )
+    process = subprocess.run(
+        [compiler, "-std=c++17", "-fsyntax-only", "-x", "c++", "-"],
+        input=source,
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
     assert process.returncode == 0, process.stderr
 
 

@@ -2817,5 +2817,11 @@ passed
 ### 2026-11-22 · 建立 Python 自动质量门禁
 
 - **背景与问题**　仓库已有 Python 3.12、uv 和 pytest。项目以未安装的根目录包运行，CI 缺少 Ruff 与 strict mypy 检查。
-- **决策与做法**　使用 uv 生成的应用包配置，把源码迁到 `src/boxagent`，注册桌宠命令和 `py.typed`。更新桌面子进程、源码热重载和 macOS 打包的导入路径。Ruff 启用 `E/F/I/UP/B/SIM`，mypy 对第一方源码启用 strict。CI 比对既有诊断基线并拦截新增项。 [工具配置](../pyproject.toml) · [CI](../.github/workflows/verify.yml) · [质量基线](../.github/python-quality/) · [CLI 冒烟](../tests/test_cli.py)
+- **决策与做法**　使用 uv 生成的应用包配置，把源码迁到 `src/boxagent`，注册桌宠命令和 `py.typed`。更新桌面子进程、源码热重载和 macOS 打包的导入路径。Ruff 启用 `E/F/I/UP/B/SIM`，mypy 对第一方源码启用 strict。初版 `f136566` 使用既有诊断基线。 [工具配置](../pyproject.toml) · [CLI 冒烟](../tests/test_cli.py)
 - **效果**　Ruff 还有 1,429 项既有诊断，mypy 还有 1,632 项，新增为零。临时注入的 Ruff 未使用导入与 mypy 返回类型错误均被拦截。Pyright 使用 uv 解释器时通过。pytest 通过 682 项、跳过 13 项，前端构建及 146 项 Electron 测试通过。wheel 与打包暂存目录的入口和类型标记已核对。签名 DMG 的安装和桌宠实机启动仍待验收。
+
+### 2026-11-23 · CI 直接运行 Ruff、mypy 和 pytest
+
+- **背景与问题**　团队要求使用 uv 和三个工具的原生命令，CI 需要给出完整诊断并展示各项检查结果。
+- **决策与做法**　移除自写检查脚本和诊断基线。CI 分步运行 `uv run --locked ruff check`、`uv run --locked mypy` 和 `uv run --locked pytest`，保留 Pyright。清理 Ruff 报出的导入、行宽和测试问题，补齐会话持久化、日志、上下文记录、Engine IPC 等路径的类型。 [CI](../.github/workflows/verify.yml) · [会话存储](../src/boxagent/infrastructure/persistence/jsonl_session_repository.py) · [Engine IPC](../src/boxagent/interfaces/engine/client.py)
+- **效果**　本地 Ruff 从 1,429 项降到零，strict mypy 从 1,632 项降到 900 项。pytest 682 项通过、13 项跳过，Pyright 使用 uv 解释器时无错误或警告。mypy 仍会使 CI 失败，剩余诊断以语音运行时、应用编排和执行层为主。远程 CI 和桌宠实机行为待验证。

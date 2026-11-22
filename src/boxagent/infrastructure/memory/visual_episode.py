@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import hashlib
+from datetime import UTC, datetime
 from typing import Any
 
 from boxagent.domain.memory.visual import VisualEpisode
@@ -15,7 +15,7 @@ def store_visual_episode(system: Any, payload: object) -> dict[str, Any]:
 
     episode = VisualEpisode.from_payload(payload)
     evidence = episode.evidence
-    timestamp = datetime.fromtimestamp(evidence.captured_at, timezone.utc)
+    timestamp = datetime.fromtimestamp(evidence.captured_at, UTC)
     metadata = {
         "source": "visual_memory", "modality": "image", "role": "observation",
         "source_episode_status": "pending",
@@ -32,7 +32,9 @@ def store_visual_episode(system: Any, payload: object) -> dict[str, Any]:
                 if node.attributes.get("evidence_id") == evidence.evidence_id]
 
     def member(role: str, text: str, extras: dict[str, Any]) -> Any:
-        found = next((node for node in existing if node.attributes.get("episode_role") == role), None)
+        found = next(
+            (node for node in existing if node.attributes.get("episode_role") == role), None
+        )
         if found is not None:
             return found
         node = builder._build_magma(text, timestamp=timestamp,
@@ -62,8 +64,16 @@ def store_visual_episode(system: Any, payload: object) -> dict[str, Any]:
     # Like PersonOS chains, only one named subject + one aspect can share history.
     # The relation means time order, never successful execution or causation.
     if episode.game and episode.subject and episode.aspect != "other":
-        key = hashlib.sha256("\0".join((episode.game.casefold(), episode.subject.casefold(),
-                                       episode.aspect, episode.variant.casefold())).encode()).hexdigest()
+        key = hashlib.sha256(
+            "\0".join(
+                (
+                    episode.game.casefold(),
+                    episode.subject.casefold(),
+                    episode.aspect,
+                    episode.variant.casefold(),
+                )
+            ).encode()
+        ).hexdigest()
         cell.attributes["chain_key"] = key
         peers = [node for node in graph.nodes.values()
                  if node.attributes.get("chain_key") == key and isinstance(node, EpisodeNode)]
@@ -71,7 +81,7 @@ def store_visual_episode(system: Any, payload: object) -> dict[str, Any]:
         for identity, link in tuple(graph.links.items()):
             if link.properties.get("visual_chain") == key:
                 graph.delete_link(identity)
-        for earlier, later in zip(peers, peers[1:]):
+        for earlier, later in zip(peers, peers[1:], strict=False):
             identity = hashlib.sha256((key + earlier.node_id + later.node_id).encode()).hexdigest()
             graph.add_link(Link(link_id=identity, source_node_id=earlier.node_id,
                                 target_node_id=later.node_id, link_type=LinkType.TEMPORAL,

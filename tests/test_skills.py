@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from boxagent.infrastructure.persistence import SkillFileRepository
 from boxagent.domain.skill import SkillService, SkillSource
+from boxagent.infrastructure.persistence import SkillFileRepository
 from boxagent.infrastructure.runtimes.codex.skills import CodexSkillAdapter
 
 

@@ -4,13 +4,13 @@ The desktop application owns @oai/sky and its native service. Reuse the
 registered node_repl server instead of locating or starting a native helper.
 """
 
-from dataclasses import dataclass
 import json
 import os
 import re
-from pathlib import Path
 import tomllib
-from typing import Callable, Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 
 from boxagent.core.errors import TaskFailure
 
@@ -64,7 +64,9 @@ def refresh_pipe_environment(environment: Mapping[str, str],
     if result.get("SKY_CUA_NATIVE_PIPE_DIRECTORY") in addresses:
         return result
     if len(addresses) != 1:
-        raise ValueError("Computer Use 通信管道不可用或存在多个候选，请在 Codex 中刷新 Computer Use 后重试")
+        raise ValueError(
+            "Computer Use 通信管道不可用或存在多个候选，请在 Codex 中刷新 Computer Use 后重试"
+        )
     result["SKY_CUA_NATIVE_PIPE_DIRECTORY"] = addresses[0]
     return result
 
@@ -99,7 +101,11 @@ def load_windows_skill(codex_home: Path, *,
         ):
             raise ValueError("node_repl env 必须为字符串配置表")
         timeout = node.get("startup_timeout_sec", 120)
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 300:
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not 0 < timeout <= 300
+        ):
             raise ValueError("node_repl 启动超时配置无效")
         packages = codex_home / "plugins/cache/openai-bundled/computer-use"
         candidates = list(packages.glob("*/skills/computer-use/SKILL.md"))
@@ -120,12 +126,13 @@ def load_windows_skill(codex_home: Path, *,
             inherited_variables=_strings(node.get("env_vars", []), "node_repl env_vars"),
             startup_timeout=float(timeout), skill_path=skill, instructions=instructions)
     except (OSError, ValueError) as exc:
-        message = (str(exc) if "通信管道" in str(exc) else
-                   "Windows Computer Use 技能未就绪，请在 Codex 桌面应用中启用 Control Windows apps 及 node_repl 后重试。")
-        raise TaskFailure(
-            "windows_skill_unavailable",
-            message,
-            detail=str(exc)) from exc
+        message = (
+            str(exc)
+            if "通信管道" in str(exc)
+            else "Windows Computer Use 技能未就绪，请在 Codex 桌面应用中启用 Control Windows "
+                "apps 及 node_repl 后重试。"
+        )
+        raise TaskFailure("windows_skill_unavailable", message, detail=str(exc)) from exc
 
 
 WINDOWS_TOOL_NAMES = {"js": "windows_js", "js_reset": "windows_js_reset"}

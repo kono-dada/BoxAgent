@@ -108,7 +108,9 @@ def latest_steam_news(app_id: int) -> GameNews | None:
             continue
         source = _plain(item.get("feedlabel"), 80) or "Steam"
         official = item.get("feedname") == "steam_community_announcements"
-        recent.append((official, GameNews(title, source, quote(url, safe=":/?#[]@!$&'()*+,;=%"), date)))
+        recent.append(
+            (official, GameNews(title, source, quote(url, safe=":/?#[]@!$&'()*+,;=%"), date))
+        )
     return max(recent, key=lambda entry: (entry[0], entry[1].published_at))[1] if recent else None
 
 

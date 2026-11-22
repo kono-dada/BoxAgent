@@ -10,7 +10,6 @@ from typing import Protocol
 from boxagent.domain.events.models import EventBatch, EventDecision
 from boxagent.domain.wechat.models import CALL_PREVIEW, Contact
 
-
 _INTERNAL_LABEL = re.compile(r"(?:wxid_\w+|\S+@(?:chatroom|openim)|Msg_[0-9a-f]{32})", re.ASCII)
 _MESSAGE_XML = re.compile(r"(?:<\?xml[^>]*\?>\s*)?<(msg|voipmsg)(?=[\s/>])")
 _MEDIA_LABELS = {"img": "[图片]", "emoji": "[表情]", "voicemsg": "[语音]",
@@ -81,7 +80,11 @@ class WeChatEventContext:
             body = event.content
             if event.subject_id.endswith("@chatroom"):
                 header, newline, remainder = body.partition("\n")
-                if newline and event.sender_id and header.removesuffix("\r") == f"{event.sender_id}:":
+                if (
+                    newline
+                    and event.sender_id
+                    and header.removesuffix("\r") == f"{event.sender_id}:"
+                ):
                     body = remainder
                 speaker = f"{(sender or '一位群成员')[:20]}在「{(subject or '群聊')[:20]}」"
             else:

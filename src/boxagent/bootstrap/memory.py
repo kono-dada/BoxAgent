@@ -1,5 +1,8 @@
 """Compose the production Memory capability behind one application boundary."""
 
+import time
+from typing import Any
+
 from boxagent.application.memory import DisabledMemoryModule, MemoryModule
 from boxagent.application.memory_context import MemoryContextProvider
 from boxagent.application.memory_ingestion import MemoryIngestionCoordinator
@@ -10,27 +13,29 @@ from boxagent.application.memory_profile import (
     JsonProfileStore,
     ProfileProjector,
 )
-from boxagent.domain.memory.service import MemoryService
-from boxagent.infrastructure.memory import JevMemWorker
-from boxagent.infrastructure.persistence import JsonMemoryJobStore
-from boxagent.bootstrap.settings import Settings
-from boxagent.infrastructure.context.intent import IntentReference
-from boxagent.infrastructure.context.task_continuation import TaskContinuationReviewer
 from boxagent.application.visual_memory import VisualMemoryCoordinator
-from boxagent.domain.memory.visual import VisualEvidence, VisualMemorySource, VisualEpisodeBackend
-from boxagent.infrastructure.persistence.visual_evidence import LocalVisualEvidenceStore
-from boxagent.infrastructure.memory.visual_extractor import GroundedVisualEpisodeExtractor
+from boxagent.bootstrap.settings import Settings
+from boxagent.core.ids import new_event_id
 from boxagent.domain.conversation.contracts import SessionStore
 from boxagent.domain.conversation.models import ProductEvent
-from boxagent.core.ids import new_event_id
-from typing import Any
-import time
+from boxagent.domain.memory.service import MemoryService
+from boxagent.domain.memory.visual import VisualEpisodeBackend, VisualEvidence, VisualMemorySource
+from boxagent.infrastructure.context.intent import IntentReference
+from boxagent.infrastructure.context.task_continuation import TaskContinuationReviewer
+from boxagent.infrastructure.memory import JevMemWorker
+from boxagent.infrastructure.memory.visual_extractor import GroundedVisualEpisodeExtractor
+from boxagent.infrastructure.persistence import JsonMemoryJobStore
+from boxagent.infrastructure.persistence.visual_evidence import LocalVisualEvidenceStore
 
 
 def create_intent_reference(app_settings: Settings) -> IntentReference:
     worker = JevMemWorker(
-        python=app_settings.jev_mem_python, workspace=app_settings.root,
-        command=[str(app_settings.jev_mem_python), str(app_settings.root / "scripts/intent_worker.py")],
+        python=app_settings.jev_mem_python,
+        workspace=app_settings.root,
+        command=[
+            str(app_settings.jev_mem_python),
+            str(app_settings.root / "scripts/intent_worker.py"),
+        ],
         decision_api_key=app_settings.decision_api_key,
         decision_base_url=app_settings.decision_base_url,
         decision_model=app_settings.decision_model,
@@ -89,8 +94,13 @@ def create_memory_module(*, app_settings, conversation_store, runtime_host,
         service, context, ingestion, narrative, migration, trace=log)
 
 
-def configure_visual_memory(memory: MemoryModule | DisabledMemoryModule, source: VisualMemorySource, *,
-                            app_settings: Settings, conversation_store: SessionStore) -> None:
+def configure_visual_memory(
+    memory: MemoryModule | DisabledMemoryModule,
+    source: VisualMemorySource,
+    *,
+    app_settings: Settings,
+    conversation_store: SessionStore,
+) -> None:
     if isinstance(memory, DisabledMemoryModule):
         return
 

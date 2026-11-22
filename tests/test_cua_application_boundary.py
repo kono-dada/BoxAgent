@@ -39,10 +39,22 @@ def test_dynamic_tools_are_installed_on_a_fresh_thread_after_restart(tmp_path: P
 @pytest.mark.parametrize("app", ["微信", "WeChat", "WeChat-BoxAgent", "com.tencent.xinWeChat"])
 def test_dynamic_gateway_rejects_wechat(tmp_path: Path, app: str) -> None:
     session = AsyncMock()
-    gateway = ComputerUseToolGateway(session, output=tmp_path, goal="读取微信", report=lambda *_: None,
-        log=lambda *_args, **_kwargs: None, is_stopped=lambda: False)
-    gateway.bind([{"name": "get_app_state", "inputSchema": {"type": "object", "properties": {"app": {}},
-        "required": ["app"]}}])
+    gateway = ComputerUseToolGateway(
+        session,
+        output=tmp_path,
+        goal="读取微信",
+        report=lambda *_: None,
+        log=lambda *_args, **_kwargs: None,
+        is_stopped=lambda: False,
+    )
+    gateway.bind(
+        [
+            {
+                "name": "get_app_state",
+                "inputSchema": {"type": "object", "properties": {"app": {}}, "required": ["app"]},
+            }
+        ]
+    )
     result = asyncio.run(gateway.call("desktop_get_app_state", {"app": app}))
     assert result["success"] is False
     session.call_tool.assert_not_awaited()

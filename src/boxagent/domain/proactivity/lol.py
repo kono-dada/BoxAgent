@@ -1,7 +1,7 @@
 """Typed LOL observations and event policy, independent of HTTP and voice."""
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from typing import Literal
 
 
@@ -100,7 +100,11 @@ class LolCompanionPolicy:
                         candidates.append(LolMoment("本人阵亡", 90, "这次倒了，没事，等复活再来。"))
                     elif event.killer == snapshot.player:
                         candidates.append(LolMoment("本人击杀", 80, "漂亮，刚刚那个人头拿下了。"))
-                elif event.name == "Multikill" and snapshot.player and event.killer == snapshot.player:
+                elif (
+                    event.name == "Multikill"
+                    and snapshot.player
+                    and event.killer == snapshot.player
+                ):
                     label = _MULTIKILL_LABELS.get(event.multikill_count or 0)
                     if label:
                         candidates.append(LolMoment(label, 85, f"漂亮，这波拿下{label}！"))

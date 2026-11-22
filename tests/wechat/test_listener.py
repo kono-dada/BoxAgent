@@ -1,15 +1,21 @@
 from __future__ import annotations
+
 import asyncio
 from pathlib import Path
+
 import pytest
+
 from boxagent.application.wechat.monitor import WeChatMonitor
 from boxagent.domain.events.models import EventEnvelope, EventReceipt
-from boxagent.infrastructure.wechat.listener import DatabaseMessageSource, JsonlEventSink
 from boxagent.infrastructure.wechat.database.snapshot import signature
+from boxagent.infrastructure.wechat.listener import DatabaseMessageSource, JsonlEventSink
+
 from .conftest import PlainSnapshots, add_message
 
 
-def test_source_baseline_restarts_and_no_duplicate_ack_update(snapshots: PlainSnapshots, tmp_path: Path) -> None:
+def test_source_baseline_restarts_and_no_duplicate_ack_update(
+    snapshots: PlainSnapshots, tmp_path: Path
+) -> None:
     add_message(snapshots, 1)
     directory = tmp_path / "source"
     source = DatabaseMessageSource(snapshots.repository(), directory)
@@ -35,7 +41,9 @@ def test_single_source_lease(snapshots: PlainSnapshots, tmp_path: Path) -> None:
     source.close()
 
 
-def test_call_metadata_is_replaced_before_inbox_handoff(snapshots: PlainSnapshots, tmp_path: Path) -> None:
+def test_call_metadata_is_replaced_before_inbox_handoff(
+    snapshots: PlainSnapshots, tmp_path: Path
+) -> None:
     source = DatabaseMessageSource(snapshots.repository(), tmp_path / "source")
     try:
         assert source.poll() == 0
@@ -47,17 +55,23 @@ def test_call_metadata_is_replaced_before_inbox_handoff(snapshots: PlainSnapshot
         source.close()
 
 
-def test_reader_refresh_cannot_consume_listener_change(snapshots: PlainSnapshots, tmp_path: Path) -> None:
+def test_reader_refresh_cannot_consume_listener_change(
+    snapshots: PlainSnapshots, tmp_path: Path
+) -> None:
     source = DatabaseMessageSource(snapshots.repository(), tmp_path / "source")
     assert source.poll() == 0
     add_message(snapshots, 1)
     database = snapshots.source("message/message_0.db")
-    database.last_signature = signature(database.path)  # A concurrent query refreshed the shared cache.
+    database.last_signature = signature(
+        database.path
+    )  # A concurrent query refreshed the shared cache.
     assert source.poll() == 1
     source.close()
 
 
-def test_monitor_acknowledges_only_matching_durable_receipt(snapshots: PlainSnapshots, tmp_path: Path) -> None:
+def test_monitor_acknowledges_only_matching_durable_receipt(
+    snapshots: PlainSnapshots, tmp_path: Path
+) -> None:
     source = DatabaseMessageSource(snapshots.repository(), tmp_path / "source")
 
     class Sink:

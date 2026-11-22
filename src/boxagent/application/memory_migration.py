@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -28,16 +28,16 @@ class LegacyCanonicalMemoryImporter:
         self.result = {"status": "not_started", "imported": 0,
                        "already_present": 0, "skipped": 0}
 
-    async def start(self):
+    async def start(self) -> None:
         if self.task is None:
             self.task = asyncio.create_task(
                 self._run_guarded(), name="boxagent-legacy-memory-import")
 
-    async def drain(self):
+    async def drain(self) -> None:
         if self.task is not None:
             await asyncio.gather(self.task, return_exceptions=True)
 
-    async def close(self):
+    async def close(self) -> None:
         if self.task is not None and not self.task.done():
             self.task.cancel()
         await self.drain()
@@ -45,7 +45,7 @@ class LegacyCanonicalMemoryImporter:
     async def health(self):
         return dict(self.result)
 
-    async def _run_guarded(self):
+    async def _run_guarded(self) -> None:
         try:
             self.result = await self._run()
         except asyncio.CancelledError:
@@ -182,7 +182,7 @@ class LegacyCanonicalMemoryImporter:
         occurred_at = None
         if timestamp:
             occurred_at = datetime.fromtimestamp(
-                float(timestamp), timezone.utc).isoformat()
+                float(timestamp), UTC).isoformat()
         metadata = {
             "source": "legacy_canonical_migration",
             "role": "user",

@@ -8,7 +8,6 @@ import argparse
 import ctypes
 import json
 import os
-from pathlib import Path
 import selectors
 import signal
 import socket
@@ -16,6 +15,7 @@ import stat
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 
 class CleanSpawn(subprocess.Popen):
@@ -59,7 +59,11 @@ class DarwinSpawn(subprocess.Popen):
             entries = [os.fsencode(f"{key}={value}") for key, value in env.items()]
             envp = (ctypes.c_char_p * (len(entries) + 1))(*entries, None)
             pid = ctypes.c_int()
-            check(lib.posix_spawn(ptr(pid), os.fsencode(executable), ptr(actions), ptr(attr), argv, envp))
+            check(
+                lib.posix_spawn(
+                    ptr(pid), os.fsencode(executable), ptr(actions), ptr(attr), argv, envp
+                )
+            )
             self.pid, self._child_created = pid.value, True
             self._close_pipe_fds(p2cread, p2cwrite, c2pread, c2pwrite, errread, errwrite)
         finally:
@@ -134,8 +138,11 @@ def run(transport, settle=0):
                     line, buffer = buffer.split(b"\n", 1)
                     message = json.loads(line)
                     if "method" in message and "id" in message:
-                        accepted = (message["method"] == "elicitation/create"
-                                    and message.get("params", {}).get("message") == "Allow ChatGPT to use Calculator?")
+                        accepted = (
+                            message["method"] == "elicitation/create"
+                            and message.get("params", {}).get("message")
+                            == "Allow ChatGPT to use Calculator?"
+                        )
                         log("callback", method=message["method"], accepted=accepted)
                         send({"id": message["id"], "result": {"action": "accept", "content": {}}
                               if accepted else {"action": "decline"}})
@@ -152,10 +159,24 @@ def run(transport, settle=0):
                         }})
                     elif message.get("id") == 3:
                         result = message.get("result", {})
-                        log("app_state", error=message.get("error"), isError=result.get("isError", False),
-                            text=[x.get("text", "")[:300] for x in result.get("content", []) if x.get("type") == "text"],
-                            imageCount=sum(x.get("type") == "image" for x in result.get("content", [])))
-                        passed = not message.get("error") and not result.get("isError") and bool(result.get("content"))
+                        log(
+                            "app_state",
+                            error=message.get("error"),
+                            isError=result.get("isError", False),
+                            text=[
+                                x.get("text", "")[:300]
+                                for x in result.get("content", [])
+                                if x.get("type") == "text"
+                            ],
+                            imageCount=sum(
+                                x.get("type") == "image" for x in result.get("content", [])
+                            ),
+                        )
+                        passed = (
+                            not message.get("error")
+                            and not result.get("isError")
+                            and bool(result.get("content"))
+                        )
                         complete = True
         if not complete:
             log("timeout")
@@ -173,10 +194,15 @@ def run(transport, settle=0):
         for stream in (process.stdin, process.stdout, process.stderr):
             if stream:
                 stream.close()
-        output = Path(__file__).resolve().parents[1] / ".runtime/private/artifacts/computer-use/python-diagnosis"
+        output = (
+            Path(__file__).resolve().parents[1]
+            / ".runtime/private/artifacts/computer-use/python-diagnosis"
+        )
         output.mkdir(parents=True, exist_ok=True)
         (output / f"{transport}.jsonl").write_text(
-            "\n".join(json.dumps(item, ensure_ascii=False) for item in records) + "\n", encoding="utf-8")
+            "\n".join(json.dumps(item, ensure_ascii=False) for item in records) + "\n",
+            encoding="utf-8",
+        )
     return passed
 
 

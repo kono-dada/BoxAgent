@@ -4,23 +4,34 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Awaitable, Callable
 import hashlib
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from boxagent.domain.memory.policy import contains_secret
 from boxagent.domain.memory.visual import (
-    VisualEvidence, VisualEvidenceStore, VisualEpisodeBackend,
-    VisualEpisodeExtractor, VisualMemorySource, requests_visual_memory, references_past_visual_memory,
+    VisualEpisodeBackend,
+    VisualEpisodeExtractor,
+    VisualEvidence,
+    VisualEvidenceStore,
+    VisualMemorySource,
+    references_past_visual_memory,
+    requests_visual_memory,
 )
 
 logger = logging.getLogger(__name__)
 
 class VisualMemoryCoordinator:
-    def __init__(self, backend: VisualEpisodeBackend, store: VisualEvidenceStore,
-                 extractor: VisualEpisodeExtractor, source: VisualMemorySource, *,
-                 completed: Callable[[VisualEvidence, dict[str, Any]], Awaitable[None]] | None = None) -> None:
+    def __init__(
+        self,
+        backend: VisualEpisodeBackend,
+        store: VisualEvidenceStore,
+        extractor: VisualEpisodeExtractor,
+        source: VisualMemorySource,
+        *,
+        completed: Callable[[VisualEvidence, dict[str, Any]], Awaitable[None]] | None = None,
+    ) -> None:
         self.backend, self.store, self.extractor, self.source = backend, store, extractor, source
         self.completed = completed
         self.tasks: dict[str, asyncio.Task[None]] = {}
@@ -28,30 +39,60 @@ class VisualMemoryCoordinator:
         self.closed = False
 
     async def start(self) -> None:
-        for evidence_id, ids in await self.store.deleting():
+        for evidence_id, _ids in await self.store.deleting():
             await self.backend.forget_episode(evidence_id)
             await self.store.finish_delete(evidence_id)
         for evidence in await self.store.pending():
             self._schedule(evidence)
 
-    async def remember(self, *, user_request: str, session_id: str, interaction_id: str,
-                       source_event_id: str, requested_at: float) -> dict[str, Any]:
-        if self.closed or not requests_visual_memory(user_request) or not source_event_id or not session_id:
+    async def remember(
+        self,
+        *,
+        user_request: str,
+        session_id: str,
+        interaction_id: str,
+        source_event_id: str,
+        requested_at: float,
+    ) -> dict[str, Any]:
+        if (
+            self.closed
+            or not requests_visual_memory(user_request)
+            or not source_event_id
+            or not session_id
+        ):
             return {"status": "failed", "message": "保存画面需要当前用户明确要求记住该画面。"}
         if references_past_visual_memory(user_request):
-            return {"status": "clarification_required", "message": "请先打开那张原图，再说记住当前画面，我才能保存对应的来源。",
-                    "speech_guidance": "只简短请用户打开原图；不能把当前画面当成过去那张图。"}
+            return {
+                "status": "clarification_required",
+                "message": "请先打开那张原图，再说记住当前画面，我才能保存对应的来源。",
+                "speech_guidance": "只简短请用户打开原图；不能把当前画面当成过去那张图。",
+            }
         frame = self.source.current_frame(requested_at=requested_at)
         if frame is None:
-            return {"status": "clarification_required", "message": "我还没有对应的画面，请打开屏幕观察并停留在要记住的页面。",
-                    "speech_guidance": "只简短说明缺少画面，不能声称已保存。"}
+            return {
+                "status": "clarification_required",
+                "message": "我还没有对应的画面，请打开屏幕观察并停留在要记住的页面。",
+                "speech_guidance": "只简短说明缺少画面，不能声称已保存。",
+            }
         if contains_secret(user_request) or contains_secret(frame.caption):
             return {"status": "failed", "message": "含密钥等敏感内容的画面描述不能写入记忆。"}
         sha = hashlib.sha256(frame.image).hexdigest()
-        identity = hashlib.sha256((session_id + ":" + source_event_id + ":" + sha).encode()).hexdigest()
-        evidence = VisualEvidence("visual_" + identity, session_id, interaction_id,
-                                  source_event_id, user_request[:4000], frame.caption[:4000],
-                                  frame.captured_at, requested_at, frame.app, frame.window_id, sha)
+        identity = hashlib.sha256(
+            (session_id + ":" + source_event_id + ":" + sha).encode()
+        ).hexdigest()
+        evidence = VisualEvidence(
+            "visual_" + identity,
+            session_id,
+            interaction_id,
+            source_event_id,
+            user_request[:4000],
+            frame.caption[:4000],
+            frame.captured_at,
+            requested_at,
+            frame.app,
+            frame.window_id,
+            sha,
+        )
         evidence = await self.store.put(evidence, frame.image)
         ids = await self.store.memory_ids(evidence.evidence_id)
         if ids:
@@ -87,12 +128,19 @@ class VisualMemoryCoordinator:
                         return
                     response = await self.backend.remember_episode(episode.payload())
                     ids = response.get("memory_ids")
-                    if not isinstance(ids, list) or len(ids) != len(episode.atoms) + 1 \
-                            or any(not isinstance(i, str) or not i.strip() or len(i) > 200 for i in ids) \
-                            or response.get("evidence_id") != evidence.evidence_id:
+                    if (
+                        not isinstance(ids, list)
+                        or len(ids) != len(episode.atoms) + 1
+                        or any(not isinstance(i, str) or not i.strip() or len(i) > 200 for i in ids)
+                        or response.get("evidence_id") != evidence.evidence_id
+                    ):
                         raise ValueError("经历存储没有确认记忆 ID")
                     await self.store.bind(evidence.evidence_id, ids)
-                result = {"status": "succeeded", "message": "这段画面经历已记住。", "memory_ids": ids}
+                result = {
+                    "status": "succeeded",
+                    "message": "这段画面经历已记住。",
+                    "memory_ids": ids,
+                }
                 break
             except asyncio.CancelledError:
                 raise
@@ -103,7 +151,9 @@ class VisualMemoryCoordinator:
                 await self.completed(evidence, result)
             except Exception as exc:
                 # A metadata notification failure cannot revoke committed memory.
-                logger.warning("visual memory completion notification failed: %s", type(exc).__name__)
+                logger.warning(
+                    "visual memory completion notification failed: %s", type(exc).__name__
+                )
 
     async def preview(self, memory_id: str) -> dict[str, Any]:
         async with self.lock:
@@ -132,12 +182,21 @@ class VisualMemoryCoordinator:
         async with self.lock:
             if await self.store.for_memory(memory_id) is None:
                 return {"status": "not_found", "message": "这段经历已删除。"}
-        return {"status": "succeeded", "memory_id": memory_id, "evidence_id": evidence.evidence_id,
-                "observation": description[:2000], "captured_at": evidence.captured_at,
-                "source_event_id": evidence.source_event_id, "kind": "visual_observation",
-                "speech_guidance": "这是针对原图的观察，不能当成用户陈述；只用一两句回答，看不清就说看不清。"}
+        return {
+            "status": "succeeded",
+            "memory_id": memory_id,
+            "evidence_id": evidence.evidence_id,
+            "observation": description[:2000],
+            "captured_at": evidence.captured_at,
+            "source_event_id": evidence.source_event_id,
+            "kind": "visual_observation",
+            "speech_guidance": "这是针对原图的观察，不能当成用户陈述；只用一两句回答，"
+                "看不清就说看不清。",
+        }
 
-    async def forget_sources(self, memory_ids: list[str], *, evidence_ids: list[str] | None = None) -> list[str]:
+    async def forget_sources(
+        self, memory_ids: list[str], *, evidence_ids: list[str] | None = None
+    ) -> list[str]:
         deleted: list[str] = []
         async with self.lock:
             sources = list(evidence_ids or [])
@@ -151,7 +210,11 @@ class VisualMemoryCoordinator:
                 result = await self.backend.forget_episode(evidence_id)
                 await self.store.finish_delete(evidence_id)
                 deleted.extend(known_ids)
-                deleted.extend(identity for identity in result.get("memory_ids", []) if isinstance(identity, str))
+                deleted.extend(
+                    identity
+                    for identity in result.get("memory_ids", [])
+                    if isinstance(identity, str)
+                )
         return list(dict.fromkeys(deleted))
 
     async def drain(self) -> None:

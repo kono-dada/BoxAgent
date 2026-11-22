@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import math
 import re
+from dataclasses import asdict, dataclass
 from typing import Any, Literal, Protocol, runtime_checkable
 
 EvidenceKind = Literal["visual_observation", "user_report"]
@@ -46,7 +46,10 @@ class VisualEvidence:
         if any(not isinstance(value.get(name), str) for name in names):
             raise ValueError("画面证据缺少字符串字段")
         times = (value.get("captured_at"), value.get("requested_at"))
-        if any(not isinstance(t, (int, float)) or isinstance(t, bool) or not math.isfinite(t) for t in times):
+        if any(
+            not isinstance(t, (int, float)) or isinstance(t, bool) or not math.isfinite(t)
+            for t in times
+        ):
             raise ValueError("画面证据时间无效")
         if type(value.get("window_id")) is not int:
             raise ValueError("画面证据窗口无效")
@@ -74,8 +77,10 @@ class VisualEpisode:
 
     @property
     def summary(self) -> str:
-        return "\n".join(f"{'画面观察' if atom.kind == 'visual_observation' else '用户原话'}：{atom.text}"
-                         for atom in self.atoms)
+        return "\n".join(
+            f"{'画面观察' if atom.kind == 'visual_observation' else '用户原话'}：{atom.text}"
+            for atom in self.atoms
+        )
 
     def payload(self) -> dict[str, Any]:
         return {"evidence": self.evidence.payload(),
@@ -93,12 +98,20 @@ class VisualEpisode:
             raise ValueError("经历必须有 1 至 6 条有来源的事实")
         atoms: list[EpisodeAtom] = []
         for atom in raw_atoms:
-            if not isinstance(atom, dict) or atom.get("kind") not in ("visual_observation", "user_report"):
+            if not isinstance(atom, dict) or atom.get("kind") not in (
+                "visual_observation",
+                "user_report",
+            ):
                 raise ValueError("事实来源类型无效")
             kind: EvidenceKind = atom["kind"]
             quote = atom.get("quote")
             source = evidence.caption if kind == "visual_observation" else evidence.user_request
-            if not isinstance(quote, str) or not quote.strip() or len(quote) > 500 or quote not in source:
+            if (
+                not isinstance(quote, str)
+                or not quote.strip()
+                or len(quote) > 500
+                or quote not in source
+            ):
                 raise ValueError("事实必须引用对应来源的原文")
             if atom.get("text") != quote:
                 raise ValueError("事实不能扩写来源不支持的内容")
@@ -151,11 +164,18 @@ class VisualEvidenceStore(Protocol):
 
 def requests_visual_memory(text: str) -> bool:
     """An image-retention request must come from the persisted human message."""
-    if re.search(r"(不要|别|不用|无需|不准).{0,4}(记住|保存)|忘记|回忆|还记得|don't|do not|never", text, re.IGNORECASE):
+    if re.search(
+        r"(不要|别|不用|无需|不准).{0,4}(记住|保存)|忘记|回忆|还记得|don't|do not|never",
+        text,
+        re.IGNORECASE,
+    ):
         return False
     remember = re.search(r"记住|记下来|保存|remember|save", text, re.IGNORECASE)
-    target = re.search(r"刚才这[个套]|这张|这套|画面|截图|屏幕|配队|配装|装备|阵容|screen|image|lineup|loadout",
-                       text, re.IGNORECASE)
+    target = re.search(
+        r"刚才这[个套]|这张|这套|画面|截图|屏幕|配队|配装|装备|阵容|screen|image|lineup|loadout",
+        text,
+        re.IGNORECASE,
+    )
     return bool(remember and target)
 
 

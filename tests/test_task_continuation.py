@@ -18,9 +18,15 @@ class TaskContinuationTests(unittest.IsolatedAsyncioTestCase):
         ]
         for verdict, expected in verdicts:
             with self.subTest(verdict=verdict):
-                post = Mock(return_value={"choices": [{"message": {"content": json.dumps(verdict)}}]})
-                reviewer = TaskContinuationReviewer(api_key="test", base_url="https://api.deepseek.com/v1",
-                                                    model="deepseek-flash", post=post)
+                post = Mock(
+                    return_value={"choices": [{"message": {"content": json.dumps(verdict)}}]}
+                )
+                reviewer = TaskContinuationReviewer(
+                    api_key="test",
+                    base_url="https://api.deepseek.com/v1",
+                    model="deepseek-flash",
+                    post=post,
+                )
                 result = await reviewer("回个很可爱", "我这就去回", context="待补充任务")
                 self.assertEqual(result["p_delegation"], expected)
                 payload = post.call_args.args[1]
@@ -32,8 +38,10 @@ class TaskContinuationTests(unittest.IsolatedAsyncioTestCase):
         reviewer.return_value = {"p_delegation": 1.0}
         worker._request.return_value = {"p_delegation": .01}
         intent = IntentReference(worker, pending_reviewer=reviewer)
-        self.assertEqual(await intent.review_delegation("回答", "开工", context="<boxagent_pending_task>数据"),
-                         {"p_delegation": 1.0})
+        self.assertEqual(
+            await intent.review_delegation("回答", "开工", context="<boxagent_pending_task>数据"),
+            {"p_delegation": 1.0},
+        )
         worker._request.assert_not_called()
         self.assertEqual(await intent.review_delegation("进度？", "正在运行", context="历史"),
                          {"p_delegation": .01})

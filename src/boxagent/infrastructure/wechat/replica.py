@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import plistlib
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import cast
 
 from boxagent.infrastructure.wechat.addresses import BUILD, BUNDLE_ID, VERSION
@@ -14,14 +14,21 @@ from boxagent.infrastructure.wechat.probe import disk_image
 
 def check_client(app: Path, *, replica: bool = True) -> None:
     app = app.resolve(strict=True)
-    info = plistlib.loads((app/'Contents/Info.plist').read_bytes())
-    if (info.get('CFBundleShortVersionString'), str(info.get('CFBundleVersion'))) != (VERSION, BUILD):
-        raise ValueError('wechat_unsupported_build')
-    if replica and info.get('CFBundleIdentifier') != BUNDLE_ID:
-        raise ValueError('wechat_not_replica')
-    disk_image(app/'Contents/Resources/wechat.dylib')
-    subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)],
-                   check=True, capture_output=True, timeout=30)
+    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+    if (info.get("CFBundleShortVersionString"), str(info.get("CFBundleVersion"))) != (
+        VERSION,
+        BUILD,
+    ):
+        raise ValueError("wechat_unsupported_build")
+    if replica and info.get("CFBundleIdentifier") != BUNDLE_ID:
+        raise ValueError("wechat_not_replica")
+    disk_image(app / "Contents/Resources/wechat.dylib")
+    subprocess.run(
+        ["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
     if not replica:
         signature = subprocess.run(['/usr/bin/codesign', '-dv', str(app)],
                                    check=True, capture_output=True, timeout=10).stderr
@@ -80,16 +87,27 @@ def prepare_client(source: Path, destination: Path) -> Path:
         except ValueError as error:
             if str(error) != 'wechat_replica_signature_invalid':
                 raise
-            raw = subprocess.run(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(destination)],
-                                 check=True, capture_output=True, timeout=10).stdout
+            raw = subprocess.run(
+                ["/usr/bin/codesign", "-d", "--entitlements", ":-", str(destination)],
+                check=True,
+                capture_output=True,
+                timeout=10,
+            ).stdout
             sign_replica(destination, raw)
             check_client(destination)
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with tempfile.TemporaryDirectory(prefix='.wechat-prepare-', dir=destination.parent) as temporary:
-        staged = Path(temporary)/destination.name
-        subprocess.run(['/usr/bin/ditto', str(source), str(staged)], check=True, capture_output=True, timeout=180)
-        info_path = staged/'Contents/Info.plist'
+    with tempfile.TemporaryDirectory(
+        prefix=".wechat-prepare-", dir=destination.parent
+    ) as temporary:
+        staged = Path(temporary) / destination.name
+        subprocess.run(
+            ["/usr/bin/ditto", str(source), str(staged)],
+            check=True,
+            capture_output=True,
+            timeout=180,
+        )
+        info_path = staged / "Contents/Info.plist"
         info = plistlib.loads(info_path.read_bytes())
         info.update(CFBundleIdentifier=BUNDLE_ID, CFBundleName='WeChat-BoxAgent',
                     CFBundleDisplayName='WeChat-BoxAgent', SUEnableAutomaticChecks=False,

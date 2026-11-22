@@ -7,13 +7,12 @@ local wechat-use executable, not a promise about every WeChat release.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import dataclass, field
 import hashlib
 import hmac
 import re
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Literal
-
 
 PAGE_SIZE = 4096
 _PATTERN = re.compile(rb"x'([0-9a-fA-F]{96})'")

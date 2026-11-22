@@ -1,7 +1,8 @@
 """Explicit-device PCM output; never changes the system's default device."""
 
 import threading
-from typing import Any, Callable, Mapping, Protocol
+from collections.abc import Callable, Mapping
+from typing import Any, Protocol
 
 import pyaudio
 

@@ -5,7 +5,6 @@ import time
 from typing import Any
 
 from boxagent.application.visual_memory import VisualMemoryCoordinator
-
 from boxagent.domain.memory.contracts import MemoryUnavailable
 
 
@@ -34,9 +33,13 @@ class MemoryModule:
                               requested_at: float) -> dict[str, Any]:
         if self._visual is None:
             return {"status": "failed", "message": "画面记忆尚未启用。"}
-        return await self._visual.remember(user_request=user_request, session_id=session_id,
-                                           interaction_id=interaction_id, source_event_id=source_event_id,
-                                           requested_at=requested_at)
+        return await self._visual.remember(
+            user_request=user_request,
+            session_id=session_id,
+            interaction_id=interaction_id,
+            source_event_id=source_event_id,
+            requested_at=requested_at,
+        )
 
     async def visual_evidence(self, memory_id: str) -> dict[str, Any]:
         if self._visual is None:
@@ -50,7 +53,7 @@ class MemoryModule:
             return {"status": "not_found", "message": "没有可回看的画面。"}
         return await self._visual.look(memory_id, question)
 
-    async def start(self):
+    async def start(self) -> None:
         if self._started:
             return
         await self._service.start()
@@ -92,10 +95,18 @@ class MemoryModule:
                               consumer="", include_profile=True):
         started = time.perf_counter()
         self._trace(
-            "memory_recall_started", query=query, session_id=session_id,
-            consumer=consumer, mode="direct", top_k=top_k)
-        profile = await self._context.refresh_stable_profile() \
-            if self._context is not None and include_profile else {"fields": [], "profile_version": 0}
+            "memory_recall_started",
+            query=query,
+            session_id=session_id,
+            consumer=consumer,
+            mode="direct",
+            top_k=top_k,
+        )
+        profile = (
+            await self._context.refresh_stable_profile()
+            if self._context is not None and include_profile
+            else {"fields": [], "profile_version": 0}
+        )
         result = await self._service.prepare_context(query, top_k=top_k)
         context = {**result,
                    "profile": profile.get("fields", []),
@@ -183,14 +194,18 @@ class MemoryModule:
     async def delete_node(self, memory_id):
         result = await self._service.delete_node(memory_id)
         if self._visual is not None:
-            ids = await self._visual.forget_sources([memory_id], evidence_ids=self._visual_source_ids(result))
+            ids = await self._visual.forget_sources(
+                [memory_id], evidence_ids=self._visual_source_ids(result)
+            )
             result["deleted_ids"] = list(dict.fromkeys([memory_id, *ids]))
         return result
 
     async def forget(self, memory_ids):
         result = await self._service.forget(memory_ids)
         if self._visual is not None:
-            ids = await self._visual.forget_sources(memory_ids, evidence_ids=self._visual_source_ids(result))
+            ids = await self._visual.forget_sources(
+                memory_ids, evidence_ids=self._visual_source_ids(result)
+            )
             result["deleted_ids"] = list(dict.fromkeys([*memory_ids, *ids]))
         return result
 
@@ -210,7 +225,7 @@ class MemoryModule:
             status["legacy_migration"] = await self._migration.health()
         return status
 
-    async def await_idle(self):
+    async def await_idle(self) -> None:
         if self._ingestion is not None:
             await self._ingestion.drain()
         if self._migration is not None:
@@ -218,7 +233,7 @@ class MemoryModule:
         if self._visual is not None:
             await self._visual.drain()
 
-    async def close(self):
+    async def close(self) -> None:
         if self._closed:
             return
         if self._ingestion is not None:
@@ -234,7 +249,7 @@ class MemoryModule:
 class DisabledMemoryModule:
     """Fail-closed Memory boundary used when the product capability is disabled."""
 
-    async def start(self):
+    async def start(self) -> None:
         return None
 
     async def remember_screen(self, *, user_request: str, session_id: str,
@@ -304,8 +319,8 @@ class DisabledMemoryModule:
     async def health(self):
         return {"status": "disabled"}
 
-    async def await_idle(self):
+    async def await_idle(self) -> None:
         return None
 
-    async def close(self):
+    async def close(self) -> None:
         return None

@@ -10,7 +10,12 @@ from typing import Protocol
 from uuid import uuid4
 
 from boxagent.domain.events.models import EventBatch, EventDecision, EventEnvelope, EventReceipt
-from boxagent.domain.proactivity.game_entry import ENTRY_RECEIPT_PREFIX, EntryHistory, QuestProgress, TrackedQuest
+from boxagent.domain.proactivity.game_entry import (
+    ENTRY_RECEIPT_PREFIX,
+    EntryHistory,
+    QuestProgress,
+    TrackedQuest,
+)
 
 logger = logging.getLogger(__name__)
 GREETING_WINDOW = 8.0
@@ -48,7 +53,9 @@ class GameEntryInbox:
         self.pending[receipt] = PendingEntry(still_current, accepted)
         now = time.time()
         try:
-            event = EventEnvelope(receipt, GAME_ENTRY_SOURCE, "local", event_type, event_type, now, now, text)
+            event = EventEnvelope(
+                receipt, GAME_ENTRY_SOURCE, "local", event_type, event_type, now, now, text
+            )
             if not (await self.accept(event)).accepted:
                 return False
             logger.info("wuwa.%s.inbox event_id=%s", event_type.removeprefix("game."), receipt)
@@ -63,7 +70,9 @@ class GameEntryInbox:
         for event in batch.events:
             pending = self.pending.get(event.event_id)
             if pending is not None and pending.still_current():
-                return session, EventDecision("notify", event.content, (event.event_id,), "game_entry")
+                return session, EventDecision(
+                    "notify", event.content, (event.event_id,), "game_entry"
+                )
             if pending is not None and not pending.accepted.done():
                 pending.accepted.set_result(False)
         return session, EventDecision("silent", "", (), "game_entry_expired")
@@ -76,11 +85,15 @@ class GameEntryInbox:
         current = False
         try:
             current = pending.still_current()
-            accepted = current and await self.speak(receipt, decision.summary, pending.still_current)
+            accepted = current and await self.speak(
+                receipt, decision.summary, pending.still_current
+            )
         except Exception:
             logger.warning("Wuthering Waves inbox speech failed", exc_info=True)
             accepted = False
-        logger.info("wuwa.inbox.speech event_id=%s current=%s accepted=%s", receipt, current, accepted)
+        logger.info(
+            "wuwa.inbox.speech event_id=%s current=%s accepted=%s", receipt, current, accepted
+        )
         if not pending.accepted.done():
             pending.accepted.set_result(accepted)
 
@@ -138,7 +151,9 @@ class GameEntry:
         if launch in (self.history.greeted_launch, self.submitted_launch):
             return False
         reading = self.reading
-        return bool(reading and reading[0] == launch and self.clock() - reading[2] <= GREETING_WINDOW)
+        return bool(
+            reading and reading[0] == launch and self.clock() - reading[2] <= GREETING_WINDOW
+        )
 
     async def close(self) -> None:
         self.pause()
@@ -184,21 +199,37 @@ class GameEntry:
                 or (self.task is not None and not self.task.done())
                 or self.clock() - arrived_at > GREETING_WINDOW):
             return
-        remembered = bool(last_launch and last_launch.launch != launch and last_launch.quest == quest)
-        greeting = Greeting(launch, ENTRY_RECEIPT_PREFIX + uuid4().hex, arrived_at,
-                            arrived_at + GREETING_WINDOW, remembered)
+        remembered = bool(
+            last_launch and last_launch.launch != launch and last_launch.quest == quest
+        )
+        greeting = Greeting(
+            launch,
+            ENTRY_RECEIPT_PREFIX + uuid4().hex,
+            arrived_at,
+            arrived_at + GREETING_WINDOW,
+            remembered,
+        )
         prefix = "又来啦。上次咱们的任务目标就是" if remembered else "来啦。现在的任务目标是"
         line = f"{prefix}「{quest.objective}」。接着走吧？"
 
         def still_current() -> bool:
             progress = self.history.current
-            return (self.greeting is greeting and self.clock() <= greeting.expires_at and progress is not None
-                    and (progress.launch, progress.quest) == (launch, quest) and still_visible())
+            return (
+                self.greeting is greeting
+                and self.clock() <= greeting.expires_at
+                and progress is not None
+                and (progress.launch, progress.quest) == (launch, quest)
+                and still_visible()
+            )
 
         self.greeting = greeting
-        self.task = asyncio.create_task(self._speak(greeting, line, still_current), name="wuwa-entry-greeting")
+        self.task = asyncio.create_task(
+            self._speak(greeting, line, still_current), name="wuwa-entry-greeting"
+        )
 
-    async def _speak(self, greeting: Greeting, line: str, still_current: Callable[[], bool]) -> None:
+    async def _speak(
+        self, greeting: Greeting, line: str, still_current: Callable[[], bool]
+    ) -> None:
         try:
             if await self.announce(greeting.receipt, line, still_current):
                 self.submitted_launch = greeting.launch
@@ -215,5 +246,9 @@ class GameEntry:
         self.greeting = None
         self.submitted_launch = greeting.launch
         self._save(replace(self.history, greeted_launch=greeting.launch))
-        logger.info("wuwa.entry.playback launch=%s remembered=%s elapsed_ms=%.0f",
-                    greeting.launch, greeting.remembered, (self.clock() - greeting.first_seen) * 1000)
+        logger.info(
+            "wuwa.entry.playback launch=%s remembered=%s elapsed_ms=%.0f",
+            greeting.launch,
+            greeting.remembered,
+            (self.clock() - greeting.first_seen) * 1000,
+        )

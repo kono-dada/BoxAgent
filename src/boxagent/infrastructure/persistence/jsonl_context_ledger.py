@@ -11,17 +11,17 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from boxagent.core.errors import redact
 from boxagent.domain.context.models import LEDGER_VERSION, LedgerEvent
 
-
 SESSION_ID = re.compile(r"^ses_[A-Za-z0-9]{1,64}$")
 FILE_NAME = f"context.v{LEDGER_VERSION}.jsonl"
 
 
-def _scrub(value):
+def _scrub(value: object) -> object:
     """Redact secrets inside strings while keeping accounting keys such as ``tokens``."""
     if isinstance(value, dict):
         return {key: _scrub(item) for key, item in value.items()}
@@ -33,26 +33,38 @@ def _scrub(value):
 
 
 class JsonlContextLedgerStore:
-    def __init__(self, conversations_root, *, clock=time.time):
+    def __init__(
+        self, conversations_root: str | Path, *, clock: Callable[[], float] = time.time
+    ) -> None:
         self.root = Path(conversations_root)
         self.clock = clock
         self.lock = threading.Lock()
-        self.next_seq = {}
+        self.next_seq: dict[str, int] = {}
 
     def path(self, session_id: str) -> Path:
         if not isinstance(session_id, str) or not SESSION_ID.match(session_id):
             raise ValueError("无效的 Session ID")
         return self.root / "sessions" / session_id / FILE_NAME
 
-    def append(self, session_id, event_type, data, *, at=None):
+    def append(
+        self,
+        session_id: str,
+        event_type: str,
+        data: Mapping[str, object] | None,
+        *,
+        at: float | None = None,
+    ) -> LedgerEvent:
         path = self.path(session_id)
         with self.lock:
             if session_id not in self.next_seq:
                 events = self._read(path, repair=True)
                 self.next_seq[session_id] = (events[-1].seq if events else 0) + 1
-            event = LedgerEvent(seq=self.next_seq[session_id], type=str(event_type),
-                                time=self.clock() if at is None else float(at),
-                                data=_scrub(dict(data or {})))
+            event = LedgerEvent(
+                seq=self.next_seq[session_id],
+                type=str(event_type),
+                time=self.clock() if at is None else float(at),
+                data={key: _scrub(value) for key, value in (data or {}).items()},
+            )
             path.parent.mkdir(parents=True, exist_ok=True)
             fresh = not path.exists() or path.stat().st_size == 0
             with path.open("a", encoding="utf-8") as stream:
@@ -68,28 +80,32 @@ class JsonlContextLedgerStore:
             self.next_seq[session_id] = event.seq + 1
             return event
 
-    def read(self, session_id):
+    def read(self, session_id: str) -> list[LedgerEvent]:
         path = self.path(session_id)
         with self.lock:
             return self._read(path, repair=False)
 
-    def forget(self, session_id):
+    def forget(self, session_id: str) -> None:
         """Drop cached sequence state, e.g. after the Session directory is removed."""
         with self.lock:
             self.next_seq.pop(session_id, None)
 
     @staticmethod
-    def _read(path, *, repair):
+    def _read(path: Path, *, repair: bool) -> list[LedgerEvent]:
         if not path.exists():
             return []
         raw = path.read_text(encoding="utf-8")
         lines = raw.splitlines()
-        events, valid, torn = [], [], False
+        events: list[LedgerEvent] = []
+        valid: list[str] = []
+        torn = False
         for position, line in enumerate(lines):
             if not line.strip():
                 continue
             try:
-                value = json.loads(line)
+                value: object = json.loads(line)
+                if not isinstance(value, dict):
+                    raise ValueError("Context Ledger 记录必须是 JSON object")
                 if position == 0:
                     if value.get("type") != "ledger" or value.get("version") != LEDGER_VERSION:
                         raise ValueError("不支持的 Context Ledger 版本")

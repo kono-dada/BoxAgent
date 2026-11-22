@@ -8,7 +8,7 @@ from pathlib import Path
 from boxagent.bootstrap.logs import configure_logging, install_asyncio_handler, shutdown_logging
 
 
-async def run(args):
+async def run(args: argparse.Namespace) -> None:
     from boxagent.bootstrap.engine import create_engine_server
     from boxagent.bootstrap.settings import load_settings
 
@@ -32,7 +32,7 @@ async def run(args):
         shutdown_logging()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="BoxAgent local Engine")
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--log-dir", type=Path)

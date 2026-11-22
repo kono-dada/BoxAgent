@@ -3,17 +3,19 @@
 import argparse
 import asyncio
 import base64
-from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import replace
 import json
-from pathlib import Path
 import re
 import sys
 import time
-from typing import Any, Protocol
 import wave
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import replace
+from pathlib import Path
+from typing import Any, Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+
+from scripts.experiments.web_research_smoke import file_setting
 
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.bootstrap.settings import Settings, load_settings
@@ -22,11 +24,12 @@ from boxagent.domain.conversation import ConversationService
 from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
 from boxagent.infrastructure.web.deepseek import DeepSeekWebProvider
-from scripts.experiments.web_research_smoke import file_setting
 
 
 class ToolHandler(Protocol):
-    def __call__(self, name: str, arguments: object, metadata: dict[str, object] | None = None) -> Awaitable[dict[str, Any]]: ...
+    def __call__(
+        self, name: str, arguments: object, metadata: dict[str, object] | None = None
+    ) -> Awaitable[dict[str, Any]]: ...
 
 
 class Emitter(Protocol):
@@ -35,7 +38,10 @@ class Emitter(Protocol):
 
 class NoDeviceAudio:
     """Collect provider audio without opening the microphone or speakers."""
-    def __init__(self, changed: Callable[[bool], None], *, microphone: bool, playback: bool) -> None:
+
+    def __init__(
+        self, changed: Callable[[bool], None], *, microphone: bool, playback: bool
+    ) -> None:
         pass
 
     def begin(self) -> None: pass
@@ -74,7 +80,9 @@ class VoiceProbe(QwenRealtimeSession):
                 return
             output = response.get("output", [])
             has_call = isinstance(output, list) and any(
-                isinstance(item, dict) and item.get("type") in {"function_call", "tool_call"} for item in output)
+                isinstance(item, dict) and item.get("type") in {"function_call", "tool_call"}
+                for item in output
+            )
             if not has_call and isinstance(response.get("id"), str):
                 identifier = response["id"]
                 self.answer = self.response_transcripts.get(identifier, self.text)
@@ -91,7 +99,9 @@ async def run(settings: Settings, output: Path) -> bool:
     requests: list[dict[str, object]] = []
 
     def factory(handle: ToolHandler, emit: Emitter, **options: Any) -> VoiceProbe:
-        async def only_web(name: str, arguments: object, metadata: dict[str, object] | None = None) -> dict[str, Any]:
+        async def only_web(
+            name: str, arguments: object, metadata: dict[str, object] | None = None
+        ) -> dict[str, Any]:
             if name not in {"search_web", "read_webpage"}:
                 tools.append({"tool": name, "status": "blocked"})
                 return {"status": "failed", "message": "只读实验不执行桌面操作"}
@@ -115,7 +125,9 @@ async def run(settings: Settings, output: Path) -> bool:
     if isinstance(provider, DeepSeekWebProvider):
         poster = provider.poster
 
-        def observed_post(url: str, payload: Mapping[str, object], *, api_key: str, timeout: float) -> object:
+        def observed_post(
+            url: str, payload: Mapping[str, object], *, api_key: str, timeout: float
+        ) -> object:
             requests.append({"path": url.rsplit("/", 1)[-1], "query": payload.get("query", "")})
             return poster(url, payload, api_key=api_key, timeout=timeout)
 
@@ -125,7 +137,10 @@ async def run(settings: Settings, output: Path) -> bool:
         web_research=research)
     cases: list[dict[str, object]] = []
     scenarios = [
-        ("guide", "我在玩《鸣潮》，打的是大世界野外普通形态的无冠者。帮我联网查一下闪避或打断时机，我正打着，只说两点，不要念网址。"),
+        (
+            "guide",
+            "我在玩《鸣潮》，打的是大世界野外普通形态的无冠者。帮我联网查一下闪避或打断时机，我正打着，只说两点，不要念网址。",
+        ),
         ("repeat", "再说一遍，更短一点。"),
         ("sources", "你刚才说的来源是哪？只说站点名字就好。"),
         ("clarify", "帮我联网查一下这个Boss怎么打，只说两点。"),
@@ -154,29 +169,61 @@ async def run(settings: Settings, output: Path) -> bool:
                 audio.writeframes(pcm)
             actual_tools = tools[first_tool:]
             urls_spoken = bool(re.search(r"https?://|www\.", voice.answer, re.IGNORECASE))
-            passed = bool(voice.answer and pcm and not voice.failure and not urls_spoken and len(voice.answer) <= 80 and len(pcm) / 48000 <= 15)
+            passed = bool(
+                voice.answer
+                and pcm
+                and not voice.failure
+                and not urls_spoken
+                and len(voice.answer) <= 80
+                and len(pcm) / 48000 <= 15
+            )
             if name == "guide":
                 passed = passed and any(item.get("read_source_count", 0) for item in actual_tools)
             else:
                 passed = passed and len(requests) == first_request
                 if name == "wrong_form":
-                    passed = passed and "无妄者" in voice.answer and any(char in voice.answer for char in "？?")
+                    passed = (
+                        passed
+                        and "无妄者" in voice.answer
+                        and any(char in voice.answer for char in "？?")
+                    )
                 if name == "clarify":
                     passed = passed and any(char in voice.answer for char in "？?")
-            cases.append({"case": name, "question": question, "answer": voice.answer,
-                          "characters": len(voice.answer), "audio_seconds": round(len(pcm) / 48000, 2),
-                          "elapsed_seconds": round(time.monotonic() - started, 2),
-                          "first_answer_audio_seconds": round(voice.audio_starts.get(voice.answer_id, started) - started, 2),
-                          "tools": actual_tools, "urls_spoken": urls_spoken,
-                          "web_requests": requests[first_request:],
-                          "passed": passed, "audio": str(filename.resolve())})
-            await asyncio.sleep(.2)
+            cases.append(
+                {
+                    "case": name,
+                    "question": question,
+                    "answer": voice.answer,
+                    "characters": len(voice.answer),
+                    "audio_seconds": round(len(pcm) / 48000, 2),
+                    "elapsed_seconds": round(time.monotonic() - started, 2),
+                    "first_answer_audio_seconds": round(
+                        voice.audio_starts.get(voice.answer_id, started) - started, 2
+                    ),
+                    "tools": actual_tools,
+                    "urls_spoken": urls_spoken,
+                    "web_requests": requests[first_request:],
+                    "passed": passed,
+                    "audio": str(filename.resolve()),
+                }
+            )
+            await asyncio.sleep(0.2)
     finally:
         await application.close()
-    (output / "evidence.json").write_text(json.dumps({"cases": cases, "microphone": False,
-        "speaker_playback": False, "desktop_actions": 0}, ensure_ascii=False, indent=2), encoding="utf-8")
+    (output / "evidence.json").write_text(
+        json.dumps(
+            {"cases": cases, "microphone": False, "speaker_playback": False, "desktop_actions": 0},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     for case in cases:
-        print(json.dumps({key: value for key, value in case.items() if key != "tools"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {key: value for key, value in case.items() if key != "tools"}, ensure_ascii=False
+            )
+        )
     return all(case["passed"] for case in cases)
 
 
@@ -192,7 +239,8 @@ def main() -> None:
     if args.env_file:
         settings = replace(settings,
             deepseek_api_key=file_setting(args.env_file, "DEEPSEEK_API_KEY"),
-            deepseek_base_url=file_setting(args.env_file, "BOXAGENT_DEEPSEEK_BASE_URL") or settings.deepseek_base_url,
+            deepseek_base_url=file_setting(args.env_file, "BOXAGENT_DEEPSEEK_BASE_URL")
+            or settings.deepseek_base_url,
             qwen_api_key=file_setting(args.env_file, "DASHSCOPE_API_KEY"),
             qwen_workspace_id=file_setting(args.env_file, "BOXAGENT_DASHSCOPE_WORKSPACE_ID"),
             qwen_region=file_setting(args.env_file, "BOXAGENT_QWEN_REGION") or settings.qwen_region)

@@ -82,10 +82,19 @@ class DesktopService:
                 paths = list(self.catalog.vrm_manifests())
                 if self.directory / "pet.json" not in paths:
                     paths.append(self.directory / "pet.json")
-                return {**self.snapshot(), "items": [
-                    {"id": str(path.parent), "name": self.catalog.read_json(path).get("displayName", path.parent.name),
-                     "description": self.catalog.read_json(path).get("description", "")}
-                    for path in paths]}
+                return {
+                    **self.snapshot(),
+                    "items": [
+                        {
+                            "id": str(path.parent),
+                            "name": self.catalog.read_json(path).get(
+                                "displayName", path.parent.name
+                            ),
+                            "description": self.catalog.read_json(path).get("description", ""),
+                        }
+                        for path in paths
+                    ],
+                }
             if method == "desktop_preview_avatar":
                 directory = self.avatar(params.get("id"))
                 self.preview_directory = directory
@@ -125,7 +134,9 @@ class DesktopService:
                 content = source.read_text(encoding="utf-8")
                 return {"name": persona_name(content), "content": content, "path": str(source)}
             if method == "desktop_save_persona":
-                content = update_persona_name(str(params.get("content", "")), str(params.get("name", "")))
+                content = update_persona_name(
+                    str(params.get("content", "")), str(params.get("name", ""))
+                )
                 self.editable_soul.parent.mkdir(parents=True, exist_ok=True)
                 temporary = self.editable_soul.with_suffix(".desktop.tmp")
                 temporary.write_text(content, encoding="utf-8")
@@ -134,16 +145,28 @@ class DesktopService:
                 return self.dispatch("desktop_persona", {})
             if method == "desktop_runs":
                 records = SessionRunRecords(self.data_dir / "runs")
-                return {"items": [{"id": str(directory),
-                                   "manifest": json.loads((directory / "manifest.json").read_text(encoding="utf-8")),
-                                   "files": [p.name for p in directory.iterdir() if p.is_file()]}
-                                  for directory in reversed(records.directories(str(params.get("session_id", ""))))]}
+                return {
+                    "items": [
+                        {
+                            "id": str(directory),
+                            "manifest": json.loads(
+                                (directory / "manifest.json").read_text(encoding="utf-8")
+                            ),
+                            "files": [p.name for p in directory.iterdir() if p.is_file()],
+                        }
+                        for directory in reversed(
+                            records.directories(str(params.get("session_id", "")))
+                        )
+                    ]
+                }
             if method == "desktop_run_directory":
                 records = SessionRunRecords(self.data_dir / "runs")
                 session_id = str(params.get("session_id", ""))
                 identity = params.get("id")
                 if identity:
-                    directory = next((p for p in records.directories(session_id) if str(p) == identity), None)
+                    directory = next(
+                        (p for p in records.directories(session_id) if str(p) == identity), None
+                    )
                     if directory is None:
                         raise ValueError("运行记录不属于此会话")
                 else:
@@ -156,7 +179,11 @@ class DesktopService:
             raise ValueError(f"未知桌面服务方法：{method}")
 
     def release_unused_servers(self) -> None:
-        keep = {str(path) for path in (self.directory, self.preview_directory, *self.prepared.values()) if path is not None}
+        keep = {
+            str(path)
+            for path in (self.directory, self.preview_directory, *self.prepared.values())
+            if path is not None
+        }
         for identity in list(self.servers):
             if identity not in keep:
                 self.servers.pop(identity).close()

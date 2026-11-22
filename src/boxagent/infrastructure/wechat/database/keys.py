@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import re
 from collections.abc import Mapping
+from pathlib import Path
 
 from boxagent.infrastructure.wechat._private import object_json
-from boxagent.infrastructure.wechat.database._authentication import KeyCandidate, authenticate_first_page
+from boxagent.infrastructure.wechat.database._authentication import (
+    KeyCandidate,
+    authenticate_first_page,
+)
 
 
 def read_first_page(path: Path) -> bytes | None:
@@ -28,7 +31,13 @@ class DatabaseKeys:
             raise ValueError("Cannot identify the account; provide self_wxid")
         self.self_wxid = self_wxid or str(match[1] if match else "")
         self.account_id = "wechat:" + self.self_wxid
-        values = material if material is not None else object_json(report).get("keys") if report is not None else None
+        values = (
+            material
+            if material is not None
+            else object_json(report).get("keys")
+            if report is not None
+            else None
+        )
         if not isinstance(values, Mapping):
             raise ValueError("Existing key report lacks its keys mapping")
         self._keys: dict[str, bytes] = {}
@@ -54,13 +63,21 @@ class DatabaseKeys:
         if raw is None:
             raise ValueError("No existing key for the requested database")
         page = read_first_page(self.path(relative))
-        if page is None or authenticate_first_page(page, KeyCandidate(raw, page[:16])) != "derived-le":
+        if (
+            page is None
+            or authenticate_first_page(page, KeyCandidate(raw, page[:16])) != "derived-le"
+        ):
             raise ValueError("Existing material does not authenticate this account/database")
         return raw
 
     def messages(self) -> tuple[str, ...]:
-        names = tuple(sorted(str(p.relative_to(self.root)) for p in (self.root / "message").glob("message_*.db")
-                             if re.fullmatch(r"message_[0-9]+\.db", p.name)))
+        names = tuple(
+            sorted(
+                str(p.relative_to(self.root))
+                for p in (self.root / "message").glob("message_*.db")
+                if re.fullmatch(r"message_[0-9]+\.db", p.name)
+            )
+        )
         if not names:
             raise ValueError("No message shards found")
         return names

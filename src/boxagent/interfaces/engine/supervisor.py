@@ -3,13 +3,25 @@
 import asyncio
 import os
 import sys
+from pathlib import Path
+from typing import BinaryIO
 
 from boxagent.core.paths import SOURCE_ROOT
 
 
 class EngineSupervisor:
-    def __init__(self, *, root, socket_path, log_path, task_provider, task_model=None,
-                 auto_approve=True, context_interval: float = 0, context_size=960):
+    def __init__(
+        self,
+        *,
+        root: Path,
+        socket_path: Path,
+        log_path: Path,
+        task_provider: str,
+        task_model: str | None = None,
+        auto_approve: bool = True,
+        context_interval: float = 0,
+        context_size: int = 960,
+    ) -> None:
         self.root = root
         self.socket_path = socket_path
         self.log_path = log_path
@@ -18,10 +30,10 @@ class EngineSupervisor:
         self.auto_approve = auto_approve
         self.context_interval = context_interval
         self.context_size = context_size
-        self.process = None
-        self.log_stream = None
+        self.process: asyncio.subprocess.Process | None = None
+        self.log_stream: BinaryIO | None = None
 
-    async def start(self):
+    async def start(self) -> asyncio.subprocess.Process:
         if self.process and self.process.returncode is None:
             return self.process
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -48,7 +60,7 @@ class EngineSupervisor:
         )
         return self.process
 
-    async def stop(self, timeout=8):
+    async def stop(self, timeout: float = 8) -> None:
         process, self.process = self.process, None
         if process and process.returncode is None:
             process.terminate()
@@ -61,6 +73,6 @@ class EngineSupervisor:
             self.log_stream.close()
             self.log_stream = None
 
-    async def restart(self):
+    async def restart(self) -> asyncio.subprocess.Process:
         await self.stop()
         return await self.start()

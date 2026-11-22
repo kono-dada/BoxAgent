@@ -1,8 +1,8 @@
 """Select a model profile and pair it with an injected Runtime factory."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from boxagent.agent.runtime.contracts import AgentRuntime
 from boxagent.agent.runtime.models import ModelProfile
@@ -53,5 +53,7 @@ class AgentRuntimeRegistry:
             )
         else:
             raise ValueError(f"不支持的任务模型供应商：{provider}")
-        factory = lambda session: self.runtime_factory(session, model=selected_model)
+        def factory(session: object) -> AgentRuntime:
+            return self.runtime_factory(session, model=selected_model)
+
         return AgentRuntimeSelection(provider, selected_model, profile, factory)
