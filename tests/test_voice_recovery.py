@@ -130,7 +130,6 @@ class VoiceRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await service.close()
 
     async def test_camera_owned_voice_does_not_resume_when_camera_disconnects(self) -> None:
-        voices: list[Feed] = []
         disconnect = asyncio.Event()
 
         class Feed:
@@ -149,6 +148,7 @@ class VoiceRecoveryTests(unittest.IsolatedAsyncioTestCase):
             async def feed_image(self, image: str) -> bool:
                 return True
 
+        voices: list[Feed] = []
         service = InteractionService(StateEvents(lambda _: None),
             lambda *_args, **_kwargs: Feed(), AsyncMock(), reconnect_delays=(.01,))
         try:

@@ -1,7 +1,6 @@
 from boxagent.core import file_lock as fcntl
 import asyncio
 from functools import wraps
-import json
 from pathlib import Path
 
 import pytest

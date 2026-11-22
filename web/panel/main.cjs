@@ -134,7 +134,10 @@ function startService() {
   try {
     const args = setupEnabled ? ['--task-provider', serviceEnvironment.BOXAGENT_TASK_PROVIDER || 'deepseek'] :
       JSON.parse(process.env.BOXAGENT_DESKTOP_ARGS || '[]');
-    service = new ServiceClient({ root, data, log, args, python: setupEnabled ? paths.python : undefined, environment: serviceEnvironment });
+    service = new ServiceClient({
+      root, data, log, args, pythonSource: paths.pythonSource,
+      python: setupEnabled ? paths.python : undefined, environment: serviceEnvironment,
+    });
   } finally { fs.closeSync(log); }
   service.on('diagnostic', message => { broadcast('engine:diagnostic', message); host?.feedback(message); });
 }

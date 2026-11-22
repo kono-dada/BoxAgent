@@ -5,14 +5,17 @@ import logging
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from typesafe_sdk import Choice
-from boxagent.infrastructure.memory.jev_mem.core.jev_client import JevClient
-from boxagent.infrastructure.memory.jev_mem.core.jev_mem_config import JevMemConfig
-
 
 def main() -> None:
+    root = Path(__file__).resolve().parents[1]
+    source = root / "src"
+    sys.path.insert(0, str(source if source.is_dir() else root))
+
+    from typesafe_sdk import Choice
+
+    from boxagent.infrastructure.memory.jev_mem.core.jev_client import JevClient
+    from boxagent.infrastructure.memory.jev_mem.core.jev_mem_config import JevMemConfig
+
     logging.basicConfig(level=logging.INFO)
     config = JevMemConfig.load(jev_mock=False, timeout_seconds=4.0, max_retries=0,
                                cache_size=0, audit_path="")

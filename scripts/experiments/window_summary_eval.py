@@ -19,7 +19,7 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from boxagent.infrastructure.perception.qwen_mlx import clean_summary  # noqa: E402
 from scripts.window_summary_worker import (  # noqa: E402

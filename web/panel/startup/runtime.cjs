@@ -40,6 +40,7 @@ class PackagedRuntime {
     for (const name of Object.keys(inherited)) if (name.startsWith('BOXAGENT_WECHAT_')) delete inherited[name];
     return { ...inherited, ...config, BOXAGENT_PACKAGED: '1', BOXAGENT_DATA_DIR: p.data,
       BOXAGENT_RESOURCE_ROOT: p.root, BOXAGENT_ENGINE_WATCH: '0', BOXAGENT_JEV_MEM_BACKEND: 'jev',
+      PYTHONPATH: p.pythonSource,
       BOXAGENT_WECHAT_ENABLED: config.BOXAGENT_WECHAT_ENABLED === '1' ? '1' : '0',
       BOXAGENT_JEV_MEM_PYTHON: p.jevPython, BOXAGENT_PERCEPTION_PYTHON: p.visionPython,
       BOXAGENT_PERCEPTION_MODEL: p.model, BOXAGENT_EMBEDDING_MODEL: path.join(p.data, 'models/embedding'),

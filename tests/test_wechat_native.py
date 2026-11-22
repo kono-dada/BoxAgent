@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 
 from boxagent.infrastructure.wechat.addresses import BuildProfile, UnsupportedBuild, profile_for

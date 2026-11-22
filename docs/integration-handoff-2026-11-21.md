@@ -6,10 +6,10 @@
 
 | 模块 | 已交付能力 | 从哪继续开发 |
 | --- | --- | --- |
-| LoL 陪玩 | 小窗或语音开启，使用本地对局事件主动点评。连杀按事件播报，高地与结束事件分别处理。英雄和装备资料使用 Data Dragon | [对局数据](../boxagent/infrastructure/games/lol.py) · [事件策略](../boxagent/domain/proactivity/lol.py) · [陪玩编排](../boxagent/application/lol_companion.py) · [资料查询](../boxagent/infrastructure/games/data_dragon.py) |
-| 《鸣潮》陪玩 | 小窗显式开关。读取游戏窗口，支持任务进度、画面语境和短评的实验链路。可选云视觉 | [运行配置](setup.md#鸣潮陪玩预览) · [视觉适配](../boxagent/infrastructure/perception/wuwa.py) |
-| 微信 | 本机接入后可读消息、监听、主动提醒和口述代回，能查看实际发送回执。群聊免打扰跳过主动通知，历史仍可查询 | [接入与使用](wechat-onboarding.md) · [事件接入](../boxagent/bootstrap/external_events.py) · [微信服务](../boxagent/application/wechat/service.py) |
-| 语音调度 | 用户对话优先，过时的 LoL 短评跳过，微信等空档主动播报。游戏静音可截断当前短评，普通对话和微信沿用原语音设置 | [实时语音](../boxagent/infrastructure/runtimes/qwen/realtime.py) · [调度回归](../tests/test_speech_scheduling.py) |
+| LoL 陪玩 | 小窗或语音开启，使用本地对局事件主动点评。连杀按事件播报，高地与结束事件分别处理。英雄和装备资料使用 Data Dragon | [对局数据](../src/boxagent/infrastructure/games/lol.py) · [事件策略](../src/boxagent/domain/proactivity/lol.py) · [陪玩编排](../src/boxagent/application/lol_companion.py) · [资料查询](../src/boxagent/infrastructure/games/data_dragon.py) |
+| 《鸣潮》陪玩 | 小窗显式开关。读取游戏窗口，支持任务进度、画面语境和短评的实验链路。可选云视觉 | [运行配置](setup.md#鸣潮陪玩预览) · [视觉适配](../src/boxagent/infrastructure/perception/wuwa.py) |
+| 微信 | 本机接入后可读消息、监听、主动提醒和口述代回，能查看实际发送回执。群聊免打扰跳过主动通知，历史仍可查询 | [接入与使用](wechat-onboarding.md) · [事件接入](../src/boxagent/bootstrap/external_events.py) · [微信服务](../src/boxagent/application/wechat/service.py) |
+| 语音调度 | 用户对话优先，过时的 LoL 短评跳过，微信等空档主动播报。游戏静音可截断当前短评，普通对话和微信沿用原语音设置 | [实时语音](../src/boxagent/infrastructure/runtimes/qwen/realtime.py) · [调度回归](../tests/test_speech_scheduling.py) |
 | 桌宠与双屏 | 透明桌宠与无触屏副屏舞台可切换。角色气泡、脚下任务状态、聊天输入和任务灵动岛都已接通。游戏边缘半头像可展开关麦、静音短评与结束陪玩 | [显示说明](desktop-displays.md) · [桌面窗口](../web/panel/desktop/host.cjs) · [交互设计稿](design/companion/index.html) |
 | macOS Onboarding 与发包 | 处理模型配置、组件安装、权限检查、微信接入和就绪状态。支持重开时恢复配置、从菜单进入修复以及独立 App／DMG 构建 | [安装与发包](macos-distribution.md) · [Onboarding 界面](../web/panel/src/onboarding/OnboardingPage.tsx) · [启动编排](../web/panel/startup/coordinator.cjs) |
 

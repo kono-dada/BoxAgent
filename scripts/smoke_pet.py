@@ -3,14 +3,13 @@
 import argparse
 import asyncio
 import base64
-import contextlib
 import json
 import sys
 import time
 import wave
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 from boxagent.application.assistant import BoxAgentApplication

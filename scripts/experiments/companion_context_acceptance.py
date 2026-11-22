@@ -5,10 +5,9 @@ import argparse
 import json
 import sys
 import tempfile
-import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from boxagent.bootstrap.settings import load_settings
 from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession
 from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder

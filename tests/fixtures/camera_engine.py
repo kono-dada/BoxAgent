@@ -3,7 +3,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.camera import CameraInteractionService
 from boxagent.interfaces.engine.server import EngineServer

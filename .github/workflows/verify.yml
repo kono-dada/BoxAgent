@@ -1,7 +1,12 @@
-name: Verify onboarding
+name: Verify BoxAgent
 on:
   push:
-    branches: [main, 'codex/onboarding-packaging', 'codex/game-web-search', 'codex/multimodal-memory']
+    branches:
+      - main
+      - codex/onboarding-packaging
+      - codex/game-web-search
+      - codex/multimodal-memory
+      - codex/python-quality-baseline
   pull_request:
 jobs:
   panel:
@@ -22,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: '3.12'
       - run: brew install portaudio
-      - run: uvx --from pyright==1.1.414 pyright
-      - run: UV_CACHE_DIR=/tmp/uvcache uv run --locked --with pytest python -m pytest -q
+      - run: uv sync --locked
+      - run: uv run --locked python scripts/check_python_quality.py
+      - run: uvx --from pyright==1.1.414 pyright --pythonpath "$(uv python find)"
+      - run: uv run --locked python -m pytest -q

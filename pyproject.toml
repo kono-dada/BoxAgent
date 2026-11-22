@@ -11,11 +11,44 @@ dependencies = [
   "pyobjc-framework-Quartz==12.2.2; sys_platform == 'darwin'",
 ]
 
-[dependency-groups]
-dev = ["pytest>=8,<10", "networkx>=3.4,<4"]
+[project.scripts]
+boxagent = "boxagent.entrypoints.desktop:main"
 
-[tool.uv]
-package = false
+[build-system]
+requires = ["uv_build>=0.9.4,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<10",
+    "networkx>=3.4,<4",
+    "ruff>=0.17.6",
+    "mypy>=2.4.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["src/boxagent/infrastructure/memory/jev_mem"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests/test_cli.py", "scripts/check_python_quality.py"]
+exclude = ["^src/boxagent/infrastructure/memory/jev_mem/"]
+
+[[tool.mypy.overrides]]
+module = "boxagent.infrastructure.memory.jev_mem.*"
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-ra"

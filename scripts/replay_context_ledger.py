@@ -19,7 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from boxagent.domain.context import project_context  # noqa: E402
 from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder  # noqa: E402

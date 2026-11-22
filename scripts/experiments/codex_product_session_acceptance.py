@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from boxagent.application.memory import DisabledMemoryModule
 from boxagent.bootstrap.engine import create_application
 from boxagent.bootstrap.settings import load_settings

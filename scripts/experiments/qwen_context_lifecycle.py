@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from boxagent.bootstrap.settings import load_settings  # noqa: E402
 from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession  # noqa: E402

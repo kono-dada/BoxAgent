@@ -1,27 +1,27 @@
 {
   "include": [
-    "boxagent/agent/runtime",
-    "boxagent/core/states.py",
-    "boxagent/application/camera.py",
-    "boxagent/domain/perception/camera.py",
-    "boxagent/infrastructure/runtimes/qwen/media.py",
-    "boxagent/infrastructure/audio/output.py",
-    "boxagent/domain/context/contracts.py",
-    "boxagent/domain/environment",
-    "boxagent/domain/execution",
-    "boxagent/domain/skill",
-    "boxagent/domain/web",
-    "boxagent/application/web_research.py",
-    "boxagent/infrastructure/web",
-    "boxagent/bootstrap/web.py",
-    "boxagent/domain/memory/visual.py",
-    "boxagent/application/visual_memory.py",
-    "boxagent/infrastructure/persistence/visual_evidence.py",
-    "boxagent/infrastructure/memory/visual_extractor.py",
-    "boxagent/infrastructure/memory/visual_episode.py"
+    "src/boxagent/agent/runtime",
+    "src/boxagent/core/states.py",
+    "src/boxagent/application/camera.py",
+    "src/boxagent/domain/perception/camera.py",
+    "src/boxagent/infrastructure/runtimes/qwen/media.py",
+    "src/boxagent/infrastructure/audio/output.py",
+    "src/boxagent/domain/context/contracts.py",
+    "src/boxagent/domain/environment",
+    "src/boxagent/domain/execution",
+    "src/boxagent/domain/skill",
+    "src/boxagent/domain/web",
+    "src/boxagent/application/web_research.py",
+    "src/boxagent/infrastructure/web",
+    "src/boxagent/bootstrap/web.py",
+    "src/boxagent/domain/memory/visual.py",
+    "src/boxagent/application/visual_memory.py",
+    "src/boxagent/infrastructure/persistence/visual_evidence.py",
+    "src/boxagent/infrastructure/memory/visual_extractor.py",
+    "src/boxagent/infrastructure/memory/visual_episode.py"
   ],
   "exclude": [
-    "boxagent/infrastructure/memory/jev_mem"
+    "src/boxagent/infrastructure/memory/jev_mem"
   ],
   "pythonVersion": "3.12",
   "typeCheckingMode": "basic"

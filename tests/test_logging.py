@@ -28,7 +28,7 @@ from boxagent.bootstrap.logs import (
 from boxagent.core.logs import bind_log_context, log_context
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "boxagent"
+PACKAGE = ROOT / "src/boxagent"
 
 
 def rows(path):

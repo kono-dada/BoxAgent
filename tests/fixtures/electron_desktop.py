@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from unittest.mock import Mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from boxagent.interfaces.desktop.service import DesktopService
 from boxagent.interfaces.desktop.pets.catalog import PetCatalog
 

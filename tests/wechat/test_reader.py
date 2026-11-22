@@ -4,7 +4,6 @@ import time
 import ast
 from pathlib import Path
 import pytest
-from boxagent.application.wechat.service import PeerResolutionError, WeChatService
 from boxagent.infrastructure.wechat.database.reader import DatabaseReader, table_for
 from .conftest import DB, GROUP, PEER, PlainSnapshots, add_message
 
@@ -87,7 +86,7 @@ def test_members_are_identity_verified_and_use_nickname(reader: DatabaseReader) 
 
 
 def test_production_wechat_has_no_experiment_imports() -> None:
-    root = Path(__file__).resolve().parents[2] / "boxagent"
+    root = Path(__file__).resolve().parents[2] / "src/boxagent"
     paths = [*root.glob("domain/wechat/*.py"), *root.glob("domain/events/*.py"),
              *root.glob("application/wechat/*.py"), *root.glob("infrastructure/wechat/**/*.py"),
              root / "bootstrap/wechat.py", root / "entrypoints/wechat.py"]

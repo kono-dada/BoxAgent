@@ -129,7 +129,8 @@ def copy_source(stage: Path) -> None:
     target = stage / 'boxagent'
     target.mkdir()
     ignored = shutil.ignore_patterns('__pycache__', '*.pyc', '.DS_Store')
-    for directory in ('boxagent', 'assets', 'skills'):
+    shutil.copytree(ROOT / 'src/boxagent', target / 'boxagent', ignore=ignored)
+    for directory in ('assets', 'skills'):
         shutil.copytree(ROOT / directory, target / directory, ignore=ignored)
     scripts = target / 'scripts'
     scripts.mkdir()
@@ -211,7 +212,8 @@ def prepare(output: Path, *, identity: str, aoq: Path | None,
         shutil.copy2(uv, stage / 'uv')
         copy_source(stage)
         command([sys.executable, '-m', 'boxagent.entrypoints.wechat_distribution',
-                 '--source', str(wechat_source), '--output', str(stage / 'wechat')])
+                 '--source', str(wechat_source), '--output', str(stage / 'wechat')],
+                env={**os.environ, 'PYTHONPATH': str(ROOT / 'src')})
         (stage / 'build-identity.json').write_text(json.dumps({'wheelSigningIdentity': identity}) + '\n')
         if aoq:
             for framework in ('AoqClientSdk.framework', 'PluginOpus.framework'):
@@ -265,7 +267,8 @@ def refresh_source(resources: Path, *, wechat_source: Path = Path('/Applications
         raise ValueError('Source refresh is limited to .runtime staging')
     clean_aoq(resources)
     command([sys.executable, '-m', 'boxagent.entrypoints.wechat_distribution',
-             '--source', str(wechat_source), '--output', str(resources / 'wechat')])
+             '--source', str(wechat_source), '--output', str(resources / 'wechat')],
+            env={**os.environ, 'PYTHONPATH': str(ROOT / 'src')})
     with tempfile.TemporaryDirectory(prefix='boxagent-source-') as temporary:
         stage = Path(temporary)
         copy_source(stage)

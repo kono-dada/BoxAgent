@@ -13,7 +13,7 @@ import time
 from typing import Any, Protocol
 import wave
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.bootstrap.settings import Settings, load_settings
