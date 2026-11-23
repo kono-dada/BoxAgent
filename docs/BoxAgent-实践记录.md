@@ -2830,4 +2830,12 @@ passed
 
 - **背景与问题**　直接启用 strict mypy 后，CI 覆盖范围内还有 900 项诊断，主要来自语音和任务运行时、应用装配、记忆和原生接口。
 - **决策与做法**　补齐运行时工厂、异步回调和内部记录的类型，在 JSON 和原生 SDK 入口校验动态数据。将 PyAudio 类型存根锁定为开发依赖，为项目使用的 PyObjC 接口添加存根。沿用 Python 3.12、strict、既有检查范围及 CI 中的三条原生命令。 [检查配置](../pyproject.toml) · [任务执行器](../src/boxagent/agent/harness/executor.py) · [语音运行时](../src/boxagent/infrastructure/runtimes/qwen/realtime.py)
-- **效果**　macOS 上 `uv run --locked mypy` 检查 224 个文件，零诊断。Ruff 通过，两条全量 pytest 命令均通过 682 项、跳过 13 项。Pyright 使用 uv 解释器时无错误或警告，直接执行时有一条 PyAudio 源码发现警告。通过了 PyObjC 和 Quartz 接口的本机冒烟。额外指定 Windows 平台的 mypy 仍报告平台 API 诊断。远程 CI、真实 AOQ 音频和桌宠实机行为待验证。
+- **效果**　macOS 上 `uv run --locked mypy` 检查 224 个文件，零诊断。Ruff 通过，两条全量 pytest 命令均通过 682 项、跳过 13 项。Pyright 使用 uv 解释器时无错误或警告，直接执行时有一条 PyAudio 源码发现警告。Jev-Mem 专用环境补跑通过 12 项，Windows 原生 TCP 用例待实机。Electron 146 项和 VRM 45 项通过，两个前端均构建成功。
+- **实机复测**　真实 Engine 通过 AOQ 处理测试文本，拿到设备起播和回复入库证据。AOQ 调度探针的设备回执顺序为 LoL 短评、合成微信提醒。AOQ 合成录音上行通过听写和回复文本检查，该回合未取得起播回执，真人麦克风往返待测。真实 WebSocket 备用链路、Codex App Server 接 DeepSeek 结构化回合和本机离线 MLX 推理通过。本地 App 通过临时签名检查，DMG 通过摘要和镜像校验。成品在隔离目录通过 Onboarding、core/Jev/MLX 初始化、Engine 和固定版本微信客户端准备。 [音频探针](../scripts/experiments/voice_scheduling_probe.py) · [打包冒烟](../scripts/smoke-packaged-app.mjs)
+- **桌面复测与剩余项**　真实双屏、桌宠渲染、主题和缩放通过，合成相机帧通过渲染器和 Python 链路。相机按钮布局断言和原生全屏空间断言在当前分支和质量基线前的 `1800c8b` 均能复现。相机冒烟启动原始 Electron 会显示本地运行权限说明，该测试宿主缺少语音唤醒助手和辅助功能授权。安装预检报告本机选中的 Codex 可执行文件未签名。远程 CI、真实微信账号和 Windows 待验证。 [相机冒烟](../web/panel/tests/camera-smoke.cjs) · [全屏冒烟](../web/panel/tests/desktop-fullscreen-smoke.cjs) · [本地权限面板](../web/panel/desktop/local-permissions.cjs)
+
+### 2026-11-23 · 独立 Engine 默认使用 DeepSeek
+
+- **背景与问题**　独立启动 Engine 时，命令行默认值固定为 `codex`，桌宠的共享配置在未配置时使用 `deepseek`。
+- **决策与做法**　独立 Engine 仅在收到显式 `--task-provider` 时覆盖共享配置。省略参数时读取 `BOXAGENT_TASK_PROVIDER`，未配置时使用 DeepSeek。 [Engine 入口](../src/boxagent/entrypoints/engine.py) · [共享配置](../src/boxagent/bootstrap/settings.py)
+- **效果**　CLI 回归覆盖两种配置值和显式参数的双向覆盖。独立 Engine 使用默认配置和显式 `codex` 均通过启停与 IPC 冒烟。Ruff、strict mypy 和使用 uv 解释器的 Pyright 通过，pytest 通过 683 项、跳过 13 项。真实模型回合见上一轮实机复测。 [CLI 回归](../tests/test_engine.py)

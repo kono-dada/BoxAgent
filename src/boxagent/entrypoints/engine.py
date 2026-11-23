@@ -17,7 +17,7 @@ async def run(args: argparse.Namespace) -> None:
     install_asyncio_handler()
     server = create_engine_server(
         args.socket, app_settings=settings,
-        task_provider=args.task_provider, task_model=args.task_model,
+        task_provider=args.task_provider or settings.task_provider, task_model=args.task_model,
         auto_approve=not args.require_approval,
         context_interval=args.context_interval, context_size=args.context_size)
     loop = asyncio.get_running_loop()
@@ -36,7 +36,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="BoxAgent local Engine")
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--log-dir", type=Path)
-    parser.add_argument("--task-provider", choices=("codex", "deepseek"), default="codex")
+    parser.add_argument(
+        "--task-provider",
+        choices=("codex", "deepseek"),
+        help="后台任务模型，默认读取 BOXAGENT_TASK_PROVIDER，未配置时使用 deepseek",
+    )
     parser.add_argument("--task-model")
     parser.add_argument("--require-approval", action="store_true")
     parser.add_argument("--context-interval", type=float, default=0)

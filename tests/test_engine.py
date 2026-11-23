@@ -4,12 +4,39 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from boxagent.core.states import Snapshot
+from boxagent.entrypoints import engine
 from boxagent.interfaces.engine.client import EngineClient, EngineDisconnected
 from boxagent.interfaces.engine.server import EngineServer
 from boxagent.interfaces.engine.supervisor import EngineSupervisor
+
+
+class EngineEntrypointTests(unittest.TestCase):
+    def test_cli_uses_configured_provider_unless_explicitly_overridden(self) -> None:
+        server = Mock(run=AsyncMock())
+        cases = (
+            ("deepseek", [], "deepseek"),
+            ("codex", [], "codex"),
+            ("deepseek", ["--task-provider", "codex"], "codex"),
+            ("codex", ["--task-provider", "deepseek"], "deepseek"),
+        )
+        for configured, flags, expected in cases:
+            settings = SimpleNamespace(task_provider=configured, log_dir=Path("logs"))
+            with (
+                self.subTest(configured=configured, flags=flags),
+                patch("sys.argv", ["engine", "--socket", "engine.sock", *flags]),
+                patch("boxagent.bootstrap.settings.load_settings", return_value=settings),
+                patch("boxagent.bootstrap.engine.create_engine_server", return_value=server)
+                as create_server,
+                patch.object(engine, "configure_logging"),
+                patch.object(engine, "install_asyncio_handler"),
+                patch.object(engine, "shutdown_logging"),
+            ):
+                engine.main()
+                self.assertEqual(create_server.call_args.kwargs["task_provider"], expected)
 
 
 class FakeApplication:
