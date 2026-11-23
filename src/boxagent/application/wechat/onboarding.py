@@ -52,10 +52,13 @@ class WeChatOnboarding:
         self.check_client(app)
         root, material = self.acquire_keys(app, root, lldb=lldb, cancelled=cancelled)
         result = self.verify_account(app, root, material, lldb=lldb, native=False)
-        if any(result.get(name, {'state': 'missing', 'code': ''})['state'] != 'ready'
-               for name in ('reading', 'listening')):
+        reading, listening = result.get('reading'), result.get('listening')
+        if (not reading or reading['state'] != 'ready'
+                or not listening or listening['state'] != 'ready'):
             raise RuntimeError('wechat_validation_failed')
-        result.update(app=str(app), root=str(root), material=material)
+        result['app'] = str(app)
+        result['root'] = str(root)
+        result['material'] = material
         return result
 
     def verify(self, app: Path, root: Path, material: Mapping[str, str], *,

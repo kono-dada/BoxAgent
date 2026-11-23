@@ -6,28 +6,105 @@ import inspect
 import json
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, NotRequired, Protocol, TypedDict, Unpack
 
 from boxagent.agent.harness.policies.result import validate_task_result
+from boxagent.agent.harness.policies.tools import (
+    ApplicationTools,
+    ComputerUseToolGateway,
+    ToolError,
+    ToolLog,
+    ToolObservation,
+)
 from boxagent.agent.harness.request import HarnessInput
+from boxagent.agent.runtime.contracts import (
+    AgentRuntime,
+    ComputerUseSession,
+    Progress,
+    TaskTurnSession,
+    ToolCall,
+    ToolObservationSink,
+    ToolPayload,
+    deny_tool_approval,
+)
+from boxagent.agent.runtime.models import RuntimeMessage, RuntimeRequest
 from boxagent.core.errors import append_jsonl, redact, timestamp, write_json
 from boxagent.core.logs import bind_log_context
+from boxagent.core.states import Approval
+from boxagent.domain.conversation.models import ProductEvent, RuntimeBinding
+from boxagent.domain.environment import EnvironmentContext, EnvironmentProvider
+
+
+class _SessionArguments(TypedDict):
+    output: Path
+    on_tool_call: ToolCall
+    on_tool_observed: ToolObservationSink
+    approve: Approval
+    current_app: Callable[[], str]
+    report: Callable[[str, str], None]
+    log: ToolLog
+    auto_approve: bool
+    product_session_id: NotRequired[str]
+    runtime_thread_id: NotRequired[str | None]
+    on_thread_bound: NotRequired[Callable[[str], object] | None]
+    on_context_synced: NotRequired[Callable[[Sequence[RuntimeMessage]], object]]
+
+
+class SessionFactory(Protocol):
+    def __call__(self, **arguments: Unpack[_SessionArguments]) -> TaskTurnSession: ...
+
+
+class ToolGatewayFactory(Protocol):
+    def __call__(
+        self,
+        session: ComputerUseSession,
+        /,
+        *,
+        output: Path,
+        goal: str,
+        report: Callable[[str, str], None],
+        log: ToolLog,
+        is_stopped: Callable[[], bool],
+        application_tools: ApplicationTools | None = None,
+    ) -> ComputerUseToolGateway: ...
+
+
+class TaskMemory(Protocol):
+    async def evidence(
+        self, query: str, *, session_id: str, top_k: int
+    ) -> Iterable[object]: ...
 
 
 class TaskExecutor:
     """Harness one AgentRuntime with one Computer Use session for a task."""
 
-    def __init__(self, task_id: str, *, provider: str, model: str, output: Path,
-                 runtime_factory: Callable, session_factory: Callable,
-                 tool_gateway_factory: Callable, request_factory: Callable,
-                 auto_approve: bool = True, session_id=None, interaction_id=None,
-                 prior_messages=(), runtime_binding=None, on_thread_bound=None,
-                 environment_provider=None, memory=None,
-                 run_index_path=None, latest_run_path=None, on_context_synced=None,
-                 event_sink=None):
+    def __init__(
+        self,
+        task_id: str,
+        *,
+        provider: str,
+        model: str,
+        output: Path,
+        runtime_factory: Callable[[TaskTurnSession], AgentRuntime],
+        session_factory: SessionFactory,
+        tool_gateway_factory: ToolGatewayFactory,
+        request_factory: Callable[[HarnessInput], RuntimeRequest],
+        auto_approve: bool = True,
+        session_id: str | None = None,
+        interaction_id: str | None = None,
+        prior_messages: Iterable[ProductEvent] = (),
+        runtime_binding: RuntimeBinding | None = None,
+        on_thread_bound: Callable[[str], object] | None = None,
+        environment_provider: EnvironmentProvider | None = None,
+        memory: TaskMemory | None = None,
+        run_index_path: Path | None = None,
+        latest_run_path: Path | None = None,
+        on_context_synced: Callable[[Sequence[RuntimeMessage]], object] | None = None,
+        event_sink: Callable[[str, dict[str, object]], None] | None = None,
+    ) -> None:
         self.task_id = task_id
         self.provider = provider
         self.model = model
@@ -48,67 +125,69 @@ class TaskExecutor:
         self.memory = memory
         self.run_index_path = Path(run_index_path) if run_index_path else None
         self.latest_run_path = Path(latest_run_path) if latest_run_path else None
-        self.session = None
-        self.gateway = None
-        self.runtime = None
+        self.session: ComputerUseSession | None = None
+        self.gateway: ComputerUseToolGateway | None = None
+        self.runtime: AgentRuntime | None = None
         self.stopped = False
         self.phase = "connecting"
         self.started_at = time.time()
         self.last_activity_at = self.started_at
         self.goal = ""
-        self.progress = lambda _message: None
-        self.approve = None
+        self.progress: Progress = lambda _message: None
+        self.approve: Approval = deny_tool_approval
 
     @property
-    def process(self):
+    def process(self) -> asyncio.subprocess.Process | None:
         return self.session.process if self.session else None
 
     @property
-    def cleanup_status(self):
+    def cleanup_status(self) -> str:
         return self.session.cleanup_status if self.session else "not_started"
 
     @property
-    def actions(self):
+    def actions(self) -> int:
         return self.gateway.actions if self.gateway else 0
 
     @property
-    def tool_specs(self):
+    def tool_specs(self) -> dict[str, ToolPayload]:
         return self.gateway.tool_specs if self.gateway else {}
 
     @property
-    def observations(self):
+    def observations(self) -> dict[int, ToolObservation]:
         return self.gateway.observations if self.gateway else {}
 
     @property
-    def tool_errors(self):
+    def tool_errors(self) -> list[ToolError]:
         return self.gateway.tool_errors if self.gateway else []
 
     @property
-    def active_app(self):
+    def active_app(self) -> str:
         return self.gateway.active_app if self.gateway else ""
 
-    def report(self, phase: str, message: str):
+    def report(self, phase: str, message: str) -> None:
         self.phase = phase
         self.last_activity_at = time.time()
         self.progress(message)
         self.log("phase", phase=phase, message=message)
 
-    def bind_tools(self, tools: list[dict]) -> list[dict]:
+    def bind_tools(self, tools: list[ToolPayload]) -> list[ToolPayload]:
         if self.gateway is None:
             raise RuntimeError("Computer Use 工具网关尚未启动")
         return self.gateway.bind(tools)
 
-    async def call_tool(self, name: str, arguments: dict) -> dict:
+    async def call_tool(self, name: str, arguments: ToolPayload) -> ToolPayload:
         if self.gateway is None:
             raise RuntimeError("Computer Use 工具网关尚未启动")
         return await self.gateway.call(name, arguments)
 
-    async def observe_native_tool(self, operation: str, arguments: dict, response: dict) -> None:
+    async def observe_native_tool(
+        self, operation: str, arguments: ToolPayload, response: ToolPayload
+    ) -> None:
         if self.gateway is None:
             raise RuntimeError("Computer Use 工具网关尚未启动")
         await self.gateway.observe_native_tool(operation, arguments, response)
 
-    def validate_result(self, text: str) -> dict:
+    def validate_result(self, text: str) -> dict[str, object]:
         return validate_task_result(text, self.observations, self.tool_errors)
 
     def result_evidence(self) -> str:
@@ -124,7 +203,7 @@ class TaskExecutor:
                          "text": excerpt, "truncated": truncated})
         return json.dumps(rows, ensure_ascii=False) if rows else ""
 
-    def capture_environment(self):
+    def capture_environment(self) -> EnvironmentContext | None:
         if self.environment_provider is None:
             return None
         try:
@@ -133,12 +212,12 @@ class TaskExecutor:
             self.log("environment_capture_failed", error=str(exc))
             return None
 
-    async def _execute(self, goal: str) -> dict:
+    async def _execute(self, goal: str) -> dict[str, object]:
         if not isinstance(goal, str) or not goal.strip():
             raise ValueError("请提供要完成的目标")
         self.goal = goal
         self.output.mkdir(parents=True, exist_ok=True)
-        session_arguments = dict(
+        session_arguments = _SessionArguments(
             output=self.output,
             on_tool_call=self.call_tool,
             on_tool_observed=self.observe_native_tool,
@@ -149,26 +228,28 @@ class TaskExecutor:
             auto_approve=self.auto_approve,
         )
         if self.session_id:
-            session_arguments.update(
-                product_session_id=self.session_id,
-                runtime_thread_id=(self.runtime_binding.thread_id
-                                   if self.runtime_binding else None),
-                on_thread_bound=self.on_thread_bound)
+            session_arguments["product_session_id"] = self.session_id
+            session_arguments["runtime_thread_id"] = (
+                self.runtime_binding.thread_id if self.runtime_binding else None
+            )
+            session_arguments["on_thread_bound"] = self.on_thread_bound
             if self.on_context_synced is not None:
                 session_arguments["on_context_synced"] = self.on_context_synced
-        self.session = self.session_factory(**session_arguments)
+        session = self.session_factory(**session_arguments)
+        self.session = session
         self.gateway = self.tool_gateway_factory(
             self.session, output=self.output, goal=goal, report=self.report,
             log=self.log, is_stopped=lambda: self.stopped)
         try:
-            raw_tools = await self.session.start()
+            raw_tools = await session.start()
             tools = self.bind_tools(raw_tools)
             self.log("tools_discovered", names=list(self.tool_specs))
             if self.stopped:
                 raise asyncio.CancelledError
-            self.runtime = self.runtime_factory(self.session)
-            memories = ()
-            memory_retrieval = {
+            runtime = self.runtime_factory(session)
+            self.runtime = runtime
+            memories: tuple[object, ...] = ()
+            memory_retrieval: dict[str, Any] = {
                 "query": goal, "session_id": self.session_id or "",
                 "consumer": "codex", "mode": "direct", "top_k": 5,
                 "elapsed_ms": 0, "profile": [], "evidence": [],
@@ -249,7 +330,7 @@ class TaskExecutor:
                 "model": self.model,
                 "session_id": self.session_id,
                 "interaction_id": self.interaction_id,
-                "runtime_thread_id": getattr(self.session, "thread_id", None),
+                "runtime_thread_id": getattr(session, "thread_id", None),
                 "query": request.query,
                 "developer_instructions": request.developer_instructions,
                 "developer_instructions_sha256": hashlib.sha256(
@@ -272,7 +353,7 @@ class TaskExecutor:
                 memory_evidence_count=len(memories),
             )
             text = await asyncio.wait_for(
-                self.runtime.execute(
+                runtime.execute(
                     replace(request, result_evidence=self.result_evidence),
                     tools,
                     self.call_tool,
@@ -281,21 +362,23 @@ class TaskExecutor:
                 ),
                 300,
             )
-            request_snapshot["runtime_thread_id"] = getattr(self.session, "thread_id", None)
-            request_snapshot["runtime_turn_id"] = getattr(self.session, "turn_id", None)
+            request_snapshot["runtime_thread_id"] = getattr(session, "thread_id", None)
+            request_snapshot["runtime_turn_id"] = getattr(session, "turn_id", None)
             write_json(self.output / "request.json", request_snapshot)
             self.report("validating", "正在核对执行结果")
             write_json(self.output / "agent-result.json", {"text": text})
             return self.validate_result(text)
         finally:
-            await self.session.close()
+            await session.close()
 
-    async def run(self, goal, progress, approve):
+    async def run(
+        self, goal: str, progress: Progress, approve: Approval | None
+    ) -> dict[str, object]:
         self.started_at = time.time()
         bind_log_context(task_id=self.task_id, session_id=self.session_id or "",
                          interaction_id=self.interaction_id or "")
         self.progress = progress
-        self.approve = approve
+        self.approve = approve if approve is not None else deny_tool_approval
         self.log("task_started", goal=goal, provider=self.provider, model=self.model,
                  auto_approve=self.auto_approve)
         manifest = {"task_id": self.task_id, "goal": goal,
@@ -309,7 +392,7 @@ class TaskExecutor:
         write_json(self.output / "manifest.json", manifest)
         write_json(self.output / "task.json", manifest)
         self._index_run("started", manifest)
-        final: dict[str, Any] = {"outcome": "failed"}
+        final: dict[str, object] = {"outcome": "failed"}
         heartbeat = asyncio.create_task(self.heartbeat())
         try:
             final = await self._execute(goal)
@@ -345,7 +428,7 @@ class TaskExecutor:
             self.write_status(False)
 
     @staticmethod
-    def _record(value):
+    def _record(value: object) -> dict[str, object] | None:
         if value is None:
             return None
         if is_dataclass(value) and not isinstance(value, type):
@@ -356,7 +439,7 @@ class TaskExecutor:
             "role", "content", "sequence", "event_id", "source")
                 if hasattr(value, key)}
 
-    def _index_run(self, event, payload):
+    def _index_run(self, event: str, payload: Mapping[str, object]) -> None:
         value = {"event": event, "occurred_at": time.time(), **payload}
         if self.run_index_path is not None:
             append_jsonl(self.run_index_path, value)
@@ -381,7 +464,7 @@ class TaskExecutor:
         if self.session:
             await self.session.interrupt()
 
-    def log(self, kind: str, **data):
+    def log(self, kind: str, /, **data: object) -> None:
         if self.event_sink is not None:
             self.event_sink(kind, data)
         self.output.mkdir(parents=True, exist_ok=True)
@@ -391,7 +474,7 @@ class TaskExecutor:
         with (self.output / "events.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(redact(event), ensure_ascii=False) + "\n")
 
-    def write_status(self, running: bool):
+    def write_status(self, running: bool) -> None:
         process = self.process
         write_json(self.output / "status.json", {
             "task_id": self.task_id, "running": running, "phase": self.phase,

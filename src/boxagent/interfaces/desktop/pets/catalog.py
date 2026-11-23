@@ -6,6 +6,7 @@ import os
 import re
 import uuid
 from pathlib import Path
+from typing import Any
 
 from boxagent.core.paths import RESOURCE_ROOT
 
@@ -14,27 +15,36 @@ from .vrm import read_manifest, resource_files
 ID_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
-def valid_id(value):
+def valid_id(value: object) -> str:
     if not isinstance(value, str) or len(value) > 160 or not ID_PATTERN.fullmatch(value):
         raise ValueError("形象 ID 无效")
     return value
 
 
 class PetCatalog:
-    def __init__(self, cache_dir=None, *, default_pet=None, bundled_root=None):
+    def __init__(
+        self,
+        cache_dir: str | Path | None = None,
+        *,
+        default_pet: str | Path | None = None,
+        bundled_root: str | Path | None = None,
+    ) -> None:
         self.default_pet = Path(default_pet or RESOURCE_ROOT / "assets/vrm/models/zome").resolve()
         self.bundled_root = Path(bundled_root or self.default_pet.parent).resolve()
         self.root = Path(cache_dir or RESOURCE_ROOT / ".runtime/pets").resolve()
         self.root.mkdir(parents=True, exist_ok=True)
-        self._digests = {}
+        self._digests: dict[Path, tuple[tuple[int, int, int], str]] = {}
 
-    def read_json(self, path):
+    def read_json(self, path: str | Path) -> dict[str, Any]:
         path = Path(path)
         if path.resolve() != path or path.stat().st_size > 2 * 1024 * 1024:
             raise ValueError("形象元数据无效")
-        return json.loads(path.read_text(encoding="utf-8"))
+        value: object = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError("形象元数据必须为对象")
+        return value
 
-    def write_json(self, path, value):
+    def write_json(self, path: str | Path, value: object) -> None:
         path = Path(path)
         if path.resolve() != path:
             raise ValueError("选择路径不能包含符号链接")
@@ -46,7 +56,7 @@ class PetCatalog:
         finally:
             temporary.unlink(missing_ok=True)
 
-    def current_directory(self):
+    def current_directory(self) -> Path:
         try:
             saved = self.read_json(self.root / "selected.json")
             if saved.get("type") == "vrm":
@@ -63,12 +73,12 @@ class PetCatalog:
             pass
         return self.default_pet
 
-    def fingerprint(self, directory):
+    def fingerprint(self, directory: str | Path) -> str:
         """比较实际素材与渲染配置，不因同名误合并不同角色或动作变体。"""
         manifest = read_manifest(directory)
         files = resource_files(directory, manifest)
 
-        def digest(path):
+        def digest(path: Path) -> str:
             stat = path.stat()
             key = (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
             cached = self._digests.get(path)
@@ -90,7 +100,7 @@ class PetCatalog:
         }
         return json.dumps(identity, sort_keys=True, ensure_ascii=False)
 
-    def vrm_manifests(self):
+    def vrm_manifests(self) -> list[Path]:
         """仓库版本优先；相同素材和配置只展示一次，不加载损坏的形象。"""
         result = []
         seen = set()
@@ -108,7 +118,7 @@ class PetCatalog:
                     continue
         return result
 
-    def canonical_directory(self, directory):
+    def canonical_directory(self, directory: Path) -> Path:
         try:
             identity = self.fingerprint(directory)
             for path in self.vrm_manifests():
@@ -119,7 +129,7 @@ class PetCatalog:
         # 保留缺失资源的明确选择，由加载层给出可操作的错误。
         return directory
 
-    def commit(self, directory):
+    def commit(self, directory: str | Path) -> None:
         directory = Path(directory)
         if directory.resolve() != directory or directory.parent not in (
             self.bundled_root,
@@ -130,7 +140,7 @@ class PetCatalog:
         read_manifest(directory)
         directory = self.canonical_directory(directory)
         identity = directory.name
-        saved = {"type": "vrm", "id": identity}
+        saved: dict[str, str | bool] = {"type": "vrm", "id": identity}
         if directory.parent == self.bundled_root:
             saved["bundled"] = True
         self.write_json(self.root / "selected.json", saved)

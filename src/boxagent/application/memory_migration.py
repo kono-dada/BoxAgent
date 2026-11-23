@@ -8,8 +8,21 @@ import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TypedDict
+
+from boxagent.domain.memory.contracts import (
+    BackendRecord,
+    MemoryBackend,
+    MemoryLog,
+    ProfileProjection,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class ProcessedRecord(TypedDict):
+    outcome: str
+    processed_at: float
 
 
 class LegacyCanonicalMemoryImporter:
@@ -17,15 +30,22 @@ class LegacyCanonicalMemoryImporter:
 
     schema_version = 1
 
-    def __init__(self, backend, snapshot_path, marker_path, *,
-                 profile_projector=None, log=None):
+    def __init__(
+        self,
+        backend: MemoryBackend,
+        snapshot_path: str | Path,
+        marker_path: str | Path,
+        *,
+        profile_projector: ProfileProjection | None = None,
+        log: MemoryLog | None = None,
+    ) -> None:
         self.backend = backend
         self.snapshot_path = Path(snapshot_path)
         self.marker_path = Path(marker_path)
         self.profile_projector = profile_projector
         self.log = log or (lambda *_args, **_kwargs: None)
-        self.task = None
-        self.result = {"status": "not_started", "imported": 0,
+        self.task: asyncio.Task[None] | None = None
+        self.result: dict[str, object] = {"status": "not_started", "imported": 0,
                        "already_present": 0, "skipped": 0}
 
     async def start(self) -> None:
@@ -42,7 +62,7 @@ class LegacyCanonicalMemoryImporter:
             self.task.cancel()
         await self.drain()
 
-    async def health(self):
+    async def health(self) -> dict[str, object]:
         return dict(self.result)
 
     async def _run_guarded(self) -> None:
@@ -56,16 +76,17 @@ class LegacyCanonicalMemoryImporter:
                            "error": type(exc).__name__}
             self.log("legacy_memory_import_failed", error=type(exc).__name__)
 
-    async def _run(self):
+    async def _run(self) -> dict[str, object]:
         if not self.snapshot_path.is_file():
             return {"status": "not_needed", "imported": 0,
                     "already_present": 0, "skipped": 0}
         payload, source_hash = await asyncio.to_thread(self._read_snapshot)
         marker = await asyncio.to_thread(self._read_marker)
-        processed = dict(marker.get("processed") or {})
+        processed: dict[str, ProcessedRecord] = dict(marker.get("processed") or {})
         counts = {"imported": 0, "already_present": 0, "skipped": 0}
 
-        for memory_id, record in sorted(payload["records"].items()):
+        records: dict[str, BackendRecord] = payload["records"]
+        for memory_id, record in sorted(records.items()):
             revision = int(record.get("revision") or 0)
             key = f"{memory_id}:{revision}"
             if key in processed:
@@ -83,9 +104,9 @@ class LegacyCanonicalMemoryImporter:
                     counts[outcome] += 1
                 else:
                     observation = self._observation(memory_id, record)
-                    result = await self._remember_once(
+                    write_result = await self._remember_once(
                         memory_id, content, observation)
-                    created = list(result.get("created") or [])
+                    created = list(write_result.get("created") or [])
                     for node in created:
                         await self._project(node)
                     outcome = "imported" if created else "skipped"
@@ -99,26 +120,28 @@ class LegacyCanonicalMemoryImporter:
 
         await asyncio.to_thread(
             self._write_marker, source_hash, processed, True)
-        result = {"status": "completed", **counts,
+        result: dict[str, object] = {"status": "completed", **counts,
                   "processed": len(processed)}
         self.log("legacy_memory_import_completed", **result)
         return result
 
-    async def _existing_link(self, record):
+    async def _existing_link(self, record: BackendRecord) -> BackendRecord | None:
         for memory_id in record.get("backend_links") or []:
             graph = await self.backend.inspect(
                 selected_id=str(memory_id), node_limit=2, edge_limit=0)
             node = next((item for item in graph.get("nodes", [])
                          if item.get("id") == memory_id), None)
-            if node is not None:
+            if isinstance(node, dict):
                 return node
         return None
 
-    async def _project(self, node):
+    async def _project(self, node: BackendRecord) -> None:
         if self.profile_projector is not None:
             await self.profile_projector.observe(node)
 
-    async def _remember_once(self, memory_id, content, observation):
+    async def _remember_once(
+        self, memory_id: str, content: str, observation: BackendRecord
+    ) -> BackendRecord:
         try:
             return await self.backend.remember([observation])
         except asyncio.CancelledError:
@@ -138,7 +161,7 @@ class LegacyCanonicalMemoryImporter:
                         "created": [existing]}
             return await self.backend.remember([observation])
 
-    def _read_snapshot(self):
+    def _read_snapshot(self) -> tuple[BackendRecord, str]:
         raw = self.snapshot_path.read_bytes()
         payload = json.loads(raw)
         if not isinstance(payload, dict) or not isinstance(
@@ -146,16 +169,18 @@ class LegacyCanonicalMemoryImporter:
             raise ValueError("Legacy Canonical Memory Snapshot 格式无效")
         return payload, hashlib.sha256(raw).hexdigest()
 
-    def _read_marker(self):
+    def _read_marker(self) -> BackendRecord:
         if not self.marker_path.is_file():
             return {"processed": {}}
         payload = json.loads(self.marker_path.read_text(encoding="utf-8"))
-        if payload.get("schema_version") != self.schema_version \
+        if not isinstance(payload, dict) or payload.get("schema_version") != self.schema_version \
                 or not isinstance(payload.get("processed"), dict):
             raise ValueError("Legacy Memory Migration marker 格式无效")
         return payload
 
-    def _write_marker(self, source_hash, processed, completed):
+    def _write_marker(
+        self, source_hash: str, processed: dict[str, ProcessedRecord], completed: bool
+    ) -> None:
         self.marker_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.marker_path.with_name(self.marker_path.name + ".tmp")
         payload = {
@@ -177,7 +202,7 @@ class LegacyCanonicalMemoryImporter:
         os.replace(temporary, self.marker_path)
 
     @staticmethod
-    def _observation(memory_id, record):
+    def _observation(memory_id: str, record: BackendRecord) -> BackendRecord:
         timestamp = record.get("updated_at") or record.get("created_at")
         occurred_at = None
         if timestamp:
@@ -195,7 +220,7 @@ class LegacyCanonicalMemoryImporter:
             "interaction_id": record.get("source_interaction_id") or "",
             "source_event_ids": list(record.get("source_event_ids") or []),
         }
-        observation = {"content": str(record["content"]),
+        observation: BackendRecord = {"content": str(record["content"]),
                        "metadata": metadata}
         if occurred_at:
             observation["timestamp"] = occurred_at

@@ -1,12 +1,17 @@
 """Project complete Context Checkpoints into Jev-Mem Narrative nodes."""
 
+from boxagent.domain.conversation.models import ContextCheckpoint, RuntimeContextSegment
+from boxagent.domain.memory.contracts import BackendRecord, MemoryBackend, MemoryLog
+
 
 class NarrativeProjector:
-    def __init__(self, backend, *, log=None):
+    def __init__(self, backend: MemoryBackend, *, log: MemoryLog | None = None) -> None:
         self.backend = backend
         self.log = log or (lambda *_args, **_kwargs: None)
 
-    async def checkpoint_created(self, checkpoint, segment):
+    async def checkpoint_created(
+        self, checkpoint: ContextCheckpoint, segment: RuntimeContextSegment
+    ) -> BackendRecord:
         result = await self.backend.remember_narrative(
             checkpoint.content,
             metadata={

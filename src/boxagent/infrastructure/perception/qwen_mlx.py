@@ -10,7 +10,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, Protocol, TextIO, TypedDict
 
 from boxagent.domain.memory.visual import VisualFrame
 from boxagent.infrastructure.perception.windows import WindowInfo, WindowRect
@@ -22,7 +22,7 @@ MAX_CAPTURE_FAILURES = 3
 _SENTENCE = re.compile(r"[^。！？!?\n]+[。！？!?]?")
 
 
-def clean_summary(text):
+def clean_summary(text: str) -> str:
     """去掉复读的句子，并丢弃被长度上限截断的半句。
 
     小模型偶尔把同一句话重复到 max_tokens；这里按句去重（忽略首尾空白），
@@ -67,10 +67,11 @@ def _mac_window(pid: int, app: str, bundle_id: str, layers: set[int]) -> WindowI
         Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements,
         Q.kCGNullWindowID)
     for window in windows or ():
-        bounds = window.get("kCGWindowBounds", {})
+        bounds = window.get("kCGWindowBounds")
         if (window.get("kCGWindowOwnerPID") == pid
                 and window.get("kCGWindowLayer") in layers
                 and window.get("kCGWindowAlpha", 1) > 0
+                and bounds is not None
                 and bounds.get("Width", 0) > 80 and bounds.get("Height", 0) > 80):
             return {"id": int(window["kCGWindowNumber"]), "app": app, "bundle_id": bundle_id,
                     "layer": int(window["kCGWindowLayer"]),
@@ -124,10 +125,18 @@ def foreground_game() -> ForegroundGame | None:
     return None
 
 
+class SummaryPublisher(Protocol):
+    def __call__(self, kind: str, /, **data: object) -> None: ...
+
+
 class WindowSummary:
-    def __init__(self, emit, interval=15, model=None, max_size=960, *, workspace=None,
-                 python=None, worker_script=None, log_path=None,
-                 window_allowed: Callable[[WindowInfo], bool] | None = None):
+    def __init__(
+        self, emit: SummaryPublisher, interval: float = 15, model: str | Path | None = None,
+        max_size: int = 960, *, workspace: str | Path | None = None,
+        python: str | Path | None = None, worker_script: str | Path | None = None,
+        log_path: str | Path | None = None,
+        window_allowed: Callable[[WindowInfo], bool] | None = None,
+    ) -> None:
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
         self.model = Path(
@@ -153,11 +162,12 @@ class WindowSummary:
         )
         self.log_path = Path(log_path or self.workspace / ".runtime/pet/context-worker.log")
         self.max_size = max_size
-        self.process = self.task = None
+        self.process: asyncio.subprocess.Process | None = None
+        self.task: asyncio.Task[None] | None = None
         self.capture_failures = 0
         self.latest_frame: VisualFrame | None = None
         self.inference_lock = asyncio.Lock()
-        self.model_errors = None
+        self.model_errors: TextIO | None = None
         self.window_allowed = window_allowed
 
     async def stop(self) -> None:
@@ -206,7 +216,7 @@ class WindowSummary:
         await self.reply(120)
 
     async def _infer(self, path: Path, question: str = "", *, analysis_prompt: str = "",
-                     window: WindowInfo | None = None) -> dict:
+                     window: WindowInfo | None = None) -> dict[str, object]:
         async with self.inference_lock:
             try:
                 await self._ensure_model()
@@ -215,8 +225,11 @@ class WindowSummary:
                     request["analysis_prompt"] = analysis_prompt
                 if window is not None:
                     request.update(app=window["app"], title=window.get("title", ""))
-                self.process.stdin.write((json.dumps(request) + "\n").encode())
-                await self.process.stdin.drain()
+                if self.process is None or self.process.stdin is None:
+                    raise RuntimeError("本地模型进程未打开输入通道")
+                writer = self.process.stdin
+                writer.write((json.dumps(request) + "\n").encode())
+                await writer.drain()
                 return await self.reply(180 if sys.platform == "win32" else 60)
             except (asyncio.CancelledError, TimeoutError, RuntimeError, OSError):
                 # An unread reply must never become the next request's answer.
@@ -264,11 +277,15 @@ class WindowSummary:
                 process.kill()
                 await process.wait()
 
-    async def reply(self, timeout):
+    async def reply(self, timeout: float) -> dict[str, object]:
+        if self.process is None or self.process.stdout is None:
+            raise RuntimeError("本地模型进程未打开输出通道")
         line = await asyncio.wait_for(self.process.stdout.readline(), timeout)
         if not line:
             raise RuntimeError("本地模型进程已退出")
-        result = json.loads(line)
+        result: object = json.loads(line)
+        if not isinstance(result, dict):
+            raise RuntimeError("本地模型响应必须是 JSON 对象")
         if "error" in result:
             raise RuntimeError(result["error"])
         return result
@@ -347,7 +364,8 @@ class WindowSummary:
             self.latest_frame = None
             self.emit("context.stale", context_text="", context_status="窗口已切换，等待下一次观察")
             return
-        raw = result.get("summary", "").strip()
+        summary = result.get("summary", "")
+        raw = summary.strip() if isinstance(summary, str) else ""
         text = clean_summary(raw)
         if len(text) < len(raw):
             logger.info("summary cleaned", extra={"data": {

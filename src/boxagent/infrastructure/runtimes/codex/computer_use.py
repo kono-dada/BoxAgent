@@ -9,7 +9,10 @@ from boxagent.core.errors import TaskFailure
 
 def resolve_computer_use_home(codex_home: str | Path | None = None) -> Path:
     """定位原生服务的安装目录，与桌宠隔离的会话配置目录区分。"""
-    return Path(codex_home or os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    if codex_home:
+        return Path(codex_home)
+    configured = os.environ.get("CODEX_HOME")
+    return Path(configured) if configured is not None else Path.home() / ".codex"
 
 
 def resolve_computer_use_client(codex_home: str | Path | None = None) -> Path:

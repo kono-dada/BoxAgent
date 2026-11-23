@@ -8,19 +8,21 @@ import sys
 import time
 from array import array
 from collections import deque
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 
 import websockets
+from websockets.asyncio.client import ClientConnection
 
+from boxagent.domain.conversation.models import HistoryMessage
 from boxagent.domain.proactivity.game_highlight import GameHighlight
 from boxagent.infrastructure.audio import AudioIO
 from boxagent.infrastructure.runtimes.qwen.media import redact_media
 
 _GAME_SPEECH_KINDS = {"lol_companion", "game_highlight", "game_news"}
 
-MODELS = {
+MODELS: dict[str, dict[str, object]] = {
     "qwen-audio-3.0-realtime-plus": {
         "voice": "longanqian",
         "turn_detection": {"type": "smart_turn"},
@@ -43,10 +45,11 @@ MODELS = {
 }
 
 
-def is_qwen_idle_timeout(value):
+def is_qwen_idle_timeout(value: object) -> bool:
     """Recognize provider variants of the normal 180-second idle close."""
     if isinstance(value, dict):
-        error = value.get("error") or value
+        nested = value.get("error")
+        error = nested if isinstance(nested, dict) and nested else value
         code = str(error.get("code") or "").lower()
         message = str(error.get("message") or "").lower()
     else:
@@ -60,11 +63,16 @@ def is_qwen_idle_timeout(value):
         )))
 
 
-def tool(name, description, properties=None, required=None):
+def tool(
+    name: str,
+    description: str,
+    properties: Mapping[str, object] | None = None,
+    required: Iterable[str] | None = None,
+) -> dict[str, object]:
     properties = properties or {}
     required = list(properties) if required is None else list(required)
     return {"type": "function", "function": {"name": name, "description": description,
-        "parameters": {"type": "object", "properties": properties, "required": required}}}
+        "parameters": {"type": "object", "properties": dict(properties), "required": required}}}
 
 
 TOOLS = [
@@ -312,33 +320,106 @@ class LolSpeech:
     playback_started: Callable[[], None]
 
 
+class _EventSink(Protocol):
+    def __call__(self, event: str, /, **data: object) -> None: ...
+
+
+class _Playback(Protocol):
+    def append(self, encoded: str) -> None: ...
+    def clear(self) -> None: ...
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class _Microphone(Protocol):
+    def read(self) -> bytes: ...
+
+
+class _AudioFactory(Protocol):
+    def __call__(
+        self, changed: Callable[[bool], None], /, *, microphone: bool, playback: bool
+    ) -> _Playback: ...
+
+
+class _ResponseOrigin(TypedDict, total=False):
+    kind: str
+    query_id: str
+    call_id: str
+    game_check: Callable[[], bool]
+    game_line: str
+    lol_line: str
+    lol_speech: LolSpeech
+    muted_game_speech: bool
+    notification_id: str
+    notification_item: dict[str, object]
+    retry_notification: bool
+    memory_speech: bool
+    web_speech: bool
+    web_clarification: bool
+
+
+class _ToolRequest(TypedDict):
+    call_id: str
+    name: str
+    arguments: object
+    response_id: str | None
+
+
+type _ConversationCallback = Callable[[str, dict[str, object]], object]
+type _ToolHandler = Callable[[str, object, dict[str, object]], Awaitable[dict[str, object]]]
+type _WireEvent = dict[str, Any]
+
+
+class _RealtimeOptions(TypedDict, total=False):
+    model: str
+    key: str | None
+    microphone: bool
+    playback: bool
+    trace: _EventSink | None
+    audio_factory: _AudioFactory
+    conversation_event: _ConversationCallback | None
+    notification_event: _ConversationCallback | None
+    conversation_history: Iterable[HistoryMessage]
+    instructions: str
+    environment_context: str | Callable[[], str] | None
+    conversation_checkpoint: str
+    websocket_url: str
+    websocket_proxy: str | Literal[True] | None
+    stable_memory_context: str
+    product_session_id: str
+    host_turn_control: bool
+    response_ack_timeout: float
+    voice_response_grace: float
+    delegation_review: Callable[[str, str], Awaitable[bool]] | None
+
+
 class QwenRealtimeSession:
     def __init__(
         self,
-        handle_tool,
-        emit,
+        handle_tool: _ToolHandler,
+        emit: _EventSink,
         *,
-        model="qwen3.8-omni-flash-realtime",
-        key=None,
-        microphone=True,
-        playback=True,
-        trace=None,
-        audio_factory=AudioIO,
-        conversation_event=None,
-        notification_event=None,
-        conversation_history=(),
-        instructions=INSTRUCTIONS,
-        environment_context=None,
-        conversation_checkpoint="",
-        websocket_url="",
-        websocket_proxy=True,
-        stable_memory_context="",
-        product_session_id="",
-        host_turn_control=False,
+        model: str = "qwen3.8-omni-flash-realtime",
+        key: str | None = None,
+        microphone: bool = True,
+        playback: bool = True,
+        trace: _EventSink | None = None,
+        audio_factory: _AudioFactory = AudioIO,
+        conversation_event: _ConversationCallback | None = None,
+        notification_event: _ConversationCallback | None = None,
+        conversation_history: Iterable[HistoryMessage] = (),
+        instructions: str = INSTRUCTIONS,
+        environment_context: str | Callable[[], str] | None = None,
+        conversation_checkpoint: str = "",
+        websocket_url: str = "",
+        websocket_proxy: str | Literal[True] | None = True,
+        stable_memory_context: str = "",
+        product_session_id: str = "",
+        host_turn_control: bool = False,
         response_ack_timeout: float = 8.0,
         voice_response_grace: float = 0.3,
         delegation_review: Callable[[str, str], Awaitable[bool]] | None = None,
-    ):
+    ) -> None:
         self.handle_tool, self.emit = handle_tool, emit
         self.model, self.microphone, self.playback = model, microphone, playback
         self.key = key
@@ -346,11 +427,17 @@ class QwenRealtimeSession:
         self.websocket_proxy = websocket_proxy
         self.last_input_level_at = float("-inf")
         self.audio_factory = audio_factory
-        raw_trace = trace or (lambda *_args, **_kwargs: None)
         self.product_session_id = str(product_session_id or "")
-        self.trace = lambda event, **data: raw_trace(
-            event, product_session_id=self.product_session_id,
-            **{key: redact_media(value) for key, value in data.items()})
+
+        def record_trace(event: str, /, **data: object) -> None:
+            if trace is not None:
+                trace(
+                    event,
+                    product_session_id=self.product_session_id,
+                    **{key: redact_media(value) for key, value in data.items()},
+                )
+
+        self.trace: _EventSink = record_trace
         self.delegation_review = delegation_review
         self.conversation_event = conversation_event
         self.notification_event = notification_event
@@ -360,23 +447,24 @@ class QwenRealtimeSession:
         self.instructions = instructions
         self.environment_context = environment_context
         self.host_turn_control = host_turn_control
-        self.reference_item = None
+        self.reference_item: str | None = None
         self.reference_query = ""
         self.current_query_id = ""
-        self.item_waiters = {}
-        self.delete_waiters = {}
-        self.preparation_task = None
-        self.asr_items = set()
-        self.ws = self.audio = None
+        self.item_waiters: dict[str, asyncio.Future[str | None]] = {}
+        self.delete_waiters: dict[str, asyncio.Future[bool]] = {}
+        self.preparation_task: asyncio.Task[None] | None = None
+        self.asr_items: set[str] = set()
+        self.ws: ClientConnection | None = None
+        self.audio: _Playback | None = None
         self.ready = asyncio.Event()
         self.audio_input_ready = asyncio.Event()
-        self.seen_calls = set()
+        self.seen_calls: set[str] = set()
         self.delegated_responses: set[str] = set()
-        self.response_calls = {}
-        self.finished_responses = set()
-        self.response_finalizers = {}
-        self.deliveries = set()
-        self.results = asyncio.Queue()
+        self.response_calls: dict[str, set[str]] = {}
+        self.finished_responses: set[str] = set()
+        self.response_finalizers: dict[str, asyncio.Task[None]] = {}
+        self.deliveries: set[asyncio.Task[None]] = set()
+        self.results: asyncio.Queue[tuple[str, str, dict[str, object]]] = asyncio.Queue()
         self.notifications: deque[dict[str, object]] = deque()
         self.speech_changed = asyncio.Event()
         self.pending_lol: LolSpeech | None = None
@@ -386,26 +474,26 @@ class QwenRealtimeSession:
         self.game_output_response: str | None = None
         self.notification_waited = False
         self.delivery_lock = asyncio.Lock()
-        self.response_id = None
+        self.response_id: str | None = None
         self.response_active = self.user_speaking = self.playing = False
-        self.cancelled_responses = set()
-        self.final_transcripts = set()
-        self.response_transcripts = {}
+        self.cancelled_responses: set[str | None] = set()
+        self.final_transcripts: set[str] = set()
+        self.response_transcripts: dict[str | None, str] = {}
         # response.create and response.created are asynchronous. A second text
         # turn may be submitted before the server acknowledges the tool-result
         # response from the previous turn, so one mutable "next origin" slot is
         # insufficient. Preserve request order until the provider assigns IDs.
-        self.response_origins = deque()
+        self.response_origins: deque[_ResponseOrigin] = deque()
         self.response_request_lock = asyncio.Lock()
         self.response_ack: asyncio.Future[str] | None = None
         self.response_ack_timeout = response_ack_timeout
         self.response_ack_deadline = 0.0
         self.voice_response_grace = voice_response_grace
-        self.response_context = {}
-        self.call_queries = {}
-        self.notification_responses = {}
-        self.pending_notifications = set()
-        self.playing_notification_id = None
+        self.response_context: dict[str | None, _ResponseOrigin] = {}
+        self.call_queries: dict[str, str] = {}
+        self.notification_responses: dict[str | None, str] = {}
+        self.pending_notifications: set[str] = set()
+        self.playing_notification_id: str | None = None
         self.game_caption: tuple[str, str] | None = None
         self.text = ""
         self.closed = False
@@ -414,7 +502,7 @@ class QwenRealtimeSession:
         self.input_turn_settled = asyncio.Event()
         self.input_turn_settled.set()
 
-    async def send(self, message):
+    async def send(self, message: dict[str, object]) -> None:
         if self.closed or self.ws is None:
             raise ConnectionError("语音会话已关闭")
         if message.get("type") not in {"input_audio_buffer.append", "input_image_buffer.append"}:
@@ -455,7 +543,7 @@ class QwenRealtimeSession:
     def _game_playback_valid(self, response_id: str | None) -> bool:
         if response_id in self.cancelled_responses:
             return False
-        origin = self.response_context.get(response_id, {})
+        origin: _ResponseOrigin = self.response_context.get(response_id, {})
         lol = (
             self.starting_lol[1]
             if self.starting_lol and self.starting_lol[0] == response_id
@@ -525,17 +613,21 @@ class QwenRealtimeSession:
     def playback_pending(self) -> bool:
         return self.playing or bool(getattr(self.audio, "has_pending_playback", False))
 
-    async def run(self):
+    async def run(self) -> None:
         config = MODELS.get(self.model)
         if not config:
             raise ValueError("不支持的语音模型配置")
         if not self.key:
             raise RuntimeError("未配置千问密钥，请在 .env.local 中配置 DASHSCOPE_API_KEY")
         loop = asyncio.get_running_loop()
-        workers = []
+        workers: list[asyncio.Task[None]] = []
+
+        def report_playback(active: bool) -> None:
+            loop.call_soon_threadsafe(self.playback_changed, active)
+
         try:
             opening = asyncio.create_task(asyncio.to_thread(self.audio_factory,
-                lambda active: loop.call_soon_threadsafe(self.playback_changed, active),
+                report_playback,
                 microphone=self.microphone, playback=self.playback))
             try:
                 self.audio = await asyncio.shield(opening)
@@ -552,14 +644,17 @@ class QwenRealtimeSession:
                     close_timeout=1,
                     ping_interval=20,
                     ping_timeout=20,
-                ) as self.ws:
+                ) as socket:
+                    self.ws = socket
                     await self.configure_session(config)
                     workers.append(asyncio.create_task(self.guarded_delivery()))
                     workers.append(asyncio.create_task(self.guarded_notifications()))
                     if self.microphone:
                         workers.append(asyncio.create_task(self.send_mic()))
-                    async for raw in self.ws:
-                        await self.receive(json.loads(raw))
+                    async for raw in socket:
+                        event: object = json.loads(raw)
+                        if isinstance(event, dict):
+                            await self.receive(event)
             except websockets.ConnectionClosed as exc:
                 if not is_qwen_idle_timeout(exc):
                     raise
@@ -581,20 +676,21 @@ class QwenRealtimeSession:
                     continue
             cleanup.result()
 
-    async def configure_session(self, config):
+    async def configure_session(self, config: Mapping[str, object]) -> None:
         """Install stable policy first, then restore native Product Session messages."""
         await self.send_session_update(config)
         await self.inject_history()
 
-    async def send_session_update(self, config):
+    async def send_session_update(self, config: Mapping[str, object]) -> None:
         """Send the provider session handshake without restoring history yet."""
-        config = dict(config)
+        session = dict(config)
         if self.host_turn_control:
-            detection = dict(config.get("turn_detection") or {})
+            configured = config.get("turn_detection")
+            detection = dict(configured) if isinstance(configured, Mapping) else {}
             detection.update(type="semantic_vad", create_response=False, interrupt_response=True)
-            config["turn_detection"] = detection
+            session["turn_detection"] = detection
         await self.send({"type": "session.update", "session": {
-            "modalities": ["text", "audio"], **config,
+            "modalities": ["text", "audio"], **session,
             "instructions": self.instructions,
             "tools": TOOLS}})
 
@@ -634,7 +730,7 @@ class QwenRealtimeSession:
                 first_sequence=self.conversation_history[0].sequence,
                 last_sequence=self.conversation_history[-1].sequence)
 
-    async def close_resources(self, workers):
+    async def close_resources(self, workers: Iterable[asyncio.Task[None]]) -> None:
         children = [*workers, *self.deliveries]
         for task in children:
             task.cancel()
@@ -645,7 +741,7 @@ class QwenRealtimeSession:
     async def send_mic(self) -> None:
         await self.ready.wait()
         audio = self.audio
-        if audio is None:
+        if not isinstance(audio, _Microphone):
             raise RuntimeError("麦克风尚未准备好")
         try:
             while not self.closed:
@@ -658,7 +754,7 @@ class QwenRealtimeSession:
                 self.emit("voice.error", error="麦克风中断：" + str(exc))
                 await self.stop()
 
-    async def feed_audio(self, chunk):
+    async def feed_audio(self, chunk: bytes) -> None:
         await self.send(
             {"type": "input_audio_buffer.append", "audio": base64.b64encode(chunk).decode("ascii")}
         )
@@ -683,8 +779,10 @@ class QwenRealtimeSession:
         await self.send({"type": "input_image_buffer.append", "image": image})
         return True
 
-    async def receive(self, event):
+    async def receive(self, event: _WireEvent) -> None:
         kind = event.get("type")
+        if not isinstance(kind, str):
+            return
         if kind not in {
             "response.audio.delta",
             "response.audio_transcript.delta",
@@ -718,9 +816,10 @@ class QwenRealtimeSession:
             if waiter is not None and not waiter.done():
                 waiter.set_result(item.get("id"))
         elif kind == "conversation.item.deleted":
-            waiter = self.delete_waiters.get(event.get("item_id"))
-            if waiter is not None and not waiter.done():
-                waiter.set_result(True)
+            deleted_id = event.get("item_id")
+            deletion = self.delete_waiters.get(deleted_id) if isinstance(deleted_id, str) else None
+            if deletion is not None and not deletion.done():
+                deletion.set_result(True)
         if kind == "session.updated":
             self.ready.set()
             if self.microphone:
@@ -735,7 +834,7 @@ class QwenRealtimeSession:
             game_speech = (origin or {}).get("kind") in _GAME_SPEECH_KINDS
             self.game_output_response = self.response_id if game_speech else None
             if self.response_id:
-                self.response_context[self.response_id] = dict(origin or {"kind": "user"})
+                self.response_context[self.response_id] = (origin or {"kind": "user"}).copy()
             stale = (self.host_turn_control and origin is not None
                      and origin.get("kind") == "user"
                      and origin.get("query_id") != self.current_query_id)
@@ -839,11 +938,11 @@ class QwenRealtimeSession:
             response_id = event.get("response_id") or self.response_id
             if (not self.user_speaking and response_id not in self.cancelled_responses
                     and (self.playing or self._game_playback_valid(response_id))):
-                if (notification_id := self.notification_responses.get(response_id)) and (
-                    notification_id in self.pending_notifications
-                    or (self.game_caption is not None and self.game_caption[0] == notification_id)
+                if (playing_id := self.notification_responses.get(response_id)) and (
+                    playing_id in self.pending_notifications
+                    or (self.game_caption is not None and self.game_caption[0] == playing_id)
                 ):
-                    self.playing_notification_id = notification_id
+                    self.playing_notification_id = playing_id
                 if self.audio is not None:
                     self.audio.append(event["delta"])
         elif kind in {"response.audio_transcript.delta", "response.text.delta"}:
@@ -859,9 +958,10 @@ class QwenRealtimeSession:
             if response_id not in self.cancelled_responses:
                 transcript = event.get("transcript", event.get("text", ""))
                 if response_id not in self.notification_responses:
-                    origin = self.response_context.get(response_id, {}).get("kind", "user")
+                    response_origin: _ResponseOrigin = self.response_context.get(response_id, {})
                     output_event = (
-                        "voice.assistant_text_done" if origin == "user" else "voice.assistant_text"
+                        "voice.assistant_text_done" if response_origin.get("kind", "user") == "user"
+                        else "voice.assistant_text"
                     )
                     self.emit(output_event, assistant_text=transcript)
                 if transcript:
@@ -907,7 +1007,7 @@ class QwenRealtimeSession:
             if not self.ready.is_set():
                 raise RuntimeError(message)
 
-    async def _record(self, kind, **payload):
+    async def _record(self, kind: str, **payload: object) -> None:
         if self.conversation_event is None:
             return
         result = self.conversation_event(kind, payload)
@@ -920,10 +1020,12 @@ class QwenRealtimeSession:
         if origin is not None and origin.get("kind") == "notification":
             origin["retry_notification"] = True
 
-    async def run_tool(self, call):
+    async def run_tool(self, call: _ToolRequest) -> None:
         try:
-            metadata = {"response_id": call.get("response_id"),
-                        "call_id": call.get("call_id")}
+            metadata: dict[str, object] = {
+                "response_id": call["response_id"],
+                "call_id": call["call_id"],
+            }
             reply = self.response_transcripts.get(call.get("response_id"), "")
             if reply:
                 # The provider can emit the transcript before the executable
@@ -931,7 +1033,7 @@ class QwenRealtimeSession:
                 # can be reviewed against this exact reply.
                 metadata["reply"] = reply
             result = await self.handle_tool(
-                call.get("name"), call.get("arguments", "{}"),
+                call["name"], call["arguments"],
                 metadata)
         except asyncio.CancelledError:
             raise
@@ -940,7 +1042,7 @@ class QwenRealtimeSession:
         self.trace("tool.result", call_id=call["call_id"], result=result)
         await self.results.put((call["call_id"], call["name"], result))
 
-    def _dispatch_tool_call(self, call):
+    def _dispatch_tool_call(self, call: _WireEvent) -> bool:
         """Start one provider tool call exactly once without awaiting it."""
         call_id = call.get("call_id") or call.get("id")
         name = call.get("name") or (call.get("function") or {}).get("name")
@@ -948,7 +1050,7 @@ class QwenRealtimeSession:
         if arguments is None:
             arguments = (call.get("function") or {}).get("arguments", "{}")
         response_id = call.get("response_id") or self.response_id
-        origin = self.response_context.get(response_id, {})
+        origin: _ResponseOrigin = self.response_context.get(response_id, {})
         if (
             origin.get("kind")
             in {"wake", "game_news", "game_highlight", "farewell", "lol_companion"}
@@ -962,7 +1064,8 @@ class QwenRealtimeSession:
         ):
             self.trace("tool.stale_call_suppressed", call_id=call_id, response_id=response_id)
             return False
-        if not call_id or not name or call_id in self.seen_calls:
+        if (not isinstance(call_id, str) or not call_id or not isinstance(name, str)
+                or not name or call_id in self.seen_calls):
             return False
         if name == "run_task" and response_id:
             if response_id in self.delegated_responses:
@@ -971,7 +1074,7 @@ class QwenRealtimeSession:
                 )
                 return False
             self.delegated_responses.add(response_id)
-        normalized = {
+        normalized: _ToolRequest = {
             "call_id": call_id,
             "name": name,
             "arguments": arguments or "{}",
@@ -991,7 +1094,7 @@ class QwenRealtimeSession:
             response_id=response_id)
         return True
 
-    def _schedule_response_finalizer(self, response_id, delay=.35):
+    def _schedule_response_finalizer(self, response_id: str | None, delay: float = .35) -> None:
         """Close AOQ responses that omit or substantially delay response.done."""
         response_id = response_id or self.response_id
         if not response_id or response_id in self.finished_responses:
@@ -1009,12 +1112,13 @@ class QwenRealtimeSession:
 
         task = asyncio.create_task(finalize())
         self.response_finalizers[response_id] = task
-        task.add_done_callback(
-            lambda done, current=response_id:
-            self.response_finalizers.pop(current, None)
-            if self.response_finalizers.get(current) is done else None)
+        def clear_timer(done: asyncio.Task[None]) -> None:
+            if self.response_finalizers.get(response_id) is done:
+                self.response_finalizers.pop(response_id, None)
 
-    async def _finalize_response(self, response_id, *, source):
+        task.add_done_callback(clear_timer)
+
+    async def _finalize_response(self, response_id: str | None, *, source: str) -> None:
         if not response_id or response_id in self.finished_responses:
             return
         self.finished_responses.add(response_id)
@@ -1088,7 +1192,9 @@ class QwenRealtimeSession:
             self.input_turn_settled.set()
         self.speech_changed.set()
 
-    async def run_implicit_delegation(self, response_id, transcript, *, query_id=""):
+    async def run_implicit_delegation(
+        self, response_id: str, transcript: str, *, query_id: str = ""
+    ) -> None:
         """Review a tool-free reply semantically, then repair at most once.
 
         No routing is inferred from natural-language patterns in the transport.
@@ -1132,7 +1238,9 @@ class QwenRealtimeSession:
                 self.input_turn_settled.set()
                 self.speech_changed.set()
 
-    def _calls_from_response_output(self, response, response_id):
+    def _calls_from_response_output(
+        self, response: _WireEvent, response_id: str | None
+    ) -> list[_WireEvent]:
         """Recover calls when a provider omits the incremental arguments event."""
         recovered = []
         for item in response.get("output") or ():
@@ -1153,7 +1261,7 @@ class QwenRealtimeSession:
             })
         return recovered
 
-    async def _prepare_voice_query(self, transcript, item_id):
+    async def _prepare_voice_query(self, transcript: str, item_id: str | None) -> None:
         try:
             await self._record("user_final", transcript=transcript, item_id=item_id)
         except asyncio.CancelledError:
@@ -1327,7 +1435,7 @@ class QwenRealtimeSession:
         }})
         await self._create_response({"kind": kind})
 
-    async def submit_text(self, text, *, reference="", query_id=""):
+    async def submit_text(self, text: str, *, reference: str = "", query_id: str = "") -> None:
         await self.ready.wait()
         async with self.delivery_lock:
             if (self.response_active and self.response_id
@@ -1364,7 +1472,7 @@ class QwenRealtimeSession:
             "content": [{"type": "input_text", "text": packet.strip()}],
         }})
 
-    async def inject_memory_context(self, packet):
+    async def inject_memory_context(self, packet: object) -> None:
         """Append per-turn L2 memory before the current response is created."""
         if not isinstance(packet, str) or not packet.strip():
             return
@@ -1375,9 +1483,12 @@ class QwenRealtimeSession:
         }})
         self.trace("memory_context.injected", character_count=len(packet))
 
-    async def inject_host_exchange(self, user_text, assistant_text):
+    def _has_transport(self) -> bool:
+        return self.ws is not None
+
+    async def inject_host_exchange(self, user_text: str, assistant_text: str) -> None:
         """Mirror a deterministic host-owned turn into an active Realtime session."""
-        if self.closed or self.ws is None:
+        if self.closed or not self._has_transport():
             return
         await self.ready.wait()
         async with self.delivery_lock:
@@ -1464,6 +1575,8 @@ class QwenRealtimeSession:
 
     async def _deliver_notification(self, item: dict[str, object]) -> bool:
         notification_id = item["notification_id"]
+        if not isinstance(notification_id, str) or not notification_id:
+            raise ValueError("任务通知缺少 notification_id")
         message = (
             "[可信任务结果]\n状态："
             f"{item.get('outcome', 'completed')}"
@@ -1529,7 +1642,7 @@ class QwenRealtimeSession:
                         "tool.followup_suppressed", call_id=call_id,
                         name=name, status=result.get("status"))
                     continue
-                origin = {"kind": "tool_result", "call_id": call_id}
+                origin: _ResponseOrigin = {"kind": "tool_result", "call_id": call_id}
                 if name in {"remember_memory", "recall_memory", "forget_memory"}:
                     origin["memory_speech"] = True
                 if name in {"search_web", "read_webpage"}:
@@ -1572,7 +1685,7 @@ class QwenRealtimeSession:
             await self.stop()
             raise
 
-    async def _create_response(self, origin):
+    async def _create_response(self, origin: _ResponseOrigin) -> None:
         game_speech = origin.get("kind") in _GAME_SPEECH_KINDS
         if game_speech and self.game_speech_muted:
             return
@@ -1605,15 +1718,15 @@ class QwenRealtimeSession:
             return
         await self._send_response_request(origin)
 
-    async def _send_response_request(self, origin: dict) -> None:
+    async def _send_response_request(self, origin: _ResponseOrigin) -> None:
         self.starting_lol = None
-        self.response_origins.append(dict(origin))
+        self.response_origins.append(origin.copy())
         self.response_active = True
         # A queued response has no provider ID yet. Keeping the previous ID here
         # lets a new utterance cancel a response that has not been created.
         self.response_id = None
         try:
-            response = {"modalities": ["audio", "text"]}
+            response: dict[str, object] = {"modalities": ["audio", "text"]}
             if origin.get("kind") == "game_highlight":
                 response["instructions"] = (
                     "你在陪用户打《鸣潮》。用当前角色的语气，只念这句话。"
@@ -1631,14 +1744,15 @@ class QwenRealtimeSession:
                     "画面观察、用户原话和推断分清；截图不能证明通关、失败次数或原因。"
                     "历史装备和形态只用于回忆，不能擅自当成当前状态或永久画像。")
             if origin.get("web_speech"):
-                response["instructions"] = self.instructions + (
+                instructions = self.instructions + (
                     "本次是联网结果的语音回复。玩家正在听：默认30到60个中文字，最多两句、两点、80字，"
                     "先给动作和时机，再说必要的限制。不念网址、引用编号、标题列表和检索流水账。"
                     "来源在小窗。只说有正文依据的动作，只有一点就只说一点；不相关或无法确认时一句话说明或澄清。")
                 if origin.get("web_clarification"):
-                    response["instructions"] += (
+                    instructions += (
                         "本次检索未发起，只问工具message中的一个确认问题，不补背景解释，不再次调用搜索。"
                     )
+                response["instructions"] = instructions
             await self.send({"type": "response.create", "response": response})
         except BaseException:
             if self.response_origins and self.response_origins[-1] == origin:
@@ -1673,7 +1787,7 @@ class QwenRealtimeSession:
             with contextlib.suppress(Exception):
                 await self.ws.close()
 
-    async def finish_pending_input(self, timeout=4.0):
+    async def finish_pending_input(self, timeout: float = 4.0) -> bool:
         """Let server VAD finalize the current utterance before disconnecting.
 
         Live partial transcription is presentation-only. Closing the transport
@@ -1689,7 +1803,7 @@ class QwenRealtimeSession:
             self.trace("input.finalization_timeout", timeout_seconds=timeout)
             return False
 
-    def _dispatch_notification_event(self, kind, **payload):
+    def _dispatch_notification_event(self, kind: str, **payload: object) -> None:
         if self.notification_event is None:
             return
         result = self.notification_event(kind, payload)

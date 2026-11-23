@@ -5,8 +5,10 @@ import mimetypes
 import re
 import secrets
 import threading
+from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from boxagent.core.paths import RESOURCE_ROOT
@@ -14,7 +16,7 @@ from boxagent.core.paths import RESOURCE_ROOT
 WEB_ROOT = RESOURCE_ROOT / "assets/vrm"
 
 
-def resource_files(directory, manifest):
+def resource_files(directory: str | Path, manifest: Mapping[str, object]) -> dict[str, Path]:
     """共享动作只能来自仓库中具名的动作包，其他资源仍限于形象目录。"""
     directory = Path(directory).resolve()
     actions = manifest.get("actions", {})
@@ -25,7 +27,7 @@ def resource_files(directory, manifest):
         not isinstance(pack, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", pack)
     ):
         raise ValueError("共享动作包标识无效")
-    pack_root = WEB_ROOT / "motions" / pack if pack else None
+    pack_root = WEB_ROOT / "motions" / pack if isinstance(pack, str) and pack else None
     resources = [(manifest["model"], directory, manifest["model"])]
     for value in actions.values():
         if pack_root is not None:
@@ -36,7 +38,7 @@ def resource_files(directory, manifest):
             resources.append((value, directory, value))
     files = {"pet.json": directory / "pet.json"}
     for name, root, value in resources:
-        if not isinstance(value, str):
+        if not isinstance(name, str) or not isinstance(value, str):
             raise ValueError("VRM 资源路径必须是字符串")
         path = root / value
         if (root.is_symlink() or not path.resolve().is_relative_to(root.resolve())
@@ -49,11 +51,12 @@ def resource_files(directory, manifest):
     return files
 
 
-def read_manifest(directory):
+def read_manifest(directory: str | Path) -> dict[str, Any]:
     """验证清单和实际资源，拒绝目录逃逸及未下载的 LFS 指针。"""
     directory = Path(directory).resolve()
-    manifest = json.loads((directory / "pet.json").read_text(encoding="utf-8"))
-    if manifest.get("type") != "vrm" or manifest.get("version") != 1:
+    manifest: object = json.loads((directory / "pet.json").read_text(encoding="utf-8"))
+    if (not isinstance(manifest, dict)
+            or manifest.get("type") != "vrm" or manifest.get("version") != 1):
         raise ValueError("VRM 形象清单版本无效")
     resource_files(directory, manifest)
     return manifest
@@ -62,7 +65,7 @@ def read_manifest(directory):
 class AssetServer:
     """随机令牌和精确文件白名单，仅监听本机回环地址。"""
 
-    def __init__(self, directory, manifest):
+    def __init__(self, directory: str | Path, manifest: Mapping[str, object]) -> None:
         self.token = secrets.token_urlsafe(24)
         files = {"index.html": WEB_ROOT / "index.html", "viewer.js": WEB_ROOT / "viewer.js"}
         for name, path in resource_files(directory, manifest).items():
@@ -96,7 +99,7 @@ class AssetServer:
                 self.end_headers()
                 self.wfile.write(data)
 
-            def log_message(self, *_args):
+            def log_message(self, format: str, *args: object) -> None:
                 pass
 
         self.http = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

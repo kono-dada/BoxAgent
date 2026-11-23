@@ -5,13 +5,15 @@ import json
 import re
 import time
 from collections import deque
-from collections.abc import Callable
-from typing import Literal, TypedDict
+from collections.abc import Awaitable
+from typing import Literal, Protocol, TypedDict, Unpack
 
 from boxagent.core.errors import TaskFailure
+from boxagent.core.events import StateEvents
 from boxagent.core.ids import new_task_id
-from boxagent.core.states import Executor, TaskQueueItem
-from boxagent.domain.conversation.models import InteractionContext
+from boxagent.core.states import Executor, Snapshot, TaskQueueItem
+from boxagent.domain.conversation.models import InteractionContext, ProductEvent, RuntimeBinding
+from boxagent.domain.conversation.service import ConversationService
 
 TaskCapability = Literal["desktop", "wechat"]
 
@@ -24,27 +26,50 @@ class QueuedTask(TypedDict):
     capability: TaskCapability
 
 
+class ExecutorOptions(TypedDict, total=False):
+    session_id: str
+    interaction_id: str
+    prior_messages: tuple[ProductEvent, ...]
+    runtime_binding: RuntimeBinding | None
+    capability: TaskCapability
+
+
+class ExecutorFactory(Protocol):
+    def __call__(self, task_id: str, /, **options: Unpack[ExecutorOptions]) -> Executor: ...
+
+
+class _TerminalSink(Protocol):
+    def __call__(
+        self, *, interaction: InteractionContext | None, task_id: str, outcome: str, summary: str
+    ) -> Awaitable[None] | None: ...
+
+
 class ExecutionService:
-    def __init__(self, events, executor_factory: Callable[..., Executor], *,
-                 conversation=None,
-                 on_terminal=None):
+    def __init__(
+        self,
+        events: StateEvents,
+        executor_factory: ExecutorFactory,
+        *,
+        conversation: ConversationService | None = None,
+        on_terminal: _TerminalSink | None = None,
+    ) -> None:
         self.events = events
         self.executor_factory = executor_factory
         self.conversation = conversation
         self.on_terminal = on_terminal
-        self.job = None
+        self.job: asyncio.Task[dict[str, object]] | None = None
         self.executor: Executor | None = None
         self.capability: TaskCapability = "desktop"
-        self.interaction = None
-        self.approval_future = None
-        self.approved_requests = set()
-        self.last_result = {"status": "idle"}
+        self.interaction: InteractionContext | None = None
+        self.approval_future: asyncio.Future[bool] | None = None
+        self.approved_requests: set[tuple[str | None, str | None, str | None]] = set()
+        self.last_result: dict[str, object] = {"status": "idle"}
         self.pending: deque[QueuedTask] = deque()
         self.start_lock = asyncio.Lock()
         self.closed = False
 
     @property
-    def state(self):
+    def state(self) -> Snapshot:
         return self.events.state
 
     def clarification_capability(self, context: InteractionContext | None) -> TaskCapability | None:
@@ -66,8 +91,14 @@ class ExecutionService:
             "status": "needs_input",
         }, ensure_ascii=False) + "\n</boxagent_pending_task>\n"
 
-    async def start(self, goal, *, from_text=False, interaction=None,
-                    capability: TaskCapability = "desktop"):
+    async def start(
+        self,
+        goal: object,
+        *,
+        from_text: bool = False,
+        interaction: InteractionContext | None = None,
+        capability: TaskCapability = "desktop",
+    ) -> dict[str, object]:
         if not isinstance(goal, str) or not goal.strip():
             return {"status": "failed", "message": "请输入要完成的事情"}
         task_id = new_task_id()
@@ -78,7 +109,7 @@ class ExecutionService:
                     "interaction": interaction, "task_id": task_id, "capability": capability,
                 })
                 self.events.emit("task.queued", task_queue=self._queue_snapshot())
-                result = {
+                result: dict[str, object] = {
                     "status": "queued", "task_id": task_id,
                     "position": len(self.pending),
                     "message": f"任务已排队，前面还有 {len(self.pending)} 个任务",
@@ -92,12 +123,19 @@ class ExecutionService:
                 goal, from_text=from_text, interaction=interaction,
                 task_id=task_id, capability=capability)
 
-    async def _start_now(self, goal, *, from_text=False, interaction=None,
-                         task_id=None, capability: TaskCapability = "desktop"):
+    async def _start_now(
+        self,
+        goal: str,
+        *,
+        from_text: bool = False,
+        interaction: InteractionContext | None = None,
+        task_id: str | None = None,
+        capability: TaskCapability = "desktop",
+    ) -> dict[str, object]:
         task_id = task_id or new_task_id()
         self.interaction = interaction
         self.capability = capability
-        context = {}
+        context: ExecutorOptions = {}
         if self.conversation and self.conversation.store and self.interaction is None:
             self.interaction = await self.conversation.begin_interaction(
                 goal, task_id=task_id, source="text" if from_text else "voice",
@@ -121,20 +159,22 @@ class ExecutionService:
                          task_ended_at=0, task_activity_at=time.time(), **changes)
         self.last_result = {"status": "running", "task_id": task_id, "goal": goal}
         self.job = asyncio.create_task(self._run(goal, self.interaction, task_id))
-        result = {"status": "accepted", "task_id": task_id}
+        result: dict[str, object] = {"status": "accepted", "task_id": task_id}
         if self.interaction:
             result.update(session_id=self.interaction.session.session_id,
                           interaction_id=self.interaction.interaction_id)
         return result
 
-    async def submit_text(self, goal):
+    async def submit_text(self, goal: object) -> dict[str, object]:
         return await self.start(goal, from_text=True)
 
     def _queue_snapshot(self) -> list[TaskQueueItem]:
         return [{"task_id": item["task_id"], "goal": item["goal"]}
                 for item in self.pending]
 
-    async def _run(self, goal, interaction=None, task_id=None):
+    async def _run(
+        self, goal: str, interaction: InteractionContext | None = None, task_id: str | None = None
+    ) -> dict[str, object]:
         task_id = task_id or self.state.task_id or new_task_id()
         terminal_result = None
         self.events.emit("task.started", task="running")
@@ -228,7 +268,9 @@ class ExecutionService:
             await self._notify_terminal(
                 interaction, task_id, "cancelled", message)
 
-    async def _notify_terminal(self, interaction, task_id, outcome, summary):
+    async def _notify_terminal(
+        self, interaction: InteractionContext | None, task_id: str, outcome: str, summary: str
+    ) -> None:
         if self.on_terminal is None:
             return
         try:
@@ -246,24 +288,32 @@ class ExecutionService:
             await asyncio.sleep(5)
             self.events.emit("task.heartbeat")
 
-    def progress(self, text):
+    def progress(self, text: str) -> None:
         if self.state.task != "cancelling":
             self.events.emit("task.progress", task_text=text, task_activity_at=time.time())
 
-    async def approve(self, params):
+    async def approve(self, params: dict[str, object]) -> bool:
         if self.state.task == "cancelling":
             return False
-        key = (params.get("serverName"), params.get("app"), params.get("message"))
+        server, app, text = params.get("serverName"), params.get("app"), params.get("message")
+        if (
+            (server is not None and not isinstance(server, str))
+            or (app is not None and not isinstance(app, str))
+            or (text is not None and not isinstance(text, str))
+        ):
+            return False
+        key = (server, app, text)
         if key in self.approved_requests:
             return True
-        self.approval_future = asyncio.get_running_loop().create_future()
-        request_text = params.get("message", "")
+        future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        self.approval_future = future
+        request_text = text or ""
         display_name = re.fullmatch(r"Allow ChatGPT to use (.+)\?", request_text)
-        app_name = display_name.group(1) if display_name else params.get("app", "")
+        app_name = display_name.group(1) if display_name else app
         message = f"允许操作 {app_name}？" if app_name else request_text or "允许这次工具请求？"
         self.events.emit("task.approval", task="awaiting_approval", approval=message)
         try:
-            accepted = await asyncio.wait_for(self.approval_future, 55)
+            accepted = await asyncio.wait_for(future, 55)
             if accepted:
                 self.approved_requests.add(key)
             return accepted

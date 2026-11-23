@@ -117,14 +117,14 @@ async def _migrate_sessions(data_dir: Path) -> dict[str, Any]:
             for event in events:
                 rows.append((event.occurred_at, event.sequence, product_kind(event),
                              {"product_event": event.payload()}, "product:" + event.event_id))
-            for event in contexts:
+            for entry in contexts:
                 rows.append(
                     (
-                        event.time,
-                        event.seq,
-                        ledger_kind(event.type),
-                        {"ledger_type": event.type, "legacy_ledger_seq": event.seq, **event.data},
-                        f"{'rollback' if rolled_back else 'legacy'}-ledger:{event.seq}",
+                        entry.time,
+                        entry.seq,
+                        ledger_kind(entry.type),
+                        {"ledger_type": entry.type, "legacy_ledger_seq": entry.seq, **entry.data},
+                        f"{'rollback' if rolled_back else 'legacy'}-ledger:{entry.seq}",
                     )
                 )
             checkpoints, segments = legacy._read_context(directory / "context.jsonl", repair=False)

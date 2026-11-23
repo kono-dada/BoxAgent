@@ -1,16 +1,30 @@
 """Sanitize backend records before returning them to voice or UI."""
 
+from collections.abc import Iterable
+from typing import NotRequired, TypedDict
 
-def public_memory_items(items) -> list[dict]:
+
+class PublicMemoryItem(TypedDict):
+    id: str | None
+    content: str | None
+    timestamp: object
+    type: str
+    metadata: NotRequired[dict[str, object]]
+
+
+def public_memory_items(items: Iterable[object]) -> list[PublicMemoryItem]:
     result = []
     for item in items:
         if not isinstance(item, dict):
             continue
         metadata = dict(item.get("metadata") or {})
-        public = {
-            "id": item.get("id"), "content": item.get("content"),
+        identity = item.get("id")
+        content = item.get("content")
+        public: PublicMemoryItem = {
+            "id": identity if isinstance(identity, str) else None,
+            "content": content if isinstance(content, str) else None,
             "timestamp": item.get("timestamp"),
-            "type": item.get("type") or metadata.get("node_type") or "EVENT",
+            "type": str(item.get("type") or metadata.get("node_type") or "EVENT"),
         }
         safe_metadata = {
             key: metadata.get(key) for key in (

@@ -24,6 +24,7 @@ dev = [
     "networkx>=3.4,<4",
     "ruff>=0.17.6",
     "mypy>=2.4.1",
+    "types-pyaudio>=0.2.16,<0.3",
 ]
 
 [tool.ruff]
@@ -42,6 +43,7 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.12"
 strict = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs"
 files = ["src", "tests/test_cli.py"]
 exclude = ["^src/boxagent/infrastructure/memory/jev_mem/"]
 

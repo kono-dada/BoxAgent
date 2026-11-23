@@ -76,11 +76,12 @@ def main() -> None:
     parser.add_argument('--model', type=Path, required=True)
     args = parser.parse_args()
     component: Component = args.component
+    result: ProbeResult
     try:
         result = check_component(component, data=args.data, model=args.model)
     except Exception:
         # Exceptions and SDK responses may contain secrets. Only stable codes cross IPC.
         logging.getLogger(__name__).warning('Startup component check failed: %s', component)
-        result: ProbeResult = {'state': 'unavailable', 'code': f'{component}_probe_failed'}
+        result = {'state': 'unavailable', 'code': f'{component}_probe_failed'}
     print(json.dumps(result), flush=True)
     raise SystemExit(0 if result['state'] == 'ready' else 1)

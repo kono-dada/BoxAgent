@@ -49,7 +49,7 @@ class SteamGames:
         return games
 
     def running(self) -> set[Game]:
-        from AppKit import NSWorkspace  # type: ignore[import-untyped]
+        from AppKit import NSWorkspace
 
         now = time.monotonic()
         if now >= self.refresh_at:

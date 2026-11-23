@@ -37,7 +37,7 @@ class Session(NativeSession):
         return result
 
 def u64(reader: MachReader, address: int) -> int:
-    return struct.unpack("<Q", reader.read(address, 8))[0]
+    return int(struct.unpack("<Q", reader.read(address, 8))[0])
 
 
 def verify_payload(reader: MachReader, expressions: Expressions) -> None:

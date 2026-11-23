@@ -35,7 +35,8 @@ def _vision_classes() -> tuple[Any, Any]:
     import objc
     from Foundation import NSBundle
 
-    if not NSBundle.bundleWithPath_("/System/Library/Frameworks/Vision.framework").load():
+    bundle = NSBundle.bundleWithPath_("/System/Library/Frameworks/Vision.framework")
+    if bundle is None or not bundle.load():
         raise RuntimeError("Vision framework unavailable")
     objc.registerMetaDataForSelector(b"VNImageRequestHandler", b"performRequests:error:",
                                      {"arguments": {3: {"type_modifier": objc._C_OUT}}})

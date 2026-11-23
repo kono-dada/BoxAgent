@@ -38,7 +38,7 @@ EVENT_INSTRUCTIONS = (
 
 class RuntimeRequestBuilder:
     def __init__(self, *, persona: Persona | None = None,
-                 context_assembler: RuntimeContextProjector | None = None):
+                 context_assembler: RuntimeContextProjector | None = None) -> None:
         self.persona = persona
         self.context_assembler = context_assembler or RuntimeContextProjector()
         self.instructions = compile_instructions(persona)

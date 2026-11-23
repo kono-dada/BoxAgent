@@ -4,6 +4,7 @@ from __future__ import annotations
 from functools import partial
 
 from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
+from boxagent.agent.runtime.contracts import ToolPayload, deny_tool_approval
 from boxagent.agent.runtime.models import ModelProfile
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.event_context import ExternalEventContext
@@ -44,11 +45,11 @@ def configure_external_events(
         permission_check=lambda *_args, **_kwargs: False,
         server_factory=partial(CodexAppServer, computer_use_enabled=False))
 
-    async def reject_tool(name: str, arguments: dict) -> dict:
+    async def reject_tool(name: str, arguments: ToolPayload) -> ToolPayload:
         raise RuntimeError("External event decisions cannot call tools")
 
     def session() -> CodexTaskSession:
-        return host.create_session(on_tool_call=reject_tool, approve=lambda _: False,
+        return host.create_session(on_tool_call=reject_tool, approve=deny_tool_approval,
             current_app=lambda: "", report=lambda *_: None, log=lambda *_args, **_kwargs: None,
             auto_approve=False)
 

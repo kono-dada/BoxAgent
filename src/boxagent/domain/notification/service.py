@@ -14,7 +14,7 @@ from boxagent.domain.notification.models import NotificationItem
 class NotificationOutbox:
     """Own idempotency and delivery state; channel adapters only claim and ack."""
 
-    def __init__(self, repository: NotificationRepository | None = None):
+    def __init__(self, repository: NotificationRepository | None = None) -> None:
         self.repository = repository
         self.lock = asyncio.Lock()
 
@@ -30,7 +30,7 @@ class NotificationOutbox:
 
     async def enqueue(self, *, session_id: str, interaction_id: str,
                       task_id: str, outcome: str, summary: str,
-                      policy="always_notify") -> NotificationItem | None:
+                      policy: str = "always_notify") -> NotificationItem | None:
         if self.repository is None or not session_id or not interaction_id or not task_id:
             return None
         dedupe_key = f"{session_id}:{interaction_id}:{task_id}"
@@ -79,37 +79,37 @@ class NotificationOutbox:
             item = self._get(notification_id)
             if item.status == "delivered":
                 return item
-            attempt = {"channel": channel, "status": "delivering",
+            attempt: dict[str, object] = {"channel": channel, "status": "delivering",
                        "occurred_at": time.time()}
             return self._repository().save(replace(
                 item, status="delivering",
                 attempts=(*item.attempts, attempt), updated_at=time.time()))
 
     async def acknowledge(self, notification_id: str, channel: str,
-                          receipt="delivered") -> NotificationItem:
+                          receipt: str = "delivered") -> NotificationItem:
         async with self.lock:
             item = self._get(notification_id)
             if item.status == "delivered":
                 return item
-            attempt = {"channel": channel, "status": "delivered",
+            attempt: dict[str, object] = {"channel": channel, "status": "delivered",
                        "receipt": receipt, "occurred_at": time.time()}
             return self._repository().save(replace(
                 item, status="delivered",
                 attempts=(*item.attempts, attempt), updated_at=time.time()))
 
     async def retry(self, notification_id: str, channel: str,
-                    error="delivery_interrupted") -> NotificationItem:
+                    error: str = "delivery_interrupted") -> NotificationItem:
         async with self.lock:
             item = self._get(notification_id)
             if item.status == "delivered":
                 return item
-            attempt = {"channel": channel, "status": "failed", "error": error,
+            attempt: dict[str, object] = {"channel": channel, "status": "failed", "error": error,
                        "occurred_at": time.time()}
             return self._repository().save(replace(
                 item, status="pending",
                 attempts=(*item.attempts, attempt), updated_at=time.time()))
 
-    def _get(self, notification_id):
+    def _get(self, notification_id: str) -> NotificationItem:
         if self.repository is None:
             raise RuntimeError("Notification Outbox 未配置")
         item = next((item for item in self.repository.list()

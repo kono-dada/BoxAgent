@@ -6,10 +6,18 @@ evidence; job files are delivery state, not a second memory database.
 
 import asyncio
 import logging
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
+from typing import TypedDict
 
-from boxagent.domain.memory.contracts import MemoryBackend, MemoryUnavailable
-from boxagent.domain.memory.evidence import public_memory_items
+from boxagent.domain.memory.contracts import (
+    BackendRecord,
+    MemoryBackend,
+    MemoryJobStore,
+    MemoryUnavailable,
+    ProfileProjection,
+)
+from boxagent.domain.memory.evidence import PublicMemoryItem, public_memory_items
 from boxagent.domain.memory.policy import (
     MEMORY_QUERY_LIMIT,
     MEMORY_TEXT_LIMIT,
@@ -21,10 +29,30 @@ from boxagent.domain.memory.policy import (
 logger = logging.getLogger(__name__)
 
 
+class MemoryRecall(TypedDict):
+    status: str
+    message: str
+    memories: list[PublicMemoryItem]
+    evidence: object
+    trace: dict[str, object]
+
+
+class MemoryEvidence(TypedDict):
+    profile: list[dict[str, object]]
+    evidence: list[PublicMemoryItem]
+    narrative: list[PublicMemoryItem]
+    trace: dict[str, object]
+
+
 class MemoryService:
-    def __init__(self, backend: MemoryBackend | None, job_store=None,
-                 projection_callback=None,
-                 backend_recall_timeout=2.0, profile_projector=None):
+    def __init__(
+        self,
+        backend: MemoryBackend | None,
+        job_store: MemoryJobStore | None = None,
+        projection_callback: Callable[[], object] | None = None,
+        backend_recall_timeout: float = 2.0,
+        profile_projector: ProfileProjection | None = None,
+    ) -> None:
         self.backend = backend
         self.job_store = job_store
         self.projection_callback = projection_callback
@@ -32,7 +60,7 @@ class MemoryService:
         self.backend_recall_timeout = backend_recall_timeout
         self.recalled_memory_ids: set[str] = set()
         self.recalled_memory_content: dict[str, str] = {}
-        self.prewarm_task = None
+        self.prewarm_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         if self.prewarm_task is None and self.backend is not None:
@@ -55,7 +83,7 @@ class MemoryService:
     async def observe_user_message(self, content: str, *, session_id: str,
                                    interaction_id: str, source_event_id: str,
                                    occurred_at: float | None = None,
-                                   channel: str = "text") -> dict:
+                                   channel: str | None = "text") -> BackendRecord:
         """Send one committed Final User Message to Jev-Mem without rewriting it."""
         content = require_text(content, name="content", limit=MEMORY_TEXT_LIMIT)
         if contains_secret(content):
@@ -68,7 +96,7 @@ class MemoryService:
             "source_event_id": source_event_id,
             "channel": channel,
         }
-        observation = {"content": content, "metadata": metadata}
+        observation: BackendRecord = {"content": content, "metadata": metadata}
         if occurred_at:
             observation["timestamp"] = datetime.fromtimestamp(
                 occurred_at, UTC).isoformat()
@@ -79,8 +107,15 @@ class MemoryService:
         await self._refresh_projection()
         return result
 
-    async def remember(self, content, *, source="explicit", session_id="",
-                       interaction_id="", source_event_ids=()):
+    async def remember(
+        self,
+        content: object,
+        *,
+        source: str = "explicit",
+        session_id: str = "",
+        interaction_id: str = "",
+        source_event_ids: Iterable[str] = (),
+    ) -> BackendRecord:
         content = require_text(content, name="content", limit=MEMORY_TEXT_LIMIT)
         if contains_secret(content):
             raise ValueError("密码、Token、API Key 或验证码不能写入长期记忆")
@@ -111,7 +146,7 @@ class MemoryService:
             **result,
         }
 
-    async def recall(self, query, *, top_k=5, mode="deep"):
+    async def recall(self, query: object, *, top_k: int = 5, mode: str = "deep") -> MemoryRecall:
         query = require_text(query, name="query", limit=MEMORY_QUERY_LIMIT)
         backend = self._require_backend()
         try:
@@ -130,7 +165,7 @@ class MemoryService:
             "trace": result.get("trace", {}),
         }
 
-    async def prepare_context(self, query, *, top_k=5):
+    async def prepare_context(self, query: str, *, top_k: int = 5) -> MemoryEvidence:
         """L2: one bounded Jev-Mem retrieval using the raw user query."""
         try:
             result = await asyncio.wait_for(
@@ -155,18 +190,20 @@ class MemoryService:
             "trace": {**result.get("trace", {}), "degraded": False},
         }
 
-    async def list_memories(self):
+    async def list_memories(self) -> list[BackendRecord]:
         graph = await self.snapshot(node_limit=200, edge_limit=0)
         return list(graph.get("nodes", []))
 
-    async def snapshot(self, *, query="", selected_id=None,
-                       node_limit=100, edge_limit=200, statuses=None):
+    async def snapshot(
+        self, *, query: str = "", selected_id: str | None = None,
+        node_limit: int = 100, edge_limit: int = 200, statuses: object = None,
+    ) -> BackendRecord:
         del statuses
         return await self._require_backend().inspect(
             query=query, selected_id=selected_id,
             node_limit=node_limit, edge_limit=edge_limit)
 
-    async def delete_node(self, memory_id):
+    async def delete_node(self, memory_id: object) -> BackendRecord:
         memory_id = require_text(memory_id, name="memory_id", limit=200)
         result = await self._require_backend().forget([memory_id])
         self.recalled_memory_ids.discard(memory_id)
@@ -179,7 +216,7 @@ class MemoryService:
                 "deleted": deleted, "missing": result.get("missing", []),
                 "memory_count": result.get("memory_count")}
 
-    async def forget(self, memory_ids):
+    async def forget(self, memory_ids: object) -> BackendRecord:
         memory_ids = require_memory_ids(memory_ids)
         unseen = [item for item in memory_ids
                   if item not in self.recalled_memory_ids]
@@ -199,7 +236,7 @@ class MemoryService:
                 "deleted": deleted, "missing": result.get("missing", []),
                 "memory_count": result.get("memory_count")}
 
-    async def health(self):
+    async def health(self) -> BackendRecord:
         if self.backend is None:
             return {"status": "degraded", "backend": "disabled",
                     "memory_count": 0}
@@ -212,12 +249,12 @@ class MemoryService:
         return {"status": "ready", "backend": backend,
                 "memory_count": int(backend.get("memory_count") or 0)}
 
-    def _remember_recalled(self, memories):
-        self.recalled_memory_ids.update(
-            item["id"] for item in memories if item.get("id"))
-        self.recalled_memory_content.update(
-            {item["id"]: item["content"] for item in memories
-             if item.get("id") and item.get("content")})
+    def _remember_recalled(self, memories: Iterable[PublicMemoryItem]) -> None:
+        for item in memories:
+            if memory_id := item["id"]:
+                self.recalled_memory_ids.add(memory_id)
+                if content := item["content"]:
+                    self.recalled_memory_content[memory_id] = content
 
     async def _refresh_projection(self) -> None:
         if self.projection_callback is None:

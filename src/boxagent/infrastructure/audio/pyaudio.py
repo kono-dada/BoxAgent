@@ -2,13 +2,21 @@
 
 import base64
 import threading
+from collections.abc import Callable, Mapping
 
 import pyaudio
 
 
 class AudioIO:
-    def __init__(self, playing_changed, *, microphone=True, playback=True,
-                 microphone_rate=16000, playback_rate=24000):
+    def __init__(
+        self,
+        playing_changed: Callable[[bool], None],
+        *,
+        microphone: bool = True,
+        playback: bool = True,
+        microphone_rate: int = 16000,
+        playback_rate: int = 24000,
+    ) -> None:
         self.audio = pyaudio.PyAudio()
         self.lock = threading.Lock()
         self.device_lock = threading.Lock()
@@ -17,7 +25,8 @@ class AudioIO:
         self.playback_finished = True
         self.explicit_playback_lifecycle = False
         self.playing_changed = playing_changed
-        self.mic = self.speaker = None
+        self.mic: pyaudio.Stream | None = None
+        self.speaker: pyaudio.Stream | None = None
         self.playback = playback
         try:
             if microphone:
@@ -31,7 +40,9 @@ class AudioIO:
             self.close()
             raise
 
-    def callback(self, _input, frame_count, _time, _status):
+    def callback(
+        self, _input: bytes | None, frame_count: int, _time: Mapping[str, float], _status: int
+    ) -> tuple[bytes, int]:
         count = frame_count * 2
         with self.lock:
             chunk = bytes(self.buffer[:count])
@@ -48,10 +59,10 @@ class AudioIO:
         output = chunk if self.playback else b""
         return output.ljust(count, b"\0"), pyaudio.paContinue
 
-    def append(self, encoded):
+    def append(self, encoded: str) -> None:
         self.append_pcm(base64.b64decode(encoded))
 
-    def append_pcm(self, chunk):
+    def append_pcm(self, chunk: bytes) -> None:
         with self.lock:
             if not self.explicit_playback_lifecycle:
                 self.playback_finished = False
@@ -82,7 +93,7 @@ class AudioIO:
         if changed:
             self.playing_changed(False)
 
-    def read(self):
+    def read(self) -> bytes:
         with self.device_lock:
             if not self.mic:
                 raise RuntimeError("麦克风已关闭")

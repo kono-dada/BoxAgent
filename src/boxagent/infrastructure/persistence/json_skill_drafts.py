@@ -12,7 +12,7 @@ DRAFT_ID = re.compile(r"^skd_[a-f0-9]{16}$")
 
 
 class JsonSkillDraftRepository:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
         self.lock = threading.RLock()
 
@@ -38,10 +38,10 @@ class JsonSkillDraftRepository:
             return SkillDraft.from_payload(json.loads(
                 path.read_text(encoding="utf-8")))
 
-    def list(self, *, session_id: str = "", statuses: tuple[str, ...] = ()):
+    def list(self, *, session_id: str = "", statuses: tuple[str, ...] = ()) -> list[SkillDraft]:
         expected = {str(item) for item in statuses}
         with self.lock:
-            drafts = []
+            drafts: list[SkillDraft] = []
             if not self.root.is_dir():
                 return drafts
             for path in self.root.glob("skd_*.json"):
@@ -57,7 +57,7 @@ class JsonSkillDraftRepository:
                 drafts.append(draft)
             return sorted(drafts, key=lambda item: item.created_at)
 
-    def latest(self, *, session_id: str, statuses: tuple[str, ...]):
+    def latest(self, *, session_id: str, statuses: tuple[str, ...]) -> SkillDraft | None:
         drafts = self.list(session_id=session_id, statuses=statuses)
         return drafts[-1] if drafts else None
 

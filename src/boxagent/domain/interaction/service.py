@@ -6,11 +6,19 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from typing import Protocol, TypedDict, Unpack
 
+from boxagent.core.events import StateEvents
 from boxagent.core.states import Voice
-from boxagent.domain.context.contracts import NullContextObserver
-from boxagent.domain.conversation.models import InteractionContext
+from boxagent.domain.context.contracts import ContextObserver, NullContextObserver
+from boxagent.domain.conversation.models import (
+    ContextCheckpoint,
+    HistoryMessage,
+    InteractionContext,
+    ProductEvent,
+)
+from boxagent.domain.conversation.service import ConversationService
 from boxagent.domain.interaction.contracts import (
     CompanionSpeechVoice,
     GameHighlightVoice,
@@ -26,7 +34,7 @@ from boxagent.domain.web.game_context import game_clarification_reference
 logger = logging.getLogger(__name__)
 
 
-def _is_idle_realtime_disconnect(message):
+def _is_idle_realtime_disconnect(message: object) -> bool:
     text = str(message or "").lower()
     return "response_idle_timeout" in text or (
         "180 seconds" in text
@@ -77,12 +85,87 @@ def _lol_companion_command(command: str) -> bool | None:
     return None if match is None else match[1] in {"进入", "开启", "打开", "启动"}
 
 
+type _ConversationEvent = Callable[[str, dict[str, object]], object]
+type VoiceTool = Callable[[str, object, dict[str, object]], Awaitable[dict[str, object]]]
+
+
+class VoiceEventSink(Protocol):
+    def __call__(self, kind: str, /, **changes: object) -> None: ...
+
+
+class VoiceFactoryOptions(TypedDict):
+    microphone: bool
+    playback: bool
+    conversation_event: _ConversationEvent
+    notification_event: _ConversationEvent
+    conversation_history: Iterable[HistoryMessage]
+    conversation_checkpoint: str
+    stable_memory_context: str
+    delegation_review: Callable[[str, str], Awaitable[bool]]
+    product_session_id: str
+
+
+class VoiceFactory(Protocol):
+    def __call__(
+        self,
+        handle_tool: VoiceTool,
+        emit: VoiceEventSink,
+        /,
+        **options: Unpack[VoiceFactoryOptions],
+    ) -> Voice: ...
+
+
+class _ApplicationTool(Protocol):
+    def __call__(
+        self, name: str, arguments: object, /, *, interaction: InteractionContext | None
+    ) -> Awaitable[dict[str, object]]: ...
+
+
+class _RestoredHistory(Protocol):
+    @property
+    def messages(self) -> tuple[HistoryMessage, ...]: ...
+
+    @property
+    def checkpoint(self) -> str: ...
+
+
+class _HistoryBuilder(Protocol):
+    def __call__(
+        self, *, checkpoint: ContextCheckpoint | None, turns: Sequence[ProductEvent]
+    ) -> _RestoredHistory: ...
+
+
+class _VoiceMemory(Protocol):
+    async def stable_profile(self) -> str: ...
+
+    async def context_packet(self, query: str, *, session_id: str, top_k: int) -> str: ...
+
+
+class _TurnPreparation(Protocol):
+    async def prepare(
+        self, query: str, *, session_id: str, query_id: str, context: str
+    ) -> tuple[str, dict[str, object]]: ...
+
+    async def review_delegation(self, query: str, reply: str, *, context: str) -> bool: ...
+
+
 class InteractionService:
-    def __init__(self, events, voice_factory, handle_tool, *, conversation=None,
-                 history_builder=None, notification_event=None,
-                 memory=None, reconnect_delays=(.5, 1.5, 3.0),
-                 context_observer=None, turn_preparer=None,
-                 connection_timeout: float = 45.0, voice_idle_timeout: float = 60.0):
+    def __init__(
+        self,
+        events: StateEvents,
+        voice_factory: VoiceFactory | None,
+        handle_tool: _ApplicationTool,
+        *,
+        conversation: ConversationService | None = None,
+        history_builder: _HistoryBuilder | None = None,
+        notification_event: _ConversationEvent | None = None,
+        memory: _VoiceMemory | None = None,
+        reconnect_delays: Iterable[float] = (.5, 1.5, 3.0),
+        context_observer: ContextObserver | None = None,
+        turn_preparer: _TurnPreparation | None = None,
+        connection_timeout: float = 45.0,
+        voice_idle_timeout: float = 60.0,
+    ) -> None:
         self.events = events
         self.context_observer = context_observer or NullContextObserver()
         self.voice_factory = voice_factory
@@ -92,23 +175,24 @@ class InteractionService:
         self.notification_event = notification_event
         self.memory = memory
         self.turn_preparer = turn_preparer
-        self.voice = self.task = None
+        self.voice: Voice | None = None
+        self.task: asyncio.Task[None] | None = None
         self.connection_microphone = False
-        self.connection_error = None
+        self.connection_error: Exception | None = None
         self.connection_timeout = connection_timeout
-        self.interaction = None
-        self.response_interactions = {}
-        self.tool_interactions = {}
+        self.interaction: InteractionContext | None = None
+        self.response_interactions: dict[str, InteractionContext] = {}
+        self.tool_interactions: dict[str, InteractionContext] = {}
         self.decisions: dict[str, DecisionAdvice] = {}
         self.reviewed_delegations: set[str] = set()
-        self.pending_user_responses = []
-        self.closed_interactions = set()
+        self.pending_user_responses: list[str] = []
+        self.closed_interactions: set[str] = set()
         self.toggle_lock = asyncio.Lock()
         self.text_lock = asyncio.Lock()
         self.voice_requested = False
         self.companion_name: Callable[[], str] = lambda: "书书"
         self.reconnect_delays = tuple(reconnect_delays)
-        self.reconnect_task = None
+        self.reconnect_task: asyncio.Task[None] | None = None
         self.voice_end_task: asyncio.Task[None] | None = None
         self.voice_idle_task: asyncio.Task[None] | None = None
         self.voice_idle_timeout = voice_idle_timeout
@@ -123,8 +207,7 @@ class InteractionService:
 
     async def open_camera(self) -> CameraFeed:
         async with self.toggle_lock:
-            if (self.camera_feed is not None and self.camera_feed is self.voice
-                    and self.camera_connected(self.camera_feed)):
+            if self.camera_feed is not None and self.camera_connected(self.camera_feed):
                 return self.camera_feed
             borrowed = self.is_connected and self.connection_microphone
             if self.is_connected and not self.connection_microphone:
@@ -144,7 +227,11 @@ class InteractionService:
             return self.camera_feed
 
     def camera_connected(self, feed: CameraFeed) -> bool:
-        return self.voice is feed and self.is_connected and self.connection_microphone
+        voice = self.voice
+        return (
+            isinstance(voice, CameraFeed) and voice is feed
+            and self.is_connected and self.connection_microphone
+        )
 
     async def close_camera(self, feed: CameraFeed) -> None:
         async with self.toggle_lock:
@@ -154,11 +241,12 @@ class InteractionService:
                 self.camera_owns_voice = False
             # An old camera window must not close a newer conversation.
             # Attaching a camera to an existing call does not transfer ownership.
-            if self.voice is feed and owns_voice:
+            voice = self.voice
+            if isinstance(voice, CameraFeed) and voice is feed and owns_voice:
                 await self.stop()
 
     @property
-    def is_connected(self):
+    def is_connected(self) -> bool:
         return bool(self.voice and self.task and not self.task.done())
 
     async def toggle(self) -> None:
@@ -235,11 +323,11 @@ class InteractionService:
                 await self.stop()
                 raise
 
-    async def submit_text(self, text):
+    async def submit_text(self, text: object) -> dict[str, object]:
         async with self.text_lock:
             return await self._submit_text(text)
 
-    async def _submit_text(self, text):
+    async def _submit_text(self, text: object) -> dict[str, object]:
         if not isinstance(text, str) or not text.strip():
             return {"status": "failed", "message": "请输入想说的话"}
         async with self.toggle_lock:
@@ -310,13 +398,19 @@ class InteractionService:
                     self.interaction, status="failed", runtime="qwen_realtime")
                 self._close_interaction(self.interaction)
             raise
-        result = {"status": "accepted"}
+        result: dict[str, object] = {"status": "accepted"}
         if self.interaction is not None:
             result.update(session_id=self.interaction.session.session_id,
                           interaction_id=self.interaction.interaction_id)
         return result
 
-    async def submit_host_text(self, text, handler, *, runtime="boxagent_host"):
+    async def submit_host_text(
+        self,
+        text: object,
+        handler: Callable[[InteractionContext], Awaitable[str]],
+        *,
+        runtime: str = "boxagent_host",
+    ) -> dict[str, object]:
         """Complete deterministic product workflows without another model turn."""
         if not isinstance(text, str) or not text.strip():
             return {"status": "failed", "message": "请输入想说的话"}
@@ -356,7 +450,7 @@ class InteractionService:
                 "session_id": context.session.session_id,
                 "interaction_id": context.interaction_id}
 
-    async def _connect(self, *, microphone):
+    async def _connect(self, *, microphone: bool) -> None:
         microphone = microphone or self.voice_requested
         if self.is_connected and (not microphone or self.connection_microphone):
             return
@@ -364,7 +458,7 @@ class InteractionService:
             raise RuntimeError("前台交互 Runtime 未配置")
         if microphone:
             self.events.emit("voice.connecting", voice="connecting", error="")
-        conversation_history = ()
+        conversation_history: tuple[HistoryMessage, ...] = ()
         conversation_checkpoint = ""
         stable_memory_context = ""
         session = None
@@ -387,8 +481,11 @@ class InteractionService:
             if self.voice is voice:
                 await self._conversation_event(kind, payload)
 
+        def emit(kind: str, /, **changes: object) -> None:
+            self.events.emit(kind, **changes)
+
         voice = self.voice = self.voice_factory(
-            self._handle_tool, self.events.emit,
+            self._handle_tool, emit,
             microphone=microphone, playback=True,
             conversation_event=conversation_event,
             notification_event=self._notification_event,
@@ -402,7 +499,6 @@ class InteractionService:
             await voice.set_game_speech_muted(True)
         self.events.emit("voice.input_reset", voice_input_level=-1)
         self.connection_error = None
-        voice = self.voice
         task = self.task = asyncio.create_task(self._run(voice, microphone))
         ready = getattr(voice, "ready", None)
         if isinstance(ready, asyncio.Event):
@@ -479,9 +575,11 @@ class InteractionService:
                     await self._finish_voice("voice.idle_closed")
                     return
 
-    async def _conversation_event(self, kind, payload):
+    async def _conversation_event(self, kind: str, payload: dict[str, object]) -> None:
         transcript = ""
         lol_command = None
+        context: InteractionContext | None
+        voice: Voice | None
         if self.voice is not None and self.connection_microphone and self.voice_requested:
             if kind == "user_speech_started":
                 self.user_speaking = True
@@ -586,10 +684,13 @@ class InteractionService:
         elif kind == "response_created":
             response_id = payload.get("response_id")
             origin = payload.get("origin", "user")
-            if not response_id:
+            if not isinstance(response_id, str) or not response_id:
                 return
             if origin == "tool_result":
-                context = self.tool_interactions.pop(payload.get("call_id"), None)
+                call_id = payload.get("call_id")
+                context = (
+                    self.tool_interactions.pop(call_id, None) if isinstance(call_id, str) else None
+                )
                 if context is not None:
                     self.response_interactions[response_id] = context
                 return
@@ -655,15 +756,19 @@ class InteractionService:
         finally:
             await self.stop(closed_event=closed_event)
 
-    def _response_interaction(self, payload):
+    def _response_interaction(self, payload: Mapping[str, object]) -> InteractionContext | None:
         response_id = payload.get("response_id")
-        context = (self.response_interactions.get(response_id)
-                   if response_id else self.interaction)
+        if response_id:
+            if not isinstance(response_id, str):
+                return None
+            context = self.response_interactions.get(response_id)
+        else:
+            context = self.interaction
         if context is None or context.interaction_id in self.closed_interactions:
             return None
         return context
 
-    async def _inject_memory_context(self, query, context):
+    async def _inject_memory_context(self, query: str, context: InteractionContext | None) -> None:
         if self.memory is None or self.voice is None or context is None:
             return
         inject = getattr(self.voice, "inject_memory_context", None)
@@ -689,14 +794,16 @@ class InteractionService:
                         "ms": round((time.perf_counter() - started) * 1000, 1),
                         "chars": len(packet or "")})
 
-    def _bind_pending_response(self, context):
+    def _bind_pending_response(self, context: InteractionContext | None) -> None:
+        if context is None:
+            return
         while self.pending_user_responses:
             response_id = self.pending_user_responses.pop(0)
             if response_id not in self.response_interactions:
                 self.response_interactions[response_id] = context
                 return
 
-    def _discard_pending_response(self, response_id):
+    def _discard_pending_response(self, response_id: object) -> None:
         if response_id:
             self.pending_user_responses = [
                 item for item in self.pending_user_responses
@@ -709,7 +816,7 @@ class InteractionService:
         self.decisions.clear()
         self.reviewed_delegations.clear()
 
-    def _close_interaction(self, context):
+    def _close_interaction(self, context: InteractionContext) -> None:
         self.closed_interactions.add(context.interaction_id)
         research = self.events.state.web_research
         if (
@@ -729,7 +836,9 @@ class InteractionService:
             if item is context:
                 self.response_interactions.pop(response_id, None)
 
-    async def _handle_tool(self, name, arguments, metadata=None):
+    async def _handle_tool(
+        self, name: str, arguments: object, metadata: Mapping[str, object] | None = None
+    ) -> dict[str, object]:
         metadata = metadata or {}
         interaction = self._response_interaction(metadata)
         if name == "run_task" and interaction is None:
@@ -742,7 +851,8 @@ class InteractionService:
         ):
             return {"status": "failed", "message": "此请求已被打断或结束，未发起联网检索"}
         advice = self.decisions.get(interaction.interaction_id) if interaction is not None else None
-        if name == "run_task" and advice is not None and advice.exclusion is not None:
+        if (name == "run_task" and interaction is not None and advice is not None
+                and advice.exclusion is not None):
             # The lightweight first-pass decision is advice, not an absolute
             # veto. If Qwen explicitly called run_task, resolve the conflict
             # with the stricter query+reply semantic reviewer. This repairs
@@ -769,8 +879,10 @@ class InteractionService:
             and result.get("status") in {"accepted", "queued"}
         ):
             self._close_interaction(interaction)
-        elif interaction is not None and (metadata or {}).get("call_id"):
-            self.tool_interactions[(metadata or {})["call_id"]] = interaction
+        elif interaction is not None:
+            call_id = metadata.get("call_id")
+            if isinstance(call_id, str) and call_id:
+                self.tool_interactions[call_id] = interaction
         return result
 
     async def _review_explicit_delegation(self, interaction: InteractionContext,
@@ -895,12 +1007,12 @@ class InteractionService:
         if not still_allowed() or self.voice_requested or self.voice_factory is None:
             return False
         await self.prepare_game_audio()
-        voice = self.voice
-        if not isinstance(voice, GameLineVoice) or not still_allowed():
+        current_voice = self.voice
+        if not isinstance(current_voice, GameLineVoice) or not still_allowed():
             return False
-        return await voice.announce_game_line(receipt, text, still_allowed)
+        return await current_voice.announce_game_line(receipt, text, still_allowed)
 
-    async def deliver_notification(self, item):
+    async def deliver_notification(self, item: dict[str, object]) -> bool:
         if not self.is_connected:
             return False
         notify = getattr(self.voice, "notify_task_result", None)
@@ -958,7 +1070,7 @@ class InteractionService:
         if asyncio.iscoroutine(result):
             await result
 
-    async def _run(self, voice, microphone):
+    async def _run(self, voice: Voice, microphone: bool) -> None:
         try:
             await voice.run()
         except asyncio.CancelledError:
@@ -968,8 +1080,12 @@ class InteractionService:
                 return
             self.connection_error = exc
             message = str(exc) or "语音连接失败"
+            camera_owns_voice = (
+                self.camera_owns_voice and isinstance(voice, CameraFeed)
+                and self.camera_feed is voice
+            )
             if (microphone and self.voice_requested and self.voice_end_task is None
-                    and not (self.camera_feed is voice and self.camera_owns_voice)):
+                    and not camera_owns_voice):
                 self.events.emit("voice.reconnecting", voice="connecting",
                                  speaking=False, user_speaking=False, error=message)
             elif _is_idle_realtime_disconnect(message):
@@ -986,8 +1102,12 @@ class InteractionService:
                 self._clear_response_tracking()
                 self.voice = None
                 self.connection_microphone = False
+                camera_owns_voice = (
+                    self.camera_owns_voice and isinstance(voice, CameraFeed)
+                    and self.camera_feed is voice
+                )
                 if (microphone and self.voice_requested and not farewell_pending
-                        and not (self.camera_feed is voice and self.camera_owns_voice)):
+                        and not camera_owns_voice):
                     self.events.emit("voice.reconnecting", voice="connecting",
                                      speaking=False, user_speaking=False)
                     self._schedule_voice_reconnect()
@@ -1028,7 +1148,7 @@ class InteractionService:
         task = asyncio.create_task(reconnect())
         self.reconnect_task = task
 
-        def clear(done):
+        def clear(done: asyncio.Task[None]) -> None:
             if self.reconnect_task is done:
                 self.reconnect_task = None
 

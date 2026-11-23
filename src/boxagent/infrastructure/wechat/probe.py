@@ -73,7 +73,7 @@ class ReplicaProbe:
                 raise PeerUnavailable(f"live instances missing: {', '.join(missing)}")
 
             def qword(address: int) -> int:
-                return struct.unpack("<Q", reader.read(address, 8))[0]
+                return int(struct.unpack("<Q", reader.read(address, 8))[0])
 
             wanted = peer.encode()
             selected: list[tuple[int, int]] = []

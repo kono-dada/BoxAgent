@@ -3,8 +3,16 @@
 import json
 import re
 import time
+from collections.abc import Mapping
 from dataclasses import replace
+from typing import Literal, NotRequired, TypedDict
 
+from boxagent.agent.runtime.contracts import (
+    SessionLog,
+    StructuredSessionFactory,
+    ToolPayload,
+    deny_tool_approval,
+)
 from boxagent.core.ids import new_skill_draft_id
 from boxagent.domain.skill import (
     SkillDraft,
@@ -12,6 +20,8 @@ from boxagent.domain.skill import (
     SkillDraftStatus,
     SkillSource,
 )
+from boxagent.domain.skill.contracts import SkillDraftRepository
+from boxagent.domain.skill.service import SkillService
 
 SKILL_DRAFT_SCHEMA = {
     "type": "object",
@@ -68,9 +78,19 @@ def is_pending_skill_confirmation(text: str) -> bool:
     return bool(_AFFIRMATIVE.fullmatch(str(text or "").strip()))
 
 
+class SkillDraftPreparation(TypedDict):
+    status: Literal["preview", "not_needed"]
+    message: str
+    draft: dict[str, object]
+    requires_confirmation: NotRequired[bool]
+
+
 class SkillAuthoringService:
-    def __init__(self, skill_service, draft_repository, session_factory, *, model,
-                 provider="codex", log=None):
+    def __init__(
+        self, skill_service: SkillService, draft_repository: SkillDraftRepository,
+        session_factory: StructuredSessionFactory, *, model: str, provider: str = "codex",
+        log: SessionLog | None = None,
+    ) -> None:
         self.skill_service = skill_service
         self.draft_repository = draft_repository
         self.session_factory = session_factory
@@ -78,7 +98,7 @@ class SkillAuthoringService:
         self.provider = provider
         self.log = log or (lambda *_args, **_kwargs: None)
 
-    def find(self, query: str, *, limit=8) -> list[dict]:
+    def find(self, query: str, *, limit: int = 8) -> list[dict[str, object]]:
         return [{
             "skill_id": item.skill_id,
             "name": item.name,
@@ -87,7 +107,7 @@ class SkillAuthoringService:
             "enabled": item.enabled,
         } for item in self.skill_service.find(query, limit=limit)]
 
-    def begin(self, request: str, *, session_id="", interaction_id="") -> SkillDraft:
+    def begin(self, request: str, *, session_id: str = "", interaction_id: str = "") -> SkillDraft:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("请说明要创建或改进什么 Skill")
         draft = SkillDraft(
@@ -98,19 +118,21 @@ class SkillAuthoringService:
             status=SkillDraftStatus.PREPARING, created_at=time.time())
         return self.draft_repository.save(draft)
 
-    async def prepare(self, request: str, *, session_id="", interaction_id="",
-                      task_context=None, draft_id="") -> dict:
+    async def prepare(
+        self, request: str, *, session_id: str = "", interaction_id: str = "",
+        task_context: Mapping[str, object] | None = None, draft_id: str = "",
+    ) -> SkillDraftPreparation:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("请说明要创建或改进什么 Skill")
 
-        async def reject_tool(name, arguments):
+        async def reject_tool(name: str, arguments: ToolPayload) -> ToolPayload:
             del name, arguments
             raise RuntimeError("Skill 草稿生成不允许调用工具")
 
         session = self.session_factory(
             output=None,
             on_tool_call=reject_tool,
-            approve=lambda _params: False,
+            approve=deny_tool_approval,
             current_app=lambda: "",
             report=lambda _phase, _message: None,
             log=self.log,
@@ -160,7 +182,7 @@ class SkillAuthoringService:
             "draft": draft.payload(),
         }
 
-    def install(self, draft_id: str = "", *, session_id="") -> dict:
+    def install(self, draft_id: str = "", *, session_id: str = "") -> dict[str, object]:
         draft = self.resolve_install_candidate(draft_id, session_id=session_id)
         if draft.status != SkillDraftStatus.PENDING:
             raise ValueError("该 Skill 草稿已经处理")
@@ -189,12 +211,14 @@ class SkillAuthoringService:
             "skill": record.payload(),
         }
 
-    def latest(self, *, session_id: str, statuses: tuple[SkillDraftStatus, ...]):
+    def latest(
+        self, *, session_id: str, statuses: tuple[SkillDraftStatus, ...]
+    ) -> SkillDraft | None:
         return self.draft_repository.latest(
             session_id=session_id,
             statuses=tuple(item.value for item in statuses))
 
-    def resolve_install_candidate(self, draft_id: str = "", *, session_id=""):
+    def resolve_install_candidate(self, draft_id: str = "", *, session_id: str = "") -> SkillDraft:
         if draft_id:
             try:
                 return self.draft_repository.get(draft_id)
@@ -227,8 +251,10 @@ class SkillAuthoringService:
                 draft, status=SkillDraftStatus.FAILED,
                 rationale="Engine 重启中断了草稿生成，请重新发起沉淀。"))
 
-    def _build_draft(self, value, *, session_id, interaction_id, task_id,
-                     draft_id=""):
+    def _build_draft(
+        self, value: object, *, session_id: str, interaction_id: str, task_id: str,
+        draft_id: str = "",
+    ) -> SkillDraft:
         if not isinstance(value, dict):
             raise ValueError("Skill Author 输出必须是 JSON object")
         try:
@@ -270,7 +296,7 @@ class SkillAuthoringService:
             created_at=time.time())
 
     @staticmethod
-    def _validate_instruction_only(instructions: str):
+    def _validate_instruction_only(instructions: str) -> None:
         lowered = instructions.lower()
         forbidden = (
             "```bash", "```sh", "```python", "#!/", "subprocess.", "os.system(",

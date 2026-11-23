@@ -65,6 +65,7 @@ dev = [
     { name = "networkx" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "types-pyaudio" },
 ]
 
 [package.metadata]
@@ -83,6 +84,7 @@ dev = [
     { name = "networkx", specifier = ">=3.4,<4" },
     { name = "pytest", specifier = ">=8,<10" },
     { name = "ruff", specifier = ">=0.17.6" },
+    { name = "types-pyaudio", specifier = ">=0.2.16,<0.3" },
 ]
 
 [[package]]
@@ -305,6 +307,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2e/09/28329441dfa2c463e2d377a69d4ebbe4d51665e9dbd49fb421f3bc80d775/ruff-0.17.6-py3-none-win32.whl", hash = "sha256:c2f4af6670b7a0501904e881bb3f1f24bd0d964dec1eedbd85f0eb73786e1128", size = 9966266, upload-time = "2026-11-19T15:56:21.581Z" },
     { url = "https://files.pythonhosted.org/packages/4b/9d/18ba9730addfc7554c70d6f171fb8dc2c08e774d9fb2b98e7946ef845c59/ruff-0.17.6-py3-none-win_amd64.whl", hash = "sha256:9cd2fd9923e9806b8b6b67a3469e2258e84bd4d21e45d5a1a690afdfb9c8e57d", size = 10365847, upload-time = "2026-11-19T15:56:23.582Z" },
     { url = "https://files.pythonhosted.org/packages/70/8a/59c33e2a64a4f9672f7f842a0dc522915cfbbaffd13d37d0cec57d1c5c5d/ruff-0.17.6-py3-none-win_arm64.whl", hash = "sha256:d8b14e1473dc86ab9069cf7a2ba5041dc012f59110201844ed04cfddf07055a0", size = 9926224, upload-time = "2026-11-19T15:56:25.269Z" },
+]
+
+[[package]]
+name = "types-pyaudio"
+version = "0.2.16.20261122"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/1c/a20c0d7d0ed75331cb40139f304017c202b4e0c3d03fb1d15510eb464cc3/types_pyaudio-0.2.16.20261122.tar.gz", hash = "sha256:220d1b95fd662f3e1de236ccd5e391c8a7505e9894b4b2c97aa5c8ff35f7200d", size = 10078, upload-time = "2026-11-22T08:58:39.856Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/12/8e69010bb81fff28158dc074e81143200bc1b8bfad695265ca0189db6988/types_pyaudio-0.2.16.20261122-py3-none-any.whl", hash = "sha256:e00891ed2f93aae9faeb768d6ea2e1195aec18a75e410d9f6330617646f0f48c", size = 8878, upload-time = "2026-11-22T08:58:39.103Z" },
 ]
 
 [[package]]

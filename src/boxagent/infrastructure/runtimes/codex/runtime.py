@@ -2,7 +2,13 @@
 
 import json
 
-from boxagent.agent.runtime.contracts import Progress, ResultValidator, ToolCall
+from boxagent.agent.runtime.contracts import (
+    Progress,
+    ResultValidator,
+    TaskTurnSession,
+    ToolCall,
+    ToolPayload,
+)
 from boxagent.agent.runtime.models import RuntimeRequest
 from boxagent.agent.runtime.results import parse_result_object
 from boxagent.core.errors import TaskFailure
@@ -11,11 +17,11 @@ from boxagent.core.errors import TaskFailure
 class CodexAgentRuntime:
     provider = "codex"
 
-    def __init__(self, session, *, model: str):
+    def __init__(self, session: TaskTurnSession, *, model: str) -> None:
         self.session = session
         self.model = model
 
-    async def execute(self, request: RuntimeRequest, tools: list[dict], call_tool: ToolCall,
+    async def execute(self, request: RuntimeRequest, tools: list[ToolPayload], call_tool: ToolCall,
                       validate_result: ResultValidator, progress: Progress) -> str:
         del call_tool
         progress("后台规划中")

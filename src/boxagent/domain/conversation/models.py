@@ -1,9 +1,22 @@
 """Versioned product-session records owned by BoxAgent."""
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Self
+from typing import Any, Protocol, Self
 
 SCHEMA_VERSION = 1
+
+
+class HistoryMessage(Protocol):
+    """Conversation fields read by realtime history replay."""
+
+    @property
+    def sequence(self) -> int: ...
+
+    @property
+    def role(self) -> str | None: ...
+
+    @property
+    def content(self) -> str | None: ...
 
 
 @dataclass(frozen=True)

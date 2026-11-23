@@ -1,5 +1,8 @@
 """Harness policy for terminal results and their observable evidence."""
 
+from collections.abc import Mapping, Sequence
+
+from boxagent.agent.harness.policies.tools import ToolError, ToolObservation
 from boxagent.agent.runtime.results import parse_result_object
 from boxagent.core.errors import TaskFailure
 
@@ -23,8 +26,9 @@ RESULT_SCHEMA = {
 }
 
 
-def validate_task_result(text: str, observations: dict[int, dict],
-                         tool_errors: list[dict]) -> dict:
+def validate_task_result(
+    text: str, observations: Mapping[int, ToolObservation], tool_errors: Sequence[ToolError]
+) -> dict[str, object]:
     try:
         result = parse_result_object(text)
     except (ValueError, TypeError) as exc:

@@ -3,26 +3,39 @@
 import asyncio
 import time
 from dataclasses import replace
+from typing import TypedDict
 
-from boxagent.domain.memory.models import MemoryIngestionCounts
+from boxagent.domain.conversation.contracts import SessionStore
+from boxagent.domain.conversation.models import ProductEvent
+from boxagent.domain.memory.contracts import MemoryJobStore, MemoryLog
+from boxagent.domain.memory.models import MemoryIngestionCounts, MemoryIngestionJob
 from boxagent.domain.memory.policy import redact_memory_source
+from boxagent.domain.memory.service import MemoryService
+
+
+class IngestionHealth(TypedDict):
+    closed: bool
+    active_jobs: int
+    job_statuses: dict[str, int]
 
 
 class MemoryIngestionCoordinator:
     version = "jev-observation-v1"
 
-    def __init__(self, conversation_store, job_store, *, service,
-                 max_attempts=3, retry_base_seconds=1.0, log=None,
-                 ):
+    def __init__(
+        self, conversation_store: SessionStore, job_store: MemoryJobStore, *,
+        service: MemoryService, max_attempts: int = 3, retry_base_seconds: float = 1.0,
+        log: MemoryLog | None = None,
+    ) -> None:
         self.conversation_store = conversation_store
         self.job_store = job_store
         self._service = service
         self.max_attempts = max_attempts
         self.retry_base_seconds = retry_base_seconds
         self.log = log or (lambda *_args, **_kwargs: None)
-        self.tasks = set()
-        self.active_job_ids = set()
-        self.session_locks = {}
+        self.tasks: set[asyncio.Task[None]] = set()
+        self.active_job_ids: set[str] = set()
+        self.session_locks: dict[str, asyncio.Lock] = {}
         self.closed = False
 
     async def start(self) -> None:
@@ -34,8 +47,9 @@ class MemoryIngestionCoordinator:
             if job.attempts < self.max_attempts:
                 self._schedule(job)
 
-    async def user_message_committed(self, *, session_id, interaction_id,
-                                     event, source_hash):
+    async def user_message_committed(
+        self, *, session_id: str, interaction_id: str, event: ProductEvent, source_hash: str
+    ) -> None:
         if self.closed:
             return
         job = await self.job_store.enqueue_job(
@@ -45,23 +59,23 @@ class MemoryIngestionCoordinator:
                 and job.attempts < self.max_attempts:
             self._schedule(job)
 
-    async def interaction_finalized(self, **_context):
+    async def interaction_finalized(self, **_context: object) -> None:
         """Narrative work is wired separately; admission starts at commit."""
         return None
 
-    def _schedule(self, job):
+    def _schedule(self, job: MemoryIngestionJob) -> None:
         if job.job_id in self.active_job_ids:
             return
         self.active_job_ids.add(job.job_id)
         task = asyncio.create_task(self._run(job))
         self.tasks.add(task)
 
-        def completed(done):
+        def completed(done: asyncio.Task[None]) -> None:
             self.tasks.discard(done)
             self.active_job_ids.discard(job.job_id)
         task.add_done_callback(completed)
 
-    async def _run(self, initial):
+    async def _run(self, initial: MemoryIngestionJob) -> None:
         lock = self.session_locks.setdefault(initial.session_id, asyncio.Lock())
         async with lock:
             current = initial
@@ -109,20 +123,20 @@ class MemoryIngestionCoordinator:
                 terminal = replace(
                     running,
                     status="skipped" if result["observation_count"] == 0 else "completed",
-                    updated_at=time.time(), result=result, next_retry_at=None)
+                    updated_at=time.time(), result=dict(result), next_retry_at=None)
                 await self.job_store.update_job(terminal)
                 self.log("memory_ingestion_completed", job_id=terminal.job_id,
                          session_id=terminal.session_id,
                          interaction_id=terminal.interaction_id, **result)
                 return
 
-    async def _ingest(self, job):
+    async def _ingest(self, job: MemoryIngestionJob) -> MemoryIngestionCounts:
         events = await self.conversation_store.read_events(job.session_id)
         target = next((item for item in events
                        if item.interaction_id == job.interaction_id
                        and item.type == "message.final"
                        and item.role == "user" and item.content), None)
-        if target is None:
+        if target is None or not target.content:
             return self._empty_counts()
         result = await self._service.observe_user_message(
             redact_memory_source(target.content),
@@ -149,9 +163,9 @@ class MemoryIngestionCoordinator:
         while self.tasks:
             await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
 
-    async def health(self):
+    async def health(self) -> IngestionHealth:
         jobs = await self.job_store.jobs()
-        statuses = {}
+        statuses: dict[str, int] = {}
         for job in jobs:
             statuses[job.status] = statuses.get(job.status, 0) + 1
         return {

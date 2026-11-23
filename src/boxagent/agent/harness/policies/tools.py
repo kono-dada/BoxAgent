@@ -4,11 +4,33 @@ import asyncio
 import base64
 import json
 import traceback
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Protocol
+from typing import NotRequired, Protocol, TypedDict
 
 from boxagent.agent.harness.policies.applications import computer_use_denial
+from boxagent.agent.runtime.contracts import ComputerUseSession, ToolPayload
 from boxagent.core.errors import redact
+
+
+class ToolLog(Protocol):
+    def __call__(self, kind: str, /, **data: object) -> None: ...
+
+
+class ToolObservation(TypedDict):
+    step: int
+    tool: str
+    app: str
+    success: bool
+    source: NotRequired[str]
+    screenshot: NotRequired[str | int]
+    attachments: NotRequired[list[Mapping[str, str | int]]]
+
+
+class ToolError(TypedDict):
+    step: int
+    tool: str
+    error: str
 
 
 class ApplicationTools(Protocol):
@@ -25,7 +47,7 @@ TOOL_LABELS = {
 }
 
 
-def model_content(response: dict, step: int, goal: str = "") -> list[dict]:
+def model_content(response: ToolPayload, step: int, goal: str = "") -> list[dict[str, str]]:
     content = [{"type": "inputText", "text": (
         f"本任务观察步骤编号：{step}。以下是这一次工具调用的实际返回。"
         f"引用本次返回作为完成依据时，evidence_steps 使用 {step}。"
@@ -51,8 +73,18 @@ def model_content(response: dict, step: int, goal: str = "") -> list[dict]:
 
 
 class ComputerUseToolGateway:
-    def __init__(self, session, *, output: Path, goal: str, report, log, is_stopped,
-                 image_store=None, application_tools: ApplicationTools | None = None):
+    def __init__(
+        self,
+        session: ComputerUseSession,
+        *,
+        output: Path,
+        goal: str,
+        report: Callable[[str, str], None],
+        log: ToolLog,
+        is_stopped: Callable[[], bool],
+        image_store: Callable[[bytes, str], Mapping[str, str | int]] | None = None,
+        application_tools: ApplicationTools | None = None,
+    ) -> None:
         self.session = session
         self.output = Path(output)
         self.goal = goal
@@ -63,13 +95,13 @@ class ComputerUseToolGateway:
         self.application_tools = application_tools
         self.application_tool_names: set[str] = set()
         self.lock = asyncio.Lock()
-        self.tool_specs = {}
-        self.observations = {}
-        self.tool_errors = []
+        self.tool_specs: dict[str, ToolPayload] = {}
+        self.observations: dict[int, ToolObservation] = {}
+        self.tool_errors: list[ToolError] = []
         self.active_app = ""
         self.actions = 0
 
-    def bind(self, tools):
+    def bind(self, tools: list[ToolPayload]) -> list[ToolPayload]:
         ordered = sorted(tools, key=lambda tool: tool["name"])
         self.tool_specs = {f"desktop_{tool['name']}": tool for tool in ordered}
         self.application_tool_names.clear()
@@ -85,7 +117,7 @@ class ComputerUseToolGateway:
                  "inputSchema": spec.get("inputSchema", {"type": "object", "properties": {}})}
                 for name, spec in self.tool_specs.items()]
 
-    async def call(self, name, arguments):
+    async def call(self, name: str, arguments: ToolPayload) -> ToolPayload:
         step = None
         try:
             async with self.lock:
@@ -107,10 +139,11 @@ class ComputerUseToolGateway:
                 operation = spec["name"]
                 self.actions += 1
                 step = self.actions
-                self.active_app = arguments.get("app", "")
+                self.active_app = str(arguments.get("app") or "")
                 self.report("tool", " · ".join(filter(None, [TOOL_LABELS.get(operation, operation),
                                                                self.active_app, f"第 {step} 步"])))
                 self.log("action", step=step, operation=operation, arguments=arguments)
+                response: ToolPayload
                 if name in self.application_tool_names and self.application_tools is not None:
                     result = await self.application_tools.call(name, arguments)
                     items = result.get("contentItems", [])
@@ -135,8 +168,9 @@ class ComputerUseToolGateway:
                                  if item.get("type") == "text")
                 failed = bool(response.get("isError", False))
                 self.log("tool_result", step=step, operation=operation, text=text, error=failed)
-                observation = {"step": step, "tool": operation, "app": self.active_app,
-                               "success": not failed}
+                observation: ToolObservation = {
+                    "step": step, "tool": operation, "app": self.active_app, "success": not failed
+                }
                 self.observations[step] = observation
                 (self.output / f"step-{step}.txt").write_text(redact(text), encoding="utf-8")
                 if failed:
@@ -157,7 +191,9 @@ class ComputerUseToolGateway:
             return {"success": False, "contentItems": [
                 {"type": "inputText", "text": str(exc) or "操作超时"}]}
 
-    def _save_images(self, step, response, observation):
+    def _save_images(
+        self, step: int, response: ToolPayload, observation: ToolObservation
+    ) -> None:
         for index, item in enumerate(response.get("content", [])):
             if item.get("type") != "image":
                 continue
@@ -175,7 +211,9 @@ class ComputerUseToolGateway:
             path.write_bytes(base64.b64decode(item["data"]))
             observation["screenshot"] = str(path)
 
-    async def observe_native_tool(self, operation: str, arguments: dict, response: dict) -> None:
+    async def observe_native_tool(
+        self, operation: str, arguments: ToolPayload, response: ToolPayload
+    ) -> None:
         """Record a completed native call without executing it a second time."""
         async with self.lock:
             name = f"desktop_{operation}"
@@ -187,17 +225,16 @@ class ComputerUseToolGateway:
             text = "\n".join(item["text"] for item in response.get("content", [])
                              if item.get("type") == "text")
             failed = bool(response.get("isError", False))
-            observation = {"step": step, "tool": operation, "app": self.active_app,
-                           "success": not failed, "source": "native_mcp"}
+            observation: ToolObservation = {
+                "step": step, "tool": operation, "app": self.active_app,
+                "success": not failed, "source": "native_mcp",
+            }
             self.observations[step] = observation
             self.log("action", step=step, operation=operation, arguments=arguments,
                      source="native_mcp")
             self.log("tool_result", step=step, operation=operation, text=text, error=failed,
                      source="native_mcp")
-            redacted_text = redact(text)
-            if not isinstance(redacted_text, str):
-                raise TypeError("观察文本脱敏结果必须是字符串")
-            (self.output / f"step-{step}.txt").write_text(redacted_text, encoding="utf-8")
+            (self.output / f"step-{step}.txt").write_text(redact(text), encoding="utf-8")
             if failed:
                 self.tool_errors.append({"step": step, "tool": operation, "error": text})
             else:

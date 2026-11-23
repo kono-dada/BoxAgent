@@ -1,25 +1,41 @@
 """Project the BoxAgent Skill catalog into Codex App Server."""
 
+from collections.abc import Awaitable
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
+
+from boxagent.domain.skill.service import SkillRuntimePolicy
 
 
 class SkillPolicyProvider(Protocol):
-    def runtime_policy(self) -> None: ...
+    def runtime_policy(self) -> SkillRuntimePolicy: ...
+
+
+type _RpcObject = dict[str, Any]
+
+
+class _Rpc(Protocol):
+    def __call__(
+        self, method: str, params: _RpcObject, /, timeout: float = 120
+    ) -> Awaitable[_RpcObject]: ...
+
+
+class _Log(Protocol):
+    def __call__(self, event: str, /, **data: object) -> None: ...
 
 
 class CodexSkillAdapter:
     """Keep Codex discovery aligned with BoxAgent's path-based allowlist."""
 
-    def __init__(self, service: SkillPolicyProvider, *, workspace: Path, log):
+    def __init__(self, service: SkillPolicyProvider, *, workspace: Path, log: _Log) -> None:
         self.service = service
         self.workspace = Path(workspace).resolve()
         self.log = log
         self.signature: tuple[str, ...] = ()
-        self.inventory = []
+        self.inventory: list[_RpcObject] = []
         self.initialized = False
 
-    async def sync(self, rpc, *, force=False):
+    async def sync(self, rpc: _Rpc, *, force: bool = False) -> list[_RpcObject]:
         policy = self.service.runtime_policy()
         if self.initialized and not force and policy.signature == self.signature:
             return self.inventory
@@ -48,7 +64,7 @@ class CodexSkillAdapter:
             roots=[str(root) for root in policy.roots])
         return skills
 
-    async def _list(self, rpc):
+    async def _list(self, rpc: _Rpc) -> list[_RpcObject]:
         result = await rpc("skills/list", {
             "cwds": [str(self.workspace)], "forceReload": True,
         })
@@ -64,7 +80,7 @@ class CodexSkillAdapter:
         return list(entry.get("skills", []))
 
     @staticmethod
-    def _resolved_path(value):
+    def _resolved_path(value: object) -> Path | None:
         if not isinstance(value, str) or not value:
             return None
         return Path(value).resolve()

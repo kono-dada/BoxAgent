@@ -1,82 +1,131 @@
 """Lease task-scoped sessions from one long-lived Codex App Server."""
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import NotRequired, Protocol, TypedDict, Unpack
 
-from boxagent.agent.runtime.contracts import ToolCall, ToolObservationSink
-from boxagent.agent.runtime.models import ModelProfile
+from boxagent.agent.runtime.contracts import ToolCall, ToolObservationSink, ToolPayload
+from boxagent.agent.runtime.models import ModelProfile, RuntimeMessage
 from boxagent.domain.skill import SkillService
 from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
+from boxagent.infrastructure.runtimes.codex.windows_skill import WindowsSkill
+
+type _Approve = Callable[[ToolPayload], Awaitable[bool]]
+type _ContextSynced = Callable[[Sequence[RuntimeMessage]], object]
 
 
 class RuntimeLog(Protocol):
-    def __call__(self, event: str, **data: object) -> None: ...
+    def __call__(self, event: str, /, **data: object) -> None: ...
 
 
 class PermissionCheck(Protocol):
-    def __call__(self, params: dict, *, stopped: bool = False) -> bool: ...
+    def __call__(self, params: ToolPayload, /, *, stopped: bool = False) -> bool: ...
 
 
 class RuntimeServerFactory(Protocol):
     def __call__(self, *, output: Path, workspace: Path, model_profile: ModelProfile,
                  permission_check: PermissionCheck, codex_home: Path | None,
                  skill_service: SkillService | None, runtime_resolver: Callable[[], Path] | None,
-                 on_tool_call: ToolCall, approve: Callable[[dict], bool],
+                 on_tool_call: ToolCall, approve: _Approve,
                  current_app: Callable[[], str], report: Callable[[str, str], None],
                  log: RuntimeLog, auto_approve: bool = True,
                  on_tool_observed: ToolObservationSink | None = None) -> CodexAppServer: ...
 
 
+class _TaskCallbacks(TypedDict):
+    on_tool_call: ToolCall
+    approve: _Approve
+    current_app: Callable[[], str]
+    report: Callable[[str, str], None]
+    log: RuntimeLog
+    auto_approve: NotRequired[bool]
+    on_tool_observed: NotRequired[ToolObservationSink | None]
+
+
+class _StructuredTurn(TypedDict):
+    model: str
+    instructions: str
+    query: str
+    output_schema: dict[str, object]
+
+
+class _TaskTurn(_StructuredTurn, total=False):
+    history: Sequence[RuntimeMessage]
+    history_delta: Sequence[RuntimeMessage]
+    evidence_context: str
+
+
+class _StandaloneSession(_TaskCallbacks):
+    output: Path
+    runtime_resolver: NotRequired[Callable[[], Path] | None]
+    workspace: NotRequired[str | Path]
+    model_profile: NotRequired[ModelProfile | None]
+    permission_check: NotRequired[PermissionCheck | None]
+    codex_home: NotRequired[str | Path | None]
+    skill_service: NotRequired[SkillService | None]
+    windows_skill_loader: NotRequired[Callable[[], WindowsSkill] | None]
+    computer_use_enabled: NotRequired[bool]
+
+
 class CodexTaskSession:
     """A task-local view over the shared App Server and Codex thread."""
 
-    def __init__(self, host, callbacks, *, product_session_id=None,
-                 runtime_thread_id=None, on_thread_bound=None, on_context_synced=None):
+    def __init__(
+        self,
+        host: CodexRuntimeHost,
+        callbacks: _TaskCallbacks,
+        *,
+        product_session_id: str | None = None,
+        runtime_thread_id: str | None = None,
+        on_thread_bound: Callable[[str], object] | None = None,
+        on_context_synced: _ContextSynced | None = None,
+    ) -> None:
         self.host = host
         self.callbacks = callbacks
         self.product_session_id = product_session_id
         self.runtime_thread_id = runtime_thread_id
         self.on_thread_bound = on_thread_bound
         self.on_context_synced = on_context_synced
-        self.server = None
+        self.server: CodexAppServer | None = None
         self.acquired = False
 
     @property
-    def process(self):
+    def process(self) -> asyncio.subprocess.Process | None:
         return self.server.process if self.server else None
 
     @property
-    def cleanup_status(self):
+    def cleanup_status(self) -> str:
         return self.server.cleanup_status if self.server else "not_started"
 
     @property
-    def thread_id(self):
+    def thread_id(self) -> str | None:
         return self.server.thread_id if self.server else None
 
     @property
-    def tools(self):
+    def tools(self) -> list[ToolPayload]:
         return self.server.tools if self.server else []
 
     @tools.setter
-    def tools(self, value):
+    def tools(self, value: list[ToolPayload]) -> None:
         if self.server is None:
             raise RuntimeError("Codex Runtime 尚未启动")
         self.server.tools = value
 
-    async def start(self):
+    async def start(self) -> list[ToolPayload]:
         self.server = await self.host.acquire(self.callbacks)
         self.acquired = True
         return self.server.discovered_tools
 
-    async def call_tool(self, operation, arguments):
+    async def call_tool(self, operation: str, arguments: ToolPayload) -> ToolPayload:
         if self.server is None:
             raise RuntimeError("Codex Runtime 尚未启动")
         return await self.server.call_tool(operation, arguments)
 
-    async def run_codex_turn(self, **arguments):
+    async def run_codex_turn(self, **arguments: Unpack[_TaskTurn]) -> str:
         if self.server is None:
             raise RuntimeError("Codex Runtime 尚未启动")
         return await self.server.run_codex_turn(
@@ -86,7 +135,7 @@ class CodexTaskSession:
             product_session_id=self.product_session_id,
             **arguments)
 
-    async def run_isolated_structured_turn(self, **arguments):
+    async def run_isolated_structured_turn(self, **arguments: Unpack[_StructuredTurn]) -> str:
         if self.server is None:
             raise RuntimeError("Codex Runtime 尚未启动")
         return await self.server.run_isolated_structured_turn(**arguments)
@@ -104,10 +153,18 @@ class CodexTaskSession:
 class CodexRuntimeHost:
     """Application-scoped owner of the Codex process and reusable thread."""
 
-    def __init__(self, *, output, workspace, model_profile, permission_check,
-                 codex_home=None,
-                 skill_service=None,
-                 runtime_resolver=None, server_factory: RuntimeServerFactory = CodexAppServer):
+    def __init__(
+        self,
+        *,
+        output: str | Path,
+        workspace: str | Path,
+        model_profile: ModelProfile,
+        permission_check: PermissionCheck,
+        codex_home: str | Path | None = None,
+        skill_service: SkillService | None = None,
+        runtime_resolver: Callable[[], Path] | None = None,
+        server_factory: RuntimeServerFactory = CodexAppServer,
+    ) -> None:
         self.output = Path(output)
         self.workspace = Path(workspace)
         self.model_profile = model_profile
@@ -116,18 +173,23 @@ class CodexRuntimeHost:
         self.skill_service = skill_service
         self.runtime_resolver = runtime_resolver
         self.server_factory = server_factory
-        self.server = None
+        self.server: CodexAppServer | None = None
         self.lock = asyncio.Lock()
         self.closed = False
 
-    def create_session(self, **callbacks):
+    def create_session(
+        self,
+        *,
+        output: Path | None = None,
+        product_session_id: str | None = None,
+        runtime_thread_id: str | None = None,
+        on_thread_bound: Callable[[str], object] | None = None,
+        on_context_synced: _ContextSynced | None = None,
+        **callbacks: Unpack[_TaskCallbacks],
+    ) -> CodexTaskSession:
         # Task artifacts are owned by the Harness. The shared process keeps its
         # own stderr under the application-scoped runtime directory.
-        callbacks.pop("output", None)
-        product_session_id = callbacks.pop("product_session_id", None)
-        runtime_thread_id = callbacks.pop("runtime_thread_id", None)
-        on_thread_bound = callbacks.pop("on_thread_bound", None)
-        on_context_synced = callbacks.pop("on_context_synced", None)
+        del output
         return CodexTaskSession(
             self, callbacks, product_session_id=product_session_id,
             runtime_thread_id=runtime_thread_id,
@@ -138,7 +200,7 @@ class CodexRuntimeHost:
         if self.closed:
             raise RuntimeError("Codex Runtime 已关闭")
 
-    async def acquire(self, callbacks):
+    async def acquire(self, callbacks: _TaskCallbacks) -> CodexAppServer:
         await self.lock.acquire()
         try:
             if self.closed:
@@ -170,15 +232,15 @@ class CodexRuntimeHost:
                 self.lock.release()
             raise
 
-    async def release(self, server):
+    async def release(self, server: CodexAppServer | None) -> None:
         try:
-            if server is self.server:
+            if server is not None and server is self.server:
                 await server.release_task()
         finally:
             if self.lock.locked():
                 self.lock.release()
 
-    async def sync_skills(self):
+    async def sync_skills(self) -> list[ToolPayload]:
         async with self.lock:
             if self.closed:
                 raise RuntimeError("Codex Runtime 已关闭")
@@ -196,6 +258,6 @@ class CodexRuntimeHost:
                 await self.server.close()
 
 
-def create_codex_session(**callbacks):
+def create_codex_session(**callbacks: Unpack[_StandaloneSession]) -> CodexAppServer:
     """Create an isolated session for tests and standalone task execution."""
     return CodexAppServer(**callbacks)

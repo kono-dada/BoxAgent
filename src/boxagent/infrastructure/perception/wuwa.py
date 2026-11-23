@@ -177,8 +177,8 @@ class WuwaVision:
         with Image.open(BytesIO(data)) as source:
             # Ignore fixed HUD borders and compare broad spatial colours, not JPEG bytes.
             width, height = source.size
-            signature = source.crop((width * .2, height * .12, width * .8, height * .85))
-            signature = signature.resize((24, 16), Image.Resampling.BOX).convert("RGB").tobytes()
+            scene = source.crop((width * .2, height * .12, width * .8, height * .85))
+            signature = scene.resize((24, 16), Image.Resampling.BOX).convert("RGB").tobytes()
         if self.defer_quest:
             return GameCapture(self._thumbnail(data), captured_at=captured_at,
                                quest_image=quest_region(data), scene_signature=signature)
@@ -208,7 +208,8 @@ class WuwaVision:
         return isinstance(result, dict) and result.get("valid") is True
 
     def _thumbnail(self, data: bytes) -> bytes:
-        with Image.open(BytesIO(data)) as image, BytesIO() as output:
+        with Image.open(BytesIO(data)) as source, BytesIO() as output:
+            image: Image.Image = source
             if self.cloud_scene is not None:
                 # The client stamps its account feature code along the bottom edge.
                 image = image.crop((0, 0, image.width, round(image.height * .975)))

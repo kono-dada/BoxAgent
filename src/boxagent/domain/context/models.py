@@ -6,8 +6,9 @@ generation: entries before it stay in the timeline but leave the current
 composition.
 """
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Self
+from typing import Any, Self, TypedDict
 
 LEDGER_VERSION = 1
 
@@ -60,7 +61,7 @@ class LedgerEvent:
                    data=dict(value.get("data") or {}))
 
 
-def distribute_percent(values, *, digits=1):
+def distribute_percent(values: Sequence[int], *, digits: int = 1) -> list[float]:
     """Largest-remainder rounding so the shares always sum to exactly 100."""
     total = sum(values)
     if total <= 0:
@@ -76,7 +77,69 @@ def distribute_percent(values, *, digits=1):
     return [item / scale for item in floors]
 
 
-def _entry(event: LedgerEvent) -> dict[str, Any]:
+class _Entry(TypedDict):
+    seq: int
+    type: str
+    time: float
+    category: str
+    label: str
+    role: str
+    chars: int
+    tokens: int
+    preview: str
+
+
+class _CompositionRow(TypedDict):
+    key: str
+    label: str
+    count: int
+    chars: int
+    tokens: int
+    percent: float
+
+
+@dataclass
+class _Turn:
+    channel: str
+    started_at: float
+    user: str = ""
+    environment_count: int = 0
+    memory: dict[str, Any] | None = None
+    memory_recorded_at: float | None = None
+    response_created_at: float | None = None
+    assistant_at: float | None = None
+    tool_calls: list[str] = field(default_factory=list)
+
+
+class _TurnMemory(TypedDict):
+    status: str
+    ms: int | float | None
+    chars: int
+    late: bool
+
+
+class _TurnRow(TypedDict):
+    index: int
+    channel: str
+    started_at: float
+    user: str
+    environment_count: int
+    memory: _TurnMemory | None
+    response_ms: int | None
+    assistant_ms: int | None
+    tool_calls: list[str]
+
+
+class _RequestRow(TypedDict):
+    seq: int
+    time: float
+    entries: list[int]
+    added: list[int]
+    removed: list[int]
+    estimated: bool
+
+
+def _entry(event: LedgerEvent) -> _Entry:
     content = str(event.data.get("content") or "")
     preview = content.replace("\n", " ").strip()
     if len(preview) > PREVIEW_CHARS:
@@ -95,92 +158,86 @@ def _entry(event: LedgerEvent) -> dict[str, Any]:
     }
 
 
-def _composition(entries):
-    rows = []
+def _composition(entries: Sequence[_Entry]) -> list[_CompositionRow]:
+    rows: list[_CompositionRow] = []
     for key, label in CATEGORIES:
         selected = [item for item in entries if item["category"] == key]
         rows.append({
             "key": key, "label": label, "count": len(selected),
             "chars": sum(item["chars"] for item in selected),
             "tokens": sum(item["tokens"] for item in selected),
+            "percent": 0.0,
         })
-    for row, percent in zip(rows, distribute_percent([row[(
-        "tokens"
-    )] for row in rows]), strict=False):
+    for row, percent in zip(
+        rows, distribute_percent([row["tokens"] for row in rows]), strict=True
+    ):
         row["percent"] = percent
     return rows
 
 
-def _turns(events):
+def _turns(events: Iterable[LedgerEvent]) -> list[_TurnRow]:
     """Fold lifecycle facts into per-turn latency rows."""
-    turns, current = [], None
-
-    def open_turn(event, channel):
-        nonlocal current
-        current = {"index": len(turns) + 1, "started_at": event.time,
-                   "channel": channel, "user": "", "environment_count": 0,
-                   "memory": None, "response_created_at": None,
-                   "assistant_at": None, "tool_calls": []}
-        turns.append(current)
+    turns: list[_Turn] = []
+    current: _Turn | None = None
 
     for event in events:
         data = event.data
         category = data.get("category")
         if event.type == "turn/start":
-            open_turn(event, data.get("channel") or "text")
+            current = _Turn(channel=data.get("channel") or "text", started_at=event.time)
+            turns.append(current)
         elif current is None:
             continue
         elif event.type == "user/message" and category == "user":
-            current["user"] = str(data.get("content") or "")[:80]
+            current.user = str(data.get("content") or "")[:80]
         elif event.type == "system/message" and category == "environment":
-            current["environment_count"] += 1
+            current.environment_count += 1
         elif event.type == "turn/prepare":
-            current["memory"] = dict(data.get("memory") or {})
-            current["memory"]["recorded_at"] = event.time
-            current["prepare_wall_ms"] = data.get("wall_ms")
-        elif event.type == "response/created" and current["response_created_at"] is None:
-            current["response_created_at"] = event.time
-        elif event.type == "assistant/message" and current["assistant_at"] is None:
-            current["assistant_at"] = event.time
+            current.memory = dict(data.get("memory") or {})
+            current.memory_recorded_at = event.time
+        elif event.type == "response/created" and current.response_created_at is None:
+            current.response_created_at = event.time
+        elif event.type == "assistant/message" and current.assistant_at is None:
+            current.assistant_at = event.time
         elif event.type == "tool/call":
-            current["tool_calls"].append(str(data.get("name") or ""))
+            current.tool_calls.append(str(data.get("name") or ""))
 
-    rows = []
-    for turn in turns:
-        def elapsed(moment, origin=turn["started_at"]):
+    rows: list[_TurnRow] = []
+    for index, turn in enumerate(turns, start=1):
+        def elapsed(moment: float | None, origin: float = turn.started_at) -> int | None:
             return None if moment is None else round((moment - origin) * 1000)
-        memory = turn["memory"]
-        memory_row = None
+        memory = turn.memory
+        memory_row: _TurnMemory | None = None
         if memory is not None:
-            injected_at = memory.get("recorded_at")
+            injected_at = turn.memory_recorded_at
             memory_row = {
                 "status": memory.get("status", ""),
                 "ms": memory.get("ms"),
                 "chars": memory.get("chars", 0),
                 # A packet appended after the provider created the response
                 # cannot influence that response.
-                "late": (turn["response_created_at"] is not None
+                "late": (turn.response_created_at is not None
                          and injected_at is not None
-                         and injected_at > turn["response_created_at"]),
+                         and injected_at > turn.response_created_at),
             }
         rows.append({
-            "index": turn["index"], "channel": turn["channel"],
-            "started_at": turn["started_at"], "user": turn["user"],
-            "environment_count": turn["environment_count"],
+            "index": index, "channel": turn.channel,
+            "started_at": turn.started_at, "user": turn.user,
+            "environment_count": turn.environment_count,
             "memory": memory_row,
-            "response_ms": elapsed(turn["response_created_at"]),
-            "assistant_ms": elapsed(turn["assistant_at"]),
-            "tool_calls": turn["tool_calls"],
+            "response_ms": elapsed(turn.response_created_at),
+            "assistant_ms": elapsed(turn.assistant_at),
+            "tool_calls": turn.tool_calls,
         })
     return rows
 
 
-def project_context(session_id: str, events) -> dict[str, Any]:
+def project_context(session_id: str, events: Iterable[LedgerEvent]) -> dict[str, Any]:
     """Return the current composition and the full per-turn timeline."""
-    events = sorted(events, key=lambda item: item.seq)
-    rebuilds = [item for item in events if item.type == "context/rebuild"]
+    ordered = sorted(events, key=lambda item: item.seq)
+    rebuilds = [item for item in ordered if item.type == "context/rebuild"]
     start = rebuilds[-1].seq if rebuilds else 0
-    current = [item for item in events if item.seq >= start]
+    current = [item for item in ordered if item.seq >= start]
     bound: dict[str, int] = {}
     expired: set[int] = set()
     deleted: set[int] = set()
@@ -192,21 +249,23 @@ def project_context(session_id: str, events) -> dict[str, Any]:
             if match:
                 bound[item.data["item_id"]] = match.seq
         elif item.type in {"context/expired", "context/deleted"}:
-            seq = bound.get(item.data.get("item_id"))
+            item_id = item.data.get("item_id")
+            seq = bound.get(item_id) if isinstance(item_id, str) else None
             if seq is not None:
                 (expired if item.type == "context/expired" else deleted).add(seq)
     entries = [_entry(item) for item in current if item.type in SURFACE_TYPES
                and item.seq not in expired | deleted]
     provider_entries = [_entry(item) for item in current if item.type in SURFACE_TYPES
                         and item.seq not in deleted]
-    requests = []
+    requests: list[_RequestRow] = []
     active: list[int] = []
     previous: list[int] = []
     for item in current:
         if item.type in SURFACE_TYPES:
             active.append(item.seq)
         elif item.type == "context/expired":
-            remove = bound.get(item.data.get("item_id"))
+            item_id = item.data.get("item_id")
+            remove = bound.get(item_id) if isinstance(item_id, str) else None
             active = [seq for seq in active if seq != remove]
         elif item.type == "response/requested":
             requests.append({"seq": item.seq, "time": item.time, "entries": list(active),
@@ -226,7 +285,7 @@ def project_context(session_id: str, events) -> dict[str, Any]:
         "model": header.get("model", ""),
         "generation": len(rebuilds),
         "generation_started_at": rebuilds[-1].time if rebuilds else None,
-        "event_count": len(events),
+        "event_count": len(ordered),
         "totals": {"chars": total_chars, "tokens": total_tokens,
                    "entries": len(entries)},
         "composition": composition,
@@ -236,7 +295,7 @@ def project_context(session_id: str, events) -> dict[str, Any]:
         "expired_count": len(expired),
         "delete_ack_count": len(deleted),
         "turns": _turns(current),
-        "all_turn_count": len(_turns(events)),
+        "all_turn_count": len(_turns(ordered)),
         "accumulation": {
             "environment": counts.get("environment", 0),
             "memory": counts.get("memory", 0),

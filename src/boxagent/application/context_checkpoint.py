@@ -4,8 +4,12 @@ import asyncio
 import hashlib
 import json
 import time
+from collections.abc import Iterable
+from typing import Protocol
 
+from boxagent.agent.runtime.contracts import SessionLog
 from boxagent.core.ids import new_checkpoint_id, new_event_id, new_segment_id
+from boxagent.domain.conversation.contracts import ContextCheckpointGenerator, SessionStore
 from boxagent.domain.conversation.models import (
     ContextCheckpoint,
     ProductEvent,
@@ -13,12 +17,21 @@ from boxagent.domain.conversation.models import (
 )
 
 
+class CheckpointProjection(Protocol):
+    async def checkpoint_created(
+        self, checkpoint: ContextCheckpoint, segment: RuntimeContextSegment
+    ) -> object: ...
+
+
 class ContextCheckpointCoordinator:
     """Compact completed Product messages without delaying the foreground reply."""
 
-    def __init__(self, store, generator, *, runtime="qwen_realtime",
-                 trigger_characters=18000, source_character_limit=32000,
-                 log=None, checkpoint_sinks=()):
+    def __init__(
+        self, store: SessionStore, generator: ContextCheckpointGenerator, *,
+        runtime: str = "qwen_realtime", trigger_characters: int = 18000,
+        source_character_limit: int = 32000, log: SessionLog | None = None,
+        checkpoint_sinks: Iterable[CheckpointProjection] = (),
+    ) -> None:
         if trigger_characters <= 0 or source_character_limit <= 0:
             raise ValueError("Checkpoint 字符预算必须大于 0")
         if source_character_limit < trigger_characters:
@@ -30,15 +43,16 @@ class ContextCheckpointCoordinator:
         self.source_character_limit = source_character_limit
         self.log = log or (lambda *_args, **_kwargs: None)
         self.checkpoint_sinks = tuple(checkpoint_sinks)
-        self.tasks = set()
-        self.locks = {}
+        self.tasks: set[asyncio.Task[None]] = set()
+        self.locks: dict[str, asyncio.Lock] = {}
         self.closed = False
 
     async def start(self) -> None:
         self.closed = False
 
-    async def interaction_finalized(self, *, session_id, interaction_id,
-                                    source_hash):
+    async def interaction_finalized(
+        self, *, session_id: str, interaction_id: str, source_hash: str
+    ) -> None:
         """Queue work and return immediately; generation never blocks a reply."""
         del source_hash
         if self.closed:
@@ -47,7 +61,7 @@ class ContextCheckpointCoordinator:
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
-    async def _run(self, session_id, interaction_id):
+    async def _run(self, session_id: str, interaction_id: str) -> None:
         lock = self.locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             try:
@@ -58,7 +72,7 @@ class ContextCheckpointCoordinator:
                 self.log("context_checkpoint_failed", session_id=session_id,
                          interaction_id=interaction_id, error=repr(exc))
 
-    async def _checkpoint_ready_prefixes(self, session_id):
+    async def _checkpoint_ready_prefixes(self, session_id: str) -> None:
         while not self.closed:
             previous = await self.store.latest_checkpoint(session_id, self.runtime)
             cursor = previous.covered_through_sequence if previous else 0
@@ -68,7 +82,7 @@ class ContextCheckpointCoordinator:
                              and event.role in {"user", "assistant"}
                              and isinstance(event.content, str)
                              and event.content.strip())
-            if sum(len(item.content) for item in messages) < self.trigger_characters:
+            if sum(len(item.content or "") for item in messages) < self.trigger_characters:
                 return
             batch = self._bounded_prefix(messages)
             content = await self.generator.generate(previous=previous, messages=batch)
@@ -134,10 +148,11 @@ class ContextCheckpointCoordinator:
             for sink in self.checkpoint_sinks:
                 await sink.checkpoint_created(checkpoint, segment)
 
-    def _bounded_prefix(self, messages):
-        batch, used = [], 0
+    def _bounded_prefix(self, messages: Iterable[ProductEvent]) -> tuple[ProductEvent, ...]:
+        batch: list[ProductEvent] = []
+        used = 0
         for message in messages:
-            size = len(message.content)
+            size = len(message.content or "")
             if batch and used + size > self.source_character_limit:
                 break
             batch.append(message)
@@ -145,7 +160,7 @@ class ContextCheckpointCoordinator:
         return tuple(batch)
 
     @staticmethod
-    def _validate_content(content, messages=()):
+    def _validate_content(content: object, messages: Iterable[ProductEvent] = ()) -> None:
         if not isinstance(content, dict):
             raise ValueError("Checkpoint Generator 必须返回 JSON object")
         required = {"summary", "user_facts", "decisions", "outcomes",

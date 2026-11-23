@@ -4,7 +4,8 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Literal
+from collections.abc import Callable, Iterable
+from typing import Any, Literal, Protocol
 from uuid import uuid4
 
 from boxagent.agent.harness.wechat_tools import WeChatToolGateway
@@ -12,7 +13,7 @@ from boxagent.application.camera import CameraInteractionService
 from boxagent.application.event_runs import ExternalEventIntegration
 from boxagent.application.game_news import GameNewsMonitor
 from boxagent.application.lol_companion import LolCompanion
-from boxagent.application.memory import DisabledMemoryModule
+from boxagent.application.memory import DisabledMemoryModule, MemoryModule
 from boxagent.application.skill_authoring import (
     SkillAuthoringService,
     has_explicit_skill_authorization,
@@ -21,19 +22,28 @@ from boxagent.application.skill_authoring import (
 from boxagent.application.web_research import WebResearchService
 from boxagent.core.events import StateEvents
 from boxagent.core.ids import new_event_id
-from boxagent.core.states import Snapshot
+from boxagent.core.states import Executor, Snapshot, Voice
 from boxagent.domain.context import project_context
+from boxagent.domain.context.contracts import ContextObserver
+from boxagent.domain.context.models import LedgerEvent
 from boxagent.domain.conversation.models import InteractionContext, ProductEvent
 from boxagent.domain.conversation.service import ConversationService
 from boxagent.domain.events.models import EventBatch, EventDecision
-from boxagent.domain.execution.service import ExecutionService
+from boxagent.domain.execution.service import ExecutionService, ExecutorFactory
 from boxagent.domain.interaction.delegation import delegation_exclusion
-from boxagent.domain.interaction.service import InteractionService
-from boxagent.domain.memory.contracts import MemoryUnavailable
+from boxagent.domain.interaction.service import (
+    InteractionService,
+    VoiceFactory,
+    _HistoryBuilder,
+    _TurnPreparation,
+)
+from boxagent.domain.memory.contracts import BackendRecord, MemoryUnavailable
+from boxagent.domain.memory.policy import require_memory_ids
+from boxagent.domain.memory.service import MemoryRecall
 from boxagent.domain.memory.visual import requests_visual_memory
 from boxagent.domain.notification import NotificationOutbox
 from boxagent.domain.notification.models import NotificationItem
-from boxagent.domain.perception.service import PerceptionService
+from boxagent.domain.perception.service import PerceptionObserver, PerceptionService
 from boxagent.domain.proactivity.game_news import Game, GameNews
 from boxagent.domain.proactivity.lol_knowledge import LolKnowledge, LolKnowledgeKind
 from boxagent.domain.skill import SkillDraftStatus
@@ -44,18 +54,44 @@ from boxagent.domain.web.game_context import game_reference_question, preferred_
 logger = logging.getLogger(__name__)
 
 
+class RuntimeResource(Protocol):
+    async def start(self) -> None: ...
+
+    async def close(self) -> None: ...
+
+
+class TaskTraceReader(Protocol):
+    def read(self, task_id: str) -> dict[str, object]: ...
+
+
+class ContextHistoryReader(Protocol):
+    def read(self, session_id: str) -> list[LedgerEvent]: ...
+
 
 class BoxAgentApplication:
     """Own feature services and expose commands consumed by the native host."""
 
-    def __init__(self, publish, executor_factory, voice_factory, *, memory=None,
-                 conversation_service=None, runtime_resources=(),
-                 voice_history_builder=None, skill_service: SkillService | None = None,
-                 skill_authoring: SkillAuthoringService | None = None, task_trace_reader=None,
-                 notification_outbox=None, context_ledger=None,
-                 context_observer=None, context_history=None, turn_preparer=None,
-                 web_research: WebResearchService | None = None,
-                 lol_knowledge: LolKnowledge | None = None):
+    def __init__(
+        self,
+        publish: Callable[[dict[str, object]], None],
+        executor_factory: ExecutorFactory,
+        voice_factory: VoiceFactory | None,
+        *,
+        memory: MemoryModule | DisabledMemoryModule | None = None,
+        conversation_service: ConversationService | None = None,
+        runtime_resources: Iterable[RuntimeResource] = (),
+        voice_history_builder: _HistoryBuilder | None = None,
+        skill_service: SkillService | None = None,
+        skill_authoring: SkillAuthoringService | None = None,
+        task_trace_reader: TaskTraceReader | None = None,
+        notification_outbox: NotificationOutbox | None = None,
+        context_ledger: ContextHistoryReader | None = None,
+        context_observer: ContextObserver | None = None,
+        context_history: ContextHistoryReader | None = None,
+        turn_preparer: _TurnPreparation | None = None,
+        web_research: WebResearchService | None = None,
+        lol_knowledge: LolKnowledge | None = None,
+    ) -> None:
         self.events = StateEvents(publish)
         self.camera: CameraInteractionService | None = None
         self.conversation_service = conversation_service or ConversationService()
@@ -72,7 +108,7 @@ class BoxAgentApplication:
         self.context_ledger = context_ledger
         self.context_observer = context_observer
         self.context_history = context_history
-        self.context_cache = {}
+        self.context_cache: dict[str, tuple[tuple[int, int, float], dict[str, object]]] = {}
         self.perception_service = PerceptionService(self.events)
         self.interaction_service = InteractionService(
             self.events, voice_factory, self.handle_tool,
@@ -140,34 +176,34 @@ class BoxAgentApplication:
         return self.events.state
 
     @property
-    def job(self):
+    def job(self) -> asyncio.Task[dict[str, object]] | None:
         return self.execution_service.job
 
     @property
-    def executor(self):
+    def executor(self) -> Executor | None:
         return self.execution_service.executor
 
     @property
-    def last_result(self):
+    def last_result(self) -> dict[str, object]:
         return self.execution_service.last_result
 
     @property
-    def voice(self):
+    def voice(self) -> Voice | None:
         return self.interaction_service.voice
 
     @property
-    def voice_task(self):
+    def voice_task(self) -> asyncio.Task[None] | None:
         return self.interaction_service.task
 
     @property
-    def observer(self):
+    def observer(self) -> PerceptionObserver | None:
         return self.perception_service.observer
 
     @observer.setter
-    def observer(self, value):
+    def observer(self, value: PerceptionObserver | None) -> None:
         self.perception_service.observer = value
 
-    def emit(self, kind: str, **changes: object) -> None:
+    def emit(self, kind: str, /, **changes: object) -> None:
         self.events.emit(kind, **changes)
 
     async def toggle_context(self) -> None:
@@ -243,10 +279,10 @@ class BoxAgentApplication:
     async def wake_voice(self, greeting: str) -> None:
         await self.interaction_service.wake(greeting)
 
-    async def start_task(self, goal, *, from_text=False):
+    async def start_task(self, goal: object, *, from_text: bool = False) -> dict[str, object]:
         return await self.execution_service.start(goal, from_text=from_text)
 
-    async def submit_text(self, goal):
+    async def submit_text(self, goal: object) -> dict[str, object]:
         if self.interaction_service.voice_factory is None:
             return await self.execution_service.submit_text(goal)
         confirmation = await self._pending_skill_confirmation(goal)
@@ -256,8 +292,9 @@ class BoxAgentApplication:
         await self.deliver_pending_notifications()
         return result
 
-    async def _pending_skill_confirmation(self, goal):
+    async def _pending_skill_confirmation(self, goal: object) -> dict[str, object] | None:
         if (self.skill_authoring is None
+                or not isinstance(goal, str)
                 or not is_pending_skill_confirmation(goal)):
             return None
         session = await self.conversation_service.active_session()
@@ -269,11 +306,11 @@ class BoxAgentApplication:
         if draft is None:
             return None
 
-        async def install(interaction):
+        async def install(interaction: InteractionContext) -> str:
             if draft.status == SkillDraftStatus.PREPARING:
                 return "Skill 草稿还在后台生成，完成后我会主动提醒你。"
             result = await self.install_skill_draft("", interaction=interaction)
-            return result.get("message", "Skill 已安装。")
+            return str(result.get("message", "Skill 已安装。"))
 
         return await self.interaction_service.submit_host_text(goal, install)
 
@@ -433,13 +470,13 @@ class BoxAgentApplication:
             "notification_unread": False,
         }
 
-    async def run_job(self, goal):
+    async def run_job(self, goal: str) -> dict[str, object]:
         return await self.execution_service._run(goal)
 
-    def progress(self, text):
+    def progress(self, text: str) -> None:
         self.execution_service.progress(text)
 
-    async def approve(self, params):
+    async def approve(self, params: dict[str, object]) -> bool:
         return await self.execution_service.approve(params)
 
     async def answer_approval(self, allowed: bool) -> None:
@@ -454,16 +491,16 @@ class BoxAgentApplication:
     async def stop_voice(self) -> None:
         await self.interaction_service.stop()
 
-    async def remember_memory(self, content, *, source="explicit"):
+    async def remember_memory(self, content: object, *, source: str = "explicit") -> BackendRecord:
         return await self.memory.remember(content, source=source)
 
-    async def recall_memory(self, query, *, top_k=5):
-        return await self.memory.recall(query, top_k=top_k)
+    async def recall_memory(self, query: object, *, top_k: int = 5) -> dict[str, object]:
+        return dict(await self.memory.recall(query, top_k=top_k))
 
     async def memory_evidence(self, memory_id: str) -> dict[str, Any]:
         return await self.memory.visual_evidence(memory_id)
 
-    async def _context_events(self, session_id):
+    async def _context_events(self, session_id: str) -> tuple[list[LedgerEvent], str]:
         """Prefer the live ledger; fall back to trace reconstruction for old Sessions."""
         events = (await asyncio.to_thread(self.context_ledger.read, session_id)
                   if self.context_ledger is not None else [])
@@ -472,7 +509,7 @@ class BoxAgentApplication:
         return (await asyncio.to_thread(self.context_history.read, session_id),
                 "trace_replay")
 
-    async def context_snapshot(self, session_id=""):
+    async def context_snapshot(self, session_id: str = "") -> dict[str, object]:
         """Project the Session Context Ledger for the admin Context viewer."""
         if not session_id:
             active = await self.conversation_service.active_session()
@@ -504,7 +541,7 @@ class BoxAgentApplication:
             self.context_cache[session_id] = cached
         return {"status": "ready", "session_title": title, "source": source, **cached[1]}
 
-    async def context_entry(self, session_id, seq):
+    async def context_entry(self, session_id: str, seq: int) -> dict[str, object]:
         """Return the full model-visible text of one ledger entry."""
         if self.context_ledger is None or not session_id:
             return {"status": "unavailable", "content": ""}
@@ -515,10 +552,16 @@ class BoxAgentApplication:
                         "content": str(event.data.get("content") or "")}
         return {"status": "missing", "content": ""}
 
-    async def memory_snapshot(self, **arguments):
-        return await self.memory.snapshot(**arguments)
+    async def memory_snapshot(
+        self, *, query: str = "", selected_id: str | None = None, node_limit: int = 100,
+        edge_limit: int = 200, statuses: object = None,
+    ) -> BackendRecord:
+        return await self.memory.snapshot(
+            query=query, selected_id=selected_id, node_limit=node_limit, edge_limit=edge_limit,
+            statuses=statuses,
+        )
 
-    async def delete_memory_node(self, memory_id):
+    async def delete_memory_node(self, memory_id: str) -> BackendRecord:
         return await self.memory.delete_node(memory_id)
 
     async def list_skills(self) -> list[dict[str, object]]:
@@ -556,11 +599,13 @@ class BoxAgentApplication:
         await self._sync_runtime_skills()
         return {"status": "succeeded", "skill_id": skill_id}
 
-    async def find_skills(self, query, *, limit=8):
+    async def find_skills(self, query: str, *, limit: int = 8) -> dict[str, object]:
         service = self._require_skill_authoring()
         return {"status": "succeeded", "skills": service.find(query, limit=limit)}
 
-    async def prepare_skill_draft(self, request, *, interaction=None):
+    async def prepare_skill_draft(
+        self, request: str, *, interaction: InteractionContext | None = None
+    ) -> dict[str, object]:
         service = self._require_skill_authoring()
         if self.execution_service.job and not self.execution_service.job.done():
             return {"status": "busy", "message": "请等待当前任务结束后再沉淀 Skill。"}
@@ -589,8 +634,10 @@ class BoxAgentApplication:
             "message": "Skill 草稿已在后台生成；完成后会主动提醒用户。",
         }
 
-    async def _run_skill_draft_job(self, draft_id, *, request, session_id,
-                                   interaction_id, task_context):
+    async def _run_skill_draft_job(
+        self, draft_id: str, *, request: str, session_id: str, interaction_id: str,
+        task_context: dict[str, object],
+    ) -> None:
         authoring = self.skill_authoring
         try:
             if authoring is None:
@@ -618,9 +665,11 @@ class BoxAgentApplication:
             session_id=session_id, interaction_id=interaction_id,
             operation_id=draft_id, outcome=outcome, summary=summary)
 
-    async def install_skill_draft(self, draft_id, *, interaction=None):
+    async def install_skill_draft(
+        self, draft_id: str, *, interaction: InteractionContext | None = None
+    ) -> dict[str, object]:
         service = self._require_skill_authoring()
-        authorization = (interaction.user_event.content if interaction else "")
+        authorization = (interaction.user_event.content or "") if interaction else ""
         if not has_explicit_skill_authorization(authorization):
             return {
                 "status": "confirmation_required",
@@ -649,8 +698,8 @@ class BoxAgentApplication:
             if sync:
                 await sync()
 
-    async def forget_memory(self, memory_ids):
-        return await self.memory.forget(memory_ids)
+    async def forget_memory(self, memory_ids: object) -> BackendRecord:
+        return await self.memory.forget(require_memory_ids(memory_ids))
 
     def request_avatar_action(self, action: object) -> dict[str, str]:
         """Publish a validated semantic request; playback remains a UI concern."""
@@ -741,14 +790,30 @@ class BoxAgentApplication:
                 "不推断实际对局版本。",
         }
 
-    async def handle_tool(self, name, arguments, *, interaction=None):
+    async def handle_tool(
+        self, name: str, arguments: object, *, interaction: InteractionContext | None = None
+    ) -> dict[str, object]:
         try:
-            data = json.loads(arguments) if isinstance(arguments, str) else arguments
+            data: object = json.loads(arguments) if isinstance(arguments, str) else arguments
+            if name == "cancel_task":
+                return await self.cancel_task()
+            if name == "cancel_all_tasks":
+                return await self.cancel_all_tasks()
+            if name == "task_status":
+                return {**self.execution_service.last_result, "progress": self.state.task_text,
+                        "task_queue": self.state.task_queue}
+            if name == "play_avatar_action":
+                action = data.get("action") if isinstance(data, dict) else None
+                return dict(self.request_avatar_action(action))
             if name == "lookup_lol_knowledge":
                 return await self._lookup_lol_knowledge(data, interaction)
+            if not isinstance(data, dict):
+                message = "联网工具参数必须是对象" if name in {"search_web", "read_webpage"} else (
+                    "请明确开启或关闭陪玩模式"
+                    if name == "set_game_companion_mode" else "工具参数必须是对象"
+                )
+                return {"status": "failed", "message": message}
             if name in {"search_web", "read_webpage"}:
-                if not isinstance(data, dict):
-                    return {"status": "failed", "message": "联网工具参数必须是对象"}
                 scope = interaction.interaction_id if interaction else ""
                 if name == "search_web":
                     query = data.get("query")
@@ -784,7 +849,7 @@ class BoxAgentApplication:
                     async def progress(view: WebResearchView) -> bool:
                         return await self._publish_web_research(view, interaction)
 
-                    return await self.web_research.research(
+                    search = await self.web_research.research(
                         query,
                         count=data.get("count", 5),
                         scope=scope,
@@ -794,6 +859,7 @@ class BoxAgentApplication:
                         if isinstance(query, str)
                         else (),
                     )
+                    return dict(search)
                 result = await self.web_research.read(data.get("url"), scope=scope)
                 previous = self.state.web_research
                 sources = ([source.copy() for source in previous["sources"]]
@@ -825,12 +891,9 @@ class BoxAgentApplication:
                     },
                     interaction,
                 )
-                return result
-            if name == "play_avatar_action":
-                action = data.get("action") if isinstance(data, dict) else None
-                return self.request_avatar_action(action)
+                return dict(result)
             if name == "set_game_companion_mode":
-                enabled = data.get("enabled") if isinstance(data, dict) else None
+                enabled = data.get("enabled")
                 if type(enabled) is not bool:
                     return {"status": "failed", "message": "请明确开启或关闭陪玩模式"}
                 game = data.get("game")
@@ -872,17 +935,10 @@ class BoxAgentApplication:
                     query, interaction=interaction,
                     capability="wechat" if capability == "wechat" else "desktop")
                 return accepted
-            if name == "cancel_task":
-                return await self.cancel_task()
-            if name == "cancel_all_tasks":
-                return await self.cancel_all_tasks()
-            if name == "task_status":
-                return {**self.execution_service.last_result, "progress": self.state.task_text,
-                        "task_queue": self.state.task_queue}
             if name == "remember_memory":
                 if interaction and requests_visual_memory(interaction.user_event.content or ""):
                     return await self.memory.remember_screen(
-                        user_request=interaction.user_event.content,
+                        user_request=interaction.user_event.content or "",
                         session_id=interaction.session.session_id,
                         interaction_id=interaction.interaction_id,
                         source_event_id=interaction.user_event.event_id,
@@ -894,13 +950,16 @@ class BoxAgentApplication:
                     source_event_ids=((interaction.user_event.event_id,)
                                       if interaction else ()))
             if name == "recall_memory":
-                result = await self.memory.recall(data["query"])
-                public = {key: result[key] for key in (
-                    "status", "message", "memories") if key in result}
+                recall: MemoryRecall = await self.memory.recall(data["query"])
+                public: dict[str, object] = {
+                    "status": recall["status"],
+                    "message": recall["message"],
+                    "memories": recall["memories"],
+                }
                 if data.get("look_at_source") is True:
-                    selected = next((item for item in public.get("memories", [])
+                    selected = next((item for item in recall["memories"]
                                      if (item.get("metadata") or {}).get("evidence_id")), None)
-                    if selected:
+                    if selected and selected["id"]:
                         public["source_observation"] = await self.memory.look_at_source(
                             selected["id"], data["query"]
                         )
@@ -909,7 +968,7 @@ class BoxAgentApplication:
                 )
                 return public
             if name == "forget_memory":
-                return await self.memory.forget(data["memory_ids"])
+                return await self.forget_memory(data["memory_ids"])
             if name == "find_skill":
                 return await self.find_skills(
                     data.get("query", ""), limit=int(data.get("limit", 8)))
@@ -984,16 +1043,17 @@ class BoxAgentApplication:
             notification_text=item.summary,
             notification_unread=True)
 
-    async def _voice_notification_event(self, kind, payload):
+    async def _voice_notification_event(self, kind: str, payload: dict[str, object]) -> None:
         notification_id = payload.get("notification_id", "")
-        if not notification_id:
+        if not isinstance(notification_id, str) or not notification_id:
             return
         if kind == "playback_started":
             await self.acknowledge_notification(
                 notification_id, "voice", "playback_started")
         elif kind == "delivery_interrupted":
+            error = payload.get("error")
             item = await self.notification_outbox.retry(
-                notification_id, "voice", payload.get("error", "connection_closed"))
+                notification_id, "voice", error if isinstance(error, str) else "connection_closed")
             self._publish_system_notification(item)
 
     async def close(self) -> None:

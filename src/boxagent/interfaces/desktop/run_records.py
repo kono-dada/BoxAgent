@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 
 class SessionRunRecords:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
 
     def directories(self, session_id: str) -> list[Path]:
@@ -69,7 +70,7 @@ class SessionRunRecords:
                 temporary.rmdir()
             else:
                 temporary.unlink(missing_ok=True)
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import _winapi
                 _winapi.CreateJunction(str(directory), str(temporary))
             else:
@@ -84,7 +85,7 @@ class SessionRunRecords:
         return view
 
     @staticmethod
-    def _sort_key(directory: Path):
+    def _sort_key(directory: Path) -> tuple[float, str]:
         manifest = directory / "manifest.json"
         try:
             value = json.loads(manifest.read_text(encoding="utf-8"))
@@ -93,7 +94,7 @@ class SessionRunRecords:
             return 0.0, str(directory)
 
     @staticmethod
-    def _valid_session_id(session_id):
+    def _valid_session_id(session_id: object) -> bool:
         return (isinstance(session_id, str) and session_id.startswith("ses_")
                 and "/" not in session_id and "\\" not in session_id
                 and ":" not in session_id and ".." not in session_id)

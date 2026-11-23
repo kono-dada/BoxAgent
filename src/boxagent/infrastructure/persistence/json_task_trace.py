@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 from boxagent.core.errors import redact
@@ -14,13 +15,15 @@ RELEVANT_EVENTS = {
 
 
 class JsonTaskTraceReader:
-    def __init__(self, root: Path, *, character_limit=32_000,
-                 fallback_roots=()):
+    def __init__(
+        self, root: Path, *, character_limit: int = 32_000,
+        fallback_roots: Iterable[str | Path] = (),
+    ) -> None:
         self.root = Path(root).resolve()
         self.fallback_roots = tuple(Path(item).resolve() for item in fallback_roots)
         self.character_limit = max(1_000, int(character_limit))
 
-    def read(self, task_id: str) -> dict:
+    def read(self, task_id: str) -> dict[str, object]:
         if not isinstance(task_id, str) or not TASK_ID.fullmatch(task_id):
             return {}
         directory = self._find_directory(task_id)
@@ -33,26 +36,28 @@ class JsonTaskTraceReader:
             remaining = self.character_limit
             for line in path.read_text(encoding="utf-8").splitlines():
                 try:
-                    event = json.loads(line)
+                    event: object = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if event.get("kind") not in RELEVANT_EVENTS:
+                if not isinstance(event, dict) or event.get("kind") not in RELEVANT_EVENTS:
                     continue
-                event = redact(event)
-                encoded = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+                redacted = redact(event)
+                if not isinstance(redacted, dict):
+                    continue
+                encoded = json.dumps(redacted, ensure_ascii=False, separators=(",", ":"))
                 if len(encoded) > 4_000:
-                    event = {key: value for key, value in event.items()
+                    redacted = {key: value for key, value in redacted.items()
                              if key not in {"text", "traceback", "content"}}
-                    event["detail_truncated"] = True
-                    encoded = json.dumps(event, ensure_ascii=False,
+                    redacted["detail_truncated"] = True
+                    encoded = json.dumps(redacted, ensure_ascii=False,
                                          separators=(",", ":"))
                 if len(encoded) > remaining:
                     break
-                events.append(event)
+                events.append(redacted)
                 remaining -= len(encoded)
         return {"task_id": task_id, "result": redact(result), "events": events}
 
-    def _find_directory(self, task_id):
+    def _find_directory(self, task_id: str) -> Path | None:
         for root in (self.root, *self.fallback_roots):
             direct = (root / task_id).resolve()
             if direct.parent == root and direct.is_dir():
@@ -71,7 +76,7 @@ class JsonTaskTraceReader:
         return None
 
     @staticmethod
-    def _read_json(path: Path):
+    def _read_json(path: Path) -> object:
         if not path.is_file():
             return {}
         try:

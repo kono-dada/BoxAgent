@@ -18,6 +18,7 @@ from boxagent.bootstrap.settings import Settings
 from boxagent.core.ids import new_event_id
 from boxagent.domain.conversation.contracts import SessionStore
 from boxagent.domain.conversation.models import ProductEvent
+from boxagent.domain.memory.contracts import MemoryBackend, MemoryLog
 from boxagent.domain.memory.service import MemoryService
 from boxagent.domain.memory.visual import VisualEpisodeBackend, VisualEvidence, VisualMemorySource
 from boxagent.infrastructure.context.intent import IntentReference
@@ -26,6 +27,7 @@ from boxagent.infrastructure.memory import JevMemWorker
 from boxagent.infrastructure.memory.visual_extractor import GroundedVisualEpisodeExtractor
 from boxagent.infrastructure.persistence import JsonMemoryJobStore
 from boxagent.infrastructure.persistence.visual_evidence import LocalVisualEvidenceStore
+from boxagent.infrastructure.runtimes.codex.session import CodexRuntimeHost
 
 
 def create_intent_reference(app_settings: Settings) -> IntentReference:
@@ -46,8 +48,10 @@ def create_intent_reference(app_settings: Settings) -> IntentReference:
     return IntentReference(worker, pending_reviewer=reviewer)
 
 
-def create_memory_module(*, app_settings, conversation_store, runtime_host,
-                         model, provider, log, backend_override=None):
+def create_memory_module(
+    *, app_settings: Settings, conversation_store: SessionStore, runtime_host: CodexRuntimeHost,
+    model: str, provider: str, log: MemoryLog, backend_override: MemoryBackend | None = None,
+) -> MemoryModule:
     del runtime_host, model, provider
     # This store carries durable ingestion jobs only. Jev-Mem owns all memory
     # nodes, relations, indexes and snapshots.

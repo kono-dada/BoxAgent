@@ -12,7 +12,7 @@ SECRET_PATTERNS = (
 )
 
 
-def require_text(value, *, name: str, limit: int) -> str:
+def require_text(value: object, *, name: str, limit: int) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} 必须是非空文本")
     value = value.strip()
@@ -21,11 +21,15 @@ def require_text(value, *, name: str, limit: int) -> str:
     return value
 
 
-def require_memory_ids(memory_ids) -> list[str]:
-    if (not isinstance(memory_ids, list) or not memory_ids
-            or any(not isinstance(item, str) or not item.strip() for item in memory_ids)):
+def require_memory_ids(memory_ids: object) -> list[str]:
+    if not isinstance(memory_ids, list) or not memory_ids:
         raise ValueError("memory_ids 必须是非空记忆 ID 列表")
-    return [item.strip() for item in memory_ids]
+    result: list[str] = []
+    for item in memory_ids:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError("memory_ids 必须是非空记忆 ID 列表")
+        result.append(item.strip())
+    return result
 
 
 def redact_memory_source(value: str) -> str:

@@ -17,13 +17,23 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable, Iterable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Protocol, Self, TypedDict, Unpack
 
 from boxagent.infrastructure.audio.output import PcmOutput
-from boxagent.infrastructure.runtimes.qwen.realtime import MODELS, QwenRealtimeSession
+from boxagent.infrastructure.runtimes.qwen.realtime import (
+    MODELS,
+    QwenRealtimeSession,
+    _EventSink,
+    _RealtimeOptions,
+    _ToolHandler,
+    _WireEvent,
+)
 
-_AOQ_DELEGATE_CLASS = None
+_AOQ_DELEGATE_CLASS: Any = None  # PyObjC assigns the native alloc/init API at runtime.
 
 
 class AoqUnavailable(RuntimeError):
@@ -48,7 +58,17 @@ class AoqToken:
     expires_in_seconds: int = 0
 
     @classmethod
-    def from_payload(cls, payload):
+    def from_payload(cls, payload: object) -> Self:
+        if not isinstance(payload, dict):
+            raise AoqUnavailable("AOQ Token 响应必须是 JSON 对象")
+        raw_relays = payload.get("clientRelayEndpoints") or ()
+        if not isinstance(raw_relays, (list, tuple)) or any(
+            not isinstance(item, dict) for item in raw_relays
+        ):
+            raise AoqUnavailable("AOQ Token 中的 relay 端点格式无效")
+        info = payload.get("extraInfo") or {}
+        if not isinstance(info, dict):
+            raise AoqUnavailable("AOQ Token 中的 extraInfo 格式无效")
         relays = tuple(
             AoqRelay(
                 endpoint=str(item.get("endpoint") or ""),
@@ -56,15 +76,14 @@ class AoqToken:
                 route_index=int(item.get("route_index", index)),
                 tcp_port=int(item.get("tcp_port") or 0),
             )
-            for index, item in enumerate(payload.get("clientRelayEndpoints") or ())
+            for index, item in enumerate(raw_relays)
         )
         token = cls(
             token=str(payload.get("aoqTokenForClient") or ""),
             sid=str(payload.get("sid") or ""),
             cert_fingerprint=str(payload.get("clientRelayCertFingerprint") or ""),
             relay_endpoints=relays,
-            workspace_id_hash=str(
-                (payload.get("extraInfo") or {}).get("workspaceIdHash") or ""),
+            workspace_id_hash=str(info.get("workspaceIdHash") or ""),
             expires_in_seconds=int(payload.get("sidExpiresInSecs") or 0),
         )
         missing = []
@@ -83,11 +102,28 @@ class AoqToken:
         return token
 
 
+class _TokenResponse(Protocol):
+    def read(self) -> bytes: ...
+
+
+class _TokenOpener(Protocol):
+    def __call__(
+        self, request: urllib.request.Request, /, *, timeout: float
+    ) -> AbstractContextManager[_TokenResponse]: ...
+
+
 class AoqTokenClient:
     """Exchange a DashScope API key for a short-lived AOQ connection token."""
 
-    def __init__(self, *, api_key, workspace_id, region="cn-beijing",
-                 timeout=15, opener=None):
+    def __init__(
+        self,
+        *,
+        api_key: str | None,
+        workspace_id: str,
+        region: str = "cn-beijing",
+        timeout: float = 15,
+        opener: _TokenOpener | None = None,
+    ) -> None:
         self.api_key = str(api_key or "")
         self.workspace_id = str(workspace_id or "")
         self.region = str(region or "cn-beijing")
@@ -95,11 +131,11 @@ class AoqTokenClient:
         self.opener = opener or urllib.request.urlopen
 
     @property
-    def endpoint(self):
+    def endpoint(self) -> str:
         return (f"https://{self.workspace_id}.{self.region}.maas.aliyuncs.com"
                 "/api/v1/webrtc/realtime")
 
-    def allocate(self, model):
+    def allocate(self, model: str) -> AoqToken:
         if not self.api_key:
             raise AoqUnavailable("未配置 DASHSCOPE_API_KEY")
         if not self.workspace_id:
@@ -126,7 +162,9 @@ class AoqTokenClient:
         return AoqToken.from_payload(payload)
 
 
-def aoq_preflight(*, sdk_dir, workspace_id, platform=None):
+def aoq_preflight(
+    *, sdk_dir: str | Path, workspace_id: str, platform: str | None = None
+) -> tuple[bool, str]:
     """Return ``(available, reason)`` without loading native code."""
     if (platform or sys.platform) != "darwin":
         return False, "AOQ 当前只在 macOS 桌面端启用"
@@ -146,8 +184,15 @@ class AoqFramework:
     _active_lock = threading.Lock()
     _active = False
 
-    def __init__(self, *, sdk_dir, work_dir, event_callback,
-                 playback_callback=None, output_device: str = ""):
+    def __init__(
+        self,
+        *,
+        sdk_dir: str | Path,
+        work_dir: str | Path,
+        event_callback: Callable[[_WireEvent], None],
+        playback_callback: Callable[[bool], None] | None = None,
+        output_device: str = "",
+    ) -> None:
         self.sdk_dir = Path(sdk_dir)
         self.work_dir = Path(work_dir)
         self.event_callback = event_callback
@@ -156,8 +201,10 @@ class AoqFramework:
         self.output: PcmOutput | None = None
         self._output_error = False
         self.output_pcm_bytes = 0
-        self.engine = self.delegate = None
-        self._classes = {}
+        # Vendor selectors and class allocations are resolved by PyObjC at runtime.
+        self.engine: Any = None
+        self.delegate: Any = None
+        self._classes: dict[str, Any] = {}
         self._closed = False
         self._playback_observed = False
         self.last_playback_frame_at = 0.0
@@ -192,27 +239,29 @@ class AoqFramework:
         global _AOQ_DELEGATE_CLASS
         if _AOQ_DELEGATE_CLASS is None:
             class AoqPythonDelegate(NSObject):
+                owner: AoqFramework
+
                 @objc.typedSelector(b"v@:q@")
-                def onError_message_(self, code, message):
+                def onError_message_(self, code: int, message: object) -> None:
                     self.owner.event_callback({
                         "type": "_aoq.error", "code": int(code),
                         "message": str(message),
                     })
 
                 @objc.typedSelector(b"v@:q@")
-                def onWarning_message_(self, code, message):
+                def onWarning_message_(self, code: int, message: object) -> None:
                     self.owner.event_callback({
                         "type": "_aoq.warning", "code": int(code),
                         "message": str(message),
                     })
 
                 @objc.typedSelector(b"v@:q")
-                def onConnectionStatusChange_(self, status):
+                def onConnectionStatusChange_(self, status: int) -> None:
                     self.owner.event_callback({
                         "type": "_aoq.connection", "status": int(status),
                     })
 
-                def onStats_(self, stats):
+                def onStats_(self, stats: Any) -> None:
                     for audio in stats.audioPublishStats() or ():
                         if int(audio.trackType()) == 0:
                             self.owner.event_callback({
@@ -222,38 +271,41 @@ class AoqFramework:
                                 "encode_volume": int(audio.encodeVolume()),
                             })
 
-                def onAudioDeviceStateChanged_(self, state):
+                def onAudioDeviceStateChanged_(self, state: Any) -> None:
                     self.owner.event_callback({
                         "type": "_aoq.audio_device", "state": int(state.state()),
                         "reason": int(state.reason()),
                     })
 
                 @objc.typedSelector(b"v@:q")
-                def onAudioDeviceRouteChanged_(self, route_type):
+                def onAudioDeviceRouteChanged_(self, route_type: int) -> None:
                     self.owner.event_callback({
                         "type": "_aoq.audio_route", "route": int(route_type),
                     })
 
-                def onAudioFileState_(self, _state):
+                def onAudioFileState_(self, _state: object) -> None:
                     return None
 
-                def onLocalAudioVolumeIndication_(self, _volume):
+                def onLocalAudioVolumeIndication_(self, _volume: object) -> None:
                     return None
 
-                def onVideoDeviceStateChanged_(self, _state):
+                def onVideoDeviceStateChanged_(self, _state: object) -> None:
                     return None
 
-                def onDataMsg_(self, message):
+                def onDataMsg_(self, message: Any) -> None:
                     try:
                         payload = bytes(message.data()).decode("utf-8")
-                        self.owner.event_callback(json.loads(payload))
+                        event: object = json.loads(payload)
+                        if not isinstance(event, dict):
+                            raise ValueError("AOQ Data Track 消息必须是 JSON 对象")
+                        self.owner.event_callback(event)
                     except Exception as exc:
                         self.owner.event_callback({
                             "type": "_aoq.error", "code": -1,
                             "message": "AOQ Data Track 解析失败：" + str(exc),
                         })
 
-                def onPlaybackAudioFrame_(self, _frame):
+                def onPlaybackAudioFrame_(self, _frame: Any) -> None:
                     self.owner.observe_playback_frame(_frame)
 
             _AOQ_DELEGATE_CLASS = AoqPythonDelegate
@@ -262,7 +314,7 @@ class AoqFramework:
         self.delegate = _AOQ_DELEGATE_CLASS.alloc().init()
         self.delegate.owner = self
 
-    def observe_playback_frame(self, frame):
+    def observe_playback_frame(self, frame: Any) -> None:
         """Only the explicitly selected output receives copied PCM frames."""
         if self._closed:
             return
@@ -304,7 +356,7 @@ class AoqFramework:
             self._output_error = True
             self.event_callback({"type": "_aoq.output_error", "message": message})
 
-    def start(self, token, *, microphone=True, playback=True):
+    def start(self, token: AoqToken, *, microphone: bool = True, playback: bool = True) -> None:
         if not self._active_lock.acquire(blocking=False):
             raise AoqUnavailable("AOQ 引擎正在被另一个会话使用")
         try:
@@ -339,7 +391,7 @@ class AoqFramework:
             raise
 
     @property
-    def version(self):
+    def version(self) -> str:
         engine_class = self._classes.get("AoqClientEngine")
         return str(engine_class.getVersion()) if engine_class is not None else ""
 
@@ -356,7 +408,7 @@ class AoqFramework:
             if result != 0:
                 raise AoqUnavailable(f"AOQ 音频编解码配置失败：{result}")
 
-    def _connect_config(self, token):
+    def _connect_config(self, token: AoqToken) -> Any:
         config = self._classes["AoqConnectConfig"].alloc().init()
         config.setToken_(token.token)
         config.setSid_(token.sid)
@@ -379,7 +431,7 @@ class AoqFramework:
         config.setSubscribeTracks_([audio, data])
         return config
 
-    def _start_audio_devices(self, *, microphone=True, playback=True):
+    def _start_audio_devices(self, *, microphone: bool = True, playback: bool = True) -> None:
         if playback:
             if self.output_device:
                 from boxagent.infrastructure.audio.output import DeviceOutput
@@ -410,7 +462,7 @@ class AoqFramework:
             if result != 0:
                 raise AoqUnavailable(f"AOQ 播放观察器启动失败：{result}")
 
-    def enable_audio_send(self, enabled):
+    def enable_audio_send(self, enabled: bool) -> None:
         if self.engine is None or self._closed:
             return
         result = int(self.engine.enableSendMediaStream_enable_(0, bool(enabled)))
@@ -418,7 +470,7 @@ class AoqFramework:
             raise AoqUnavailable(f"AOQ 音频发送切换失败：{result}")
         self._media_enabled = bool(enabled)
 
-    def send(self, message):
+    def send(self, message: dict[str, object]) -> None:
         if self.engine is None or self._closed:
             raise ConnectionError("AOQ 会话已关闭")
         payload = json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -429,7 +481,7 @@ class AoqFramework:
         if result != 0:
             raise ConnectionError(f"AOQ Data Track 发送失败：{result}")
 
-    def append_audio(self, encoded):
+    def append_audio(self, encoded: str) -> None:
         # AOQ downlink audio is delivered and rendered by the subscribed
         # native audio track. Data-track audio deltas must not be played twice.
         return None
@@ -478,27 +530,60 @@ class AoqFramework:
 
 
 class _AoqAudioControl:
-    def __init__(self, transport):
+    def __init__(self, transport: AoqFramework) -> None:
         self.transport = transport
 
     def clear(self) -> None:
         self.transport.interrupt()
 
-    def append(self, data):
+    def append(self, data: str) -> None:
         self.transport.append_audio(data)
 
     def close(self) -> None:
         self.transport.close()
 
 
+class _TokenClientFactory(Protocol):
+    def __call__(
+        self, *, api_key: str | None, workspace_id: str, region: str
+    ) -> AoqTokenClient: ...
+
+
+class _NativeFactory(Protocol):
+    def __call__(
+        self,
+        *,
+        sdk_dir: Path,
+        work_dir: Path,
+        event_callback: Callable[[_WireEvent], None],
+        playback_callback: Callable[[bool], None],
+        output_device: str = "",
+    ) -> AoqFramework: ...
+
+
+class _NativeOutputOptions(TypedDict, total=False):
+    output_device: str
+
+
 class AoqRealtimeSession(QwenRealtimeSession):
     """Qwen Realtime session using AOQ media and data tracks."""
 
-    def __init__(self, *args, workspace_id, region="cn-beijing", sdk_dir,
-                 work_dir, token_client_factory=AoqTokenClient,
-                 native_factory=AoqFramework, connect_timeout: float = 30.0,
-                 output_device: str = "", **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        handle_tool: _ToolHandler,
+        emit: _EventSink,
+        *,
+        workspace_id: str,
+        region: str = "cn-beijing",
+        sdk_dir: str | Path,
+        work_dir: str | Path,
+        token_client_factory: _TokenClientFactory = AoqTokenClient,
+        native_factory: _NativeFactory = AoqFramework,
+        connect_timeout: float = 30.0,
+        output_device: str = "",
+        **kwargs: Unpack[_RealtimeOptions],
+    ) -> None:
+        super().__init__(handle_tool, emit, **kwargs)
         self.workspace_id = workspace_id
         self.region = region
         self.sdk_dir = Path(sdk_dir)
@@ -507,9 +592,9 @@ class AoqRealtimeSession(QwenRealtimeSession):
         self.native_factory = native_factory
         self.connect_timeout = connect_timeout
         self.output_device = output_device
-        self.transport = None
-        self.events = asyncio.Queue()
-        self.playback_finish_task = None
+        self.transport: AoqFramework | None = None
+        self.events: asyncio.Queue[_WireEvent] = asyncio.Queue()
+        self.playback_finish_task: asyncio.Task[None] | None = None
 
     async def feed_image(self, image: str) -> bool:
         # Data-track images require audio in THIS turn. A server VAD receipt is
@@ -518,15 +603,18 @@ class AoqRealtimeSession(QwenRealtimeSession):
             return False
         return await super().feed_image(image)
 
-    def _enqueue_native(self, event):
+    def _enqueue_native(self, event: _WireEvent) -> None:
         if not self.closed:
             self.loop.call_soon_threadsafe(self.events.put_nowait, event)
 
-    def _native_playback_changed(self, active):
+    def _native_playback_changed(self, active: bool) -> None:
         if not self.closed:
             self.loop.call_soon_threadsafe(self.playback_changed, active)
 
-    async def send(self, message):
+    def _has_transport(self) -> bool:
+        return self.transport is not None
+
+    async def send(self, message: dict[str, object]) -> None:
         if self.closed or self.transport is None:
             raise ConnectionError("AOQ 会话已关闭")
         if message.get("type") == "input_audio_buffer.append":
@@ -549,14 +637,17 @@ class AoqRealtimeSession(QwenRealtimeSession):
             self.trace("transport.token_request", transport="aoq")
             token = await asyncio.to_thread(client.allocate, self.model)
             self.trace("transport.token_received", transport="aoq")
-            self.transport = self.native_factory(
+            options: _NativeOutputOptions = {}
+            if self.output_device:
+                options["output_device"] = self.output_device
+            transport = self.native_factory(
                 sdk_dir=self.sdk_dir, work_dir=self.work_dir,
                 event_callback=self._enqueue_native,
                 playback_callback=self._native_playback_changed,
-                **({"output_device": self.output_device} if self.output_device else {}))
-            self.audio = _AoqAudioControl(self.transport)
-            self.ws = self  # active-transport sentinel used by shared session logic
-            self.transport.start(
+                **options)
+            self.transport = transport
+            self.audio = _AoqAudioControl(transport)
+            transport.start(
                 token, microphone=self.microphone, playback=self.playback)
             self.trace("transport.connecting", transport="aoq")
             try:
@@ -602,7 +693,7 @@ class AoqRealtimeSession(QwenRealtimeSession):
             self.pending_notifications.clear()
             await self.close_resources(workers)
 
-    async def receive(self, event):
+    async def receive(self, event: _WireEvent) -> None:
         kind = event.get("type")
         if kind == "_aoq.output_selected":
             self.trace("transport.output_selected", transport="aoq", device=event.get("device"))
@@ -676,7 +767,7 @@ class AoqRealtimeSession(QwenRealtimeSession):
                     self.playing_notification_id = None
                     self._notification_playback_started(notification_id)
 
-    async def feed_audio(self, _chunk):
+    async def feed_audio(self, _chunk: bytes) -> None:
         # Native capture/AEC is owned by AOQ.
         return None
 
@@ -685,7 +776,7 @@ class AoqRealtimeSession(QwenRealtimeSession):
         return (super().playback_pending or
                 bool(self.playback_finish_task and not self.playback_finish_task.done()))
 
-    def _schedule_playback_idle(self, response_id, delay=1.0):
+    def _schedule_playback_idle(self, response_id: str | None, delay: float = 1.0) -> None:
         """Allow AOQ's media track to deliver frames lagging data-track done."""
         if response_id and self.response_id != response_id:
             return
@@ -695,18 +786,19 @@ class AoqRealtimeSession(QwenRealtimeSession):
         async def finish() -> None:
             await asyncio.sleep(delay)
             while not response_id or self.response_id == response_id:
-                quiet_for = time.monotonic() - getattr(
-                    self.transport, "last_playback_frame_at", 0.0
-                )
+                transport = self.transport
+                if transport is None:
+                    return
+                quiet_for = time.monotonic() - getattr(transport, "last_playback_frame_at", 0.0)
                 if quiet_for >= delay:
-                    self.transport.mark_playback_idle()
+                    transport.mark_playback_idle()
                     return
                 await asyncio.sleep(delay - quiet_for)
 
         self.playback_finish_task = asyncio.create_task(finish())
         self.playback_finish_task.add_done_callback(lambda _: self.speech_changed.set())
 
-    async def close_resources(self, workers):
+    async def close_resources(self, workers: Iterable[asyncio.Task[None]]) -> None:
         if self.playback_finish_task:
             self.playback_finish_task.cancel()
             workers = [*workers, self.playback_finish_task]

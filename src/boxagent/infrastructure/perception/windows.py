@@ -4,7 +4,7 @@ import ctypes
 import os
 from ctypes import wintypes
 from pathlib import Path
-from typing import NotRequired, TypedDict
+from typing import NotRequired, Protocol, TypedDict, cast
 
 
 class WindowRect(TypedDict):
@@ -23,9 +23,21 @@ class WindowInfo(TypedDict):
     bundle_id: NotRequired[str]
 
 
+class _WindowsCtypes(Protocol):
+    def WinDLL(self, name: str, /, *, use_last_error: bool) -> ctypes.CDLL: ...
+
+    def get_last_error(self) -> int: ...
+
+    def WinError(self, code: int, /) -> OSError: ...
+
+
+# ctypes publishes these APIs only on Windows.
+_windows_ctypes = cast(_WindowsCtypes, ctypes)
+
+
 def focused_window() -> WindowInfo | None:
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32 = _windows_ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = _windows_ctypes.WinDLL("kernel32", use_last_error=True)
     user32.GetForegroundWindow.restype = wintypes.HWND
     user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
@@ -71,7 +83,7 @@ def capture_window(window_id: int, path: Path) -> None:
 
     # PrintWindow returns blank frames for GPU-rendered Electron windows.
     # Read the visible foreground window's rectangle from the desktop instead.
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32 = _windows_ctypes.WinDLL("user32", use_last_error=True)
     user32.GetForegroundWindow.restype = wintypes.HWND
     user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
     user32.SetThreadDpiAwarenessContext.argtypes = [wintypes.HANDLE]
@@ -82,7 +94,7 @@ def capture_window(window_id: int, path: Path) -> None:
             raise RuntimeError("前台窗口已切换，跳过截图")
         rect = wintypes.RECT()
         if not user32.GetWindowRect(window_id, ctypes.byref(rect)):
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise _windows_ctypes.WinError(_windows_ctypes.get_last_error())
         if rect.right <= rect.left or rect.bottom <= rect.top:
             raise RuntimeError("窗口截图区域无效")
         image = ImageGrab.grab(

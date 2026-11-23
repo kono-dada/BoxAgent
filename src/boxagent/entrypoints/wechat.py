@@ -13,14 +13,14 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
 from boxagent.application.wechat.module import WeChatModule
-from boxagent.application.wechat.service import PeerResolutionError
 from boxagent.bootstrap.wechat import (
     DEFAULT_KEYS,
     REPLICA_APP,
-    ROOT,
     WeChatConfig,
     build_local_wechat_module,
 )
+from boxagent.core.paths import RESOURCE_ROOT as ROOT
+from boxagent.domain.wechat.contracts import PeerResolutionError
 
 
 def jsonable(value: object) -> object:

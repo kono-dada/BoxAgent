@@ -1,6 +1,6 @@
 """Persistence and optional memory ports for Product Sessions."""
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from boxagent.domain.conversation.models import (
     ContextCheckpoint,
@@ -37,7 +37,7 @@ class ContextCheckpointGenerator(Protocol):
     model: str
 
     async def generate(self, *, previous: ContextCheckpoint | None,
-                       messages: tuple[ProductEvent, ...]) -> dict: ...
+                       messages: tuple[ProductEvent, ...]) -> dict[str, Any]: ...
 
 
 class ContextCheckpointSink(Protocol):

@@ -1,9 +1,11 @@
 """Product-level Skill records independent from a concrete Agent Runtime."""
 
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import Any, Self
 
 
 class SkillSource(StrEnum):
@@ -39,7 +41,7 @@ class SkillRecord:
     def manifest_path(self) -> Path:
         return self.path / "SKILL.md"
 
-    def payload(self) -> dict:
+    def payload(self) -> dict[str, object]:
         return {
             "skill_id": self.skill_id,
             "name": self.name,
@@ -66,8 +68,8 @@ class SkillDraft:
     status: SkillDraftStatus = SkillDraftStatus.PENDING
     created_at: float = 0.0
 
-    def payload(self, *, include_instructions=True) -> dict:
-        value = {
+    def payload(self, *, include_instructions: bool = True) -> dict[str, object]:
+        value: dict[str, object] = {
             "draft_id": self.draft_id,
             "action": self.action.value,
             "skill_id": self.skill_id,
@@ -85,7 +87,7 @@ class SkillDraft:
         return value
 
     @classmethod
-    def from_payload(cls, value: dict):
+    def from_payload(cls, value: Mapping[str, Any]) -> Self:
         return cls(
             draft_id=value["draft_id"],
             action=SkillDraftAction(value["action"]),

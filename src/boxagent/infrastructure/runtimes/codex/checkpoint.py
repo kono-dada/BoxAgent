@@ -1,7 +1,15 @@
 """Portable Context Checkpoint generation through an isolated Codex turn."""
 
 import json
+from typing import Any
 
+from boxagent.agent.runtime.contracts import (
+    SessionLog,
+    StructuredSessionFactory,
+    ToolPayload,
+    deny_tool_approval,
+)
+from boxagent.domain.conversation.models import ContextCheckpoint, ProductEvent
 from boxagent.domain.memory.policy import redact_memory_source
 
 CHECKPOINT_SCHEMA = {
@@ -55,24 +63,29 @@ CHECKPOINT_INSTRUCTIONS = (
 class CodexCheckpointGenerator:
     provider = "codex"
 
-    def __init__(self, session_factory, *, model, provider=None, log=None):
+    def __init__(
+        self, session_factory: StructuredSessionFactory, *, model: str,
+        provider: str | None = None, log: SessionLog | None = None,
+    ) -> None:
         self.session_factory = session_factory
         self.model = model
         self.provider = provider or self.provider
         self.log = log or (lambda *_args, **_kwargs: None)
 
-    async def generate(self, *, previous, messages):
+    async def generate(
+        self, *, previous: ContextCheckpoint | None, messages: tuple[ProductEvent, ...]
+    ) -> dict[str, Any]:
         if not messages:
             raise ValueError("没有可压缩的会话消息")
 
-        async def reject_tool(name, arguments):
+        async def reject_tool(name: str, arguments: ToolPayload) -> ToolPayload:
             del name, arguments
             raise RuntimeError("Context Checkpoint 不允许调用工具")
 
         session = self.session_factory(
             output=None,
             on_tool_call=reject_tool,
-            approve=lambda _params: False,
+            approve=deny_tool_approval,
             current_app=lambda: "",
             report=lambda _phase, _message: None,
             log=self.log,
@@ -85,7 +98,7 @@ class CodexCheckpointGenerator:
                 "messages": [
                     {"event_id": item.event_id,
                      "sequence": item.sequence, "role": item.role,
-                     "content": redact_memory_source(item.content)}
+                     "content": redact_memory_source(item.content or "")}
                     for item in messages
                 ],
             }

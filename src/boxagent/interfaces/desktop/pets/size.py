@@ -2,11 +2,15 @@
 
 import json
 import math
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TypeGuard
 
 PET_MIN_SCALE = 0.5
 PET_MAX_SCALE = 6.0
+
+type Size = tuple[float, float]
+type Frame = tuple[tuple[float, float], Size]
 
 
 def valid_pet_scale(scale: object) -> TypeGuard[int | float]:
@@ -39,14 +43,14 @@ def save_pet_scale(data_dir: Path, scale: float) -> None:
     temporary.replace(target)
 
 
-def scaled_pet_size(base_size, scale, screen_size):
+def scaled_pet_size(base_size: Size, scale: float, screen_size: Size) -> Size:
     """保持长宽比，并让小屏幕仍能容纳整个角色。"""
     width, height = base_size
     fitted_scale = min(scale, screen_size[0] / width, screen_size[1] / height)
     return width * fitted_scale, height * fitted_scale
 
 
-def resized_pet_frame(frame, size, screen):
+def resized_pet_frame(frame: Frame, size: Size, screen: Frame) -> Frame:
     """以底部中心缩放，只在接近屏幕边缘时调整位置。"""
     (x, y), (old_width, _old_height) = frame
     (screen_x, screen_y), (screen_width, screen_height) = screen
@@ -57,16 +61,24 @@ def resized_pet_frame(frame, size, screen):
     return ((x, y), (width, height))
 
 
-def validated_render_bounds(message, viewport):
+def validated_render_bounds(message: object, viewport: Size) -> Frame | None:
     """只接受当前视口内的有效边界，忽略缩放之前的异步消息。"""
-    if not message or tuple(message.get("viewport", ())) != tuple(viewport):
+    if not isinstance(message, Mapping):
         return None
-    bounds = message.get("bounds", {})
-    values = [bounds.get(key) for key in ("x", "y", "width", "height")]
+    dimensions = message.get("viewport")
+    if not isinstance(dimensions, Sequence) or tuple(dimensions) != viewport:
+        return None
+    bounds = message.get("bounds")
+    if not isinstance(bounds, Mapping):
+        return None
+    values: list[float] = []
     # WebKit 的数值经 PyObjC 桥接后是 float 子类，不能用精确类型判断。
-    if any(not isinstance(v, (int, float)) or isinstance(v, bool)
-           or not math.isfinite(v) for v in values):
-        return None
+    for key in ("x", "y", "width", "height"):
+        value = bounds.get(key)
+        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not math.isfinite(value)):
+            return None
+        values.append(value)
     x, y, width, height = values
     if x < 0 or y < 0 or width <= 0 or height <= 0:
         return None

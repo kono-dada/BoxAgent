@@ -8,46 +8,60 @@ Their model-visible context can still be reconstructed from
 
 import json
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
+from boxagent.domain.context.contracts import ContextLedgerStore
 from boxagent.domain.context.models import LedgerEvent
+from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
 
 MEMORY_PREFIX = "<boxagent_memory_context>"
+
+type _RecorderFactory = Callable[[ContextLedgerStore, Callable[[], float]], QwenContextRecorder]
 
 
 class MemoryLedgerStore:
     def __init__(self) -> None:
-        self.events = defaultdict(list)
+        self.events: defaultdict[str, list[LedgerEvent]] = defaultdict(list)
 
-    def append(self, session_id, event_type, data, *, at=None):
+    def append(
+        self, session_id: str, event_type: str, data: dict[str, object], *, at: float | None = None
+    ) -> LedgerEvent:
         event = LedgerEvent(seq=len(self.events[session_id]) + 1, type=event_type,
                             time=float(at or 0), data=dict(data or {}))
         self.events[session_id].append(event)
         return event
 
-    def read(self, session_id):
+    def read(self, session_id: str) -> list[LedgerEvent]:
         return list(self.events.get(session_id, ()))
 
 
-def _rows(path, session_id, key):
+def _rows(path: str | Path, session_id: str, key: str) -> list[dict[str, Any]]:
     path = Path(path)
     if not path.exists():
         return []
-    rows = []
+    rows: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             if session_id not in line:
                 continue
             try:
-                row = json.loads(line)
+                row: object = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if row.get(key) == session_id:
+            if isinstance(row, dict) and row.get(key) == session_id:
                 rows.append(row)
     return rows
 
 
-def replay_session(trace_path, session_id, recorder_factory, *, memory_log_path=None):
+def replay_session(
+    trace_path: str | Path,
+    session_id: str,
+    recorder_factory: _RecorderFactory,
+    *,
+    memory_log_path: str | Path | None = None,
+) -> list[LedgerEvent]:
     """Return reconstructed ``LedgerEvent`` objects for one Session.
 
     ``recorder_factory(store, clock)`` builds the production recorder; it is
@@ -94,11 +108,17 @@ def replay_session(trace_path, session_id, recorder_factory, *, memory_log_path=
 class QwenTraceHistory:
     """Application-facing read-only source for pre-ledger Sessions."""
 
-    def __init__(self, trace_path, recorder_factory, *, memory_log_path=None):
+    def __init__(
+        self,
+        trace_path: str | Path,
+        recorder_factory: _RecorderFactory,
+        *,
+        memory_log_path: str | Path | None = None,
+    ) -> None:
         self.trace_path = Path(trace_path)
         self.recorder_factory = recorder_factory
         self.memory_log_path = memory_log_path
 
-    def read(self, session_id):
+    def read(self, session_id: str) -> list[LedgerEvent]:
         return replay_session(self.trace_path, session_id, self.recorder_factory,
                               memory_log_path=self.memory_log_path)

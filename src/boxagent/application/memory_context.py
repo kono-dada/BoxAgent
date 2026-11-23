@@ -3,36 +3,60 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
+from typing import TypedDict
+
+from boxagent.application.memory_profile import JsonProfileStore
+from boxagent.domain.memory.contracts import BackendRecord, MemoryBackend
 
 logger = logging.getLogger(__name__)
 
 
+class ProfilePacket(TypedDict):
+    schema_version: int
+    profile_version: int
+    character_budget: int
+    memory_ids: list[str]
+    fields: list[dict[str, object]]
+    context: str
+
+
 class MemoryContextProvider:
-    def __init__(self, backend, profile_store=None, *, recall_timeout=0.35,
-                 profile_path=None):
+    def __init__(
+        self, backend: MemoryBackend, profile_store: JsonProfileStore | None = None,
+        *, recall_timeout: float = 0.35, profile_path: str | Path | None = None,
+    ) -> None:
         del profile_path
         self.backend = backend
         self.profile_store = profile_store
         self.recall_timeout = recall_timeout
 
-    async def stable_profile(self, *, character_budget=2000):
+    async def stable_profile(self, *, character_budget: int = 2000) -> str:
         packet = await self.refresh_stable_profile(
             character_budget=character_budget)
         return packet.get("context", "")
 
-    async def refresh_stable_profile(self, *, character_budget=2000):
-        profile = (await self.profile_store.load()
+    async def refresh_stable_profile(self, *, character_budget: int = 2000) -> ProfilePacket:
+        profile: BackendRecord = (await self.profile_store.load()
                    if self.profile_store is not None else
                    {"version": 0, "fields": {}})
-        selected, used = [], 0
+        selected: list[dict[str, object]] = []
+        memory_ids: list[str] = []
+        used = 0
         for path, record in sorted((profile.get("fields") or {}).items()):
-            item = {"path": path, "value": record.get("value"),
+            raw_ids = record.get("source_memory_ids", [])
+            source_ids = (
+                [item for item in raw_ids if isinstance(item, str)]
+                if isinstance(raw_ids, list) else []
+            )
+            item: dict[str, object] = {"path": path, "value": record.get("value"),
                     "confidence": record.get("confidence"),
-                    "source_memory_ids": record.get("source_memory_ids", [])}
+                    "source_memory_ids": source_ids}
             size = len(json.dumps(item, ensure_ascii=False))
             if selected and used + size > character_budget:
                 break
             selected.append(item)
+            memory_ids.extend(source_ids)
             used += size
         context = (
             ""
@@ -51,12 +75,12 @@ class MemoryContextProvider:
         return {"schema_version": 1,
                 "profile_version": int(profile.get("version") or 0),
                 "character_budget": character_budget,
-                "memory_ids": list(dict.fromkeys(
-                    memory_id for item in selected
-                    for memory_id in item.get("source_memory_ids", []))),
+                "memory_ids": list(dict.fromkeys(memory_ids)),
                 "fields": selected, "context": context}
 
-    async def recall(self, query, *, session_id, top_k=5):
+    async def recall(
+        self, query: str, *, session_id: str, top_k: int = 5
+    ) -> list[dict[str, object]]:
         del session_id
         try:
             result = await asyncio.wait_for(

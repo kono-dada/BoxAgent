@@ -7,10 +7,10 @@ import os
 import re
 import time
 import urllib.request
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from pathlib import Path
 
-from boxagent.domain.memory.contracts import MemoryUnavailable, ProfileConstructor
+from boxagent.domain.memory.contracts import BackendRecord, MemoryUnavailable, ProfileConstructor
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +22,17 @@ ALLOWED_PREFIXES = (
 
 
 class JsonProfileStore:
-    def __init__(self, path):
+    def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.lock = asyncio.Lock()
 
-    async def load(self):
+    async def load(self) -> BackendRecord:
         async with self.lock:
             return await asyncio.to_thread(self._read)
 
-    async def apply(self, patches, *, memory_id):
+    async def apply(
+        self, patches: Iterable[BackendRecord], *, memory_id: str
+    ) -> dict[str, object]:
         async with self.lock:
             profile = await asyncio.to_thread(self._read)
             fields = dict(profile.get("fields") or {})
@@ -70,7 +72,7 @@ class JsonProfileStore:
             return {"version": profile["version"], "changed": changed,
                     "removed": removed}
 
-    async def forget(self, memory_id):
+    async def forget(self, memory_id: str) -> list[str]:
         async with self.lock:
             profile = await asyncio.to_thread(self._read)
             fields, removed = dict(profile.get("fields") or {}), []
@@ -89,7 +91,7 @@ class JsonProfileStore:
                 await asyncio.to_thread(self._write, profile)
             return removed
 
-    def _read(self):
+    def _read(self) -> BackendRecord:
         if not self.path.is_file():
             return {"schema_version": 1, "version": 0, "fields": {}}
         try:
@@ -99,7 +101,7 @@ class JsonProfileStore:
         return value if isinstance(value, dict) else {
             "schema_version": 1, "version": 0, "fields": {}}
 
-    def _write(self, value):
+    def _write(self, value: BackendRecord) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_name(self.path.name + ".tmp")
         with temporary.open("w", encoding="utf-8") as stream:
@@ -120,7 +122,9 @@ class DeepSeekProfileConstructor:
         self.model = model
         self.timeout = timeout
 
-    async def propose(self, observation: str, current_fields: dict) -> list[dict]:
+    async def propose(
+        self, observation: str, current_fields: Mapping[str, BackendRecord]
+    ) -> list[BackendRecord]:
         if not self.api_key:
             raise MemoryUnavailable("用户画像生成需要模型密钥，未更新画像")
         try:
@@ -129,10 +133,12 @@ class DeepSeekProfileConstructor:
             logger.warning("profile proposal failed; profile unchanged", exc_info=True)
             raise MemoryUnavailable("用户画像生成失败，未更新画像") from exc
 
-    def _request(self, observation: str, current_fields: dict) -> list[dict]:
+    def _request(
+        self, observation: str, current_fields: Mapping[str, BackendRecord]
+    ) -> list[BackendRecord]:
         prompt = {
             "observation": observation,
-            "current_profile_fields": current_fields,
+            "current_profile_fields": dict(current_fields),
             "allowed_prefixes": list(ALLOWED_PREFIXES),
             "rules": [
                 "Only record information explicitly stated by the user.",
@@ -175,12 +181,13 @@ class DeepSeekProfileConstructor:
 
 class ProfileProjector:
     def __init__(self, store: JsonProfileStore, constructor: ProfileConstructor, *,
-                 on_delta: Callable[[dict], Awaitable[None] | None] | None = None) -> None:
+                 on_delta: Callable[[dict[str, object]], Awaitable[None] | None] | None = None
+                 ) -> None:
         self.store = store
         self.constructor = constructor
         self.on_delta = on_delta
 
-    async def observe(self, node):
+    async def observe(self, node: BackendRecord) -> dict[str, object] | None:
         metadata = dict(node.get("metadata") or {})
         scores = dict(metadata.get("jev_mem", {}).get("memory_type") or {})
         if max((float(scores.get(name) or 0)
@@ -197,8 +204,8 @@ class ProfileProjector:
                 await result
         return delta
 
-    async def forget(self, memory_id):
+    async def forget(self, memory_id: str) -> list[str]:
         return await self.store.forget(memory_id)
 
-    async def snapshot(self):
+    async def snapshot(self) -> BackendRecord:
         return await self.store.load()

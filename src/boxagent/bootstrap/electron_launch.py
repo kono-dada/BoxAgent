@@ -7,15 +7,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Protocol, cast
 
 from boxagent.bootstrap.settings import Settings
-
-
-class _RunningApplication(Protocol):
-    def isTerminated(self) -> bool: ...
-    def terminate(self) -> bool: ...
-    def forceTerminate(self) -> bool: ...
 
 
 def _launch_macos(executable: Path, panel: Path, environment: dict[str, str]) -> int:
@@ -23,16 +16,16 @@ def _launch_macos(executable: Path, panel: Path, environment: dict[str, str]) ->
     # inherits a terminal/IDE's responsibility; Speech can then abort because
     # that parent app has no speech-recognition usage description.
     from AppKit import NSRunningApplication, NSWorkspace, NSWorkspaceOpenConfiguration
-    from Foundation import NSURL, NSDate, NSRunLoop
+    from Foundation import NSURL, NSDate, NSError, NSRunLoop
 
-    applications: list[_RunningApplication] = []
+    applications: list[NSRunningApplication] = []
     errors: list[str] = []
 
-    def completed(application: object, error: object) -> None:
+    def completed(application: NSRunningApplication | None, error: NSError | None) -> None:
         if error is not None:
             errors.append(str(error))
         elif isinstance(application, NSRunningApplication):
-            applications.append(cast(_RunningApplication, application))
+            applications.append(application)
         else:
             errors.append("LaunchServices 未返回有效应用进程")
 

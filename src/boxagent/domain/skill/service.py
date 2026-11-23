@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,19 +21,19 @@ class SkillRuntimePolicy:
 class SkillService:
     """Own Skill CRUD and expose an allowlist to Agent Runtime adapters."""
 
-    def __init__(self, repository: SkillRepository):
+    def __init__(self, repository: SkillRepository) -> None:
         self.repository = repository
 
     def list(self) -> list[SkillRecord]:
         return self.repository.list()
 
-    def find(self, query: str, *, limit: int = 8) -> list[SkillRecord]:
+    def find(self, query: str, *, limit: int = 8) -> builtins.list[SkillRecord]:
         query = str(query or "").strip().lower()
         if not query:
             return self.list()[:max(1, int(limit))]
         terms = tuple(part for part in query.replace("_", "-").split() if part)
 
-        def score(item):
+        def score(item: SkillRecord) -> int:
             haystack = "\n".join((
                 item.skill_id, item.name, item.description, item.instructions,
             )).lower().replace("_", "-")

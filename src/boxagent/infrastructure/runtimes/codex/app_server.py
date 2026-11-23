@@ -8,25 +8,40 @@ import shutil
 import sys
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
+from typing import Any, Literal, Protocol, TextIO
 
 from boxagent.agent.runtime.contracts import ToolObservationSink
-from boxagent.agent.runtime.models import ModelProfile
+from boxagent.agent.runtime.models import ModelProfile, RuntimeMessage
 from boxagent.core.paths import RESOURCE_ROOT as PROJECT_ROOT
 from boxagent.infrastructure.runtimes.codex.computer_use import (
     resolve_computer_use_client,
     resolve_computer_use_home,
 )
-from boxagent.infrastructure.runtimes.codex.skills import CodexSkillAdapter
+from boxagent.infrastructure.runtimes.codex.skills import CodexSkillAdapter, SkillPolicyProvider
 from boxagent.infrastructure.runtimes.codex.windows_skill import (
     WINDOWS_INSTRUCTIONS,
     WINDOWS_TOOL_NAMES,
     WindowsSkill,
 )
 
+type _RpcObject = dict[str, Any]
+type _ThreadState = Literal["reused", "resumed", "started"]
+type _ToolCallback = Callable[[str, _RpcObject], Awaitable[_RpcObject]]
+type _Approval = Callable[[_RpcObject], Awaitable[bool]]
+type _Progress = Callable[[str, str], None]
 
-def resolve_codex_runtime(workspace=PROJECT_ROOT):
+
+class _Log(Protocol):
+    def __call__(self, event: str, /, **data: object) -> None: ...
+
+
+class _PermissionCheck(Protocol):
+    def __call__(self, params: _RpcObject, /, *, stopped: bool) -> bool: ...
+
+
+def resolve_codex_runtime(workspace: str | Path = PROJECT_ROOT) -> Path:
     workspace = Path(workspace)
     codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     candidates = []
@@ -54,17 +69,30 @@ def resolve_codex_runtime(workspace=PROJECT_ROOT):
 class CodexAppServer:
     """Own one long-lived App Server process and one reusable Codex thread."""
 
-    def __init__(self, *, output, on_tool_call, approve, current_app, report, log,
-                 auto_approve=True, runtime_resolver=None,
-                 workspace=PROJECT_ROOT, model_profile: ModelProfile | None = None,
-                 permission_check=None, codex_home=None, skill_service=None,
-                 on_tool_observed: ToolObservationSink | None = None,
-                 windows_skill_loader: Callable[[], WindowsSkill] | None = None,
-                 computer_use_enabled: bool = True):
+    def __init__(
+        self,
+        *,
+        output: str | Path,
+        on_tool_call: _ToolCallback,
+        approve: _Approval,
+        current_app: Callable[[], str],
+        report: _Progress,
+        log: _Log,
+        auto_approve: bool = True,
+        runtime_resolver: Callable[[], Path] | None = None,
+        workspace: str | Path = PROJECT_ROOT,
+        model_profile: ModelProfile | None = None,
+        permission_check: _PermissionCheck | None = None,
+        codex_home: str | Path | None = None,
+        skill_service: SkillPolicyProvider | None = None,
+        on_tool_observed: ToolObservationSink | None = None,
+        windows_skill_loader: Callable[[], WindowsSkill] | None = None,
+        computer_use_enabled: bool = True,
+    ) -> None:
         self.output = Path(output)
         self.on_tool_call = on_tool_call
         self.on_tool_observed = on_tool_observed
-        self.native_tool_calls: dict[str, dict] = {}
+        self.native_tool_calls: dict[str, _RpcObject] = {}
         self.observed_native_calls: set[str] = set()
         self.approve = approve
         self.current_app = current_app
@@ -82,34 +110,51 @@ class CodexAppServer:
             lambda: resolve_codex_runtime(self.workspace))
         self.model_profile = model_profile
         self.permission_check = permission_check or self._default_permission_check
-        self.skill_adapter = (CodexSkillAdapter(
-            skill_service, workspace=self.workspace,
-            log=lambda event, **data: self.log(event, **data))
-            if skill_service else None)
-        self.process = self.reader = self.stderr = self.client = None
-        self.pending = {}
-        self.callbacks = set()
+
+        def skill_log(event: str, /, **data: object) -> None:
+            self.log(event, **data)
+
+        self.skill_adapter = (
+            CodexSkillAdapter(skill_service, workspace=self.workspace, log=skill_log)
+            if skill_service else None
+        )
+        self.process: asyncio.subprocess.Process | None = None
+        self.reader: asyncio.Task[None] | None = None
+        self.stderr: TextIO | None = None
+        self.client: Path | None = None
+        self.pending: dict[int, asyncio.Future[_RpcObject]] = {}
+        self.callbacks: set[asyncio.Task[None]] = set()
         self.sequence = 0
-        self.thread_id = self.turn_id = None
-        self.thread_signature = None
-        self.completed = None
+        self.thread_id: str | None = None
+        self.turn_id: str | None = None
+        self.thread_signature: tuple[str, str, str, tuple[str, ...]] | None = None
+        self.completed: asyncio.Future[_RpcObject] | None = None
         self.agent_text = ""
-        self.turn_input_messages = []
-        self.turn_metadata = None
-        self.tools = []
-        self.discovered_tools = []
-        self.discovered_skills = []
+        self.turn_input_messages: list[str] = []
+        self.turn_metadata: dict[str, str | int | None] | None = None
+        self.tools: list[_RpcObject] = []
+        self.discovered_tools: list[_RpcObject] = []
+        self.discovered_skills: list[_RpcObject] = []
         self.skills_changed = False
         self.stopped = False
         self.cleanup_status = "not_started"
 
     @staticmethod
-    def _default_permission_check(params, *, stopped=False):
+    def _default_permission_check(params: _RpcObject, *, stopped: bool = False) -> bool:
         return (not stopped and params.get("serverName") == "boxagent_cua"
                 and params.get("requestedSchema", {}).get("properties") == {})
 
-    def bind_task(self, *, on_tool_call, approve, current_app, report, log,
-                  auto_approve=True, on_tool_observed: ToolObservationSink | None = None):
+    def bind_task(
+        self,
+        *,
+        on_tool_call: _ToolCallback,
+        approve: _Approval,
+        current_app: Callable[[], str],
+        report: _Progress,
+        log: _Log,
+        auto_approve: bool = True,
+        on_tool_observed: ToolObservationSink | None = None,
+    ) -> None:
         """Route callbacks for the one task currently leasing this process."""
         self.on_tool_call = on_tool_call
         self.on_tool_observed = on_tool_observed
@@ -231,17 +276,17 @@ class CodexAppServer:
             arguments.extend(("-c", override))
         return arguments
 
-    async def send(self, message):
+    async def send(self, message: _RpcObject) -> None:
         process = self.process
         if process is None or process.returncode is not None or process.stdin is None:
             raise RuntimeError("任务执行器已断开")
         process.stdin.write((json.dumps(message) + "\n").encode())
         await process.stdin.drain()
 
-    async def rpc(self, method, params, timeout=120):
+    async def rpc(self, method: str, params: _RpcObject, timeout: float = 120) -> _RpcObject:
         self.sequence += 1
         request_id = self.sequence
-        future = asyncio.get_running_loop().create_future()
+        future: asyncio.Future[_RpcObject] = asyncio.get_running_loop().create_future()
         self.pending[request_id] = future
         started = time.monotonic()
         self.log("rpc_started", request_id=request_id, method=method, timeout=timeout)
@@ -259,13 +304,15 @@ class CodexAppServer:
             self.pending.pop(request_id, None)
 
     async def read(self) -> None:
-        error = RuntimeError("Codex 执行器连接已结束")
+        error: Exception = RuntimeError("Codex 执行器连接已结束")
         try:
             process = self.process
             if process is None or process.stdout is None:
                 raise error
             while line := await process.stdout.readline():
-                message = json.loads(line)
+                message: object = json.loads(line)
+                if not isinstance(message, dict):
+                    raise ValueError("Codex JSON-RPC 消息必须是对象")
                 method = message.get("method")
                 if method in {"error", "turn/completed", "item/started", "item/completed"}:
                     params = message.get("params", {})
@@ -287,12 +334,20 @@ class CodexAppServer:
                     task = asyncio.create_task(self.callback(message))
                     self.callbacks.add(task)
                     task.add_done_callback(self.callbacks.discard)
-                elif (future := self.pending.get(message.get("id"))) is not None:
+                elif isinstance(request_id := message.get("id"), int) and (
+                    future := self.pending.get(request_id)
+                ) is not None:
                     if not future.done():
                         if "error" in message:
                             future.set_exception(RuntimeError(str(message["error"])))
                         else:
-                            future.set_result(message.get("result", {}))
+                            result = message.get("result")
+                            if result is None:
+                                future.set_result({})
+                            elif isinstance(result, dict):
+                                future.set_result(result)
+                            else:
+                                future.set_exception(ValueError("Codex JSON-RPC 结果必须是对象"))
                 elif method == "turn/completed" and self.completed and not self.completed.done():
                     turn = message["params"]["turn"]
                     if turn.get("id") == self.turn_id:
@@ -314,7 +369,7 @@ class CodexAppServer:
                 if not future.done():
                     future.set_exception(error)
 
-    async def observe_native_tool_event(self, method: str, params: dict) -> None:
+    async def observe_native_tool_event(self, method: str, params: _RpcObject) -> None:
         """Persist actual native results before accepting the turn's final report."""
         item = params.get("item") or {}
         if (params.get("turnId") != self.turn_id or not self.turn_id
@@ -363,7 +418,7 @@ class CodexAppServer:
         self.log("native_tool_observed", call_id=call_id, operation=operation,
                  success=not response["isError"])
 
-    async def callback(self, message):
+    async def callback(self, message: _RpcObject) -> None:
         method, params = message["method"], message.get("params", {})
         try:
             if method == "item/tool/call":
@@ -394,7 +449,7 @@ class CodexAppServer:
                     {"id": message["id"], "error": {"code": -32603, "message": str(exc)}}
                 )
 
-    async def discover_tools(self):
+    async def discover_tools(self) -> list[_RpcObject]:
         bootstrap = await self.rpc(
             "thread/start",
             {
@@ -417,6 +472,10 @@ class CodexAppServer:
                 if server and server.get("tools"):
                     tools = server["tools"]
                     tools = list(tools.values()) if isinstance(tools, dict) else tools
+                    if not isinstance(tools, list) or not all(
+                        isinstance(tool, dict) for tool in tools
+                    ):
+                        raise ValueError("Codex Computer Use 工具清单格式无效")
                     if self.windows_skill:
                         tools = [{**tool, "name": WINDOWS_TOOL_NAMES[tool["name"]]}
                                  for tool in tools if tool.get("name") in WINDOWS_TOOL_NAMES]
@@ -427,10 +486,10 @@ class CodexAppServer:
                     raise asyncio.CancelledError
                 await asyncio.sleep(.2)
 
-    async def call_tool(self, operation, arguments):
+    async def call_tool(self, operation: str, arguments: _RpcObject) -> _RpcObject:
         # RPC 顶层的 threadId 只负责路由；原生光标通过 MCP 元数据关联轮次。
         thread_id = self.thread_id or self.discovery_thread_id
-        metadata = {"threadId": thread_id}
+        metadata: dict[str, object] = {"threadId": thread_id}
         if self.turn_metadata is not None:
             metadata["x-codex-turn-metadata"] = dict(self.turn_metadata)
         server_name = "boxagent_cua"
@@ -443,8 +502,14 @@ class CodexAppServer:
             "threadId": thread_id, "server": server_name, "tool": operation,
             "_meta": metadata, "arguments": arguments})
 
-    async def ensure_thread(self, *, model, instructions, preferred_thread_id=None,
-                            product_session_id=None):
+    async def ensure_thread(
+        self,
+        *,
+        model: str,
+        instructions: str,
+        preferred_thread_id: str | None = None,
+        product_session_id: str | None = None,
+    ) -> tuple[str, _ThreadState]:
         if self.windows_skill:
             instructions += "\n\n" + WINDOWS_INSTRUCTIONS + "\n\n" + self.windows_skill.instructions
         await self.refresh_skills(force=self.skills_changed)
@@ -473,11 +538,12 @@ class CodexAppServer:
                     "approvalPolicy": "on-request", "sandbox": "read-only",
                     "model": model, "developerInstructions": instructions,
                 })
-                self.thread_id = resumed["thread"]["id"]
+                thread_id = self._required_id(resumed, "thread")
+                self.thread_id = thread_id
                 self.thread_signature = signature
                 self.log("runtime_thread_resumed", thread_id=self.thread_id,
                          model=model, product_session_id=product_session_id)
-                return self.thread_id, "resumed"
+                return thread_id, "resumed"
             except Exception as exc:
                 self.log("runtime_thread_resume_failed", thread_id=preferred_thread_id,
                          model=model, product_session_id=product_session_id,
@@ -487,27 +553,47 @@ class CodexAppServer:
             "approvalPolicy": "on-request", "sandbox": "read-only", "model": model,
             "developerInstructions": instructions, "dynamicTools": self.tools,
         })
-        self.thread_id = thread["thread"]["id"]
+        thread_id = self._required_id(thread, "thread")
+        self.thread_id = thread_id
         self.thread_signature = signature
         self.log("runtime_epoch_started", thread_id=self.thread_id, model=model,
                  product_session_id=product_session_id)
-        return self.thread_id, "started"
+        return thread_id, "started"
 
-    async def run_codex_turn(self, *, model, instructions, query, output_schema,
-                             history=(), history_delta=(), evidence_context="",
-                             preferred_thread_id=None,
-                             on_thread_bound=None, product_session_id=None,
-                             on_context_synced=None):
-        self.completed = asyncio.get_running_loop().create_future()
+    @staticmethod
+    def _required_id(payload: _RpcObject, key: str) -> str:
+        record = payload.get(key)
+        record_id = record.get("id") if isinstance(record, dict) else None
+        if not isinstance(record_id, str) or not record_id:
+            raise ValueError(f"Codex JSON-RPC 结果缺少 {key} ID")
+        return record_id
+
+    async def run_codex_turn(
+        self,
+        *,
+        model: str,
+        instructions: str,
+        query: str,
+        output_schema: dict[str, object],
+        history: Sequence[RuntimeMessage] = (),
+        history_delta: Sequence[RuntimeMessage] = (),
+        evidence_context: str = "",
+        preferred_thread_id: str | None = None,
+        on_thread_bound: Callable[[str], object] | None = None,
+        product_session_id: str | None = None,
+        on_context_synced: Callable[[Sequence[RuntimeMessage]], object] | None = None,
+    ) -> str:
+        completion: asyncio.Future[_RpcObject] = asyncio.get_running_loop().create_future()
+        self.completed = completion
         self.agent_text = ""
         thread_id, state = await self.ensure_thread(
             model=model, instructions=instructions,
             preferred_thread_id=preferred_thread_id,
             product_session_id=product_session_id)
         if on_thread_bound:
-            result = on_thread_bound(thread_id)
-            if asyncio.iscoroutine(result):
-                await result
+            binding = on_thread_bound(thread_id)
+            if asyncio.iscoroutine(binding):
+                await binding
         if self.stopped:
             raise asyncio.CancelledError
         selected_history = history if state == "started" else history_delta
@@ -556,7 +642,7 @@ class CodexAppServer:
         turn = await self.rpc("turn/start", {"threadId": self.thread_id,
             "outputSchema": output_schema,
             "input": [{"type": "text", "text": turn_input, "text_elements": []}]})
-        self.turn_id = turn["turn"]["id"]
+        self.turn_id = self._required_id(turn, "turn")
         self.turn_metadata = {
             "session_id": self.thread_id,
             "thread_id": self.thread_id,
@@ -570,7 +656,7 @@ class CodexAppServer:
                 synced = on_context_synced(selected_history)
                 if asyncio.iscoroutine(synced):
                     await synced
-            result = await asyncio.wait_for(asyncio.shield(self.completed), 300)
+            result = await asyncio.wait_for(asyncio.shield(completion), 300)
             if self.stopped or result.get("status") == "interrupted":
                 raise asyncio.CancelledError
             if result.get("status") != "completed":
@@ -607,10 +693,12 @@ class CodexAppServer:
                         raise
         return self.agent_text
 
-    async def run_isolated_structured_turn(self, *, model, instructions, query,
-                                            output_schema):
+    async def run_isolated_structured_turn(
+        self, *, model: str, instructions: str, query: str, output_schema: dict[str, object]
+    ) -> str:
         """Run a tool-free ephemeral turn without changing the task Thread."""
-        self.completed = asyncio.get_running_loop().create_future()
+        completion: asyncio.Future[_RpcObject] = asyncio.get_running_loop().create_future()
+        self.completed = completion
         self.agent_text = ""
         thread = await self.rpc("thread/start", {
             "cwd": str(self.workspace),
@@ -621,17 +709,17 @@ class CodexAppServer:
             "developerInstructions": instructions,
             "dynamicTools": [],
         })
-        isolated_thread_id = thread["thread"]["id"]
+        isolated_thread_id = self._required_id(thread, "thread")
         try:
             turn = await self.rpc("turn/start", {
                 "threadId": isolated_thread_id,
                 "outputSchema": output_schema,
                 "input": [{"type": "text", "text": query, "text_elements": []}],
             })
-            self.turn_id = turn["turn"]["id"]
+            self.turn_id = self._required_id(turn, "turn")
             self.log("structured_turn_started", thread_id=isolated_thread_id,
                      turn_id=self.turn_id)
-            result = await asyncio.wait_for(asyncio.shield(self.completed), 180)
+            result = await asyncio.wait_for(asyncio.shield(completion), 180)
             if result.get("status") != "completed":
                 raise RuntimeError(
                     "结构化请求未完成：" + str(result.get("error") or result.get("status")))
@@ -647,7 +735,7 @@ class CodexAppServer:
             self.completed = None
             self.cleanup_status = "not_needed"
 
-    async def start(self):
+    async def start(self) -> list[_RpcObject]:
         if self.process and self.process.returncode is None:
             await self.refresh_skills()
             return self.discovered_tools
@@ -685,7 +773,7 @@ class CodexAppServer:
         self.log("tools_discovered", count=len(self.discovered_tools))
         return self.discovered_tools
 
-    async def refresh_skills(self, *, force=False):
+    async def refresh_skills(self, *, force: bool = False) -> list[_RpcObject]:
         if self.skill_adapter is None:
             return self.discovered_skills
         self.discovered_skills = await self.skill_adapter.sync(

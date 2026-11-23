@@ -108,12 +108,12 @@ class DesktopService:
                 return {"id": str(directory), "token": token, "url": self.preview(directory)}
             if method == "desktop_commit_avatar":
                 token = str(params.get("token", ""))
-                directory = self.prepared.get(token)
-                if directory is None:
+                prepared_directory = self.prepared.get(token)
+                if prepared_directory is None:
                     raise ValueError("形象加载凭证已失效")
                 if params.get("persist", True):
-                    self.catalog.commit(directory)
-                self.directory = directory
+                    self.catalog.commit(prepared_directory)
+                self.directory = prepared_directory
                 self.prepared.pop(token)
                 self.release_unused_servers()
                 return self.snapshot()
@@ -163,16 +163,17 @@ class DesktopService:
                 records = SessionRunRecords(self.data_dir / "runs")
                 session_id = str(params.get("session_id", ""))
                 identity = params.get("id")
+                run_directory: Path | None
                 if identity:
-                    directory = next(
+                    run_directory = next(
                         (p for p in records.directories(session_id) if str(p) == identity), None
                     )
-                    if directory is None:
+                    if run_directory is None:
                         raise ValueError("运行记录不属于此会话")
                 else:
-                    directory = records.latest(session_id) if params.get("latest") else None
-                    directory = directory or records.materialize_view(session_id)
-                return {"path": str(directory)}
+                    run_directory = records.latest(session_id) if params.get("latest") else None
+                    run_directory = run_directory or records.materialize_view(session_id)
+                return {"path": str(run_directory)}
             if method == "desktop_log_directory":
                 self.log_dir.mkdir(parents=True, exist_ok=True)
                 return {"path": str(self.log_dir)}

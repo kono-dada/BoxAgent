@@ -2825,3 +2825,9 @@ passed
 - **背景与问题**　团队要求使用 uv 和三个工具的原生命令，CI 需要给出完整诊断并展示各项检查结果。
 - **决策与做法**　移除自写检查脚本和诊断基线。CI 分步运行 `uv run --locked ruff check`、`uv run --locked mypy` 和 `uv run --locked pytest`，保留 Pyright。清理 Ruff 报出的导入、行宽和测试问题，补齐会话持久化、日志、上下文记录、Engine IPC 等路径的类型。 [CI](../.github/workflows/verify.yml) · [会话存储](../src/boxagent/infrastructure/persistence/jsonl_session_repository.py) · [Engine IPC](../src/boxagent/interfaces/engine/client.py)
 - **效果**　本地 Ruff 从 1,429 项降到零，strict mypy 从 1,632 项降到 900 项。pytest 682 项通过、13 项跳过，Pyright 使用 uv 解释器时无错误或警告。mypy 仍会使 CI 失败，剩余诊断以语音运行时、应用编排和执行层为主。远程 CI 和桌宠实机行为待验证。
+
+### 2026-11-23 · strict mypy 清零
+
+- **背景与问题**　直接启用 strict mypy 后，CI 覆盖范围内还有 900 项诊断，主要来自语音和任务运行时、应用装配、记忆和原生接口。
+- **决策与做法**　补齐运行时工厂、异步回调和内部记录的类型，在 JSON 和原生 SDK 入口校验动态数据。将 PyAudio 类型存根锁定为开发依赖，为项目使用的 PyObjC 接口添加存根。沿用 Python 3.12、strict、既有检查范围及 CI 中的三条原生命令。 [检查配置](../pyproject.toml) · [任务执行器](../src/boxagent/agent/harness/executor.py) · [语音运行时](../src/boxagent/infrastructure/runtimes/qwen/realtime.py)
+- **效果**　macOS 上 `uv run --locked mypy` 检查 224 个文件，零诊断。Ruff 通过，两条全量 pytest 命令均通过 682 项、跳过 13 项。Pyright 使用 uv 解释器时无错误或警告，直接执行时有一条 PyAudio 源码发现警告。通过了 PyObjC 和 Quartz 接口的本机冒烟。额外指定 Windows 平台的 mypy 仍报告平台 API 诊断。远程 CI、真实 AOQ 音频和桌宠实机行为待验证。

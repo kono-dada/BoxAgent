@@ -1,29 +1,46 @@
 """Compose the application services that live inside the Engine process."""
 
+from __future__ import annotations
+
 import os
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
+from pathlib import Path
+from typing import TYPE_CHECKING, Unpack
 
 from boxagent.agent.harness import RuntimeRequestBuilder, TaskExecutor
 from boxagent.agent.harness.context import RuntimeContextProjector
+from boxagent.agent.harness.executor import SessionFactory, TaskMemory, ToolGatewayFactory
 from boxagent.agent.harness.instructions import append_persona
 from boxagent.agent.harness.persona import Persona, load_persona
 from boxagent.agent.harness.policies import ComputerUseToolGateway, can_auto_approve_computer_use
 from boxagent.agent.harness.policies.tools import ApplicationTools
+from boxagent.agent.runtime.models import RuntimeMessage
 from boxagent.agent.runtime.registry import AgentRuntimeRegistry
-from boxagent.application.assistant import BoxAgentApplication
+from boxagent.application.assistant import BoxAgentApplication, RuntimeResource
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
 from boxagent.application.lol_companion import LolCompanion
 from boxagent.application.skill_authoring import SkillAuthoringService
 from boxagent.bootstrap.memory import create_memory_module
-from boxagent.bootstrap.settings import load_settings, read_optional_setting
+from boxagent.bootstrap.settings import Settings, load_settings, read_optional_setting
 from boxagent.bootstrap.web import create_web_research
 from boxagent.core.errors import append_jsonl
-from boxagent.core.states import Snapshot
+from boxagent.core.states import Snapshot, Voice
+from boxagent.domain.context.contracts import ContextLedgerStore
 from boxagent.domain.conversation import ConversationService
-from boxagent.domain.execution.service import TaskCapability
+from boxagent.domain.conversation.contracts import SessionStore
+from boxagent.domain.conversation.models import ProductEvent, RuntimeBinding
+from boxagent.domain.environment import EnvironmentProvider
+from boxagent.domain.execution.service import ExecutorOptions, TaskCapability
+from boxagent.domain.interaction.service import (
+    VoiceEventSink,
+    VoiceFactory,
+    VoiceFactoryOptions,
+    VoiceTool,
+)
+from boxagent.domain.memory.contracts import MemoryBackend
 from boxagent.domain.notification import NotificationOutbox
 from boxagent.domain.proactivity.lol import LolCompanionPolicy, LolMoment
 from boxagent.domain.skill import SkillService
@@ -41,6 +58,7 @@ from boxagent.infrastructure.persistence import (
     SkillFileRepository,
 )
 from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
+from boxagent.infrastructure.persistence.session_events import SessionEventStore
 from boxagent.infrastructure.runtimes.codex import (
     CodexAgentRuntime,
     CodexCheckpointGenerator,
@@ -51,8 +69,13 @@ from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
 from boxagent.infrastructure.runtimes.codex.computer_use import resolve_computer_use_home
 from boxagent.infrastructure.runtimes.codex.windows_skill import load_windows_skill
 
+if TYPE_CHECKING:
+    from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession
+    from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
+    from boxagent.interfaces.engine.server import EngineServer
 
-def create_agent_runtime_registry(app_settings):
+
+def create_agent_runtime_registry(app_settings: Settings) -> AgentRuntimeRegistry:
     return AgentRuntimeRegistry(
         task_model=app_settings.task_model,
         deepseek_model=app_settings.deepseek_model,
@@ -81,19 +104,29 @@ def current_screen_reference(state: Snapshot) -> str:
             f"摘要：{state.context_text}")
 
 
-def create_voice_factory(app_settings, *, persona=None,
-                         environment_provider=None, context_projector=None,
-                         context_recorder=None, host_turn_control=False):
+def create_voice_factory(
+    app_settings: Settings,
+    *,
+    persona: Persona | None = None,
+    environment_provider: EnvironmentProvider | None = None,
+    context_projector: RuntimeContextProjector | None = None,
+    context_recorder: QwenContextRecorder | None = None,
+    host_turn_control: bool = False,
+) -> partial[QwenRealtimeSession] | partial[AoqRealtimeSession]:
     # Keep realtime audio dependencies out of task-runtime imports and tests.
     from boxagent.agent.harness.wechat_tools import WECHAT_FRONT_INSTRUCTIONS
     from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession, aoq_preflight
-    from boxagent.infrastructure.runtimes.qwen.realtime import INSTRUCTIONS, QwenRealtimeSession
+    from boxagent.infrastructure.runtimes.qwen.realtime import (
+        INSTRUCTIONS,
+        QwenRealtimeSession,
+        _RealtimeOptions,
+    )
 
     environment_provider = environment_provider or LocalSystemEnvironmentProvider()
     context_projector = context_projector or RuntimeContextProjector()
     trace_path = app_settings.log_dir / "runtime/qwen/events.jsonl"
 
-    def qwen_trace(event, **data):
+    def qwen_trace(event: str, /, **data: object) -> None:
         append_jsonl(trace_path, {
             "event": event, "occurred_at": time.time(), **data})
         if context_recorder is not None:
@@ -103,45 +136,7 @@ def create_voice_factory(app_settings, *, persona=None,
     if transport not in {"auto", "aoq", "websocket"}:
         raise ValueError(
             "BOXAGENT_QWEN_TRANSPORT 只支持 auto、aoq 或 websocket")
-    session_class = QwenRealtimeSession
-    transport_options = {}
-    output_device = getattr(app_settings, "aoq_output_device", "")
-    if transport != "websocket":
-        available, reason = aoq_preflight(
-            sdk_dir=app_settings.aoq_sdk_dir,
-            workspace_id=app_settings.qwen_workspace_id)
-        if available:
-            session_class = AoqRealtimeSession
-            transport_options = {
-                "workspace_id": app_settings.qwen_workspace_id,
-                "region": app_settings.qwen_region,
-                "sdk_dir": app_settings.aoq_sdk_dir,
-                "work_dir": app_settings.aoq_work_dir,
-            }
-            if output_device:
-                transport_options["output_device"] = output_device
-            qwen_trace("transport.selected", transport="aoq")
-        else:
-            qwen_trace(
-                "transport.fallback", requested=transport,
-                selected="websocket", reason=reason)
-    else:
-        qwen_trace("transport.selected", transport="websocket")
-
-    if session_class is QwenRealtimeSession:
-        if output_device:
-            raise ValueError("独立扬声器配置需要 AOQ；未回退到系统默认音频输出")
-        proxy = getattr(app_settings, "qwen_websocket_proxy", "auto")
-        if proxy not in {"auto", "direct"}:
-            raise ValueError("BOXAGENT_QWEN_WEBSOCKET_PROXY 只支持 auto 或 direct")
-        transport_options["websocket_proxy"] = None if proxy == "direct" else True
-        if app_settings.qwen_workspace_id:
-            transport_options["websocket_url"] = (
-                f"wss://{app_settings.qwen_workspace_id}.{app_settings.qwen_region}"
-                f".maas.aliyuncs.com/api-ws/v1/realtime?model={app_settings.voice_model}")
-
-    return partial(
-        session_class,
+    options = _RealtimeOptions(
         model=app_settings.voice_model,
         key=app_settings.qwen_api_key,
         instructions=append_persona(
@@ -153,18 +148,57 @@ def create_voice_factory(app_settings, *, persona=None,
         environment_context=lambda: context_projector.environment_packet(
             environment_provider.capture()),
         host_turn_control=host_turn_control,
-        **transport_options,
     )
+    output_device = getattr(app_settings, "aoq_output_device", "")
+    if transport != "websocket":
+        available, reason = aoq_preflight(
+            sdk_dir=app_settings.aoq_sdk_dir,
+            workspace_id=app_settings.qwen_workspace_id)
+        if available:
+            qwen_trace("transport.selected", transport="aoq")
+            return partial(
+                AoqRealtimeSession,
+                workspace_id=app_settings.qwen_workspace_id,
+                region=app_settings.qwen_region,
+                sdk_dir=app_settings.aoq_sdk_dir,
+                work_dir=app_settings.aoq_work_dir,
+                output_device=output_device,
+                **options,
+            )
+        else:
+            qwen_trace(
+                "transport.fallback", requested=transport,
+                selected="websocket", reason=reason)
+    else:
+        qwen_trace("transport.selected", transport="websocket")
+
+    if output_device:
+        raise ValueError("独立扬声器配置需要 AOQ；未回退到系统默认音频输出")
+    proxy = getattr(app_settings, "qwen_websocket_proxy", "auto")
+    if proxy not in {"auto", "direct"}:
+        raise ValueError("BOXAGENT_QWEN_WEBSOCKET_PROXY 只支持 auto 或 direct")
+    options["websocket_proxy"] = None if proxy == "direct" else True
+    if app_settings.qwen_workspace_id:
+        options["websocket_url"] = (
+            f"wss://{app_settings.qwen_workspace_id}.{app_settings.qwen_region}"
+            f".maas.aliyuncs.com/api-ws/v1/realtime?model={app_settings.voice_model}")
+    return partial(QwenRealtimeSession, **options)
 
 
-def create_task_executor(task_id, *, provider=None, model=None, auto_approve=True,
-                         session_factory=None, tool_gateway_factory=ComputerUseToolGateway,
-                         request_builder=None, app_settings=None, registry=None,
-                         session_id=None, interaction_id=None, prior_messages=(),
-                         runtime_binding=None, conversation_service=None,
-                         environment_provider=None, memory=None, session_events=None,
-                         application_tools: ApplicationTools | None = None,
-                         capability: TaskCapability = "desktop"):
+def create_task_executor(
+    task_id: str, *, provider: str | None = None, model: str | None = None,
+    auto_approve: bool = True, session_factory: SessionFactory | None = None,
+    tool_gateway_factory: ToolGatewayFactory = ComputerUseToolGateway,
+    request_builder: RuntimeRequestBuilder | None = None, app_settings: Settings | None = None,
+    registry: AgentRuntimeRegistry | None = None, session_id: str | None = None,
+    interaction_id: str | None = None, prior_messages: Iterable[ProductEvent] = (),
+    runtime_binding: RuntimeBinding | None = None,
+    conversation_service: ConversationService | None = None,
+    environment_provider: EnvironmentProvider | None = None, memory: TaskMemory | None = None,
+    session_events: SessionEventStore | None = None,
+    application_tools: ApplicationTools | None = None,
+    capability: TaskCapability = "desktop",
+) -> TaskExecutor:
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)
     selected = registry.runtime(provider or app_settings.task_provider, model)
@@ -187,7 +221,7 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         tool_gateway_factory = partial(ComputerUseToolGateway, image_store=attachments.put)
     if application_tools is not None:
         tool_gateway_factory = partial(tool_gateway_factory, application_tools=application_tools)
-    def record_task(kind, data):
+    def record_task(kind: str, data: dict[str, object]) -> None:
         mapping = {
             "task_started": "task/start",
             "task_ended": "task/end",
@@ -198,6 +232,20 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
             session_events.append(session_id, mapping[kind], {
                 **data, "task_id": task_id, "interaction_id": interaction_id,
                     "runtime": runtime_name, "reference": f"tasks/{task_id}"})
+    async def bind_thread(thread_id: str) -> None:
+        if conversation_service and session_id:
+            await conversation_service.bind_runtime(
+                session_id, runtime=runtime_name, provider=selected.provider,
+                model=selected.model, thread_id=thread_id)
+
+    async def context_synced(actual: Sequence[RuntimeMessage]) -> None:
+        if conversation_service and session_id:
+            await conversation_service.mark_runtime_synced(
+                session_id, runtime_name, max((message.sequence for message in actual), default=0),
+                interaction_id or "",
+                tuple(message.event_id for message in actual if message.event_id),
+            )
+
     return TaskExecutor(
         task_id,
         provider=selected.provider,
@@ -220,24 +268,18 @@ def create_task_executor(task_id, *, provider=None, model=None, auto_approve=Tru
         run_index_path=None if unified else app_settings.runs_dir / "index.jsonl",
         latest_run_path=None if unified else app_settings.runs_dir / "latest.json",
         event_sink=record_task if session_events is not None else None,
-        on_thread_bound=(
-            lambda thread_id: conversation_service.bind_runtime(
-                session_id, runtime=runtime_name, provider=selected.provider,
-                model=selected.model, thread_id=thread_id)
-            if conversation_service and session_id else None),
-        on_context_synced=(
-            lambda actual: conversation_service.mark_runtime_synced(
-                session_id, runtime_name, max(
-                    [getattr(e, "sequence", 0) for e in actual] + [0]), interaction_id or "",
-                tuple(getattr(e, "event_id", "") for e in actual if getattr(e, "event_id", "")))
-            if conversation_service and session_id else None),
+        on_thread_bound=bind_thread,
+        on_context_synced=context_synced,
     )
 
 
-def create_application(publish, *, task_provider=None, task_model=None,
-                       auto_approve=True, memory_backend=None,
-                       voice_factory=None, app_settings=None, registry=None,
-                       context_interval=0, context_size=960):
+def create_application(
+    publish: Callable[[dict[str, object]], None], *, task_provider: str | None = None,
+    task_model: str | None = None, auto_approve: bool = True,
+    memory_backend: MemoryBackend | None = None, voice_factory: VoiceFactory | None = None,
+    app_settings: Settings | None = None, registry: AgentRuntimeRegistry | None = None,
+    context_interval: float = 0, context_size: int = 960,
+) -> BoxAgentApplication:
     """Build the complete backend without importing AppKit or another UI module."""
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)
@@ -253,16 +295,20 @@ def create_application(publish, *, task_provider=None, task_model=None,
     context_projector = RuntimeContextProjector(
         history_character_budget=app_settings.codex_history_character_budget)
     environment_provider = LocalSystemEnvironmentProvider()
-    from boxagent.infrastructure.persistence.session_events import SessionEventStore
     from boxagent.infrastructure.persistence.unified_session import (
         UnifiedContextLedger,
         UnifiedSessionRepository,
     )
     use_unified = app_settings.uses_unified_sessions
     session_events = None
+    conversation_store: SessionStore
+    context_ledger: ContextLedgerStore
+    session_resources: tuple[RuntimeResource, ...] = ()
     if use_unified:
         session_events = SessionEventStore(app_settings.data_dir / "sessions")
-        conversation_store = UnifiedSessionRepository(session_events)
+        unified_repository = UnifiedSessionRepository(session_events)
+        conversation_store = unified_repository
+        session_resources = (unified_repository,)
         context_ledger = UnifiedContextLedger(session_events)
     else:
         legacy_root = app_settings.data_dir / (
@@ -271,10 +317,11 @@ def create_application(publish, *, task_provider=None, task_model=None,
         conversation_store = JsonlSessionStore(legacy_root)
         context_ledger = JsonlContextLedgerStore(legacy_root)
     context_log_path = app_settings.log_dir / "context/ledger.jsonl"
+    def context_log(event: str, /, **data: object) -> None:
+        append_jsonl(context_log_path, {"event": event, "occurred_at": time.time(), **data})
+
     context_recorder = QwenContextRecorder(
-        context_ledger, model=app_settings.voice_model, background=True,
-        log=lambda event, **data: append_jsonl(context_log_path, {
-            "event": event, "occurred_at": time.time(), **data}))
+        context_ledger, model=app_settings.voice_model, background=True, log=context_log)
     notification_outbox = NotificationOutbox(JsonNotificationRepository(
         app_settings.data_dir / "notifications/outbox.json"))
     skill_service = SkillService(SkillFileRepository(
@@ -302,11 +349,11 @@ def create_application(publish, *, task_provider=None, task_model=None,
     checkpoint_log_path = app_settings.log_dir / "context/checkpoints.jsonl"
     memory_log_path = app_settings.log_dir / "memory/events.jsonl"
 
-    def checkpoint_log(event, **data):
+    def checkpoint_log(event: str, /, **data: object) -> None:
         append_jsonl(checkpoint_log_path, {
             "event": event, "occurred_at": time.time(), **data})
 
-    def memory_log(event, **data):
+    def memory_log(event: str, /, **data: object) -> None:
         append_jsonl(memory_log_path, {
             "event": event, "occurred_at": time.time(), **data})
 
@@ -353,27 +400,33 @@ def create_application(publish, *, task_provider=None, task_model=None,
     from boxagent.bootstrap.memory import create_intent_reference
     intent_reference = create_intent_reference(app_settings) \
         if app_settings.intent_reference_enabled and app_settings.decision_api_key else None
+    application: BoxAgentApplication
     turn_preparer = TurnPreparer(memory,
         intent=intent_reference,
         environment=lambda: context_projector.environment_packet(environment_provider.capture()),
         screen=lambda: current_screen_reference(application.events.state),
         game=lambda: application.lol_companion.reference() if application.lol_companion else "")
-    if voice_factory is None and app_settings.qwen_api_key:
+    front_voice_factory = voice_factory
+    if front_voice_factory is None and app_settings.qwen_api_key:
         realtime_factory = create_voice_factory(
             app_settings, environment_provider=environment_provider,
             context_projector=context_projector,
             context_recorder=context_recorder, host_turn_control=True)
-        base_instructions = realtime_factory.keywords["instructions"]
+        base_instructions = str(realtime_factory.keywords["instructions"])
 
-        def front_voice_factory(*args, **kwargs):
+        def persona_voice_factory(
+            handle_tool: VoiceTool, emit: VoiceEventSink, /,
+            **options: Unpack[VoiceFactoryOptions],
+        ) -> Voice:
             return realtime_factory(
-                *args, instructions=append_persona(base_instructions, current_persona()), **kwargs)
-    else:
-        front_voice_factory = voice_factory
+                handle_tool, emit,
+                instructions=append_persona(base_instructions, current_persona()), **options)
 
-    application = BoxAgentApplication(
-        publish,
-        lambda task_id, capability="desktop", **context: create_task_executor(
+        front_voice_factory = persona_voice_factory
+
+    def task_executor(task_id: str, /, **context: Unpack[ExecutorOptions]) -> TaskExecutor:
+        capability = context.get("capability", "desktop")
+        return create_task_executor(
             task_id,
             provider=task_provider,
             model=task_model,
@@ -381,14 +434,17 @@ def create_application(publish, *, task_provider=None, task_model=None,
             session_factory=(
                 wechat_runtime_host if capability == "wechat" else runtime_host
             ).create_session,
-            capability=capability,
             request_builder=RuntimeRequestBuilder(
                 persona=current_persona(), context_assembler=context_projector),
             app_settings=app_settings, registry=registry,
             environment_provider=environment_provider,
             memory=memory,
             conversation_service=conversation_service, session_events=session_events,
-            application_tools=application.wechat_tools, **context),
+            application_tools=application.wechat_tools, **context)
+
+    application = BoxAgentApplication(
+        publish,
+        task_executor,
         front_voice_factory,
         memory=memory,
         turn_preparer=turn_preparer if voice_factory is None else None,
@@ -414,7 +470,7 @@ def create_application(publish, *, task_provider=None, task_model=None,
         runtime_resources=(
             runtime_host,
             wechat_runtime_host,
-            *((conversation_store,) if use_unified else ()),
+            *session_resources,
             *((intent_reference,) if intent_reference else ()),
             turn_preparer,
             checkpoint_coordinator,
@@ -442,8 +498,6 @@ def create_application(publish, *, task_provider=None, task_model=None,
     from boxagent.application.camera import CameraInteractionService
 
     if sys.platform == "darwin":
-        from pathlib import Path
-
         from boxagent.application.game_news import GameNewsMonitor
         from boxagent.infrastructure.games.steam import SteamGames, steam_game_topic
 
@@ -457,7 +511,7 @@ def create_application(publish, *, task_provider=None, task_model=None,
     application.camera = CameraInteractionService(
         application.events, application.interaction_service
     )
-    application.observer = WindowSummary(
+    observer = WindowSummary(
         application.emit, context_interval or 15,
         model=app_settings.perception_model,
         max_size=context_size,
@@ -470,7 +524,8 @@ def create_application(publish, *, task_provider=None, task_model=None,
             or window["app"].casefold() == "league of legends"),
     )
     from boxagent.bootstrap.memory import configure_visual_memory
-    configure_visual_memory(memory, application.observer,
+    application.observer = observer
+    configure_visual_memory(memory, observer,
                             app_settings=app_settings, conversation_store=conversation_store)
 
     def announce_lol(moment: LolMoment, still_current: Callable[[], bool],
@@ -502,8 +557,10 @@ def create_application(publish, *, task_provider=None, task_model=None,
     return application
 
 
-def create_engine_server(socket_path, *, app_settings, task_provider, task_model,
-                         auto_approve, context_interval, context_size):
+def create_engine_server(
+    socket_path: str | Path, *, app_settings: Settings, task_provider: str,
+    task_model: str | None, auto_approve: bool, context_interval: float, context_size: int,
+) -> EngineServer:
     """Assemble the socket server that owns one Engine application."""
     from boxagent.interfaces.engine.server import EngineServer
 
