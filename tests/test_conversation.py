@@ -6,10 +6,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock
 
-from boxagent.infrastructure.persistence import JsonlSessionStore
+from boxagent.agent.harness.context import RuntimeContextProjector
+from boxagent.agent.harness.persona import Persona, load_persona
+from boxagent.agent.harness.request import HarnessInput
+from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
 from boxagent.application.assistant import BoxAgentApplication
-from boxagent.core.events import StateEvents
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
+from boxagent.core.events import StateEvents
 from boxagent.domain.conversation import (
     ContextCheckpoint,
     ConversationService,
@@ -17,10 +20,7 @@ from boxagent.domain.conversation import (
     RuntimeBinding,
 )
 from boxagent.domain.interaction.service import InteractionService
-from boxagent.agent.harness.context import RuntimeContextProjector
-from boxagent.agent.harness.request import HarnessInput
-from boxagent.agent.harness.persona import Persona, load_persona
-from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
+from boxagent.infrastructure.persistence import JsonlSessionStore
 
 
 class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
@@ -65,7 +65,7 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
                 ("地瓜", "行吧，没事了。"),
             ):
                 with self.subTest(farewell=farewell):
-                    service.companion_name = lambda: name
+                    service.companion_name = lambda name=name: name
                     await service.toggle()
                     await service._conversation_event("assistant_final", {"transcript": farewell})
                     await service._conversation_event(
@@ -161,7 +161,9 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(.07)
             self.assertTrue(service.is_connected)
             events.emit("game.companion_mode_changed", **{mode: False})
-            self.assertTrue(service.is_connected, "disabling companion mode must not close voice immediately")
+            self.assertTrue(
+                service.is_connected, "disabling companion mode must not close voice immediately"
+            )
             assert service.voice_idle_task is not None
             await asyncio.wait_for(service.voice_idle_task, 1)
             self.assertFalse(service.is_connected)
@@ -196,8 +198,12 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(service.voice_end_task, 1)
             self.assertFalse(service.is_connected)
             await service.prepare_game_audio()
-            self.assertEqual(len(voices), 1, "background game audio must not reopen a dismissed call")
-            self.assertFalse(await service.announce_game_line("game-highlight:late", "旧评论", lambda: True))
+            self.assertEqual(
+                len(voices), 1, "background game audio must not reopen a dismissed call"
+            )
+            self.assertFalse(
+                await service.announce_game_line("game-highlight:late", "旧评论", lambda: True)
+            )
             await service.toggle()
             self.assertFalse(service.game_speech_paused)
             self.assertTrue(service.is_connected)
@@ -305,19 +311,41 @@ class JsonlSessionStoreTests(unittest.IsolatedAsyncioTestCase):
             conversation = ConversationService(JsonlSessionStore(Path(directory)))
             session = await conversation.start()
             prior = await conversation.begin_interaction("之前聊天", runtime="qwen_realtime")
-            await conversation.finish_interaction(prior, status="succeeded", assistant_content="收到", runtime="qwen_realtime")
+            await conversation.finish_interaction(
+                prior, status="succeeded", assistant_content="收到", runtime="qwen_realtime"
+            )
             task = await conversation.begin_interaction("做任务", runtime="codex")
-            await conversation.bind_runtime(session.session_id, runtime="codex", provider="codex", model="m", thread_id="thread")
+            await conversation.bind_runtime(
+                session.session_id, runtime="codex", provider="codex", model="m", thread_id="thread"
+            )
             chat = await conversation.begin_interaction("任务期间的新约定", runtime="qwen_realtime")
-            await conversation.finish_interaction(chat, status="succeeded", assistant_content="我知道了", runtime="qwen_realtime")
-            await conversation.mark_runtime_synced(session.session_id, "codex", chat.user_event.sequence, task.interaction_id)
+            await conversation.finish_interaction(
+                chat, status="succeeded", assistant_content="我知道了", runtime="qwen_realtime"
+            )
+            await conversation.mark_runtime_synced(
+                session.session_id, "codex", chat.user_event.sequence, task.interaction_id
+            )
             before = await conversation.store.runtime_binding(session.session_id, "codex")
-            await conversation.finish_interaction(task, status="succeeded", assistant_content="真实结果", runtime="codex")
+            await conversation.finish_interaction(
+                task, status="succeeded", assistant_content="真实结果", runtime="codex"
+            )
             after = await conversation.store.runtime_binding(session.session_id, "codex")
             self.assertEqual(before.context_cursor, after.context_cursor)
             self.assertLess(after.context_cursor, chat.user_event.sequence)
-            await conversation.bind_runtime(session.session_id, runtime="codex", provider="codex", model="m", thread_id="new-thread")
-            self.assertEqual((await conversation.store.runtime_binding(session.session_id, "codex")).context_cursor, 0)
+            await conversation.bind_runtime(
+                session.session_id,
+                runtime="codex",
+                provider="codex",
+                model="m",
+                thread_id="new-thread",
+            )
+            self.assertEqual(
+                (
+                    await conversation.store.runtime_binding(session.session_id, "codex")
+                ).context_cursor,
+                0,
+            )
+
     async def test_new_session_replaces_previous_session_task_projection(self):
         with tempfile.TemporaryDirectory() as directory:
             published = []

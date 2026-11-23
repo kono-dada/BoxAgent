@@ -1,17 +1,17 @@
-from boxagent.core import file_lock as fcntl
 import asyncio
 from functools import wraps
-import json
 from pathlib import Path
 
 import pytest
 
 from boxagent.bootstrap.session_migration import migrate_sessions, rollback_sessions
+from boxagent.core import file_lock as fcntl
 from boxagent.domain.conversation.models import ProductEvent, RuntimeBinding
 from boxagent.infrastructure.persistence.jsonl_session_repository import JsonlSessionStore
 from boxagent.infrastructure.persistence.session_events import SessionEventStore
 from boxagent.infrastructure.persistence.unified_session import (
-    UnifiedContextLedger, UnifiedSessionRepository,
+    UnifiedContextLedger,
+    UnifiedSessionRepository,
 )
 
 
@@ -106,7 +106,9 @@ async def test_interleaved_projections_preserve_product_cursor(tmp_path: Path):
         b = await repository.append_event(message(session.session_id, "b", 1))
         assert (a.sequence, b.sequence) == (1, 2)
         assert [e.seq for e in events.read(session.session_id)] == [1, 2, 3]
-        assert [e.content for e in await repository.read_events(session.session_id, after_sequence=1)] == ["b"]
+        assert [
+            e.content for e in await repository.read_events(session.session_id, after_sequence=1)
+        ] == ["b"]
         assert (await repository.append_event(a)).sequence == 1
         binding = RuntimeBinding("codex", "codex", "m", "thread", 2)
         await repository.save_runtime_binding(session.session_id, binding)
@@ -141,7 +143,11 @@ async def test_migration_idempotent_and_rollback_keeps_new_activity(tmp_path: Pa
     await migrate_sessions(tmp_path)
     events = SessionEventStore(tmp_path / "sessions")
     repository = UnifiedSessionRepository(events)
-    assert [e.content for e in await repository.read_events(sid)] == ["old", "new", "after-rollback"]
+    assert [e.content for e in await repository.read_events(sid)] == [
+        "old",
+        "new",
+        "after-rollback",
+    ]
     assert len(UnifiedContextLedger(events).read(sid)) == 1
     await repository.close()
 

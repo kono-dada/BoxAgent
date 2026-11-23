@@ -1,27 +1,35 @@
 """Source identity, real graph roundtrips and the asynchronous memory boundary."""
 
 import asyncio
-from dataclasses import replace
 import hashlib
 import io
-from pathlib import Path
-from types import SimpleNamespace
 import time
+from dataclasses import replace
+from datetime import UTC
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
-from PIL import Image
 import pytest
+from PIL import Image
 
 from boxagent.application.memory import MemoryModule
 from boxagent.application.visual_memory import VisualMemoryCoordinator
 from boxagent.domain.memory.service import MemoryService
 from boxagent.domain.memory.visual import (
-    EpisodeAtom, VisualEpisode, VisualEvidence, VisualFrame, requests_visual_memory,
+    EpisodeAtom,
+    VisualEpisode,
+    VisualEvidence,
+    VisualFrame,
+    requests_visual_memory,
 )
+from boxagent.infrastructure.memory.jev_mem.core.graph_db import (
+    EpisodeNode,
+    EventNode,
+    NetworkXGraphDB,
+)
+from boxagent.infrastructure.memory.jev_mem.worker import Worker, node_payload
 from boxagent.infrastructure.memory.visual_episode import store_visual_episode
 from boxagent.infrastructure.memory.visual_extractor import GroundedVisualEpisodeExtractor
-from boxagent.infrastructure.memory.jev_mem.core.graph_db import EventNode, EpisodeNode, NetworkXGraphDB
-from boxagent.infrastructure.memory.jev_mem.worker import node_payload, Worker
 from boxagent.infrastructure.perception.qwen_mlx import WindowSummary
 from boxagent.infrastructure.persistence.visual_evidence import LocalVisualEvidenceStore
 
@@ -35,14 +43,29 @@ def png(color="white"):
 def evidence(identity="one", *, session="session", timestamp=None, image=None):
     image = image or png()
     timestamp = timestamp or time.time()
-    return VisualEvidence(identity, session, "turn", "event-" + identity,
-                          "记住《鸣潮》无冠者这套配队", "鸣潮无冠者配队：角色甲、角色乙。武器：测试剑。",
-                          timestamp, timestamp, "鸣潮", 7, hashlib.sha256(image).hexdigest())
+    return VisualEvidence(
+        identity,
+        session,
+        "turn",
+        "event-" + identity,
+        "记住《鸣潮》无冠者这套配队",
+        "鸣潮无冠者配队：角色甲、角色乙。武器：测试剑。",
+        timestamp,
+        timestamp,
+        "鸣潮",
+        7,
+        hashlib.sha256(image).hexdigest(),
+    )
 
 
 def episode(source):
-    return VisualEpisode(source, (EpisodeAtom(source.caption, "visual_observation", source.caption),),
-                         game="鸣潮", subject="无冠者", aspect="lineup")
+    return VisualEpisode(
+        source,
+        (EpisodeAtom(source.caption, "visual_observation", source.caption),),
+        game="鸣潮",
+        subject="无冠者",
+        aspect="lineup",
+    )
 
 
 class GraphBackend:
@@ -71,8 +94,13 @@ class GraphBackend:
         return {"status": "ready"}
 
     async def query(self, query, *, top_k=5, mode="deep"):
-        nodes = sorted(self.graph_db.nodes.values(),
-                       key=lambda node: getattr(node, "start_timestamp", None) or getattr(node, "timestamp", None), reverse=True)
+        nodes = sorted(
+            self.graph_db.nodes.values(),
+            key=lambda node: (
+                getattr(node, "start_timestamp", None) or getattr(node, "timestamp", None)
+            ),
+            reverse=True,
+        )
         return {"memories": [node_payload(node) for node in nodes[:top_k]]}
 
     async def forget(self, ids):
@@ -139,17 +167,33 @@ def test_atoms_cannot_invent_facts_or_versions():
         VisualEpisode.from_payload(payload)
 
 
-@pytest.mark.parametrize("text", ["记住这个偏好，我喜欢红色", "不要记住这套配队", "回忆之前保存的截图", "忘记这张截图", "don't save this image"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "记住这个偏好，我喜欢红色",
+        "不要记住这套配队",
+        "回忆之前保存的截图",
+        "忘记这张截图",
+        "don't save this image",
+    ],
+)
 def test_visual_retention_is_explicit_and_not_a_negation(text):
     assert not requests_visual_memory(text)
 
 
-@pytest.mark.parametrize("text", ["记住昨天那张截图", "保存上次的配队画面", "save yesterday's image"])
+@pytest.mark.parametrize(
+    "text", ["记住昨天那张截图", "保存上次的配队画面", "save yesterday's image"]
+)
 def test_past_image_request_does_not_save_current_frame(tmp_path, text):
     async def run():
         module, coordinator, backend, source, store = setup(tmp_path)
-        result = await module.remember_screen(user_request=text, session_id="session", interaction_id="turn",
-                                              source_event_id="past-image", requested_at=time.time())
+        result = await module.remember_screen(
+            user_request=text,
+            session_id="session",
+            interaction_id="turn",
+            source_event_id="past-image",
+            requested_at=time.time(),
+        )
         assert result["status"] == "clarification_required"
         assert not await store.pending()
         assert backend.remember_calls == 0
@@ -178,12 +222,16 @@ def test_graph_episode_roundtrip_chain_and_idempotent_retry(tmp_path):
     middle = episode(evidence("middle", timestamp=200))
     receipts = [store_visual_episode(backend, item.payload()) for item in (late, early, middle)]
     count = len(backend.graph_db.nodes)
-    assert store_visual_episode(backend, middle.payload())["memory_ids"] == receipts[-1]["memory_ids"]
+    assert (
+        store_visual_episode(backend, middle.payload())["memory_ids"] == receipts[-1]["memory_ids"]
+    )
     assert len(backend.graph_db.nodes) == count
     restored = GraphBackend(backend.path)
     cells = [node for node in restored.graph_db.nodes.values() if isinstance(node, EpisodeNode)]
     assert len(cells) == 3 and all(cell.summary and cell.event_node_ids for cell in cells)
-    edges = [edge for edge in restored.graph_db.links.values() if edge.properties.get("visual_chain")]
+    edges = [
+        edge for edge in restored.graph_db.links.values() if edge.properties.get("visual_chain")
+    ]
     assert len(edges) == 2
     assert {(edge.source_node_id, edge.target_node_id) for edge in edges} == {
         (receipts[1]["episode_id"], receipts[2]["episode_id"]),
@@ -191,13 +239,24 @@ def test_graph_episode_roundtrip_chain_and_idempotent_retry(tmp_path):
     }
     other_aspect = replace(episode(evidence("weapon", timestamp=400)), aspect="equipment")
     store_visual_episode(restored, other_aspect.payload())
-    assert len([edge for edge in restored.graph_db.links.values() if edge.properties.get("visual_chain")]) == 2
+    assert (
+        len(
+            [
+                edge
+                for edge in restored.graph_db.links.values()
+                if edge.properties.get("visual_chain")
+            ]
+        )
+        == 2
+    )
 
 
 def test_worker_protocol_uses_real_episode_writer(tmp_path):
     worker = Worker.__new__(Worker)
     worker.system = GraphBackend(tmp_path / "graph.json")
-    result = worker.handle({"operation": "remember_episode", "episode": episode(evidence()).payload()})
+    result = worker.handle(
+        {"operation": "remember_episode", "episode": episode(evidence()).payload()}
+    )
     assert result["atom_count"] == 1
     cell = worker.system.graph_db.get_node(result["episode_id"])
     assert isinstance(cell, EpisodeNode)
@@ -209,11 +268,17 @@ def test_interrupted_visual_write_cannot_leak_through_recall_summary(tmp_path, p
     worker = Worker.__new__(Worker)
     worker.system = GraphBackend(tmp_path / "graph.json")
     published = EventNode(content_narrative="已经确认的用户事实")
-    pending = EventNode(content_narrative="未提交的画面观察", attributes={"source_episode_status": "pending"})
+    pending = EventNode(
+        content_narrative="未提交的画面观察", attributes={"source_episode_status": "pending"}
+    )
     for node in (published, pending):
         worker.system.graph_db.add_node(node)
-    context = SimpleNamespace(anchor_nodes=[published, pending] if pending_is_anchor else [published], metadata={})
-    worker.system.query_engine = SimpleNamespace(query=lambda _question, **_kwargs: (context, "含有未提交画面邻居的摘要"))
+    context = SimpleNamespace(
+        anchor_nodes=[published, pending] if pending_is_anchor else [published], metadata={}
+    )
+    worker.system.query_engine = SimpleNamespace(
+        query=lambda _question, **_kwargs: (context, "含有未提交画面邻居的摘要")
+    )
     result = worker.handle({"operation": "query", "question": "过去的经历"})
     assert [row["id"] for row in result["memories"]] == [published.node_id]
     assert result["evidence"] == ""
@@ -238,7 +303,9 @@ def test_background_source_binding_cross_session_and_rereading(tmp_path):
         second, _, _, second_source, _ = setup(tmp_path)
         second_source.frame = None
         restored = await second.recall("上次的配队")
-        assert (await second.visual_evidence(restored["memories"][0]["id"]))["source_event_id"] == "one"
+        assert (await second.visual_evidence(restored["memories"][0]["id"]))[
+            "source_event_id"
+        ] == "one"
         await module.close()
         await second.close()
     asyncio.run(run())
@@ -331,17 +398,29 @@ def test_current_frame_requires_matching_window_and_time():
     observer = WindowSummary(Mock())
     now = time.time()
     observer.latest_frame = VisualFrame(png(), "配队", now, "鸣潮", 7)
-    with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window", return_value={"id": 7, "app": "鸣潮"}):
+    with patch(
+        "boxagent.infrastructure.perception.qwen_mlx.focused_window",
+        return_value={"id": 7, "app": "鸣潮"},
+    ):
         assert observer.current_frame(requested_at=now) is not None
         assert observer.current_frame(requested_at=now - 5) is None
-    with patch("boxagent.infrastructure.perception.qwen_mlx.focused_window", return_value={"id": 8, "app": "鸣潮"}):
+    with patch(
+        "boxagent.infrastructure.perception.qwen_mlx.focused_window",
+        return_value={"id": 8, "app": "鸣潮"},
+    ):
         assert observer.current_frame(requested_at=now) is None
 
 
 def test_invalid_extraction_keeps_only_observed_quote():
     async def run():
-        extractor = GroundedVisualEpisodeExtractor(api_key="fixture", base_url="https://example.invalid", model="fixture")
-        with patch.object(extractor, "_request", return_value={"atoms": [{"kind": "user_report", "quote": "用户通关了"}]}):
+        extractor = GroundedVisualEpisodeExtractor(
+            api_key="fixture", base_url="https://example.invalid", model="fixture"
+        )
+        with patch.object(
+            extractor,
+            "_request",
+            return_value={"atoms": [{"kind": "user_report", "quote": "用户通关了"}]},
+        ):
             result = await extractor.extract(evidence())
         assert result.atoms[0].kind == "visual_observation"
         assert "用户通关了" not in result.summary
@@ -419,18 +498,30 @@ def test_delete_journal_finishes_after_restart(tmp_path):
 
 
 def test_automatic_user_observation_does_not_deduplicate_into_image(tmp_path):
-    from datetime import datetime, timezone
+    from datetime import datetime
     worker = Worker.__new__(Worker)
     worker.system = GraphBackend(tmp_path / "graph.json")
     store_visual_episode(worker.system, episode(evidence()).payload())
     def build(observations):
         for observation in observations:
-            worker.system._build(observation["content"], timestamp=datetime.now(timezone.utc),
+            worker.system._build(observation["content"], timestamp=datetime.now(UTC),
                                  metadata=observation["metadata"])
         return {"admitted": len(observations), "rejected": 0}
     worker.system.build_memory_from_conversation = build
-    result = worker.handle({"operation": "remember", "observations": [{
-        "content": "我喜欢简短播报", "metadata": {"source": "automatic", "role": "user", "source_event_id": "event-one"},
-    }]})
+    result = worker.handle(
+        {
+            "operation": "remember",
+            "observations": [
+                {
+                    "content": "我喜欢简短播报",
+                    "metadata": {
+                        "source": "automatic",
+                        "role": "user",
+                        "source_event_id": "event-one",
+                    },
+                }
+            ],
+        }
+    )
     assert result["deduplicated"] == 0
     assert result["created"][0]["metadata"]["role"] == "user"

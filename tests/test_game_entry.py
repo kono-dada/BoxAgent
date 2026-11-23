@@ -14,14 +14,18 @@ from boxagent.infrastructure.persistence.game_entry import QuestProgressFile
 
 
 class GameEntryTests(unittest.IsolatedAsyncioTestCase):
-    async def test_quest_reference_requires_fresh_two_frame_confirmation_in_same_launch(self) -> None:
+    async def test_quest_reference_requires_fresh_two_frame_confirmation_in_same_launch(
+        self,
+    ) -> None:
         now = 10.0
 
         async def silent(receipt: str, line: str, valid: Callable[[], bool]) -> bool:
             return False
 
         with tempfile.TemporaryDirectory() as directory:
-            entry = GameEntry(QuestProgressFile(Path(directory) / "game.json"), silent, clock=lambda: now)
+            entry = GameEntry(
+                QuestProgressFile(Path(directory) / "game.json"), silent, clock=lambda: now
+            )
             self.addAsyncCleanup(entry.close)
             quest = TrackedQuest("山雨欲来风满楼", "和库洛夫互动")
             entry.observe("launch", quest, now, lambda: True, can_announce=False)
@@ -36,7 +40,9 @@ class GameEntryTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(entry.reference("launch"), "")
             now -= 3.1
             entry.pause()
-            self.assertEqual(entry.reference("launch"), "", "persisted quest is not live screen evidence")
+            self.assertEqual(
+                entry.reference("launch"), "", "persisted quest is not live screen evidence"
+            )
 
     def test_game_window_remains_visible_when_focus_moves_to_another_display(self) -> None:
         game: WindowDescription = {
@@ -61,13 +67,17 @@ class GameEntryTests(unittest.IsolatedAsyncioTestCase):
         received: list[Mapping[str, object]] = []
         fields = {"title": "嘤鸣初相召", "objective": "前往中枢信标", "distance": "110米"}
 
-        def post(url: str, payload: Mapping[str, object], *, api_key: str, timeout: float) -> object:
+        def post(
+            url: str, payload: Mapping[str, object], *, api_key: str, timeout: float
+        ) -> object:
             self.assertEqual(url, "https://api.deepseek.com/chat/completions")
             self.assertEqual(api_key, "test-key")
             received.append(payload)
             return {"choices": [{"message": {"content": json.dumps(fields)}}]}
 
-        reader = DeepSeekQuestVision(api_key="test-key", base_url="https://api.deepseek.com/v1", post=post)
+        reader = DeepSeekQuestVision(
+            api_key="test-key", base_url="https://api.deepseek.com/v1", post=post
+        )
         self.assertEqual(await reader(b"crop"), TrackedQuest(fields["title"], fields["objective"]))
         self.assertIn("data:image/png;base64,Y3JvcA==", json.dumps(received[0]))
         fields["distance"] = "看不清"

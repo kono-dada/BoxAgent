@@ -12,12 +12,11 @@ import base64
 import contextlib
 import json
 import os
-from pathlib import Path
 import re
 import sys
 import time
-from typing import Awaitable, Callable
-
+from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 ApprovalHandler = Callable[[dict], Awaitable[bool]]
 
@@ -80,8 +79,14 @@ class ComputerUse:
         async with self.write_lock:
             if os.environ.get("COMPUTER_USE_DEBUG"):
                 print("发送", message.get("id"), message.get("method"), file=sys.stderr)
-            self.process.stdin.write((json.dumps(
-                {"jsonrpc": "2.0", **message}, ensure_ascii=False, separators=(",", ":")) + "\n").encode())
+            self.process.stdin.write(
+                (
+                    json.dumps(
+                        {"jsonrpc": "2.0", **message}, ensure_ascii=False, separators=(",", ":")
+                    )
+                    + "\n"
+                ).encode()
+            )
             await self.process.stdin.drain()
 
     async def request(self, method: str, params: dict) -> dict:
@@ -134,13 +139,15 @@ class ComputerUse:
                     task = asyncio.create_task(self._handle_callback(message))
                     self.callbacks.add(task)
                     task.add_done_callback(self.callbacks.discard)
-                elif (future := self.pending.get(message.get("id"))) is not None:
-                    if not future.done():
-                        if "error" in message:
-                            future.set_exception(RuntimeError(json.dumps(
-                                message["error"], ensure_ascii=False)))
-                        else:
-                            future.set_result(message.get("result", {}))
+                elif (
+                    (future := self.pending.get(message.get("id"))) is not None
+                    and not future.done()
+                ):
+                    if "error" in message:
+                        future.set_exception(RuntimeError(json.dumps(
+                            message["error"], ensure_ascii=False)))
+                    else:
+                        future.set_result(message.get("result", {}))
         except Exception as exc:
             error = exc
         finally:
@@ -211,10 +218,14 @@ async def main():
         parser.error("计算器演示需要 --allow-calculator-once 明确授权")
 
     async def approve(params: dict) -> bool:
-        allowed = (args.allow_calculator_once
-                   and params.get("message") == "Allow ChatGPT to use Calculator?"
-                   and params.get("requestedSchema", {}).get("properties") == {})
-        print(json.dumps({"授权问题": params.get("message"), "本次接受": allowed}, ensure_ascii=False))
+        allowed = (
+            args.allow_calculator_once
+            and params.get("message") == "Allow ChatGPT to use Calculator?"
+            and params.get("requestedSchema", {}).get("properties") == {}
+        )
+        print(
+            json.dumps({"授权问题": params.get("message"), "本次接受": allowed}, ensure_ascii=False)
+        )
         return allowed
 
     started = time.monotonic()
@@ -238,16 +249,24 @@ async def main():
         text = computer.text(result)
         normalized = re.sub(r"[\u200e\u200f\u2066-\u2069]", "", text)
         passed = bool(re.search(r"^\s*\d+ 文本 385\s*$", normalized, re.MULTILINE))
-        output = Path(__file__).resolve().parents[1] / ".runtime/private/artifacts/computer-use/python"
+        output = (
+            Path(__file__).resolve().parents[1] / ".runtime/private/artifacts/computer-use/python"
+        )
         output.mkdir(parents=True, exist_ok=True)
         (output / "result.txt").write_text(text, encoding="utf-8")
         for item in result.get("content", []):
             if item.get("type") == "image":
                 suffix = "png" if item["mimeType"] == "image/png" else "jpg"
                 (output / f"result.{suffix}").write_bytes(base64.b64decode(item["data"]))
-        summary = {"算式": "137+248", "预期结果": "385", "界面核验通过": passed,
-                   "总耗时秒": round(time.monotonic() - started, 3)}
-        (output / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        summary = {
+            "算式": "137+248",
+            "预期结果": "385",
+            "界面核验通过": passed,
+            "总耗时秒": round(time.monotonic() - started, 3),
+        }
+        (output / "summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         print(json.dumps(summary, ensure_ascii=False))
         print(f"结果保存在：{output}")
         if not passed:
@@ -258,6 +277,9 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except TimeoutError:
-        sys.exit("Computer Use 请求超时；不能仅凭超时判断是否为认证问题。当前 Python 直连尚未通过界面读取验证。")
+        sys.exit(
+            "Computer Use 请求超时；不能仅凭超时判断是否为认证问题。当前 Python "
+            "直连尚未通过界面读取验证。"
+        )
     except (RuntimeError, FileNotFoundError) as error:
         sys.exit(str(error))

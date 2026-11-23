@@ -3,17 +3,25 @@ from __future__ import annotations
 import hashlib
 import hmac
 import plistlib
-from pathlib import Path
 import time
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from boxagent.application.wechat.onboarding import WeChatOnboarding
-from boxagent.infrastructure.wechat.database.capture import KeyCaptureError, derive_material, parse_capture
+from boxagent.infrastructure.wechat.database.capture import (
+    KeyCaptureError,
+    derive_material,
+    parse_capture,
+)
 from boxagent.infrastructure.wechat.database.keys import DatabaseKeys
-from boxagent.infrastructure.wechat.replica import check_client, prepare_client, replica_entitlements
 from boxagent.infrastructure.wechat.distribution import build_client_archive, verify_archive
+from boxagent.infrastructure.wechat.replica import (
+    check_client,
+    prepare_client,
+    replica_entitlements,
+)
 
 
 def encrypted_page(passphrase: bytes, salt: bytes) -> bytes:
@@ -43,8 +51,10 @@ def test_capture_derive_authenticate_account_and_reject_other_account(tmp_path: 
 
 
 def test_capture_parser_requires_complete_key_and_salt() -> None:
-    dump = '\n'.join('0x%x: ' % (0x1000+i) + ' '.join('0x%02x' % j for j in range(i,i+16))
-                     for i in (0,16,32))
+    dump = "\n".join(
+        f"0x{0x1000 + i:x}: " + " ".join(f"0x{j:02x}" for j in range(i, i + 16))
+        for i in (0, 16, 32)
+    )
     assert parse_capture(dump) == bytes(range(32))
     assert parse_capture(dump.splitlines()[0]) is None
     assert parse_capture('error: attach failed') is None
@@ -61,16 +71,19 @@ def test_prepare_rejects_wrong_build_before_copying(tmp_path: Path) -> None:
     assert not destination.exists()
 
 
-def test_client_checks_real_resources_image_not_loading_shim(tmp_path: Path,
-                                                            monkeypatch: pytest.MonkeyPatch) -> None:
+def test_client_checks_real_resources_image_not_loading_shim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from boxagent.infrastructure.wechat import replica
     app = tmp_path/'WeChat.app'
     (app/'Contents').mkdir(parents=True)
     (app/'Contents/Info.plist').write_bytes(plistlib.dumps({
         'CFBundleShortVersionString': '4.1.15', 'CFBundleVersion': '270115'}))
     image = Mock()
-    monkeypatch.setattr(replica, 'disk_image', image)
-    monkeypatch.setattr(replica.subprocess, 'run', Mock(return_value=Mock(stderr=b'TeamIdentifier=5A4RE8SF68')))
+    monkeypatch.setattr(replica, "disk_image", image)
+    monkeypatch.setattr(
+        replica.subprocess, "run", Mock(return_value=Mock(stderr=b"TeamIdentifier=5A4RE8SF68"))
+    )
     check_client(app, replica=False)
     image.assert_called_once_with(app/'Contents/Resources/wechat.dylib')
 
@@ -85,8 +98,9 @@ def test_capture_cannot_return_keys_before_both_read_and_listen_checks_pass(tmp_
     assert verify.call_args.kwargs['native'] is False
 
 
-def test_capture_launch_never_launches_when_replica_is_already_running(tmp_path: Path,
-                                                                   monkeypatch: pytest.MonkeyPatch) -> None:
+def test_capture_launch_never_launches_when_replica_is_already_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from boxagent.infrastructure.wechat.database import capture
     executable = tmp_path/'Contents/MacOS/WeChat'
     executable.parent.mkdir(parents=True)
@@ -113,8 +127,9 @@ def test_archive_creation_rejects_other_build_before_staging(tmp_path: Path) -> 
     assert not (tmp_path/'archive').exists()
 
 
-def test_failed_archive_detach_never_deletes_the_mounted_tree(tmp_path: Path,
-                                                            monkeypatch: pytest.MonkeyPatch) -> None:
+def test_failed_archive_detach_never_deletes_the_mounted_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from boxagent.infrastructure.wechat import distribution
     base = tmp_path/'mount-check'
     base.mkdir()
@@ -133,8 +148,9 @@ def test_failed_archive_detach_never_deletes_the_mounted_tree(tmp_path: Path,
     assert (base/'volume/WeChat.app/keep').read_text() == 'must survive'
 
 
-def test_login_waits_for_initial_encrypted_pages_instead_of_recapturing(tmp_path: Path,
-                                                                     monkeypatch: pytest.MonkeyPatch) -> None:
+def test_login_waits_for_initial_encrypted_pages_instead_of_recapturing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from boxagent.bootstrap import wechat_onboarding
     root = tmp_path/'db_storage'
     (root/'session').mkdir(parents=True)
@@ -161,18 +177,23 @@ def test_replica_removes_restricted_team_claim_and_preserves_sandbox_isolation()
         'com.apple.security.application-groups': ['5A4RE8SF68.com.tencent.xinWeChat'],
     }
     result = replica_entitlements(plistlib.dumps(original))
-    assert 'com.apple.developer.team-identifier' not in result
-    assert result['com.apple.security.app-sandbox'] is True
-    assert result['com.apple.security.get-task-allow'] is True
-    assert result['com.apple.application-identifier'] == '5A4RE8SF68.com.tencent.xinWeChatBoxAgent'
-    assert result['com.apple.security.application-groups'] == ['5A4RE8SF68.com.tencent.xinWeChatBoxAgent']
+    assert "com.apple.developer.team-identifier" not in result
+    assert result["com.apple.security.app-sandbox"] is True
+    assert result["com.apple.security.get-task-allow"] is True
+    assert result["com.apple.application-identifier"] == "5A4RE8SF68.com.tencent.xinWeChatBoxAgent"
+    assert result["com.apple.security.application-groups"] == [
+        "5A4RE8SF68.com.tencent.xinWeChatBoxAgent"
+    ]
     assert replica_entitlements(plistlib.dumps(result)) == result
 
 
 def test_launch_failure_is_not_reported_as_waiting_for_login(tmp_path: Path) -> None:
     from boxagent.infrastructure.wechat.database.capture import _capture_pid
-    executable = tmp_path/'fake-lldb'
-    executable.write_text("#!/bin/sh\necho 'error: process exited with status -1 (no such process)'\nsleep 1\n")
+
+    executable = tmp_path / "fake-lldb"
+    executable.write_text(
+        "#!/bin/sh\necho 'error: process exited with status -1 (no such process)'\nsleep 1\n"
+    )
     executable.chmod(0o700)
     with pytest.raises(KeyCaptureError, match='wechat_client_launch_failed'):
         _capture_pid(0, executable, cancelled=lambda: False, deadline=time.monotonic()+5,

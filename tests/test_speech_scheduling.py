@@ -22,7 +22,9 @@ class ProviderSocket:
             await self.voice.receive({"type": "conversation.item.created", "item": {
                 **request["item"], "id": f"item-{len(self.sent)}"}})
         elif kind == "conversation.item.delete":
-            await self.voice.receive({"type": "conversation.item.deleted", "item_id": request["item_id"]})
+            await self.voice.receive(
+                {"type": "conversation.item.deleted", "item_id": request["item_id"]}
+            )
         elif kind == "response.create":
             origin = self.voice.response_origins[-1]
             response_id = f"response-{len(self.sent)}"
@@ -33,7 +35,9 @@ class ProviderSocket:
 class SpeechSchedulingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.receipts = Mock()
-        self.voice = QwenRealtimeSession(None, Mock(), host_turn_control=True, notification_event=self.receipts)
+        self.voice = QwenRealtimeSession(
+            None, Mock(), host_turn_control=True, notification_event=self.receipts
+        )
         self.socket = ProviderSocket(self.voice)
         self.voice.ws = self.socket
         self.worker = asyncio.create_task(self.voice.deliver_notifications())
@@ -54,11 +58,14 @@ class SpeechSchedulingTests(unittest.IsolatedAsyncioTestCase):
         self.voice.playback_changed(False)
 
     async def notice(self, identifier: str = "wechat-1") -> None:
-        await self.voice.notify_task_result({"notification_id": identifier, "kind": "external_event",
-                                             "summary": "小林说七点见"})
+        await self.voice.notify_task_result(
+            {"notification_id": identifier, "kind": "external_event", "summary": "小林说七点见"}
+        )
 
     async def start_audio(self, response_id: str) -> None:
-        await self.voice.receive({"type": "response.audio.delta", "response_id": response_id, "delta": "AQI="})
+        await self.voice.receive(
+            {"type": "response.audio.delta", "response_id": response_id, "delta": "AQI="}
+        )
         self.voice.playback_changed(True)
 
     async def respond_to_user(self) -> None:
@@ -80,8 +87,11 @@ class SpeechSchedulingTests(unittest.IsolatedAsyncioTestCase):
 
         latest = Mock()
         for _ in range(5):
-            self.assertTrue(self.voice.schedule_lol("这波打得漂亮。",
-                                                   still_current=lambda: True, playback_started=latest))
+            self.assertTrue(
+                self.voice.schedule_lol(
+                    "这波打得漂亮。", still_current=lambda: True, playback_started=latest
+                )
+            )
         await self.finish(first)
         incoming = await self.next_response("notification")
         await self.start_audio(incoming)
@@ -114,7 +124,9 @@ class SpeechSchedulingTests(unittest.IsolatedAsyncioTestCase):
         self.voice.schedule_lol("漂亮！", still_current=current, playback_started=starts)
         requested = await self.next_response("lol_companion")
         current.return_value = False
-        await self.voice.receive({"type": "response.audio.delta", "response_id": requested, "delta": "AQI="})
+        await self.voice.receive(
+            {"type": "response.audio.delta", "response_id": requested, "delta": "AQI="}
+        )
         await asyncio.sleep(0)
         self.assertIn("response.cancel", self.socket.sent)
         self.assertIn(requested, self.voice.cancelled_responses)

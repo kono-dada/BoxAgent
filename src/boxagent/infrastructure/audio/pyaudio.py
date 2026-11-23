@@ -1,0 +1,109 @@
+"""PyAudio device adapter used by realtime voice providers."""
+
+import base64
+import threading
+from collections.abc import Callable, Mapping
+
+import pyaudio
+
+
+class AudioIO:
+    def __init__(
+        self,
+        playing_changed: Callable[[bool], None],
+        *,
+        microphone: bool = True,
+        playback: bool = True,
+        microphone_rate: int = 16000,
+        playback_rate: int = 24000,
+    ) -> None:
+        self.audio = pyaudio.PyAudio()
+        self.lock = threading.Lock()
+        self.device_lock = threading.Lock()
+        self.buffer = bytearray()
+        self.playing = False
+        self.playback_finished = True
+        self.explicit_playback_lifecycle = False
+        self.playing_changed = playing_changed
+        self.mic: pyaudio.Stream | None = None
+        self.speaker: pyaudio.Stream | None = None
+        self.playback = playback
+        try:
+            if microphone:
+                self.mic = self.audio.open(format=pyaudio.paInt16, channels=1,
+                                           rate=microphone_rate,
+                                           input=True, frames_per_buffer=1600)
+            self.speaker = self.audio.open(format=pyaudio.paInt16, channels=1,
+                rate=playback_rate,
+                output=True, frames_per_buffer=1200, stream_callback=self.callback)
+        except Exception:
+            self.close()
+            raise
+
+    def callback(
+        self, _input: bytes | None, frame_count: int, _time: Mapping[str, float], _status: int
+    ) -> tuple[bytes, int]:
+        count = frame_count * 2
+        with self.lock:
+            chunk = bytes(self.buffer[:count])
+            del self.buffer[:count]
+            # Realtime PCM commonly arrives with tiny scheduling gaps. Keep a
+            # single logical playback interval open until the provider marks
+            # the response audio complete instead of flickering speaking state
+            # on every temporary buffer underflow.
+            playing = bool(chunk) or (self.playing and not self.playback_finished)
+            changed = playing != self.playing
+            self.playing = playing
+        if changed:
+            self.playing_changed(playing)
+        output = chunk if self.playback else b""
+        return output.ljust(count, b"\0"), pyaudio.paContinue
+
+    def append(self, encoded: str) -> None:
+        self.append_pcm(base64.b64decode(encoded))
+
+    def append_pcm(self, chunk: bytes) -> None:
+        with self.lock:
+            if not self.explicit_playback_lifecycle:
+                self.playback_finished = False
+            self.buffer.extend(chunk)
+
+    def begin(self) -> None:
+        """Open an explicitly delimited provider playback response."""
+        with self.lock:
+            self.explicit_playback_lifecycle = True
+            self.playback_finished = False
+
+    def finish(self) -> None:
+        """Mark provider EOF; the device callback closes playback after draining."""
+        with self.lock:
+            self.playback_finished = True
+
+    @property
+    def has_pending_playback(self) -> bool:
+        with self.lock:
+            return self.playing or bool(self.buffer)
+
+    def clear(self) -> None:
+        with self.lock:
+            self.buffer.clear()
+            self.playback_finished = True
+            changed = self.playing
+            self.playing = False
+        if changed:
+            self.playing_changed(False)
+
+    def read(self) -> bytes:
+        with self.device_lock:
+            if not self.mic:
+                raise RuntimeError("麦克风已关闭")
+            return self.mic.read(1600, exception_on_overflow=False)
+
+    def close(self) -> None:
+        with self.device_lock:
+            for stream in (self.mic, self.speaker):
+                if stream:
+                    stream.stop_stream()
+                    stream.close()
+            self.mic = self.speaker = None
+            self.audio.terminate()

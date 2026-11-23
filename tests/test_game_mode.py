@@ -21,14 +21,19 @@ class GameModeTests(unittest.IsolatedAsyncioTestCase):
                 service.voice = voice = AsyncMock()
                 service.connection_microphone = service.voice_requested = True
                 service.handle_tool = tool = AsyncMock(return_value={"status": "succeeded"})
-                for phrase, enabled in (("进入 LoL 陪玩模式。", True), ("进入陪玩模式，撸啊撸的。", True),
-                                        ("关闭英雄联盟陪玩。", False)):
+                for phrase, enabled in (
+                    ("进入 LoL 陪玩模式。", True),
+                    ("进入陪玩模式，撸啊撸的。", True),
+                    ("关闭英雄联盟陪玩。", False),
+                ):
                     await service._conversation_event("user_final", {"transcript": phrase})
                     self.assertEqual(tool.await_args.args[0], "set_game_companion_mode")
                     self.assertIn(f'"enabled": {str(enabled).lower()}', tool.await_args.args[1])
                     self.assertIn("宿主已处理", voice.respond_to_query.await_args.args[0])
                 self.assertEqual(tool.await_count, 3)
-                await service._conversation_event("user_final", {"transcript": "怎么进入 LoL 陪玩模式？"})
+                await service._conversation_event(
+                    "user_final", {"transcript": "怎么进入 LoL 陪玩模式？"}
+                )
                 self.assertEqual(tool.await_count, 3)
             finally:
                 await app.close()
@@ -40,7 +45,9 @@ class GameModeTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(ValueError, "尚未启用"):
                 app.set_game_companion_mode(True)
             app.events.emit("game.companion_available", game_companion_available=True)
-            self.assertEqual(app.set_game_companion_mode(True), {"status": "succeeded", "enabled": True})
+            self.assertEqual(
+                app.set_game_companion_mode(True), {"status": "succeeded", "enabled": True}
+            )
             self.assertTrue(app.state.game_companion_enabled)
             self.assertFalse(app.interaction_service.voice_requested)
             self.assertIsNone(app.voice)

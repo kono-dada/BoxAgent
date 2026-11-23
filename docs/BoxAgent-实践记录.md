@@ -2695,7 +2695,7 @@ passed
 
 - **背景**　LoL 原先在事件命中后直发实时语音，微信来信走 Inbox、Outbox 和语音队列。
 - **问题**　用户说话、击杀短评和微信同时到达时，需要统一决定先说哪句。LoL 的空闲播报延迟也需要保持在原有量级。
-- **决策与做法**　复用实时语音的单个投递循环。用户交流优先。LoL 排队最多保留最新一条，从检测起 3 秒内允许起播，起播才开始冷却。已经等过一轮的微信优先，微信在起播时确认送达并刷新聊天历史。用户在起播前打断时，等回答后再播，已经起播的微信只播一次。 [语音调度实现](../boxagent/infrastructure/runtimes/qwen/realtime.py) · [LoL 有效期](../boxagent/application/lol_companion.py)
+- **决策与做法**　复用实时语音的单个投递循环。用户交流优先。LoL 排队最多保留最新一条，从检测起 3 秒内允许起播，起播才开始冷却。已经等过一轮的微信优先，微信在起播时确认送达并刷新聊天历史。用户在起播前打断时，等回答后再播，已经起播的微信只播一次。 [语音调度实现](../src/boxagent/infrastructure/runtimes/qwen/realtime.py) · [LoL 有效期](../src/boxagent/application/lol_companion.py)
 - **效果**　离线回归覆盖抢占、过期、连续 LoL 候选和微信起播前后打断。实际 AOQ 与 WebSocket 用合成来信测试，同时入列时设备回执均为先 LoL、后微信。全量 675 项通过，13 项跳过，Pyright 无错误。 [时序回归](../tests/test_speech_scheduling.py) · [实机探针](../scripts/experiments/voice_scheduling_probe.py) · [测量数据](../experiments/performance/2026-11-21-speech-scheduling/measurements.json)
 
 本机 macOS 使用默认输出设备、关闭麦克风，播放同一句合成 LoL 短评。真实语音计时从短评交给语音入口开始，到本地输出设备起播回调为止。对比采用同一条 AOQ 连接交替直发和经调度发，每组剔除 1 次预热。额外的本地模拟用无网络的握手和模型桩，只计时到 `response.create` 调用。
@@ -2712,14 +2712,14 @@ passed
 
 - **背景**　陪玩时，书书会主动播报微信来信。
 - **问题**　微信里已开启免打扰的群，仍可能触发 BoxAgent 的气泡和语音通知。
-- **决策与做法**　在微信事件进入通知决策前读取 `contact.chat_room_notify`。已免打扰的群记为已处理，跳过主动通知。原文仍可通过微信历史查询。 [读取实现](../boxagent/infrastructure/wechat/database/reader.py) · [通知接入](../boxagent/bootstrap/external_events.py)
+- **决策与做法**　在微信事件进入通知决策前读取 `contact.chat_room_notify`。已免打扰的群记为已处理，跳过主动通知。原文仍可通过微信历史查询。 [读取实现](../src/boxagent/infrastructure/wechat/database/reader.py) · [通知接入](../src/boxagent/bootstrap/external_events.py)
 - **效果**　本机只读检查成功读取 52 个群聊的通知字段。回归覆盖免打扰群保持静默、普通群和私聊正常生成通知，以及静默后仍能查到历史。全量 669 项测试通过，另有 13 项跳过，Pyright 无错误。字段取值沿用已在 Windows 微信 4.1.13.12 验证的映射，macOS 客户端的开关对照待验证。 [事件回归](../tests/test_external_events.py) · [读取回归](../tests/wechat/test_reader.py) · [字段映射依据](https://github.com/qixinmin1994/WeChatNotifier/blob/main/wechat_notify.py#L258-L266)
 
 ### LoL 多杀和对局结束播报纠错 · 2026-11-21 补记
 
 - **背景**　书书根据 LoL 本地对局事件主动点评。
 - **问题**　实玩时出现过把 `3/0/0` 说成三杀，以及拆掉中路高地就宣布对局结束。
-- **决策与做法**　多杀播报取本人 `Multikill` 事件的连杀数。`InhibKilled` 只播报高地水晶被摧毁，`GameEnd` 才触发对局结束。 [事件策略](../boxagent/domain/proactivity/lol.py)
+- **决策与做法**　多杀播报取本人 `Multikill` 事件的连杀数。`InhibKilled` 只播报高地水晶被摧毁，`GameEnd` 才触发对局结束。 [事件策略](../src/boxagent/domain/proactivity/lol.py)
 - **效果**　累计 KDA、真实连杀、高地与对局结束的回归用例通过。更新后的实际对局播报待复测。 [LoL 回归](../tests/test_lol_companion.py)
 
 ### 2026-11-20 · 显式开启陪玩并同步 LoL
@@ -2781,7 +2781,7 @@ passed
 ### 2026-11-21 · 角色气泡、聊天收起与陪玩贴边控制
 
 - **背景与问题**　短回复和主动来信会反复展开聊天，游戏全屏时完整桌宠也可能遮挡操作。桌宠和无触屏副屏需要独立的阅读时长。
-- **决策与做法**　短回复和微信来信优先用角色旁的气泡，任务进度在收窗后回到角色脚下。聊天在桌宠等待 20 秒、副屏硬件等待 12 秒，较长回复延长阅读时间，讲话、输入、草稿、查看历史和待确认均暂停。支持语音展开、收起与暂时保留。陪玩开启且对应游戏处于前台时，在游戏所在屏幕显示书书的半头像，点击头像切换一排控制。关麦保留只播放的语音连接，静音只影响陪玩短评，结束陪玩保留仍打开的麦克风会话。 [展示逻辑](../web/panel/desktop/host.cjs) · [陪玩音频](../boxagent/application/assistant.py)
+- **决策与做法**　短回复和微信来信优先用角色旁的气泡，任务进度在收窗后回到角色脚下。聊天在桌宠等待 20 秒、副屏硬件等待 12 秒，较长回复延长阅读时间，讲话、输入、草稿、查看历史和待确认均暂停。支持语音展开、收起与暂时保留。陪玩开启且对应游戏处于前台时，在游戏所在屏幕显示书书的半头像，点击头像切换一排控制。关麦保留只播放的语音连接，静音只影响陪玩短评，结束陪玩保留仍打开的麦克风会话。 [展示逻辑](../web/panel/desktop/host.cjs) · [陪玩音频](../src/boxagent/application/assistant.py)
 - **效果**　144 项桌面、45 项 VRM、676 项 Python 测试通过。Pyright 无错误，有一条既有 PyAudio 导入警告。桌面测试使用可控时钟验证两种收窗时限、输入和确认保护。真实 Electron 单屏、双屏和陪玩展示冒烟通过，陪玩展示用模拟事件验证头像、单条微信正文、关麦和静音时保持展开及结束后恢复角色。本机脚本已重启，Engine 和唤醒监听已运行。LoL 和《鸣潮》实际全屏、真人口令与真实微信来信仍待实测。 [桌面回归](../web/panel/tests/desktop-displays.test.cjs) · [Electron 冒烟](../web/panel/tests/desktop-smoke.cjs)
 
 ### 2026-11-21 · 气泡贴近脸侧，任务状态贴近鞋底
@@ -2793,19 +2793,19 @@ passed
 ### 2026-11-21 · 用语音开启 LoL 陪玩
 
 - **背景与问题**　小窗可开启 LoL 陪玩，语音工具的原有开关只控制《鸣潮》陪玩。
-- **决策与做法**　在现有语音工具里添加可选游戏参数。选择 LoL 或《鸣潮》时复用小窗按钮的陪玩会话入口，语音连接已打开时直接复用。用户只说「退出陪玩」时关闭当前模式。 [语音工具](../boxagent/infrastructure/runtimes/qwen/realtime.py) · [模式切换](../boxagent/application/assistant.py)
+- **决策与做法**　在现有语音工具里添加可选游戏参数。选择 LoL 或《鸣潮》时复用小窗按钮的陪玩会话入口，语音连接已打开时直接复用。用户只说「退出陪玩」时关闭当前模式。 [语音工具](../src/boxagent/infrastructure/runtimes/qwen/realtime.py) · [模式切换](../src/boxagent/application/assistant.py)
 - **效果**　覆盖语音工具开启 LoL、拒绝未知游戏、复用麦克风及退出。676 项 Python 测试通过，Pyright 无错误且保留一条既有 PyAudio 导入警告。本机脚本已重启，Engine 和唤醒监听就绪。真人口令到模式启动仍待实测。 [入口回归](../tests/test_lol_companion.py)
 
 ### 2026-11-21 · 修复 LoL 独占全屏头像与明确语音口令
 
 - **背景与问题**　实机已收到 LoL 对局数据，游戏窗口在 macOS 独占全屏屏蔽层，普通窗口筛选将其跳过。第一次语音转写丢了游戏名，后一次识别出「撸啊撸」后，切换仍要通过模型工具调用。
-- **决策与做法**　仅在 LoL 对局进程处于前台且有可见游戏窗口时识别其独占全屏层。28 × 48 点头像使用游戏层上方一级，离开游戏时隐藏并恢复层级。包含游戏名的明确陪玩口令由宿主直接执行，再让语音模型确认结果。小窗按实际模式状态点亮。 [窗口识别](../boxagent/infrastructure/perception/qwen_mlx.py) · [头像层级](../web/panel/desktop/host.cjs) · [语音入口](../boxagent/domain/interaction/service.py)
+- **决策与做法**　仅在 LoL 对局进程处于前台且有可见游戏窗口时识别其独占全屏层。28 × 48 点头像使用游戏层上方一级，离开游戏时隐藏并恢复层级。包含游戏名的明确陪玩口令由宿主直接执行，再让语音模型确认结果。小窗按实际模式状态点亮。 [窗口识别](../src/boxagent/infrastructure/perception/qwen_mlx.py) · [头像层级](../web/panel/desktop/host.cjs) · [语音入口](../src/boxagent/domain/interaction/service.py)
 - **效果**　本机脚本重启后恢复 LoL 陪玩，读取真实对局屏幕的窗口列表，头像层级为 2147483629，游戏为 2147483628，游戏保持前台。145 项桌面和 678 项 Python 测试通过，Pyright 无错误，保留一条既有 PyAudio 警告。实体鼠标操作、真人再次发出完整口令和其他机器的独占全屏仍待实测。 [窗口回归](../web/panel/tests/desktop-displays.test.cjs) · [语音回归](../tests/test_game_mode.py)
 
 ### 2026-11-21 · 陪玩静音同时截断正在播的游戏短评
 
 - **背景与问题**　用户点静音后，LoL 短评继续播完尾巴。一次现场日志中，静音状态更新到这句播放结束间隔约 0.68 秒。后续普通对话仍按原设定播放。
-- **决策与做法**　语音运行时保留正在输出的游戏回应身份，静音时立即清空该游戏音频并取消仍在生成的回应，撤销已排队的短评。已生成完但仍在播放的 AOQ 音频也调用本地中断。对话和微信走原播报链路，悬浮球提示说明静音范围。 [语音中断](../boxagent/infrastructure/runtimes/qwen/realtime.py) · [悬浮球提示](../web/panel/src/companion/game-dock.tsx)
+- **决策与做法**　语音运行时保留正在输出的游戏回应身份，静音时立即清空该游戏音频并取消仍在生成的回应，撤销已排队的短评。已生成完但仍在播放的 AOQ 音频也调用本地中断。对话和微信走原播报链路，悬浮球提示说明静音范围。 [语音中断](../src/boxagent/infrastructure/runtimes/qwen/realtime.py) · [悬浮球提示](../web/panel/src/companion/game-dock.tsx)
 - **效果**　Electron 模拟陪玩测试通过关麦与静音，运行时测试覆盖正在生成、已生成完的 AOQ 播放、排队短评和微信、普通对话互不影响。145 项桌面、681 项 Python 测试和前端构建通过，Pyright 无错误，保留一条既有 PyAudio 警告。脚本版已重启，真实对局中修复后的停声时点待复测。 [播放回归](../tests/test_lol_companion.py) · [AOQ 回归](../tests/test_aoq.py)
 
 ### 2026-11-21 · 陪玩版 macOS 安装验收
@@ -2813,3 +2813,29 @@ passed
 - **背景与问题**　验证陪玩版从源码构建到 DMG 安装的流程。首次验收发现 `/var` 与 `/private/var` 的路径差异会被误判为移动 App，导致已安装的本地组件无法复用，重启时 Engine 无法启动。
 - **决策与做法**　比较随包 Python 的实际路径，App 移到不同来源时仍要求修复组件。复用依赖时重建 VRM 和面板，测试包可分别存放，SHA-256 清单可以随 DMG 复制后直接校验。冒烟脚本设定请求超时，提供隔离的测试钥匙串选项。 [打包入口](../scripts/build-dist-mac.sh) · [路径回归](../web/panel/tests/packaged-runtime.test.cjs) · [成品冒烟](../scripts/smoke-packaged-app.mjs)
 - **效果**　Apple Silicon 0.1.2 测试 DMG 通过摘要和镜像校验。推出镜像后，复制安装的 App 通过严格签名检查、首次启动、离线安装 core/Jev/vision、本地模型加载、Engine 重启及微信客户端准备。微信准备阶段使用 Chromium 测试钥匙串，系统钥匙串授权、账号登录和跨机器验收仍待实测。146 项桌面、45 项 VRM、681 项 Python 测试通过，Python 另有 13 项跳过，Pyright 无错误且保留一条既有 PyAudio 警告。 [发包指南](macos-distribution.md)
+
+### 2026-11-22 · 建立 Python 自动质量门禁
+
+- **背景与问题**　仓库已有 Python 3.12、uv 和 pytest。项目以未安装的根目录包运行，CI 缺少 Ruff 与 strict mypy 检查。
+- **决策与做法**　使用 uv 生成的应用包配置，把源码迁到 `src/boxagent`，注册桌宠命令和 `py.typed`。更新桌面子进程、源码热重载和 macOS 打包的导入路径。Ruff 启用 `E/F/I/UP/B/SIM`，mypy 对第一方源码启用 strict。初版 `f136566` 使用既有诊断基线。 [工具配置](../pyproject.toml) · [CLI 冒烟](../tests/test_cli.py)
+- **效果**　Ruff 还有 1,429 项既有诊断，mypy 还有 1,632 项，新增为零。临时注入的 Ruff 未使用导入与 mypy 返回类型错误均被拦截。Pyright 使用 uv 解释器时通过。pytest 通过 682 项、跳过 13 项，前端构建及 146 项 Electron 测试通过。wheel 与打包暂存目录的入口和类型标记已核对。签名 DMG 的安装和桌宠实机启动仍待验收。
+
+### 2026-11-23 · CI 直接运行 Ruff、mypy 和 pytest
+
+- **背景与问题**　团队要求使用 uv 和三个工具的原生命令，CI 需要给出完整诊断并展示各项检查结果。
+- **决策与做法**　移除自写检查脚本和诊断基线。CI 分步运行 `uv run --locked ruff check`、`uv run --locked mypy` 和 `uv run --locked pytest`，保留 Pyright。清理 Ruff 报出的导入、行宽和测试问题，补齐会话持久化、日志、上下文记录、Engine IPC 等路径的类型。 [CI](../.github/workflows/verify.yml) · [会话存储](../src/boxagent/infrastructure/persistence/jsonl_session_repository.py) · [Engine IPC](../src/boxagent/interfaces/engine/client.py)
+- **效果**　本地 Ruff 从 1,429 项降到零，strict mypy 从 1,632 项降到 900 项。pytest 682 项通过、13 项跳过，Pyright 使用 uv 解释器时无错误或警告。mypy 仍会使 CI 失败，剩余诊断以语音运行时、应用编排和执行层为主。远程 CI 和桌宠实机行为待验证。
+
+### 2026-11-23 · strict mypy 清零
+
+- **背景与问题**　直接启用 strict mypy 后，CI 覆盖范围内还有 900 项诊断，主要来自语音和任务运行时、应用装配、记忆和原生接口。
+- **决策与做法**　补齐运行时工厂、异步回调和内部记录的类型，在 JSON 和原生 SDK 入口校验动态数据。将 PyAudio 类型存根锁定为开发依赖，为项目使用的 PyObjC 接口添加存根。沿用 Python 3.12、strict、既有检查范围及 CI 中的三条原生命令。 [检查配置](../pyproject.toml) · [任务执行器](../src/boxagent/agent/harness/executor.py) · [语音运行时](../src/boxagent/infrastructure/runtimes/qwen/realtime.py)
+- **效果**　macOS 上 `uv run --locked mypy` 检查 224 个文件，零诊断。Ruff 通过，两条全量 pytest 命令均通过 682 项、跳过 13 项。Pyright 使用 uv 解释器时无错误或警告，直接执行时有一条 PyAudio 源码发现警告。Jev-Mem 专用环境补跑通过 12 项，Windows 原生 TCP 用例待实机。Electron 146 项和 VRM 45 项通过，两个前端均构建成功。
+- **实机复测**　真实 Engine 通过 AOQ 处理测试文本，拿到设备起播和回复入库证据。AOQ 调度探针的设备回执顺序为 LoL 短评、合成微信提醒。AOQ 合成录音上行通过听写和回复文本检查，该回合未取得起播回执，真人麦克风往返待测。真实 WebSocket 备用链路、Codex App Server 接 DeepSeek 结构化回合和本机离线 MLX 推理通过。本地 App 通过临时签名检查，DMG 通过摘要和镜像校验。成品在隔离目录通过 Onboarding、core/Jev/MLX 初始化、Engine 和固定版本微信客户端准备。 [音频探针](../scripts/experiments/voice_scheduling_probe.py) · [打包冒烟](../scripts/smoke-packaged-app.mjs)
+- **桌面复测与剩余项**　真实双屏、桌宠渲染、主题和缩放通过，合成相机帧通过渲染器和 Python 链路。相机按钮布局断言和原生全屏空间断言在当前分支和质量基线前的 `1800c8b` 均能复现。相机冒烟启动原始 Electron 会显示本地运行权限说明，该测试宿主缺少语音唤醒助手和辅助功能授权。安装预检报告本机选中的 Codex 可执行文件未签名。远程 CI、真实微信账号和 Windows 待验证。 [相机冒烟](../web/panel/tests/camera-smoke.cjs) · [全屏冒烟](../web/panel/tests/desktop-fullscreen-smoke.cjs) · [本地权限面板](../web/panel/desktop/local-permissions.cjs)
+
+### 2026-11-23 · 独立 Engine 默认使用 DeepSeek
+
+- **背景与问题**　独立启动 Engine 时，命令行默认值固定为 `codex`，桌宠的共享配置在未配置时使用 `deepseek`。
+- **决策与做法**　独立 Engine 仅在收到显式 `--task-provider` 时覆盖共享配置。省略参数时读取 `BOXAGENT_TASK_PROVIDER`，未配置时使用 DeepSeek。 [Engine 入口](../src/boxagent/entrypoints/engine.py) · [共享配置](../src/boxagent/bootstrap/settings.py)
+- **效果**　CLI 回归覆盖两种配置值和显式参数的双向覆盖。独立 Engine 使用默认配置和显式 `codex` 均通过启停与 IPC 冒烟。Ruff、strict mypy 和使用 uv 解释器的 Pyright 通过，pytest 通过 683 项、跳过 13 项。真实模型回合见上一轮实机复测。 [CLI 回归](../tests/test_engine.py)

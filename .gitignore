@@ -3,7 +3,7 @@
 !.env.local.example
 .DS_Store
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 models/
 !assets/vrm/models/

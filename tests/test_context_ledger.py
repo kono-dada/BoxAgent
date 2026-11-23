@@ -26,7 +26,6 @@ from boxagent.infrastructure.runtimes.qwen.realtime import (
     QwenRealtimeSession,
 )
 
-
 SESSION = "ses_0123456789abcdef"
 
 

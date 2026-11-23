@@ -4,8 +4,8 @@ import asyncio
 import contextlib
 import json
 import os
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 from computer_use import ApprovalHandler, ComputerUse
 
@@ -18,7 +18,9 @@ class CodexComputerUse(ComputerUse):
                  allowed_apps: set[str] | None = None, timeout: float = 30):
         super().__init__(approve=approve, timeout=timeout)
         self.codex_bin = codex_bin
-        self.allowed_apps = frozenset({"com.apple.calculator"} if allowed_apps is None else allowed_apps)
+        self.allowed_apps = frozenset(
+            {"com.apple.calculator"} if allowed_apps is None else allowed_apps
+        )
         self.thread_id = None
 
     async def __aenter__(self):
@@ -28,11 +30,25 @@ class CodexComputerUse(ComputerUse):
         if not executable:
             raise FileNotFoundError("找不到已验证的 Codex 运行时；请通过 codex_bin 指定路径")
         codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-        client = codex_home / "computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient"
+        client = (
+            codex_home
+            / "computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient."
+                "app/Contents/MacOS/SkyComputerUseClient"
+        )
         if not client.is_file():
             raise FileNotFoundError(f"找不到 Computer Use 执行器：{client}")
-        config = 'mcp_servers.boxagent_cua={command=' + json.dumps(str(client)) + ',args=["mcp"],enabled_tools=["get_app_state","click","type_text","press_key","scroll","set_value","select_text","drag","perform_secondary_action"]}'
-        env = {key: os.environ[key] for key in ("HOME", "PATH", "TMPDIR", "LANG", "CODEX_HOME") if key in os.environ}
+        config = (
+            "mcp_servers.boxagent_cua={command="
+            + json.dumps(str(client))
+            + ",args=[\"mcp\"],enabled_tools=[\"get_app_state\",\"click\",\"type_text\","
+                "\"press_key\",\"scroll\",\"set_value\",\"select_text\",\"drag\","
+                "\"perform_secondary_action\"]}"
+        )
+        env = {
+            key: os.environ[key]
+            for key in ("HOME", "PATH", "TMPDIR", "LANG", "CODEX_HOME")
+            if key in os.environ
+        }
         self.process = await asyncio.create_subprocess_exec(
             executable, "app-server", "--stdio", "-c", config, env=env,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
@@ -40,9 +56,23 @@ class CodexComputerUse(ComputerUse):
         self.reader = asyncio.create_task(self._read_messages())
         self.stderr_reader = asyncio.create_task(self._read_stderr())
         try:
-            await self.request("initialize", {"clientInfo": {"name": "boxagent-python", "version": "0.1.0"}, "capabilities": {"experimentalApi": True}})
+            await self.request(
+                "initialize",
+                {
+                    "clientInfo": {"name": "boxagent-python", "version": "0.1.0"},
+                    "capabilities": {"experimentalApi": True},
+                },
+            )
             await self._send({"method": "initialized"})
-            result = await self.request("thread/start", {"cwd": str(root), "ephemeral": True, "approvalPolicy": "on-request", "sandbox": "read-only"})
+            result = await self.request(
+                "thread/start",
+                {
+                    "cwd": str(root),
+                    "ephemeral": True,
+                    "approvalPolicy": "on-request",
+                    "sandbox": "read-only",
+                },
+            )
             self.thread_id = result["thread"]["id"]
         except BaseException:
             await self.close()
@@ -63,7 +93,9 @@ class CodexComputerUse(ComputerUse):
             result = {"action": "accept", "content": {}} if accepted else {"action": "decline"}
             await self._send({"id": message["id"], "result": result})
         else:
-            await self._send({"id": message["id"], "error": {"code": -32601, "message": "桌宠尚未实现该回调"}})
+            await self._send(
+                {"id": message["id"], "error": {"code": -32601, "message": "桌宠尚未实现该回调"}}
+            )
 
     async def request(self, method, params):
         # App Server 不使用原始 MCP 的 notifications/cancelled 协议。

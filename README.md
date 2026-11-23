@@ -202,7 +202,7 @@ BoxAgent 能真实操作用户电脑，因此安全边界是产品能力的一�
 ## 项目结构
 
 ```text
-boxagent/
+src/boxagent/
 ├── entrypoints/       # 进程入口
 ├── bootstrap/         # Desktop / Engine 生产装配
 ├── application/       # 用例编排
@@ -221,15 +221,21 @@ web/
 
 ## 开发与测试
 
+Python 依赖由 `uv.lock` 固定。日常开发可运行 `uv sync --locked`，
+用 `uv run --locked boxagent --help` 检查已注册的桌宠命令。
+
 ```sh
+# 与 CI 一致的 Python 检查
+uv run --locked ruff check
+uv run --locked mypy
+uv run --locked pytest
+uvx --from pyright==1.1.414 pyright --pythonpath "$(uv python find)"
+
 # 本地替身检查，不调用模型或操作其他应用
 uv run --script scripts/pet.py --check
 
 # 原生 UI 检查
 uv run --script scripts/pet.py --check-ui
-
-# 测试套件
-uv run --python 3.12 --with pytest --with 'pillow>=11,<13' --with 'websockets>=15,<17' --with 'pyaudio>=0.2.14' python -m pytest -q
 
 # 控制台构建与前端测试
 pnpm --dir web/panel install
@@ -238,10 +244,10 @@ pnpm --dir web/panel test
 
 # 打开控制台（需先启动桌宠，或独立 Engine）
 pnpm --dir web/panel start
-
-# 渐进式静态类型检查（范围见 pyrightconfig.json）
-uvx --from pyright==1.1.414 pyright
 ```
+
+Ruff 的六组规则覆盖第一方 Python 文件。mypy 对 `src/` 和 CLI 冒烟测试启用
+`strict`。`uv run --locked ruff format <文件>` 可按 100 字符、双引号和空格缩进格式化指定文件。
 
 真实语音、Computer Use 和屏幕总结测试可能产生模型用量、读取屏幕或改变应用状态。运行前请先阅读 [脚本用途与副作用](scripts/README.md)。
 

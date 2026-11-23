@@ -6,6 +6,7 @@ class ServiceClient extends EventEmitter {
     root,
     data,
     log,
+    pythonSource = root,
     args = [],
     python = process.env.BOXAGENT_DESKTOP_PYTHON,
     environment = process.env,
@@ -20,7 +21,7 @@ class ServiceClient extends EventEmitter {
       ["-m", "boxagent.entrypoints.desktop_service", ...args],
       {
         cwd: root,
-        env: { ...environment, BOXAGENT_DATA_DIR: data, PYTHONUNBUFFERED: "1" },
+        env: { ...environment, BOXAGENT_DATA_DIR: data, PYTHONPATH: pythonSource, PYTHONUNBUFFERED: "1" },
         stdio: ["pipe", "pipe", log],
       },
     );

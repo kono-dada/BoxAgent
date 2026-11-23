@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
 import sqlite3
 import threading
 import time
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import cast
 
 import pytest
 
 from boxagent.infrastructure.wechat.database.reader import DatabaseReader, table_for
-from boxagent.infrastructure.wechat.database.snapshot import FileStamp, RefreshCost, SnapshotRepository, signature
+from boxagent.infrastructure.wechat.database.snapshot import (
+    FileStamp,
+    RefreshCost,
+    SnapshotRepository,
+    signature,
+)
 
 SELF = "wxid_self"
 PEER = "wxid_friend"
@@ -34,7 +39,9 @@ class PlainDatabase:
     generation: str = "fixture-generation"
     last_signature: tuple[FileStamp | None, FileStamp | None] | None = None
 
-    def refresh(self, reason: str) -> tuple[Path, RefreshCost, tuple[FileStamp | None, FileStamp | None]]:
+    def refresh(
+        self, reason: str
+    ) -> tuple[Path, RefreshCost, tuple[FileStamp | None, FileStamp | None]]:
         cost = RefreshCost(DB, reason, 0, 0, 0, 0, 0, 0, 0, 1)
         return self.path, cost, signature(self.path)
 
@@ -80,18 +87,21 @@ def snapshots(tmp_path: Path) -> PlainSnapshots:
     """)
     connection.close()
     connection = sqlite3.connect(tmp_path / "session/session.db")
-    connection.executescript("""
-        CREATE TABLE SessionTable(username TEXT,unread_count INTEGER,summary TEXT,sort_timestamp INTEGER);
-        INSERT INTO SessionTable VALUES ('wxid_friend',2,'新的消息',100),('room@chatroom',0,'群聊',99);
-    """)
+    connection.executescript(
+        "\n        CREATE TABLE SessionTable(username TEXT,unread_count INTEGER,summary TEXT,"
+        "sort_timestamp INTEGER);\n        INSERT INTO SessionTable VALUES ('wxid_friend',2,"
+        "'新的消息',100),('room@chatroom',0,'群聊',99);\n    "
+    )
     connection.close()
     connection = sqlite3.connect(tmp_path / DB)
     connection.executescript("CREATE TABLE Name2Id(user_name TEXT); INSERT INTO Name2Id VALUES "
                              "('wxid_self'),('wxid_friend'),('room@chatroom');")
     for peer in (PEER, GROUP):
-        connection.execute(f'CREATE TABLE "{table_for(peer)}" (local_id INTEGER PRIMARY KEY,server_id INTEGER,'
-                            'real_sender_id INTEGER,local_type INTEGER,create_time INTEGER,message_content BLOB,'
-                            'WCDB_CT_message_content INTEGER,source BLOB,WCDB_CT_source INTEGER)')
+        connection.execute(
+            f'CREATE TABLE "{table_for(peer)}" (local_id INTEGER PRIMARY KEY,server_id INTEGER,'
+            "real_sender_id INTEGER,local_type INTEGER,create_time INTEGER,message_content BLOB,"
+            "WCDB_CT_message_content INTEGER,source BLOB,WCDB_CT_source INTEGER)"
+        )
     connection.commit()
     connection.close()
     return PlainSnapshots(PlainKeys(tmp_path))

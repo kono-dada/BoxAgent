@@ -48,7 +48,9 @@ class SessionRunRecordsTests(unittest.TestCase):
             (unified / "manifest.json").write_text(json.dumps(manifest))
             records = SessionRunRecords(data / "runs")
             self.assertEqual(records.latest("ses_current"), unified.resolve())
-            legacy = self._run(data / "runs", "2026-10-12", "120000-abc123abc123", "ses_current", 10)
+            legacy = self._run(
+                data / "runs", "2026-10-12", "120000-abc123abc123", "ses_current", 10
+            )
             (legacy / "manifest.json").write_text(json.dumps(manifest))
             self.assertEqual(records.directories("ses_current"), [unified.resolve()])
             view = records.materialize_view("ses_current")

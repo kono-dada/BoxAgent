@@ -3,20 +3,19 @@
 import argparse
 import asyncio
 import base64
-import contextlib
 import json
 import sys
 import time
 import wave
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.bootstrap.engine import create_task_executor
 from boxagent.bootstrap.settings import load_settings
 from boxagent.infrastructure.audio import AudioIO
+from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 
 
 async def main():
@@ -26,7 +25,9 @@ async def main():
     parser.add_argument("--goal", default="打开计算器，计算137+248，并检查结果")
     parser.add_argument("--followup", type=Path)
     parser.add_argument("--allow-app", action="append", default=[])
-    parser.add_argument("--dry-run", action="store_true", help="只观察语音委托内容，不启动桌面执行器")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="只观察语音委托内容，不启动桌面执行器"
+    )
     parser.add_argument("--cancel-after", type=float)
     parser.add_argument("--cancel-after-action", type=int)
     args = parser.parse_args()
@@ -43,13 +44,27 @@ async def main():
         events.append(event)
         with (output / "events.jsonl").open("a") as stream:
             stream.write(json.dumps(event, ensure_ascii=False) + "\n")
-        if kind in {"task.accepted", "task.succeeded", "task.failed", "task.cancelled", "tool.result", "error",
-                    "conversation.item.input_audio_transcription.completed", "response.audio_transcript.done"}:
+        if kind in {
+            "task.accepted",
+            "task.succeeded",
+            "task.failed",
+            "task.cancelled",
+            "tool.result",
+            "error",
+            "conversation.item.input_audio_transcription.completed",
+            "response.audio_transcript.done",
+        }:
             print(json.dumps(event, ensure_ascii=False), flush=True)
 
     def publish(event):
         state = event["state"]
-        log(event["type"], task=state["task"], task_text=state["task_text"], voice=state["voice"], speaking=state["speaking"])
+        log(
+            event["type"],
+            task=state["task"],
+            task_text=state["task_text"],
+            voice=state["voice"],
+            speaking=state["speaking"],
+        )
 
     class RecordingAudio(AudioIO):
         def append(self, encoded):
@@ -72,7 +87,11 @@ async def main():
             pass
         async def run(self, goal, progress, approve):
             log("delegation.observed", goal=goal)
-            return {"outcome": "blocked", "summary": "语音委托已接收；本次只测试委托，不执行桌面操作。"}
+            return {
+                "outcome": "blocked",
+                "summary": "语音委托已接收；本次只测试委托，不执行桌面操作。",
+            }
+
         async def cancel(self):
             pass
 
@@ -83,8 +102,10 @@ async def main():
                           app_settings=app_settings), make_voice)
     async def approve(params):
         app = params.get("app", "")
-        allowed = any(app.casefold() == value.casefold() or Path(app).stem.casefold() == value.casefold()
-                      for value in args.allow_app)
+        allowed = any(
+            app.casefold() == value.casefold() or Path(app).stem.casefold() == value.casefold()
+            for value in args.allow_app
+        )
         log("approval", app=app, allowed=allowed, message=params.get("message", ""))
         return allowed
     runtime.approve = approve
@@ -93,7 +114,9 @@ async def main():
         if args.audio:
             await runtime.toggle_voice()
             ready_task = asyncio.create_task(voice.ready.wait())
-            done, _ = await asyncio.wait([ready_task, runtime.voice_task], timeout=25, return_when=asyncio.FIRST_COMPLETED)
+            done, _ = await asyncio.wait(
+                [ready_task, runtime.voice_task], timeout=25, return_when=asyncio.FIRST_COMPLETED
+            )
             if ready_task not in done:
                 ready_task.cancel()
                 raise RuntimeError("语音未就绪：" + runtime.state.error)
@@ -107,7 +130,11 @@ async def main():
 
             def enqueue(path):
                 with wave.open(str(path)) as wav:
-                    assert wav.getframerate() == 16000 and wav.getnchannels() == 1 and wav.getsampwidth() == 2
+                    assert (
+                        wav.getframerate() == 16000
+                        and wav.getnchannels() == 1
+                        and wav.getsampwidth() == 2
+                    )
                     while chunk := wav.readframes(1600):
                         queue.put_nowait(chunk.ljust(3200, b"\0"))
 
@@ -120,15 +147,17 @@ async def main():
                 await asyncio.sleep(4)
                 enqueue(args.followup)
         else:
-            caller = asyncio.create_task(runtime.handle_tool("run_task", {"goal": args.goal}))
+            _caller = asyncio.create_task(runtime.handle_tool("run_task", {"goal": args.goal}))
             await asyncio.sleep(.1)
         if args.cancel_after is not None:
             await asyncio.sleep(args.cancel_after)
             await runtime.cancel_task()
         if args.cancel_after_action is not None:
             async with asyncio.timeout(60):
-                while runtime.executor.actions < args.cancel_after_action and not runtime.job.done():
-                    await asyncio.sleep(.05)
+                while (
+                    runtime.executor.actions < args.cancel_after_action and not runtime.job.done()
+                ):
+                    await asyncio.sleep(0.05)
             await runtime.cancel_task()
         await asyncio.wait_for(asyncio.shield(runtime.job), 340)
         if voice:

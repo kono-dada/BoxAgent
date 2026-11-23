@@ -28,7 +28,7 @@ from boxagent.bootstrap.logs import (
 from boxagent.core.logs import bind_log_context, log_context
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "boxagent"
+PACKAGE = ROOT / "src/boxagent"
 
 
 def rows(path):
@@ -252,10 +252,11 @@ class UncaughtExceptionTests(LoggingTestCase):
 
     def test_process_crash_reaches_errors_file(self):
         script = (
-            "import sys; sys.path.insert(0, %r)\n"
+            f"import sys; sys.path.insert(0, {str(ROOT / 'src')!r})\n"
             "from boxagent.bootstrap.logs import configure_logging\n"
-            "configure_logging(%r, process='probe')\n"
-            "raise SystemError('fatal startup')\n") % (str(ROOT), str(self.log_dir))
+            f"configure_logging({str(self.log_dir)!r}, process='probe')\n"
+            "raise SystemError('fatal startup')\n"
+        )
         result = subprocess.run([sys.executable, "-c", script], capture_output=True,
                                 text=True, timeout=30)
         self.assertNotEqual(result.returncode, 0)

@@ -13,7 +13,10 @@ from boxagent.core.events import StateEvents
 from boxagent.domain.interaction.service import InteractionService
 from boxagent.domain.proactivity.lol import LolCompanionPolicy, LolEvent, LolRead, LolSnapshot
 from boxagent.infrastructure.games.lol import (
-    MAX_RESPONSE_BYTES, URL, LolLiveClient, parse_lol_snapshot,
+    MAX_RESPONSE_BYTES,
+    URL,
+    LolLiveClient,
+    parse_lol_snapshot,
 )
 from boxagent.interfaces.engine.server import EngineServer
 
@@ -149,7 +152,13 @@ class LolBoundaryTests(unittest.TestCase):
         value["allPlayers"][0]["scores"]["kills"] = 3
         value["events"]["Events"] = [
             {"EventID": 2, "EventTime": 129, "EventName": "ChampionKill", "KillerName": "player"},
-            {"EventID": 3, "EventTime": 129, "EventName": "Multikill", "KillerName": "other", "KillStreak": 3},
+            {
+                "EventID": 3,
+                "EventTime": 129,
+                "EventName": "Multikill",
+                "KillerName": "other",
+                "KillStreak": 3,
+            },
         ]
         policy = LolCompanionPolicy()
         policy.observe(game(), 0)
@@ -161,7 +170,14 @@ class LolBoundaryTests(unittest.TestCase):
         self.assertNotIn("三杀", moment.line)
 
         value["events"]["Events"].append(
-            {"EventID": 4, "EventTime": 129, "EventName": "Multikill", "KillerName": "player", "KillStreak": 3})
+            {
+                "EventID": 4,
+                "EventTime": 129,
+                "EventName": "Multikill",
+                "KillerName": "player",
+                "KillStreak": 3,
+            }
+        )
         snapshot = parse_lol_snapshot(value)
         assert snapshot is not None
         moment = policy.observe(snapshot, 30)
@@ -361,7 +377,9 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(app.state.lol_companion_enabled)
             self.assertFalse(app.state.game_companion_enabled)
             self.assertEqual(factory.call_count, 1)
-            invalid = await app.handle_tool("set_game_companion_mode", '{"game":"other","enabled":false}')
+            invalid = await app.handle_tool(
+                "set_game_companion_mode", '{"game":"other","enabled":false}'
+            )
             self.assertEqual(invalid["status"], "failed")
             self.assertTrue(app.state.lol_companion_enabled)
             self.assertEqual(await app.handle_tool("set_game_companion_mode", '{"enabled":false}'),
@@ -398,11 +416,15 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
             await server.dispatch("set_companion_audio", {"control": "speech", "enabled": False})
             self.assertEqual(request, [True])
             self.assertTrue(app.state.companion_speech_muted)
-            await server.dispatch("set_companion_audio", {"control": "microphone", "enabled": False})
+            await server.dispatch(
+                "set_companion_audio", {"control": "microphone", "enabled": False}
+            )
             self.assertEqual(request, [True, False])
             self.assertEqual(app.state.voice, "off")
             self.assertTrue(app.interaction_service.is_connected)
-            self.assertTrue(await app.interaction_service.deliver_notification({"summary": "收到消息"}))
+            self.assertTrue(
+                await app.interaction_service.deliver_notification({"summary": "收到消息"})
+            )
             await server.dispatch("set_companion_session", {"game": "lol", "enabled": False})
             self.assertFalse(app.interaction_service.is_connected)
             self.assertFalse(app.state.companion_speech_muted)
@@ -413,7 +435,9 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         events = StateEvents(lambda event: None)
         interaction = InteractionService(events, None, None)
         line = "高地水晶被摧毁了。"
-        current = lambda: True
+        def current() -> bool:
+            return True
+
         started = Mock()
         self.assertFalse(interaction.schedule_lol(line, current, started))
         voice = Mock(schedule_lol=Mock(return_value=True))
@@ -443,7 +467,9 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await voice._deliver_lol(speech))
         voice.install_reference.assert_awaited_once()
         self.assertEqual(voice.install_reference.call_args.args[1], "lol_companion")
-        voice._create_response.assert_awaited_with({"kind": "lol_companion", "lol_line": line, "lol_speech": speech})
+        voice._create_response.assert_awaited_with(
+            {"kind": "lol_companion", "lol_line": line, "lol_speech": speech}
+        )
         voice.response_id = "lol-response"
         voice.response_context = {"lol-response": {"kind": "lol_companion"}}
         voice.cancelled_responses = set()
@@ -456,14 +482,20 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_mute_cuts_current_game_audio_without_cutting_user_and_wechat(self) -> None:
         from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 
-        for kind, finished in (("lol_companion", False), ("game_highlight", True), ("game_news", False)):
+        for kind, finished in (
+            ("lol_companion", False),
+            ("game_highlight", True),
+            ("game_news", False),
+        ):
             with self.subTest(kind=kind, finished=finished):
                 voice = QwenRealtimeSession(AsyncMock(), Mock())
                 voice.audio = audio = Mock(has_pending_playback=True)
                 voice.send = AsyncMock()
                 voice.response_origins.append({"kind": kind, "notification_id": "game-line"})
                 await voice.receive({"type": "response.created", "response": {"id": "game"}})
-                await voice.receive({"type": "response.audio.delta", "response_id": "game", "delta": "pcm"})
+                await voice.receive(
+                    {"type": "response.audio.delta", "response_id": "game", "delta": "pcm"}
+                )
                 voice.playback_changed(True)
                 if finished:
                     await voice._finalize_response("game", source="provider")
@@ -473,17 +505,23 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     voice.send.assert_not_awaited()
                 else:
                     voice.send.assert_awaited_once_with({"type": "response.cancel"})
-                await voice.receive({"type": "response.audio.delta", "response_id": "game", "delta": "late"})
+                await voice.receive(
+                    {"type": "response.audio.delta", "response_id": "game", "delta": "late"}
+                )
                 audio.append.assert_called_once_with("pcm")
                 for other in ("user", "notification"):
                     voice.response_origins.append({"kind": other, "notification_id": "wechat"})
                     await voice.receive({"type": "response.created", "response": {"id": other}})
                     await voice.set_game_speech_muted(True)
-                    await voice.receive({"type": "response.audio.delta", "response_id": other, "delta": other})
+                    await voice.receive(
+                        {"type": "response.audio.delta", "response_id": other, "delta": other}
+                    )
                     audio.append.assert_called_with(other)
                 audio.clear.assert_called_once()
 
-    async def test_mute_drops_queued_comment_even_if_unmuted_before_provider_accepts_it(self) -> None:
+    async def test_mute_drops_queued_comment_even_if_unmuted_before_provider_accepts_it(
+        self,
+    ) -> None:
         from boxagent.infrastructure.runtimes.qwen.realtime import LolSpeech, QwenRealtimeSession
 
         voice = QwenRealtimeSession(AsyncMock(), Mock())
@@ -495,7 +533,9 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(voice.pending_lol)
         await voice.set_game_speech_muted(False)
         await voice.receive({"type": "response.created", "response": {"id": "queued-game"}})
-        await voice.receive({"type": "response.audio.delta", "response_id": "queued-game", "delta": "late"})
+        await voice.receive(
+            {"type": "response.audio.delta", "response_id": "queued-game", "delta": "late"}
+        )
         audio.append.assert_not_called()
         voice.send.assert_awaited_once_with({"type": "response.cancel"})
 
@@ -527,7 +567,9 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(voice.reference_item, "game-reference")
         self.assertEqual(sent[0]["item"]["role"], "user")
         self.assertIn("系统自动触发", sent[0]["item"]["content"][0]["text"])
-        self.assertTrue(sent[1]["response"]["instructions"].endswith(json.dumps(line, ensure_ascii=False)))
+        self.assertTrue(
+            sent[1]["response"]["instructions"].endswith(json.dumps(line, ensure_ascii=False))
+        )
         await voice.respond_to_query("", query_id="user-question")
         self.assertIsNone(voice.reference_item)
         self.assertEqual([row["type"] for row in sent][-2:],
@@ -540,7 +582,9 @@ class LolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         voice.ws = Socket()
         sent.clear()
         interrupt = True
-        self.assertFalse(await voice._deliver_lol(LolSpeech("血量有点低了，留意一下。", lambda: True, Mock())))
+        self.assertFalse(
+            await voice._deliver_lol(LolSpeech("血量有点低了，留意一下。", lambda: True, Mock()))
+        )
         self.assertFalse(any(row["type"] == "response.create" for row in sent))
         await voice.respond_to_query("", query_id="new-user")
         self.assertIsNone(voice.reference_item)

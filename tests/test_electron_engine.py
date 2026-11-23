@@ -4,12 +4,15 @@ import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
+
 from boxagent.interfaces.desktop.engine_bridge import EngineBridge
 from boxagent.interfaces.engine.supervisor import EngineSupervisor
 
 
 def test_bridge_restarts_isolated_engine_and_shutdown_closes_process(tmp_path: Path):
-    with tempfile.TemporaryDirectory(prefix="ba-engine-", dir=None if sys.platform == "win32" else "/tmp") as directory:
+    with tempfile.TemporaryDirectory(
+        prefix="ba-engine-", dir=None if sys.platform == "win32" else "/tmp"
+    ) as directory:
         asyncio.run(check_bridge(Path(directory)))
 
 
@@ -33,12 +36,20 @@ asyncio.run(main())
         return supervisor.process
 
     with patch.object(EngineSupervisor, "start", start):
-        bridge = EngineBridge(root=root, data_dir=tmp_path, log_dir=tmp_path / "logs", task_provider="codex", watch=False)
+        bridge = EngineBridge(
+            root=root,
+            data_dir=tmp_path,
+            log_dir=tmp_path / "logs",
+            task_provider="codex",
+            watch=False,
+        )
         try:
             await asyncio.wait_for(asyncio.wrap_future(bridge.startup), 10)
             first = bridge.engine_pid
             assert first
-            result = await asyncio.wrap_future(bridge.submit(bridge.request("submit_text", {"goal": "fixture"})))
+            result = await asyncio.wrap_future(
+                bridge.submit(bridge.request("submit_text", {"goal": "fixture"}))
+            )
             assert result["status"] == "accepted"
             await asyncio.wrap_future(bridge.submit(bridge._restart("fixture")))
             assert bridge.engine_pid != first

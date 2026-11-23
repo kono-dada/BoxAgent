@@ -8,20 +8,20 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
-from boxagent.infrastructure.runtimes.codex.app_server import (
-    CodexAppServer,
-    resolve_codex_runtime,
-)
-from boxagent.infrastructure.runtimes.codex.session import CodexRuntimeHost
-from boxagent.infrastructure.runtimes.codex.runtime import CodexAgentRuntime
-from boxagent.core.errors import TaskFailure, redact
 from boxagent.agent.harness.executor import TaskExecutor
+from boxagent.agent.harness.policies.result import RESULT_SCHEMA, validate_task_result
 from boxagent.agent.harness.policies.tools import ComputerUseToolGateway, model_content
 from boxagent.agent.harness.request_builder import RuntimeRequestBuilder
 from boxagent.agent.runtime.models import ModelProfile, RuntimeMessage, RuntimeRequest
 from boxagent.agent.runtime.results import parse_result_object
-from boxagent.agent.harness.policies.result import RESULT_SCHEMA, validate_task_result
+from boxagent.core.errors import TaskFailure, redact
 from boxagent.domain.environment import EnvironmentContext
+from boxagent.infrastructure.runtimes.codex.app_server import (
+    CodexAppServer,
+    resolve_codex_runtime,
+)
+from boxagent.infrastructure.runtimes.codex.runtime import CodexAgentRuntime
+from boxagent.infrastructure.runtimes.codex.session import CodexRuntimeHost
 
 
 class FakeSession:
@@ -67,9 +67,13 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(len(evidence[0]["text"]), 3700)
 
     async def test_recorded_calculator_element_indices_are_repaired_from_one_observation(self):
-        case = json.loads((Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text())
+        case = json.loads(
+            (Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text()
+        )
         observation = case["observations"][0]
-        self.executor.observations[1] = {key: value for key, value in observation.items() if key != "text"}
+        self.executor.observations[1] = {
+            key: value for key, value in observation.items() if key != "text"
+        }
         (self.executor.output / "step-1.txt").write_text(observation["text"])
         original = parse_result_object(case["original_reply"])
         with self.assertRaises(TaskFailure) as failure:
@@ -89,13 +93,17 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["summary"], original["summary"])
         self.assertEqual([row["step"] for row in result["evidence"]], [1])
         sent = json.loads(session.run_isolated_structured_turn.call_args.kwargs["query"])
-        self.assertEqual([row["step"] for row in json.loads(sent["current_task_observations"])], [1])
+        self.assertEqual(
+            [row["step"] for row in json.loads(sent["current_task_observations"])], [1]
+        )
         session.run_isolated_structured_turn.assert_awaited_once()
         tools.assert_not_awaited()
         self.assertEqual(self.executor.session.calls, [])
 
     async def test_invalid_references_cannot_be_repaired_without_current_evidence(self):
-        case = json.loads((Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text())
+        case = json.loads(
+            (Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text()
+        )
         session = Mock()
         session.run_codex_turn = AsyncMock(return_value=case["original_reply"])
         session.run_isolated_structured_turn = AsyncMock()
@@ -107,7 +115,9 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         session.run_isolated_structured_turn.assert_not_awaited()
 
     async def test_invalid_reference_repair_cannot_change_claim_or_skip_verification(self):
-        case = json.loads((Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text())
+        case = json.loads(
+            (Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text()
+        )
         original = parse_result_object(case["original_reply"])
         self.executor.observations[1] = {"step": 1, "tool": "get_app_state", "success": True}
         for changes in ({"outcome": "needs_input"}, {"summary": "新结论"},
@@ -119,18 +129,30 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
                     **original, "evidence_steps": [1], **changes}))
                 with self.assertRaises(TaskFailure):
                     await CodexAgentRuntime(session, model="fixture").execute(
-                        RuntimeRequest(case["query"], "policy", RESULT_SCHEMA,
-                                       result_evidence=self.executor.result_evidence), [], AsyncMock(),
-                        self.executor.validate_result, lambda _: None)
+                        RuntimeRequest(
+                            case["query"],
+                            "policy",
+                            RESULT_SCHEMA,
+                            result_evidence=self.executor.result_evidence,
+                        ),
+                        [],
+                        AsyncMock(),
+                        self.executor.validate_result,
+                        lambda _: None,
+                    )
                 session.run_isolated_structured_turn.assert_awaited_once()
 
     async def test_failed_observation_cannot_validate_corrected_reference(self):
-        case = json.loads((Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text())
+        case = json.loads(
+            (Path(__file__).parent / "fixtures/calculator_evidence_indices.json").read_text()
+        )
         original = parse_result_object(case["original_reply"])
         self.executor.observations[1] = {"step": 1, "tool": "get_app_state", "success": False}
         session = Mock()
         session.run_codex_turn = AsyncMock(return_value=case["original_reply"])
-        session.run_isolated_structured_turn = AsyncMock(return_value=json.dumps({**original, "evidence_steps": [1]}))
+        session.run_isolated_structured_turn = AsyncMock(
+            return_value=json.dumps({**original, "evidence_steps": [1]})
+        )
         with self.assertRaises(TaskFailure) as failure:
             await CodexAgentRuntime(session, model="fixture").execute(
                 RuntimeRequest(case["query"], "policy", RESULT_SCHEMA,
@@ -139,21 +161,35 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failure.exception.code, "failed_evidence")
 
     async def test_recorded_mislabelled_clarification_requires_explicit_outcome(self):
-        case = json.loads((Path(__file__).parent / "fixtures/voice_task_clarification.json").read_text())
+        case = json.loads(
+            (Path(__file__).parent / "fixtures/voice_task_clarification.json").read_text()
+        )
         session = Mock()
         session.run_codex_turn = AsyncMock(return_value=json.dumps(case["reported_result"]))
         session.run_isolated_structured_turn = AsyncMock()
         runtime = CodexAgentRuntime(session, model="fixture")
         with self.assertRaises(TaskFailure) as failure:
-            await runtime.execute(RuntimeRequest(case["user_query"], "policy", RESULT_SCHEMA), [], AsyncMock(),
-                                  self.executor.validate_result, lambda _: None)
+            await runtime.execute(
+                RuntimeRequest(case["user_query"], "policy", RESULT_SCHEMA),
+                [],
+                AsyncMock(),
+                self.executor.validate_result,
+                lambda _: None,
+            )
         self.assertEqual(failure.exception.code, "missing_evidence")
         session.run_isolated_structured_turn.assert_not_awaited()
         # The same recorded question with an explicit needs_input outcome is
         # preserved verbatim, without heuristic language reclassification.
-        session.run_codex_turn.return_value = json.dumps({**case["reported_result"], "outcome": "needs_input"})
-        text = await runtime.execute(RuntimeRequest(case["user_query"], "policy", RESULT_SCHEMA), [], AsyncMock(),
-                                     self.executor.validate_result, lambda _: None)
+        session.run_codex_turn.return_value = json.dumps(
+            {**case["reported_result"], "outcome": "needs_input"}
+        )
+        text = await runtime.execute(
+            RuntimeRequest(case["user_query"], "policy", RESULT_SCHEMA),
+            [],
+            AsyncMock(),
+            self.executor.validate_result,
+            lambda _: None,
+        )
         result = self.executor.validate_result(text)
         self.assertEqual(result["summary"], case["reported_result"]["summary"])
         self.assertEqual(result["evidence"], [])
@@ -179,7 +215,12 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
     async def test_missing_reference_repair_cannot_change_completion_or_claim(self):
         self.executor.observations[8] = {"step": 8, "tool": "get_app_state", "success": True}
         original = {"outcome": "completed", "summary": "结果为20", "evidence_steps": []}
-        for changes in ({}, {"summary": "结果为30"}, {"outcome": "needs_input"}, {"evidence_steps": [99]}):
+        for changes in (
+            {},
+            {"summary": "结果为30"},
+            {"outcome": "needs_input"},
+            {"evidence_steps": [99]},
+        ):
             with self.subTest(changes=changes):
                 session = Mock()
                 session.run_codex_turn = AsyncMock(return_value=json.dumps(original))
@@ -193,8 +234,11 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
                             request, [], AsyncMock(), self.executor.validate_result, lambda _: None)
                 else:
                     text = await CodexAgentRuntime(session, model="fixture").execute(
-                        request, [], AsyncMock(), self.executor.validate_result, lambda _: None)
-                    self.assertEqual(self.executor.validate_result(text)["summary"], original["summary"])
+                        request, [], AsyncMock(), self.executor.validate_result, lambda _: None
+                    )
+                    self.assertEqual(
+                        self.executor.validate_result(text)["summary"], original["summary"]
+                    )
 
     async def test_unproven_completion_is_not_reclassified_as_input_or_blocked(self):
         for summary in ("已经打开计算器了", "完成", "已打开计算器，你是要科学还是普通模式？"):
@@ -206,8 +250,13 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
                     "outcome": "needs_input", "summary": summary, "evidence_steps": []}))
                 runtime = CodexAgentRuntime(session, model="fixture")
                 with self.assertRaises(TaskFailure) as failure:
-                    await runtime.execute(RuntimeRequest("打开计算器", "policy", RESULT_SCHEMA), [], AsyncMock(),
-                                          self.executor.validate_result, lambda _: None)
+                    await runtime.execute(
+                        RuntimeRequest("打开计算器", "policy", RESULT_SCHEMA),
+                        [],
+                        AsyncMock(),
+                        self.executor.validate_result,
+                        lambda _: None,
+                    )
                 self.assertEqual(failure.exception.code, "missing_evidence")
                 session.run_isolated_structured_turn.assert_not_awaited()
 
@@ -234,7 +283,9 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             self.executor.validate_result(json.dumps(result))
         self.assertEqual(failure.exception.code, "missing_result_evidence")
         result["evidence_steps"] = [1]
-        self.assertEqual(self.executor.validate_result(json.dumps(result))["outcome"], "needs_input")
+        self.assertEqual(
+            self.executor.validate_result(json.dumps(result))["outcome"], "needs_input"
+        )
 
     async def test_native_music_events_are_recorded_before_final_validation(self):
         case = json.loads((Path(__file__).parent / "fixtures/native_music_result.json").read_text())
@@ -249,19 +300,61 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             {"name": row["tool"], "inputSchema": {"type": "object"}} for row in case["calls"]])
         reader = asyncio.StreamReader()
         for row in case["calls"]:
-            started = {"type": "mcpToolCall", "server": "boxagent_cua", "status": "inProgress",
-                       "id": row["id"], "tool": row["tool"], "arguments": row["arguments"]}
-            completed = {**started, "status": "completed", "result": {
-                "content": [{"type": "text", "text": row["text"]}]}}
-            for method, item in (("item/started", started), ("item/completed", completed),
-                                 ("item/completed", completed)):
-                reader.feed_data((json.dumps({"method": method, "params": {
-                    "turnId": "current-turn", "item": item}}) + "\n").encode())
-        reader.feed_data((json.dumps({"method": "item/completed", "params": {
-            "turnId": "current-turn", "item": {"type": "agentMessage", "id": "final",
-                                                  "text": json.dumps(case["reported_result"])}}}) + "\n").encode())
-        reader.feed_data((json.dumps({"method": "turn/completed", "params": {
-            "turn": {"id": "current-turn", "status": "completed"}}}) + "\n").encode())
+            started = {
+                "type": "mcpToolCall",
+                "server": "boxagent_cua",
+                "status": "inProgress",
+                "id": row["id"],
+                "tool": row["tool"],
+                "arguments": row["arguments"],
+            }
+            completed = {
+                **started,
+                "status": "completed",
+                "result": {"content": [{"type": "text", "text": row["text"]}]},
+            }
+            for method, item in (
+                ("item/started", started),
+                ("item/completed", completed),
+                ("item/completed", completed),
+            ):
+                reader.feed_data(
+                    (
+                        json.dumps(
+                            {"method": method, "params": {"turnId": "current-turn", "item": item}}
+                        )
+                        + "\n"
+                    ).encode()
+                )
+        reader.feed_data(
+            (
+                json.dumps(
+                    {
+                        "method": "item/completed",
+                        "params": {
+                            "turnId": "current-turn",
+                            "item": {
+                                "type": "agentMessage",
+                                "id": "final",
+                                "text": json.dumps(case["reported_result"]),
+                            },
+                        },
+                    }
+                )
+                + "\n"
+            ).encode()
+        )
+        reader.feed_data(
+            (
+                json.dumps(
+                    {
+                        "method": "turn/completed",
+                        "params": {"turn": {"id": "current-turn", "status": "completed"}},
+                    }
+                )
+                + "\n"
+            ).encode()
+        )
         reader.feed_eof()
         server.process = Mock(stdout=reader)
         await server.read()
@@ -269,8 +362,12 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         result = self.executor.validate_result(server.agent_text)
         self.assertEqual(result["outcome"], "completed")
         self.assertEqual(result["steps"], 2)
-        self.assertEqual([item["source"] for item in result["evidence"]], ["native_mcp", "native_mcp"])
-        self.assertEqual(self.executor.session.calls, [])  # Recording must never repeat the actions.
+        self.assertEqual(
+            [item["source"] for item in result["evidence"]], ["native_mcp", "native_mcp"]
+        )
+        self.assertEqual(
+            self.executor.session.calls, []
+        )  # Recording must never repeat the actions.
         self.assertIn("自动过渡", (self.executor.output / "step-1.txt").read_text())
         invalid = {**case["reported_result"], "evidence_steps": [99]}
         with self.assertRaises(TaskFailure) as failure:
@@ -288,8 +385,17 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
         item = {"id": "call", "type": "mcpToolCall", "tool": "get_app_state",
                 "server": "boxagent_cua", "arguments": {"app": "Music"}, "status": "inProgress"}
         await server.observe_native_tool_event("item/started", {"turnId": "old", "item": item})
-        await server.observe_native_tool_event("item/completed", {"turnId": "current", "item": {
-            **item, "status": "completed", "result": {"content": [{"type": "text", "text": "old result"}]}}})
+        await server.observe_native_tool_event(
+            "item/completed",
+            {
+                "turnId": "current",
+                "item": {
+                    **item,
+                    "status": "completed",
+                    "result": {"content": [{"type": "text", "text": "old result"}]},
+                },
+            },
+        )
         self.assertEqual(self.executor.observations, {})
         await server.observe_native_tool_event("item/started", {"turnId": "current", "item": item})
         await server.observe_native_tool_event("item/completed", {"turnId": "current", "item": {
@@ -299,22 +405,39 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             self.executor.validate_result(json.dumps({"outcome": "completed", "summary": "已打开",
                                                        "evidence_steps": [1]}))
         self.assertEqual(failure.exception.code, "failed_evidence")
-        server.bind_task(on_tool_call=self.executor.call_tool, on_tool_observed=self.executor.observe_native_tool,
-                         approve=AsyncMock(), current_app=lambda: "", report=lambda *_: None,
-                         log=lambda *_args, **_kwargs: None)
+        server.bind_task(
+            on_tool_call=self.executor.call_tool,
+            on_tool_observed=self.executor.observe_native_tool,
+            approve=AsyncMock(),
+            current_app=lambda: "",
+            report=lambda *_: None,
+            log=lambda *_args, **_kwargs: None,
+        )
         self.assertEqual(server.native_tool_calls, {})
         self.assertEqual(server.observed_native_calls, set())
 
     async def test_plain_clarification_is_reformatted_without_replaying_actions(self):
         session = Mock()
         session.run_codex_turn = AsyncMock(return_value="Z V 是指哪个模型？请说清楚。")
-        session.run_isolated_structured_turn = AsyncMock(return_value=json.dumps({
-            "outcome": "needs_input", "summary": "Z V 是指哪个模型？请说清楚。", "evidence_steps": []}))
+        session.run_isolated_structured_turn = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "outcome": "needs_input",
+                    "summary": "Z V 是指哪个模型？请说清楚。",
+                    "evidence_steps": [],
+                }
+            )
+        )
         runtime = CodexAgentRuntime(session, model="fixture")
         request = RuntimeRequest("如果用 Z V 呢", "policy", RESULT_SCHEMA)
         call_tool = AsyncMock()
-        text = await runtime.execute(request, [], call_tool,
-                                     lambda value: validate_task_result(value, {}, []), lambda _: None)
+        text = await runtime.execute(
+            request,
+            [],
+            call_tool,
+            lambda value: validate_task_result(value, {}, []),
+            lambda _: None,
+        )
         self.assertEqual(json.loads(text)["outcome"], "needs_input")
         session.run_codex_turn.assert_awaited_once()
         session.run_isolated_structured_turn.assert_awaited_once()
@@ -327,8 +450,13 @@ class ExecutorTests(unittest.IsolatedAsyncioTestCase):
             "outcome": "completed", "summary": "已经完成", "evidence_steps": []}))
         runtime = CodexAgentRuntime(session, model="fixture")
         with self.assertRaises(TaskFailure) as failure:
-            await runtime.execute(RuntimeRequest("打开计算器", "policy", RESULT_SCHEMA), [], AsyncMock(),
-                                  lambda value: validate_task_result(value, {}, []), lambda _: None)
+            await runtime.execute(
+                RuntimeRequest("打开计算器", "policy", RESULT_SCHEMA),
+                [],
+                AsyncMock(),
+                lambda value: validate_task_result(value, {}, []),
+                lambda _: None,
+            )
         self.assertEqual(failure.exception.code, "missing_evidence")
 
     async def asyncSetUp(self):
@@ -826,22 +954,34 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         async def rpc(method, params, timeout=120):
             calls.append((method, params))
             if method == "turn/start":
-                asyncio.get_running_loop().call_soon(session.completed.set_result, {"status": "completed"})
+                asyncio.get_running_loop().call_soon(
+                    session.completed.set_result, {"status": "completed"}
+                )
                 return {"turn": {"id": "turn-reference"}}
             if method == "thread/revert":
                 return {}
             self.fail(method)
         session.rpc = rpc
-        await session.run_codex_turn(model="m", instructions="stable", query="q", output_schema={},
-                                     evidence_context="temporary", product_session_id="ses_test")
-        self.assertEqual(calls[-1], ("thread/revert", {"threadId": "thread-1", "beforeTurnId": "turn-reference"}))
+        await session.run_codex_turn(
+            model="m",
+            instructions="stable",
+            query="q",
+            output_schema={},
+            evidence_context="temporary",
+            product_session_id="ses_test",
+        )
+        self.assertEqual(
+            calls[-1], ("thread/revert", {"threadId": "thread-1", "beforeTurnId": "turn-reference"})
+        )
 
     async def test_reference_revert_failure_invalidates_thread_binding(self):
         session = self.make_session()
         session.ensure_thread = AsyncMock(return_value=("thread-1", "reused"))
         async def rpc(method, params, timeout=120):
             if method == "turn/start":
-                asyncio.get_running_loop().call_soon(session.completed.set_result, {"status": "completed"})
+                asyncio.get_running_loop().call_soon(
+                    session.completed.set_result, {"status": "completed"}
+                )
                 return {"turn": {"id": "turn-reference"}}
             raise RuntimeError("revert failed")
         session.rpc = rpc
@@ -861,9 +1001,15 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
             return {"turn": {"id": "turn-reference"}} if method == "turn/start" else {}
         session.rpc = rpc
         with self.assertRaises(RuntimeError):
-            await session.run_codex_turn(model="m", instructions="stable", query="q", output_schema={},
-                evidence_context="temporary", product_session_id="ses_test",
-                on_context_synced=AsyncMock(side_effect=RuntimeError("store unavailable")))
+            await session.run_codex_turn(
+                model="m",
+                instructions="stable",
+                query="q",
+                output_schema={},
+                evidence_context="temporary",
+                product_session_id="ses_test",
+                on_context_synced=AsyncMock(side_effect=RuntimeError("store unavailable")),
+            )
         self.assertEqual(calls, ["turn/start", "thread/revert"])
 
     async def test_new_product_session_does_not_reuse_another_sessions_thread(self):
@@ -920,8 +1066,10 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         session.agent_text = "已经完成浏览。"
         session.client = Path("/client")
         session.rpc = AsyncMock(return_value={"exitCode": 0, "stdout": "", "stderr": ""})
-        with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
-                   AsyncMock()) as spawn:
+        with patch(
+            "boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
+            AsyncMock(),
+        ) as spawn:
             await session.end_turn()
         spawn.assert_not_awaited()
         self.assertEqual(session.rpc.await_args.args[0], "command/exec")
@@ -965,8 +1113,10 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
             return {"content": []}
 
         session.rpc = rpc
-        with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
-                   AsyncMock()) as spawn:
+        with patch(
+            "boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
+            AsyncMock(),
+        ) as spawn:
             for number in (1, 2):
                 task = asyncio.create_task(session.run_codex_turn(
                     model="test-model", instructions="stable", query="读取计算器",
@@ -1016,8 +1166,10 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
         session.thread_id = "test-thread"
         session.turn_id = "own-turn"
         session.client = Path("/client")
-        with patch("boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
-                   AsyncMock()) as spawn:
+        with patch(
+            "boxagent.infrastructure.runtimes.codex.app_server.asyncio.create_subprocess_exec",
+            AsyncMock(),
+        ) as spawn:
             await session.end_turn()
         spawn.assert_not_awaited()
         self.assertEqual(session.cleanup_status, "failed")
@@ -1083,11 +1235,18 @@ class CodexSessionTests(unittest.IsolatedAsyncioTestCase):
             complete.parent.mkdir()
             incomplete.write_text("")
             complete.write_text("")
-            complete.with_name("codex-code-mode-host.exe" if os.name == "nt" else "codex-code-mode-host").write_text("")
-            with patch.dict("os.environ", {"BOXAGENT_CODEX_BIN": str(incomplete),
-                                             "CODEX_HOME": str(root)}), \
-                    patch("boxagent.infrastructure.runtimes.codex.app_server.shutil.which",
-                          return_value=str(complete)):
+            complete.with_name(
+                "codex-code-mode-host.exe" if os.name == "nt" else "codex-code-mode-host"
+            ).write_text("")
+            with (
+                patch.dict(
+                    "os.environ", {"BOXAGENT_CODEX_BIN": str(incomplete), "CODEX_HOME": str(root)}
+                ),
+                patch(
+                    "boxagent.infrastructure.runtimes.codex.app_server.shutil.which",
+                    return_value=str(complete),
+                ),
+            ):
                 self.assertEqual(resolve_codex_runtime(root), complete.resolve())
 
 

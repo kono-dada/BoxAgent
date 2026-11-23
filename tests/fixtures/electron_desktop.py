@@ -5,16 +5,23 @@ import sys
 from pathlib import Path
 from unittest.mock import Mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from boxagent.interfaces.desktop.service import DesktopService
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from boxagent.interfaces.desktop.pets.catalog import PetCatalog
+from boxagent.interfaces.desktop.service import DesktopService
 
 root = Path(__file__).resolve().parents[2]
 data = Path(os.environ["BOXAGENT_DATA_DIR"])
 soul = data / "SOUL.md"
 soul.write_text("名字：伙伴\n\n测试角色。\n")
 avatar = root / "assets/vrm/models/zome"
-service = DesktopService(backend=Mock(), catalog=PetCatalog(data / "catalog", default_pet=avatar, bundled_root=avatar.parent), data_dir=data, log_dir=data / "logs", soul_file=soul, directory=avatar)
+service = DesktopService(
+    backend=Mock(),
+    catalog=PetCatalog(data / "catalog", default_pet=avatar, bundled_root=avatar.parent),
+    data_dir=data,
+    log_dir=data / "logs",
+    soul_file=soul,
+    directory=avatar,
+)
 bad = service.catalog.root / "broken"
 bad.mkdir(parents=True)
 (bad / "pet.json").write_text(json.dumps({"type": "vrm", "version": 1, "model": "model.vrm"}))

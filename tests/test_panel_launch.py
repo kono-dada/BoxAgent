@@ -1,18 +1,29 @@
 """The Python entrypoint launches one installed Electron desktop host."""
 import json
-from pathlib import Path
 from dataclasses import replace
+from pathlib import Path
+
 import pytest
-from boxagent.bootstrap.settings import load_settings
+
 from boxagent.bootstrap.electron_launch import run_electron
+from boxagent.bootstrap.settings import load_settings
 
 
 @pytest.mark.parametrize("platform", ["darwin", "win32"])
-def test_launch_passes_runtime_and_arguments_without_shell(tmp_path: Path, monkeypatch, platform: str):
+def test_launch_passes_runtime_and_arguments_without_shell(
+    tmp_path: Path, monkeypatch, platform: str
+):
     monkeypatch.setattr("boxagent.bootstrap.electron_launch.sys.platform", platform)
     panel = tmp_path / "web/panel"
-    executable = panel / "node_modules/electron/dist" / (
-        "electron.exe" if __import__("sys").platform == "win32" else "Electron.app/Contents/MacOS/Electron")
+    executable = (
+        panel
+        / "node_modules/electron/dist"
+        / (
+            "electron.exe"
+            if __import__("sys").platform == "win32"
+            else "Electron.app/Contents/MacOS/Electron"
+        )
+    )
     executable.parent.mkdir(parents=True)
     executable.touch()
     (panel / "dist").mkdir()
@@ -50,6 +61,8 @@ def test_missing_build_reports_installation(tmp_path: Path):
 
 
 def test_start_command_does_not_rebuild_but_dev_does():
-    scripts = json.loads((Path(__file__).resolve().parents[1] / "web/panel/package.json").read_text())["scripts"]
+    scripts = json.loads(
+        (Path(__file__).resolve().parents[1] / "web/panel/package.json").read_text()
+    )["scripts"]
     assert scripts["start"] == "node scripts/launch.cjs"
     assert "build" in scripts["dev"]

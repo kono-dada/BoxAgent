@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from boxagent.application.assistant import BoxAgentApplication
 from boxagent.agent.runtime.models import RuntimeRestoreContext
+from boxagent.application.assistant import BoxAgentApplication
 
 
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):

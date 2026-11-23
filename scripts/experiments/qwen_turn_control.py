@@ -36,7 +36,7 @@ import wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from boxagent.bootstrap.settings import load_settings  # noqa: E402
 from boxagent.infrastructure.runtimes.qwen import realtime  # noqa: E402
@@ -170,7 +170,9 @@ class ProbeSession(AoqRealtimeSession):
             if kind == "error":
                 extra["error"] = event.get("error")
             if kind == "session.updated":
-                extra["turn_detection"] = (event.get("session") or {}).get("turn_detection", "<absent>")
+                extra["turn_detection"] = (event.get("session") or {}).get(
+                    "turn_detection", "<absent>"
+                )
             if kind.endswith("transcription.completed") or kind.endswith("transcript.done"):
                 extra["text"] = event.get("transcript", "")
             self.mark(kind, **extra)

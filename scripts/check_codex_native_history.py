@@ -74,7 +74,7 @@ async def run(args):
         settings.log_dir / "tasks" / second["task_id"] / "events.jsonl")
     first_injection = first_event(first_events, "runtime_history_injected")
     second_injection = first_event(second_events, "runtime_history_injected")
-    second_reuse = first_event(second_events, "runtime_epoch_reused")
+    first_event(second_events, "runtime_epoch_reused")
 
     summary = {
         "status": "succeeded",

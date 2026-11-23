@@ -4,17 +4,28 @@
 """
 
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import Mock, patch
-from datetime import datetime, timezone
 
 try:
     from typesafe_sdk import Noul
 
-    from boxagent.infrastructure.memory.jev_mem.core.jev_client import JevClient, JevUnavailable, ProbabilityResult
+    from boxagent.infrastructure.memory.jev_mem.core.jev_client import (
+        JevClient,
+        JevUnavailable,
+        ProbabilityResult,
+    )
     from boxagent.infrastructure.memory.jev_mem.core.jev_mem_config import JevMemConfig
+    from boxagent.infrastructure.memory.jev_mem.core.jev_mem_policies import (
+        MemoryAdmission,
+        MemoryTypeScores,
+    )
+    from boxagent.infrastructure.memory.jev_mem.core.memory_builder import (
+        MemoryAdmissionUnavailable,
+        MemoryBuilder,
+        MemoryWriteUnavailable,
+    )
     from boxagent.infrastructure.memory.jev_mem.core.trg_memory import _time_key
-    from boxagent.infrastructure.memory.jev_mem.core.memory_builder import MemoryBuilder, MemoryAdmissionUnavailable, MemoryWriteUnavailable
-    from boxagent.infrastructure.memory.jev_mem.core.jev_mem_policies import MemoryAdmission, MemoryTypeScores
 except ModuleNotFoundError:  # pragma: no cover - main venv lacks the SDK
     JevClient = None
 
@@ -63,7 +74,7 @@ class TemporalOrderTests(unittest.TestCase):
             def __init__(self, timestamp):
                 self.timestamp = timestamp
 
-        nodes = [Node(datetime(2026, 10, 7, tzinfo=timezone.utc)), Node(None),
+        nodes = [Node(datetime(2026, 10, 7, tzinfo=UTC)), Node(None),
                  Node(datetime(2026, 10, 6))]
         ordered = sorted(nodes, key=_time_key)
         self.assertIsNone(ordered[0].timestamp)
@@ -156,6 +167,7 @@ class AutomaticAdmissionTests(unittest.TestCase):
 
     def test_production_worker_requires_strict_decisions(self) -> None:
         from pathlib import Path
+
         from boxagent.infrastructure.memory.jev_mem.worker import Worker
         with patch.dict("os.environ", {"TYPESAFE_API_KEY": "fixture"}), \
                 patch("boxagent.infrastructure.memory.jev_mem.api.JevMemSystem") as system, \

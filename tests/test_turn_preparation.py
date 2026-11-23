@@ -6,18 +6,18 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
+from boxagent.agent.harness.wechat_tools import WeChatToolGateway
 from boxagent.application.assistant import BoxAgentApplication
 from boxagent.application.turn_preparation import TurnPreparer
 from boxagent.core.events import StateEvents
-from boxagent.domain.conversation import ConversationService
-from boxagent.domain.interaction.service import InteractionService
 from boxagent.domain.context.models import project_context
-from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
-from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
-from boxagent.infrastructure.persistence import JsonlSessionStore
-from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
+from boxagent.domain.conversation import ConversationService
 from boxagent.domain.interaction.delegation import DecisionAdvice
-from boxagent.agent.harness.wechat_tools import WeChatToolGateway
+from boxagent.domain.interaction.service import InteractionService
+from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
+from boxagent.infrastructure.persistence import JsonlSessionStore
+from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
+from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
 
 
 class Memory:
@@ -33,7 +33,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             scopes: list[object] = []
 
             class Executor:
-                async def run(self, goal: str, progress: object, approve: object) -> dict[str, object]:
+                async def run(
+                    self, goal: str, progress: object, approve: object
+                ) -> dict[str, object]:
                     goals.append(goal)
                     if len(goals) == 1:
                         return {"outcome": "needs_input", "summary": "给测试联系人回复什么内容？"}
@@ -55,7 +57,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await app.start()
                 service = app.interaction_service
-                await service._conversation_event("user_final", {"transcript": "帮我回复测试联系人"})
+                await service._conversation_event(
+                    "user_final", {"transcript": "帮我回复测试联系人"}
+                )
                 await service._handle_tool("run_task", '{"capability":"wechat"}')
                 await app.job
                 self.assertEqual(app.state.task, "needs_input")
@@ -71,7 +75,10 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                     host_turn_control=True, conversation_event=service._conversation_event,
                     delegation_review=service._review_delegation)
                 voice.current_query_id = context.interaction_id
-                voice.response_context["reply"] = {"kind": "user", "query_id": context.interaction_id}
+                voice.response_context["reply"] = {
+                    "kind": "user",
+                    "query_id": context.interaction_id,
+                }
                 service.response_interactions["reply"] = context
                 voice.response_transcripts["reply"] = "我这就给她回很可爱。"
                 await voice._finalize_response("reply", source="provider")
@@ -176,7 +183,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                     cancelled.set()
         preparer = TurnPreparer(Memory(), intent=HungIntent(), decision_timeout=.03)
         try:
-            packet, report = await asyncio.wait_for(preparer.prepare("？", session_id="s", query_id="q"), .3)
+            packet, report = await asyncio.wait_for(
+                preparer.prepare("？", session_id="s", query_id="q"), 0.3
+            )
             self.assertEqual(report["jev"]["status"], "timeout")
             self.assertNotIn("p_action", packet)
             self.assertTrue(cancelled.is_set())
@@ -233,7 +242,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(advice.exclusion, expected)
 
     async def test_recorded_actual_call_for_chat_is_rejected_and_followup_stays_bound(self):
-        case = json.loads((Path(__file__).parent / "fixtures/voice_task_clarification.json").read_text())
+        case = json.loads(
+            (Path(__file__).parent / "fixtures/voice_task_clarification.json").read_text()
+        )
         for query in (case["user_query"], "你现在在干嘛呢？"):
             with self.subTest(query=query), tempfile.TemporaryDirectory() as directory:
                 factory = AsyncMock()
@@ -246,10 +257,11 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
 
                 class Socket:
                     count = 0
-                    async def send(self, raw):
+
+                    async def send(self, raw: str, *, session: QwenRealtimeSession = voice) -> None:
                         if json.loads(raw)["type"] == "response.create":
                             self.count += 1
-                            await voice.receive({"type": "response.created", "response": {
+                            await session.receive({"type": "response.created", "response": {
                                 "id": f"reply-{self.count}"}})
 
                 voice.ws = Socket()
@@ -261,10 +273,22 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                     interaction.decisions[context.interaction_id] = DecisionAdvice(.01, .99, 0)
                     voice.begin_query(context.interaction_id)
                     await voice.respond_to_query("", query_id=context.interaction_id)
-                    await voice.receive({"type": "response.audio_transcript.done", "response_id": "reply-1",
-                                         "transcript": case["observed_reply"]})
-                    await voice.receive({"type": "response.function_call_arguments.done", "response_id": "reply-1",
-                                         "call_id": "recorded-call", "name": "run_task", "arguments": "{}"})
+                    await voice.receive(
+                        {
+                            "type": "response.audio_transcript.done",
+                            "response_id": "reply-1",
+                            "transcript": case["observed_reply"],
+                        }
+                    )
+                    await voice.receive(
+                        {
+                            "type": "response.function_call_arguments.done",
+                            "response_id": "reply-1",
+                            "call_id": "recorded-call",
+                            "name": "run_task",
+                            "arguments": "{}",
+                        }
+                    )
                     await asyncio.gather(*tuple(voice.deliveries))
                     call_id, name, result = await voice.results.get()
                     self.assertEqual(result["status"], "not_delegated")
@@ -280,10 +304,19 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                     try:
                         async with asyncio.timeout(.5):
                             while "reply-2" not in voice.response_context:
-                                await asyncio.sleep(.001)
-                        reply = "你想让我做什么？" if query == case["user_query"] else "我现在没有在执行任务。"
-                        await voice.receive({"type": "response.audio_transcript.done", "response_id": "reply-2",
-                                             "transcript": reply})
+                                await asyncio.sleep(0.001)
+                        reply = (
+                            "你想让我做什么？"
+                            if query == case["user_query"]
+                            else "我现在没有在执行任务。"
+                        )
+                        await voice.receive(
+                            {
+                                "type": "response.audio_transcript.done",
+                                "response_id": "reply-2",
+                                "transcript": reply,
+                            }
+                        )
                         await voice._finalize_response("reply-2", source="provider")
                     finally:
                         worker.cancel()
@@ -308,16 +341,25 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                 interaction = app.interaction_service
                 await interaction._conversation_event("user_final", {"transcript": "？"})
                 context = interaction.interaction
-                voice = QwenRealtimeSession(interaction._handle_tool, app.events.emit, host_turn_control=True,
-                                            conversation_event=interaction._conversation_event)
+                voice = QwenRealtimeSession(
+                    interaction._handle_tool,
+                    app.events.emit,
+                    host_turn_control=True,
+                    conversation_event=interaction._conversation_event,
+                )
                 voice.current_query_id = context.interaction_id
-                voice.response_context["reply"] = {"kind": "user", "query_id": context.interaction_id}
+                voice.response_context["reply"] = {
+                    "kind": "user",
+                    "query_id": context.interaction_id,
+                }
                 interaction.response_interactions["reply"] = context
                 voice.response_transcripts["reply"] = "我这就帮你打开计算器。"
                 await voice._finalize_response("reply", source="provider")
                 await asyncio.gather(*tuple(voice.deliveries))
                 events = await app.conversation_service.events(context.session.session_id)
-                self.assertEqual([e.status for e in events if e.type == "interaction.finalized"], ["succeeded"])
+                self.assertEqual(
+                    [e.status for e in events if e.type == "interaction.finalized"], ["succeeded"]
+                )
                 factory.assert_not_called()
                 self.assertEqual(app.state.error, "")
                 self.assertIsNone(app.job)
@@ -387,20 +429,32 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                        for reply in (status_case["observed_reply"], *status_case["variants"]))
         for source in ("provider", "audio_done"):
             for user_query, reply in samples:
-                with self.subTest(source=source, reply=reply), tempfile.TemporaryDirectory() as directory:
+                with (
+                    self.subTest(source=source, reply=reply),
+                    tempfile.TemporaryDirectory() as directory,
+                ):
                     running = asyncio.Event()
                     finish = asyncio.Event()
-                    goals = []
+                    goals: list[str] = []
 
                     class Executor:
-                        async def run(self, goal, progress, approve):
-                            goals.append(goal)
-                            running.set()
-                            await finish.wait()
+                        async def run(
+                            self,
+                            goal: str,
+                            progress: object,
+                            approve: object,
+                            *,
+                            recorded_goals: list[str] = goals,
+                            started: asyncio.Event = running,
+                            finished: asyncio.Event = finish,
+                        ) -> dict[str, str]:
+                            recorded_goals.append(goal)
+                            started.set()
+                            await finished.wait()
                             return {"outcome": "blocked", "summary": "测试执行器未操作电脑"}
 
-                        async def cancel(self):
-                            finish.set()
+                        async def cancel(self, *, finished: asyncio.Event = finish) -> None:
+                            finished.set()
 
                     app = BoxAgentApplication(
                         lambda _: None, lambda *_args, **_kwargs: Executor(), None,
@@ -414,10 +468,12 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                     class Socket:
                         response_count = 0
 
-                        async def send(self, raw):
+                        async def send(
+                            self, raw: str, *, session: QwenRealtimeSession = voice
+                        ) -> None:
                             if json.loads(raw)["type"] == "response.create":
                                 self.response_count += 1
-                                await voice.receive({"type": "response.created", "response": {
+                                await session.receive({"type": "response.created", "response": {
                                     "id": f"reply-{self.response_count}"}})
 
                     voice.ws = Socket()
@@ -432,15 +488,19 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                                              "response_id": "reply-1", "call_id": "original-task",
                                              "name": "run_task", "arguments": "{}"})
                         await asyncio.gather(*tuple(voice.deliveries))
-                        await asyncio.wait_for(running.wait(), .5)
-                        await voice.receive({"type": "response.done", "response": {"id": "reply-1"}})
+                        await asyncio.wait_for(running.wait(), 0.5)
+                        await voice.receive(
+                            {"type": "response.done", "response": {"id": "reply-1"}}
+                        )
                         original_job = app.job
                         original_task_id = app.state.task_id
 
                         await interaction._conversation_event("user_final", {
                             "transcript": user_query})
                         chat_context = interaction.interaction
-                        interaction.decisions[chat_context.interaction_id] = DecisionAdvice(.01, .99, 0)
+                        interaction.decisions[chat_context.interaction_id] = DecisionAdvice(
+                            0.01, 0.99, 0
+                        )
                         voice.begin_query(chat_context.interaction_id)
                         await voice.respond_to_query("", query_id=chat_context.interaction_id)
                         await voice.receive({"type": "response.audio_transcript.done",
@@ -449,18 +509,31 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.gather(*tuple(voice.deliveries))
 
                         self.assertEqual(goals, [case["active_goal"]])
-                        self.assertEqual(len(app.execution_service.pending), case["expected"]["new_task_count"])
+                        self.assertEqual(
+                            len(app.execution_service.pending), case["expected"]["new_task_count"]
+                        )
                         self.assertIs(app.job, original_job)
                         self.assertFalse(original_job.done())
                         self.assertEqual(app.state.task_id, original_task_id)
                         self.assertFalse(voice.input_turn_pending)
-                        events = await app.conversation_service.events(chat_context.session.session_id)
-                        chat_terminal = [e for e in events if e.type == "interaction.finalized"
-                                         and e.interaction_id == chat_context.interaction_id]
+                        events = await app.conversation_service.events(
+                            chat_context.session.session_id
+                        )
+                        chat_terminal = [
+                            e
+                            for e in events
+                            if e.type == "interaction.finalized"
+                            and e.interaction_id == chat_context.interaction_id
+                        ]
                         self.assertEqual([e.status for e in chat_terminal], ["succeeded"])
                         self.assertTrue(all(e.task_id is None for e in chat_terminal))
-                        self.assertFalse(any(e.type == "interaction.finalized"
-                                             and e.interaction_id == task_context.interaction_id for e in events))
+                        self.assertFalse(
+                            any(
+                                e.type == "interaction.finalized"
+                                and e.interaction_id == task_context.interaction_id
+                                for e in events
+                            )
+                        )
                     finally:
                         finish.set()
                         await app.close()
@@ -479,12 +552,16 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
         await session.receive({"type": "input_audio_buffer.speech_started"})
         await asyncio.gather(first, return_exceptions=True)
-        messages = lambda: [json.loads(call.args[0]) for call in session.ws.send.call_args_list]
+        def messages() -> list[dict[str, object]]:
+            return [json.loads(call.args[0]) for call in session.ws.send.call_args_list]
+
         self.assertEqual([row["type"] for row in messages()], ["response.create"])
         self.assertIsNone(session.response_id)
 
         session.begin_query("second")
-        second = asyncio.create_task(session._create_response({"kind": "user", "query_id": "second"}))
+        second = asyncio.create_task(
+            session._create_response({"kind": "user", "query_id": "second"})
+        )
         try:
             await session.receive({"type": "response.created", "response": {"id": "late-first"}})
             await asyncio.sleep(.01)
@@ -504,7 +581,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(second, return_exceptions=True)
             await session.stop()
 
-    async def test_continuing_speech_keeps_fragments_but_requests_only_latest_response(self) -> None:
+    async def test_continuing_speech_keeps_fragments_but_requests_only_latest_response(
+        self,
+    ) -> None:
         transcripts: list[str] = []
         sent: list[dict[str, object]] = []
 
@@ -522,7 +601,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                 request = json.loads(raw)
                 sent.append(request)
                 if request["type"] == "response.create":
-                    await session.receive({"type": "response.created", "response": {"id": "latest"}})
+                    await session.receive(
+                        {"type": "response.created", "response": {"id": "latest"}}
+                    )
 
             async def close(self) -> None:
                 pass
@@ -532,10 +613,15 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             for index, text in enumerate(("帮我看一下", "微信有什么消息", "先读最近那条")):
                 await session.receive({"type": "input_audio_buffer.speech_started"})
                 await session.receive({"type": "input_audio_buffer.speech_stopped"})
-                await session.receive({"type": "conversation.item.input_audio_transcription.completed",
-                                       "item_id": str(index), "transcript": text})
-                await asyncio.sleep(.01)
-            await asyncio.wait_for(session.preparation_task, .5)
+                await session.receive(
+                    {
+                        "type": "conversation.item.input_audio_transcription.completed",
+                        "item_id": str(index),
+                        "transcript": text,
+                    }
+                )
+                await asyncio.sleep(0.01)
+            await asyncio.wait_for(session.preparation_task, 0.5)
             self.assertEqual(transcripts, ["帮我看一下", "微信有什么消息", "先读最近那条"])
             self.assertEqual([r["type"] for r in sent], ["response.create"])
             self.assertEqual(session.response_context["latest"]["query_id"], "先读最近那条")
@@ -563,10 +649,14 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(.21)
         session.begin_query("second")
         with self.assertRaises(TimeoutError):
-            await asyncio.wait_for(session._create_response({"kind": "user", "query_id": "second"}), .1)
+            await asyncio.wait_for(
+                session._create_response({"kind": "user", "query_id": "second"}), 0.1
+            )
         self.assertEqual(session.response_ack_deadline, original_deadline)
         self.assertTrue(session.closed)
-        self.assertIn(("response.ack_timeout", {"product_session_id": "", "phase": "previous_request"}), trace)
+        self.assertIn(
+            ("response.ack_timeout", {"product_session_id": "", "phase": "previous_request"}), trace
+        )
         requests = [json.loads(call.args[0]) for call in session.ws.send.call_args_list]
         self.assertEqual([r["type"] for r in requests], ["response.create"])
 
@@ -602,8 +692,10 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
         first.cancel()  # User starts another utterance before the provider ack.
         await asyncio.gather(first, return_exceptions=True)
         session.begin_query("model-question")
-        second = asyncio.create_task(session._create_response({"kind": "user", "query_id": "model-question"}))
-        await asyncio.sleep(.01)
+        second = asyncio.create_task(
+            session._create_response({"kind": "user", "query_id": "model-question"})
+        )
+        await asyncio.sleep(0.01)
         self.assertEqual(sum(row["type"] == "response.create" for row in session.ws.sent), 1)
         await session.receive({"type": "response.created", "response": {"id": "late-speed"}})
         await asyncio.sleep(.01)
@@ -653,8 +745,13 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             # A waiting notification must not retain the delivery lock.
             await asyncio.wait_for(session.respond_to_query("", query_id=query_id), .2)
             response_id = session.response_id
-            await session.receive({"type": "response.audio_transcript.done", "response_id": response_id,
-                                   "transcript": "我这就去打开科学计算器，把 2 的 5 次方加上根号 42 算出来。"})
+            await session.receive(
+                {
+                    "type": "response.audio_transcript.done",
+                    "response_id": response_id,
+                    "transcript": "我这就去打开科学计算器，把 2 的 5 次方加上根号 42 算出来。",
+                }
+            )
             await session.receive({"type": "response.done", "response": {"id": response_id}})
             await asyncio.gather(*tuple(session.deliveries))
             self.assertEqual(handled, [("run_task", "打开科学计算器，计算二的五次方加根号四十二")])
@@ -672,7 +769,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
             conversation = ConversationService(JsonlSessionStore(Path(directory)))
             await conversation.start()
             tool = AsyncMock()
-            interaction = InteractionService(StateEvents(lambda *_: None), None, tool, conversation=conversation)
+            interaction = InteractionService(
+                StateEvents(lambda *_: None), None, tool, conversation=conversation
+            )
             await interaction._conversation_event("user_final", {"transcript": "快吗"})
             old_id = interaction.interaction.interaction_id
             await interaction._conversation_event("user_final", {"transcript": "打开科学计算器"})
@@ -714,7 +813,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_stale_tool_continuation_does_not_answer_new_query(self):
-        session = QwenRealtimeSession(lambda *_: None, lambda *_args, **_kw: None, host_turn_control=True)
+        session = QwenRealtimeSession(
+            lambda *_: None, lambda *_args, **_kw: None, host_turn_control=True
+        )
         session.current_query_id = "new"
         session.response_context["old-response"] = {"query_id": "old"}
         session.response_calls["old-response"] = {"call"}
@@ -759,11 +860,25 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                 calls.append(query)
                 return {"p_action": .02 + len(calls) / 100}
         preparer = TurnPreparer(Memory(), intent=Intent())
-        queries = ["？", "?", "继续", "可以", "好", "嗯", "行", "不要", "取消", "播放", "打开计算器"]
+        queries = [
+            "？",
+            "?",
+            "继续",
+            "可以",
+            "好",
+            "嗯",
+            "行",
+            "不要",
+            "取消",
+            "播放",
+            "打开计算器",
+        ]
         try:
             for index, query in enumerate(queries, start=1):
                 with self.subTest(query=query):
-                    packet, report = await preparer.prepare(query, session_id="s", query_id=f"q{index}")
+                    packet, report = await preparer.prepare(
+                        query, session_id="s", query_id=f"q{index}"
+                    )
                     reference = json.loads(packet.split("\n")[2])
                     self.assertEqual(report["jev"]["status"], "ready")
                     self.assertAlmostEqual(reference["intent"]["p_action"], .02 + index / 100)
@@ -798,10 +913,12 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                 service._connect = AsyncMock()
                 await service.submit_text("？")
                 await service._conversation_event("user_final", {"transcript": "继续"})
-                self.assertEqual([call.args for call in intent.estimate.await_args_list], [("？",), ("继续",)])
+                self.assertEqual(
+                    [call.args for call in intent.estimate.await_args_list], [("？",), ("继续",)]
+                )
                 self.assertIn("？", intent.estimate.await_args_list[1].kwargs["context"])
                 self.assertEqual([row[0] for row in packets], ["text", "voice"])
-                for row, probability in zip(packets, (.02, .8)):
+                for row, probability in zip(packets, (.02, .8), strict=False):
                     reference = json.loads(row[2].split("\n")[2])
                     self.assertEqual(reference["query_id"], row[3])
                     self.assertEqual(reference["intent"]["p_action"], probability)
@@ -851,11 +968,20 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(preparer.pending, set())
 
     async def test_failed_or_invalid_decision_is_explicit_without_inventing_probability(self):
-        for value in ({}, {"p_action": True}, {"p_action": float("nan")}, {"p_action": 2}, "bad", None):
+        for value in (
+            {},
+            {"p_action": True},
+            {"p_action": float("nan")},
+            {"p_action": 2},
+            "bad",
+            None,
+        ):
             with self.subTest(value=value):
                 class Intent:
-                    async def estimate(self, query, *, context=""):
-                        return value
+                    async def estimate(
+                        self, query: str, *, context: str = "", result: object = value
+                    ) -> object:
+                        return result
                 preparer = TurnPreparer(Memory(), intent=Intent())
                 try:
                     packet, report = await preparer.prepare("？", session_id="s", query_id="q")
@@ -891,7 +1017,9 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                         await session.receive({"type": "conversation.item.created",
                             "item": {**event["item"], "id": "actual-" + str(len(self.sent))}})
                     elif event["type"] == "conversation.item.delete":
-                        await session.receive({"type": "conversation.item.deleted", "item_id": event["item_id"]})
+                        await session.receive(
+                            {"type": "conversation.item.deleted", "item_id": event["item_id"]}
+                        )
                     elif event["type"] == "response.create":
                         await session.receive({"type": "response.created", "response": {
                             "id": "reply-" + str(len(self.sent))}})
@@ -899,10 +1027,20 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
                     pass
             session.ws = Socket()
             session.ready.set()
-            await session.submit_text("第一轮", reference="<boxagent_query_reference>包一", query_id="q1")
+            await session.submit_text(
+                "第一轮", reference="<boxagent_query_reference>包一", query_id="q1"
+            )
             old_id = session.reference_item
-            await session.submit_text("第二轮", reference="<boxagent_query_reference>包二", query_id="q2")
-            self.assertTrue(any(e.get("item_id") == old_id for e in session.ws.sent if e["type"] == "conversation.item.delete"))
+            await session.submit_text(
+                "第二轮", reference="<boxagent_query_reference>包二", query_id="q2"
+            )
+            self.assertTrue(
+                any(
+                    e.get("item_id") == old_id
+                    for e in session.ws.sent
+                    if e["type"] == "conversation.item.delete"
+                )
+            )
             snapshot = project_context("ses_test", ledger.read("ses_test"))
             self.assertEqual(snapshot["delete_ack_count"], 1)
             refs = [e for e in snapshot["entries"] if e["category"] == "reference"]
@@ -915,10 +1053,22 @@ class TurnPreparationTests(unittest.IsolatedAsyncioTestCase):
         received = asyncio.Event()
         async def record(kind, payload):
             await received.wait()
-        session = QwenRealtimeSession(lambda *_: None, lambda *_args, **_kw: None,
-            host_turn_control=True, conversation_event=record)
-        await asyncio.wait_for(session.receive({
-            "type": "conversation.item.input_audio_transcription.completed", "transcript": "你好"}), .1)
+
+        session = QwenRealtimeSession(
+            lambda *_: None,
+            lambda *_args, **_kw: None,
+            host_turn_control=True,
+            conversation_event=record,
+        )
+        await asyncio.wait_for(
+            session.receive(
+                {
+                    "type": "conversation.item.input_audio_transcription.completed",
+                    "transcript": "你好",
+                }
+            ),
+            0.1,
+        )
         self.assertFalse(session.preparation_task.done())
         received.set()
         await session.preparation_task

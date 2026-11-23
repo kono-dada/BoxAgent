@@ -18,11 +18,27 @@
 
 ## Verification
 
-Before completing Python changes, run:
+Before handing off Python changes, run all three commands from the repository
+root. These are the same commands used by [CI](.github/workflows/verify.yml).
+
+```bash
+uv run --locked ruff check
+uv run --locked mypy
+uv run --locked pytest
+```
+
+- Ruff and strict mypy must report zero diagnostics. The full pytest suite must
+  finish with zero failures.
+- Fix diagnostics and failures, then rerun the checks. Use the rules and
+  coverage in [pyproject.toml](pyproject.toml). Keep mypy strict and avoid adding
+  exclusions, suppressions, or test skips to get a passing run.
+- Report the result of each command in the handoff. If an environment issue
+  prevents a check from running, report the command and the blocker.
+
+Also run the existing Pyright check for Python changes.
 
 ```bash
 uvx --from pyright==1.1.414 pyright
-UV_CACHE_DIR=/tmp/uvcache uv run --with pytest python -m pytest -q
 ```
 
 ## Implementation Records

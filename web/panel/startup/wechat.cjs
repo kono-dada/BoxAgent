@@ -65,6 +65,7 @@ class WeChatSetup {
     const output = await this.execute(this.paths.python, ['-m', 'boxagent.entrypoints.wechat_setup'],
       { cwd: this.paths.root, signal, timeout: action === 'capture' ? 360000 : 240000, killAfter: 10000,
         env: { ...inherited, BOXAGENT_PACKAGED: '1', BOXAGENT_DATA_DIR: this.paths.data, PYTHONUNBUFFERED: '1',
+          PYTHONPATH: this.paths.pythonSource,
           PYTHONPYCACHEPREFIX: path.join(this.paths.runtime, 'pycache') }, input: JSON.stringify(request) });
     let response;
     try { response = JSON.parse(output); } catch { throw Error('wechat_setup_failed'); }

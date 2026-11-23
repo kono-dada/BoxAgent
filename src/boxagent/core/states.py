@@ -1,0 +1,150 @@
+"""Immutable-shape application state and presentation projection."""
+
+from collections.abc import Awaitable, Callable
+from dataclasses import asdict, dataclass, field
+from enum import StrEnum
+from typing import Literal, Protocol, TypedDict
+
+
+class VoiceState(StrEnum):
+    OFF = "off"
+    CONNECTING = "connecting"
+    READY = "ready"
+    STOPPING = "stopping"
+
+
+class TaskState(StrEnum):
+    IDLE = "idle"
+    ACCEPTED = "accepted"
+    RUNNING = "running"
+    AWAITING_APPROVAL = "awaiting_approval"
+    CANCELLING = "cancelling"
+    SUCCEEDED = "succeeded"
+    NEEDS_INPUT = "needs_input"
+    BLOCKED = "blocked"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class TaskQueueItem(TypedDict):
+    task_id: str
+    goal: str
+
+
+class WebReference(TypedDict):
+    title: str
+    url: str
+    published_at: str | None
+    site_name: str | None
+    read_status: Literal["not_read", "reading", "read", "unavailable"]
+
+
+class WebResearchView(TypedDict):
+    """JSON snapshot shape, independent of provider and feature implementations."""
+    session_id: str
+    interaction_id: str
+    stage: Literal["searching", "reading", "ready", "empty", "failed", "cancelled"]
+    query: str
+    requested_version: str
+    message: str
+    retrieved_at: str
+    sources: list[WebReference]
+
+
+@dataclass
+class Snapshot:
+    session_id: str = ""
+    session_title: str = ""
+    voice: str = "off"
+    speaking: bool = False
+    user_speaking: bool = False
+    task: str = "idle"
+    task_id: str = ""
+    task_goal: str = ""
+    task_queue: list[TaskQueueItem] = field(default_factory=list)
+    task_started_at: float = 0
+    task_ended_at: float = 0
+    task_activity_at: float = 0
+    task_text: str = ""
+    user_text: str = ""
+    assistant_text: str = ""
+    web_research: WebResearchView | None = None
+    error: str = ""
+    approval: str = ""
+    context_text: str = ""
+    context_enabled: bool = False
+    context_status: str = ""
+    context_app: str = ""
+    context_window_id: int = 0
+    context_at: float = 0
+    game_news_text: str = ""
+    game_news_url: str = ""
+    game_companion_available: bool = False
+    game_companion_enabled: bool = False
+    lol_companion_enabled: bool = False
+    lol_companion_status: str = "off"
+    lol_companion_text: str = ""
+    companion_speech_muted: bool = False
+    companion_comment: str = ""
+    chat_window_action: str = ""
+    notification_id: str = ""
+    notification_text: str = ""
+    notification_unread: bool = False
+    notification_source: str = ""
+    notification_sender: str = ""
+    notification_body: str = ""
+    camera_status: str = "off"
+    camera_error: str = ""
+    camera_frame_at: float = 0
+    camera_frames_sent: int = 0
+    voice_input_level: float = -1
+    avatar_action: str = ""
+    avatar_action_id: str = ""
+    revision: int = 0
+
+    def payload(self) -> dict[str, object]:
+        return asdict(self)
+
+
+Emit = Callable[..., None]
+Approval = Callable[[dict[str, object]], Awaitable[bool]]
+
+
+class Executor(Protocol):
+    async def run(self, goal: str, progress: Callable[[str], None],
+                  approve: Approval) -> dict[str, object]: ...
+
+    async def cancel(self) -> None: ...
+
+
+class Voice(Protocol):
+    async def run(self) -> None: ...
+
+    async def stop(self) -> None: ...
+
+    async def say_farewell(self) -> None: ...
+
+    async def greet_on_wake(self, greeting: str) -> None: ...
+
+    async def respond_to_query(self, packet: str, *, query_id: str) -> None: ...
+
+    async def announce_game_news(self, headline: str, *, community_topic: bool) -> None: ...
+
+
+def presentation_state(state: Snapshot) -> str:
+    """交互优先；后台任务状态仍独立保存在快照里。"""
+    if state.approval:
+        return "approval"
+    if state.user_speaking:
+        return "listening"
+    if state.speaking:
+        return "speaking"
+    if state.task in {"accepted", "running", "cancelling"}:
+        return "working"
+    if state.voice == "connecting":
+        return "connecting"
+    if state.error or state.task in {"failed", "blocked"}:
+        return "error"
+    if state.task == "succeeded":
+        return "success"
+    return "idle"

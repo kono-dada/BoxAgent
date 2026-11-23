@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 
 from boxagent.infrastructure.wechat.addresses import BuildProfile, UnsupportedBuild, profile_for
@@ -12,11 +10,18 @@ from boxagent.infrastructure.wechat.sender import (
     DraftNotEmpty,
     NativeWeChatSender,
     SendRejected,
+    WriteRejected,
     qstring_blob,
 )
 
 BASE = 0x128EFC000
-LIVE = LiveObjects(vm=0x7510A80298, editor=0x750EC7FB80, view=0x750C0DA100, cell=0x750C4F1C18, peer_object=0x750C4F1D70)
+LIVE = LiveObjects(
+    vm=0x7510A80298,
+    editor=0x750EC7FB80,
+    view=0x750C0DA100,
+    cell=0x750C4F1C18,
+    peer_object=0x750C4F1D70,
+)
 
 
 class FakeProbe:
@@ -100,7 +105,7 @@ def test_send_rejects_readback_mismatch() -> None:
     executor = FakeExecutor(
         [-3]
     )
-    with pytest.raises(Exception):
+    with pytest.raises(WriteRejected):
         _sender(executor).send("filehelper", "hello")
     assert len(executor.evaluations) == 1
 

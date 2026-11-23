@@ -5,9 +5,13 @@ from unittest.mock import Mock, patch
 
 import pyaudio
 
-from boxagent.infrastructure.audio.output import DeviceOutput, output_device_index
 from boxagent.bootstrap.settings import load_settings
-from boxagent.infrastructure.runtimes.qwen.aoq import AoqFramework, AoqRealtimeSession, AoqUnavailable
+from boxagent.infrastructure.audio.output import DeviceOutput, output_device_index
+from boxagent.infrastructure.runtimes.qwen.aoq import (
+    AoqFramework,
+    AoqRealtimeSession,
+    AoqUnavailable,
+)
 
 
 class OutputSettingsTests(unittest.TestCase):
@@ -29,7 +33,9 @@ class AudioOutputTests(unittest.TestCase):
         ][index]
         self.stream = self.audio.open.return_value
         self.stream.is_active.return_value = True
-        self.patcher = patch("boxagent.infrastructure.audio.output.pyaudio.PyAudio", return_value=self.audio)
+        self.patcher = patch(
+            "boxagent.infrastructure.audio.output.pyaudio.PyAudio", return_value=self.audio
+        )
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
         self.errors: list[str] = []
@@ -54,7 +60,10 @@ class AudioOutputTests(unittest.TestCase):
             DeviceOutput("Missing", self.errors.append)
         self.audio.open.assert_not_called()
         self.audio.terminate.assert_called_once()
-        self.audio.get_device_info_by_index.side_effect = lambda _: {"name": "Display", "maxOutputChannels": 2}
+        self.audio.get_device_info_by_index.side_effect = lambda _: {
+            "name": "Display",
+            "maxOutputChannels": 2,
+        }
         with self.assertRaisesRegex(RuntimeError, "重名"):
             output_device_index(self.audio, "Display")
 
@@ -110,7 +119,11 @@ class AoqOutputTests(unittest.TestCase):
         framework = AoqFramework(sdk_dir="/sdk", work_dir="/work", output_device="Display",
                                  event_callback=self.events.append)
         framework.engine = Mock()
-        for method in ("startAudioPlayer_", "startAudioCapture_", "enableAudioFrameObserver_audioSource_config_"):
+        for method in (
+            "startAudioPlayer_",
+            "startAudioCapture_",
+            "enableAudioFrameObserver_audioSource_config_",
+        ):
             getattr(framework.engine, method).return_value = 0
         framework._classes = {name: Mock() for name in (
             "AoqAudioPlaybackConfig", "AoqAudioCaptureConfig", "AoqAudioObserverConfig", "NSData")}
@@ -121,7 +134,9 @@ class AoqOutputTests(unittest.TestCase):
     def test_external_player_preserves_native_microphone_and_read_only_observer(self) -> None:
         framework = self.framework()
         output = Mock(sample_rate=48000)
-        with patch("boxagent.infrastructure.audio.output.DeviceOutput", return_value=output) as factory:
+        with patch(
+            "boxagent.infrastructure.audio.output.DeviceOutput", return_value=output
+        ) as factory:
             framework._start_audio_devices()
         factory.assert_called_once_with("Display", framework.output_failed)
         player = framework._classes["AoqAudioPlaybackConfig"].alloc.return_value.init.return_value

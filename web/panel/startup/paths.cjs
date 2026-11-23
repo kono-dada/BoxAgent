@@ -5,6 +5,7 @@ function resolvePaths({ packaged = false, resources = process.resourcesPath, pan
   const data = path.resolve(env.BOXAGENT_DATA_DIR || (packaged ? path.join(appData, 'BoxAgent') : path.join(root, '.runtime/pet')));
   const runtime = packaged ? path.join(data, 'runtimes') : path.join(root, '.runtime');
   return { packaged, root, panel, data, runtime,
+    pythonSource: packaged ? root : path.join(root, 'src'),
     resources: packaged ? resources : path.join(root, '.runtime/package-resources'),
     python: env.BOXAGENT_DESKTOP_PYTHON || path.join(runtime, 'core', 'bin/python3'),
     jevPython: env.BOXAGENT_JEV_MEM_PYTHON || path.join(runtime, packaged ? 'jev' : 'jev-mem-venv', 'bin/python3'),

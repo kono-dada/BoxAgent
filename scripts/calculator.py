@@ -2,12 +2,12 @@ import ast
 import json
 from decimal import Decimal, DivisionByZero, InvalidOperation, localcontext
 
-
 TOOL = {
     "type": "function",
     "function": {
         "name": "calculate",
-        "description": "精确计算四则运算表达式。调用后约 7 秒才会返回结果；等待期间不会有中间结果。遇到需要算数的请求时使用，不要心算。",
+        "description": "精确计算四则运算表达式。调用后约 7 秒才会返回结果；"
+            "等待期间不会有中间结果。遇到需要算数的请求时使用，不要心算。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -56,13 +56,19 @@ def calculate(expression):
         raise ValueError("算式无效或除数为零") from error
     if abs(result) > Decimal("1e12"):
         raise ValueError("结果超出演示范围")
-    return format(result, "f").rstrip("0").rstrip(".") if "." in format(result, "f") else format(result, "f")
+    return (
+        format(result, "f").rstrip("0").rstrip(".")
+        if "." in format(result, "f")
+        else format(result, "f")
+    )
 
 
 def run_calculator(arguments):
     try:
         data = json.loads(arguments)
         expression = data["expression"]
-        return json.dumps({"expression": expression, "result": calculate(expression)}, ensure_ascii=False)
+        return json.dumps(
+            {"expression": expression, "result": calculate(expression)}, ensure_ascii=False
+        )
     except (KeyError, TypeError, ValueError, SyntaxError) as error:
         return json.dumps({"error": str(error)}, ensure_ascii=False)

@@ -1,0 +1,102 @@
+"""Typed ports; native ABI and database libraries stay outside the domain."""
+from __future__ import annotations
+
+from typing import Protocol
+
+from boxagent.domain.wechat.models import (
+    Contact,
+    Conversation,
+    DeliveryCheck,
+    DeliveryCursor,
+    DraftSnapshot,
+    GroupMember,
+    Message,
+    PendingMessage,
+    PublishOutcome,
+    SendOutcome,
+    WeChatHealth,
+)
+
+
+class OperationRejected(RuntimeError):
+    """Known precondition failure before sending; no submission occurred."""
+
+class PeerResolutionError(ValueError):
+    def __init__(self, query: str, candidates: tuple[Contact, ...]) -> None:
+        self.candidates = candidates
+        super().__init__(
+            f"Recipient {query!r} is ambiguous or unavailable; choose an exact peer ID"
+        )
+
+
+class WeChatCapability(Protocol):
+    """Application-facing port consumed by the Agent; no implementation imports."""
+    def contacts(self, query: str = "", *, limit: int = 100) -> tuple[Contact, ...]: ...
+    def sessions(
+        self, *, unread_only: bool = False, limit: int = 20
+    ) -> tuple[Conversation, ...]: ...
+    def history(self, recipient: str, *, limit: int = 50) -> tuple[Message, ...]: ...
+    def search(
+        self, query: str, *, recipient: str | None = None, limit: int = 50
+    ) -> tuple[Message, ...]: ...
+    def members(self, group: str) -> tuple[GroupMember, ...]: ...
+    def send(
+        self,
+        recipient: str,
+        text: str,
+        *,
+        request_id: str,
+        dry_run: bool = False,
+        mention: str | None = None,
+    ) -> SendOutcome: ...
+    def publish(
+        self, text: str, visibility: str, *, request_id: str, dry_run: bool = True
+    ) -> PublishOutcome: ...
+    def health(self) -> WeChatHealth: ...
+
+class WeChatReader(Protocol):
+    account_id: str
+    self_wxid: str
+    def contacts(self, query: str = "", *, limit: int = 100) -> tuple[Contact, ...]: ...
+    def group_muted(self, peer: str) -> bool: ...
+    def sessions(
+        self, *, unread_only: bool = False, limit: int = 20
+    ) -> tuple[Conversation, ...]: ...
+    def history(self, peer: str, *, limit: int = 50) -> tuple[Message, ...]: ...
+    def search(
+        self, query: str, *, peer: str | None = None, limit: int = 50
+    ) -> tuple[Message, ...]: ...
+    def members(self, group: str) -> tuple[GroupMember, ...]: ...
+
+class WeChatTransport(Protocol):
+    def select_peer(self, peer: str) -> bool: ...
+    def draft_for(self, peer: str) -> DraftSnapshot: ...
+    def clear_draft(self, peer: str) -> None: ...
+    def send(self, peer: str, text: str, *, dry_run: bool = False) -> SendOutcome: ...
+    def send_mention(
+        self, peer: str, member: GroupMember, text: str, *, dry_run: bool = False
+    ) -> SendOutcome: ...
+
+
+class MessageHistory(Protocol):
+    def delivery_cursor(self, peer: str) -> DeliveryCursor: ...
+    def find_delivery(self, peer: str, text: str, *, after: DeliveryCursor,
+                      timeout: float = 25.0, mention: str | None = None) -> DeliveryCheck: ...
+
+class MessageSource(Protocol):
+    def poll(self) -> int: ...
+    def pending(self, *, limit: int = 100) -> tuple[PendingMessage, ...]: ...
+    def acknowledge(self, event_id: str, *, accepted: bool) -> None: ...
+    def close(self) -> None: ...
+
+class MomentsPublisher(Protocol):
+    def publish(self, text: str, visibility: str, *, request_id: str,
+                dry_run: bool = True) -> PublishOutcome: ...
+
+class HealthProvider(Protocol):
+    def health(self) -> WeChatHealth: ...
+
+class SendRequests(Protocol):
+    """Claim is durable before native effects; replay never executes again."""
+    def claim(self, request_id: str, fingerprint: str) -> tuple[bool, SendOutcome | None]: ...
+    def finish(self, request_id: str, outcome: SendOutcome) -> None: ...

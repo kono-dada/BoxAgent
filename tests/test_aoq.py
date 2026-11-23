@@ -2,10 +2,9 @@ import asyncio
 import json
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from boxagent.bootstrap.engine import create_voice_factory
 from boxagent.infrastructure.runtimes.qwen.aoq import (
@@ -182,8 +181,14 @@ class AoqSessionTests(unittest.IsolatedAsyncioTestCase):
             "AoqAudioCodecConfig": Mock(),
         }
         framework._classes["AoqConnectConfig"].alloc.return_value.init.return_value = connect
-        framework._classes["AoqTrackParam"].alloc.return_value.init.side_effect = [audio_track, data_track]
-        framework._classes["AoqAudioCodecConfig"].alloc.return_value.init.side_effect = [encoder, decoder]
+        framework._classes["AoqTrackParam"].alloc.return_value.init.side_effect = [
+            audio_track,
+            data_track,
+        ]
+        framework._classes["AoqAudioCodecConfig"].alloc.return_value.init.side_effect = [
+            encoder,
+            decoder,
+        ]
         token = AoqToken("token", "sid", "fingerprint", (), "workspace-hash")
 
         self.assertIs(framework._connect_config(token), connect)
@@ -510,10 +515,11 @@ class AoqFactoryTests(unittest.TestCase):
 
     def test_websocket_auto_keeps_proxy_discovery_and_rejects_typos(self):
         with tempfile.TemporaryDirectory() as temporary:
-            settings = self._settings(Path(temporary), qwen_transport='websocket')
-            self.assertIs(create_voice_factory(settings).keywords['websocket_proxy'], True)
-            settings.qwen_websocket_proxy = 'typo'
-            with self.assertRaises(ValueError): create_voice_factory(settings)
+            settings = self._settings(Path(temporary), qwen_transport="websocket")
+            self.assertIs(create_voice_factory(settings).keywords["websocket_proxy"], True)
+            settings.qwen_websocket_proxy = "typo"
+            with self.assertRaises(ValueError):
+                create_voice_factory(settings)
 
 
 if __name__ == "__main__":

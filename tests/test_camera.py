@@ -101,15 +101,17 @@ class CameraServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stale_replay_stop_and_old_session(self):
         await self.service.send_frame(self.frame(1))
-        for payload in [self.frame(1), self.frame(2, captured_at=0), self.frame(2, token='other')]:
-            with self.assertRaises(ValueError): await self.service.send_frame(payload)
+        for payload in [self.frame(1), self.frame(2, captured_at=0), self.frame(2, token="other")]:
+            with self.assertRaises(ValueError):
+                await self.service.send_frame(payload)
         feed = self.runtime.current
         await self.service.stop(self.token)
         self.assertTrue(feed.closed)
         new_token = (await self.service.start())['token']
         self.assertNotEqual(new_token, self.token)
-        self.assertFalse((await self.service.stop(self.token))['stopped'])
-        with self.assertRaises(ValueError): await self.service.send_frame(self.frame(2))
+        self.assertFalse((await self.service.stop(self.token))["stopped"])
+        with self.assertRaises(ValueError):
+            await self.service.send_frame(self.frame(2))
 
     async def test_start_revision_excludes_previous_stop_events(self) -> None:
         result = await self.service.start()
@@ -157,15 +159,17 @@ class CameraServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_changed_conversation_does_not_receive_old_frames(self):
         old = self.runtime.current
         new = await self.runtime.open_camera()
-        with self.assertRaises(ConnectionError): await self.service.send_frame(self.frame(1))
+        with self.assertRaises(ConnectionError):
+            await self.service.send_frame(self.frame(1))
         self.assertTrue(old.closed)
         self.assertFalse(new.closed)
         self.assertEqual(new.images, [])
 
     async def test_delivery_error_closes_camera(self):
         feed = self.runtime.current
-        feed.feed_image = AsyncMock(side_effect=ConnectionError('unavailable'))
-        with self.assertRaises(ConnectionError): await self.service.send_frame(self.frame(1))
+        feed.feed_image = AsyncMock(side_effect=ConnectionError("unavailable"))
+        with self.assertRaises(ConnectionError):
+            await self.service.send_frame(self.frame(1))
         self.assertTrue(feed.closed)
         self.assertEqual(self.events.state.camera_status, 'error')
 
@@ -203,10 +207,22 @@ class QwenCameraTests(unittest.IsolatedAsyncioTestCase):
         await voice.feed_audio(b'\x00' * 320)
         self.assertTrue(await voice.feed_image(JPEG))
         messages = [json.loads(call.args[0]) for call in voice.ws.send.call_args_list]
-        self.assertEqual([m['type'] for m in messages], ['input_audio_buffer.append', 'input_image_buffer.append'])
-        self.assertEqual(messages[-1]['image'], JPEG)
-        await voice.receive({'type': 'conversation.item.created', 'item': {
-            'content': [{'type': 'input_image', 'image': JPEG}, {'type': 'input_text', 'text': 'hello'}]}})
+        self.assertEqual(
+            [m["type"] for m in messages],
+            ["input_audio_buffer.append", "input_image_buffer.append"],
+        )
+        self.assertEqual(messages[-1]["image"], JPEG)
+        await voice.receive(
+            {
+                "type": "conversation.item.created",
+                "item": {
+                    "content": [
+                        {"type": "input_image", "image": JPEG},
+                        {"type": "input_text", "text": "hello"},
+                    ]
+                },
+            }
+        )
         self.assertNotIn(JPEG, str(traces))
         self.assertIn('hello', str(traces))
 
@@ -287,8 +303,13 @@ class QwenCameraTests(unittest.IsolatedAsyncioTestCase):
             async def run(self):
                 self.ready.set()
                 await self.done.wait()
-            async def stop(self): self.done.set()
-        service = InteractionService(StateEvents(lambda event: None), lambda *_a, **_k: AudioOnly(), None)
+
+            async def stop(self):
+                self.done.set()
+
+        service = InteractionService(
+            StateEvents(lambda event: None), lambda *_a, **_k: AudioOnly(), None
+        )
         try:
             await service.toggle()
             original = service.voice
@@ -322,8 +343,9 @@ class QwenCameraTests(unittest.IsolatedAsyncioTestCase):
             original = service.voice
             original.fail.set()
             for _ in range(100):
-                if len(created) == 2 and created[1].ready.is_set(): break
-                await asyncio.sleep(.01)
+                if len(created) == 2 and created[1].ready.is_set():
+                    break
+                await asyncio.sleep(0.01)
             self.assertEqual(len(created), 2)
             self.assertIsNot(service.voice, original)
             await camera.stop()
@@ -336,11 +358,13 @@ class QwenCameraTests(unittest.IsolatedAsyncioTestCase):
             await service.close()
 
     async def test_closed_or_audio_only_runtime_rejected(self):
-        voice = QwenRealtimeSession(None, None, model='qwen-audio-3.0-realtime-plus')
-        with self.assertRaises(ValueError): await voice.feed_image(JPEG)
-        voice.model = 'qwen3.8-omni-flash-realtime'
+        voice = QwenRealtimeSession(None, None, model="qwen-audio-3.0-realtime-plus")
+        with self.assertRaises(ValueError):
+            await voice.feed_image(JPEG)
+        voice.model = "qwen3.8-omni-flash-realtime"
         voice.closed = True
-        with self.assertRaises(ConnectionError): await voice.feed_image(JPEG)
+        with self.assertRaises(ConnectionError):
+            await voice.feed_image(JPEG)
 
     async def test_camera_reuses_voice_and_does_not_close_new_session(self):
         class Voice(FakeFeed):
@@ -353,7 +377,10 @@ class QwenCameraTests(unittest.IsolatedAsyncioTestCase):
             async def stop(self):
                 self.closed = True
                 self.done.set()
-        service = InteractionService(StateEvents(lambda event: None), lambda *_a, **_k: Voice(), None)
+
+        service = InteractionService(
+            StateEvents(lambda event: None), lambda *_a, **_k: Voice(), None
+        )
         try:
             await service.toggle()
             old = service.voice

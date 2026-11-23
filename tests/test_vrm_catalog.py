@@ -1,9 +1,9 @@
 """验证纯 VRM 目录、旧选择迁移和失败时保留当前配置。"""
 
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 from boxagent.interfaces.desktop.pets.catalog import PetCatalog
 
