@@ -2845,3 +2845,9 @@ passed
 - **实现**　两个入口使用同一视觉 worker。低负载可用 Metal MTP，重载由 CPU 起草并由原 Qwen 模型在 Metal 上完整校验。六帧照常送模，跨帧图像使用全局视觉注意力。Apple Silicon 的可选 Core ML 包可从本机相同权重重建。 [Worker](../scripts/window_summary_worker.py) · [构建方式](setup.md)
 - **对照**　M3 Pro 上以 1280×720、目标 60 Hz 和 1450 次 shader 迭代模拟渲染。用同一分支的 worker 轮换加载现用包与重编译包，每类输入各计时三对，从准备好的画面到完整回复。六帧长回复中位数为 3601 和 3390 ms，单图问答为 1171 和 1127 ms。六对回复全文一致。该批样本用于合并验证。
 - **验证范围**　重建包的空载和重载冒烟均通过，桌面和陪玩入口的八对回复全文一致。六帧分数序列与图形位置判断正确。首次重载回放的六帧长回复出现 5740 ms 样本，两次单图超过 11 秒。回放使用合成素材，计时截至文本完成。Ruff、strict mypy、Pyright 通过，pytest 691 项通过、13 项跳过。 [本机验收测量](../experiments/performance/2026-11-25-unified-vision/measurements.json) · [入口测试](../tests/test_context.py)
+
+### 2026-11-25 · 修复复盘 JSON 遗漏结束括号后的重跑
+
+- 复跑 11 月 24 日的六帧素材和提示。全局视觉路径有三条长复盘生成了完整观察和帧编号，但缺少 JSON 最外层的结束括号，触发了整次重跑。现在仅在补上一个 `}` 后整份 JSON 能通过校验时复用已生成的内容。 [结构化回复](../scripts/wuwa_text_prefill.py)
+- M3 Pro 在同一轮 1450 次 shader 的模拟渲染负载下，交替跑六对请求。从六张缩略图就绪到完整回复，长复盘中位数从 3977.07 降至 2210.55 ms，最慢一条从 7007.65 降至 2469.21 ms。修复版六条均返回含观察字段的有效 JSON。三条恢复结果只添加了闭括号，其余三条长复盘和六条短复盘逐对全文一致。
+- 单独更换视觉编码器的对照中，旧分块 Core ML 的短复盘中位数为 947.77 ms，全局 MLX 为 1464.57 ms。保留全局注意力。Ruff、strict mypy、Pyright 与五项格式边界验证通过，pytest 691 项通过、13 项跳过。 [复测数据](../experiments/performance/2026-11-25-unified-vision/measurements.json)

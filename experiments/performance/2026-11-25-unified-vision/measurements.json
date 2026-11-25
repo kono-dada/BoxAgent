@@ -169,5 +169,85 @@
     "mlx_fallback_without_bundle": "passed",
     "rebuilt_cpu_weights_and_2048_patch_graph_match_installed_files": true
   },
-  "limitations": "Initial requests with the rebuilt bundle under the simulator included latency outliers. This is a small synthetic replay, without live game FPS or speech timing."
+  "limitations": "Initial requests with the rebuilt bundle under the simulator included latency outliers. This is a small synthetic replay, without live game FPS or speech timing.",
+  "review_json_completion": {
+    "conditions": "November 24 fixture and prompts. Six prewarmed pairs, same six thumbnails, Qwen3.5-0.8B, 160 token cap, 1280x720 offscreen Metal at target 60 Hz and 1450 shader iterations. From thumbnails ready through complete IPC reply.",
+    "historical_2026_11_24": {
+      "long_paired_complete": {
+        "p50_ms": 2540.31,
+        "max_ms": 3300.1,
+        "samples": 5
+      },
+      "long_all_six": {
+        "p50_ms": 2400.89,
+        "max_ms": 3300.1,
+        "samples": 6
+      },
+      "short": {
+        "p50_ms": 1019.0,
+        "max_ms": 1234.16,
+        "samples": 6
+      }
+    },
+    "original_protocol_retest_unfixed_main": {
+      "long": {
+        "p50_ms": 5327.56,
+        "max_ms": 9144.59,
+        "samples": 6
+      },
+      "short": {
+        "p50_ms": 1595.31,
+        "max_ms": 1701.01,
+        "samples": 6
+      },
+      "long_with_observation": 5
+    },
+    "encoder_only_short_ab": {
+      "global_mlx": {
+        "p50_ms": 1464.57,
+        "max_ms": 1647.86,
+        "samples": 6
+      },
+      "archived_banded_coreml": {
+        "p50_ms": 947.77,
+        "max_ms": 1198.86,
+        "samples": 6
+      }
+    },
+    "json_recovery_paired": {
+      "long_before": {
+        "p50_ms": 3977.07,
+        "max_ms": 7007.65,
+        "samples": 6
+      },
+      "long_after": {
+        "p50_ms": 2210.55,
+        "max_ms": 2469.21,
+        "samples": 6
+      },
+      "long_after_same_five_cases_as_historical": {
+        "p50_ms": 2193.47,
+        "max_ms": 2413.47,
+        "samples": 5
+      },
+      "short_before": {
+        "p50_ms": 1433.68,
+        "max_ms": 1521.84,
+        "samples": 6
+      },
+      "short_after": {
+        "p50_ms": 1310.57,
+        "max_ms": 1486.58,
+        "samples": 6
+      },
+      "long_with_observation_after": 6,
+      "only_appended_outer_brace": [
+        "0-1",
+        "1-0",
+        "2-1"
+      ],
+      "other_long_replies_unchanged": true,
+      "short_replies_unchanged": true
+    }
+  }
 }

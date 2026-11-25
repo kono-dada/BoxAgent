@@ -471,7 +471,11 @@ class WuwaTextPrefill:
         if used and not self.reported:
             print("Local vision used Neural Engine and CPU language prefill", file=sys.stderr)
             self.reported = True
-        return text if not structured or valid_review(text) else None
+        if not structured or valid_review(text):
+            return text
+        # The model can finish all fields and stop before the outer closing brace.
+        closed = text + "}"
+        return closed if valid_review(closed) else None
 
 
 class WuwaPrefillStartup:
