@@ -130,25 +130,20 @@ macOS 源码入口会准备 `.runtime/desktop/BoxAgent.app`，再通过 LaunchSe
 
 #### 可选的 Apple Silicon 视觉加速包
 
-桌面观察、游戏画面和原图问答共用同一个 worker 实现。装有配套运行包时，低负载可用 Metal MTP，GPU 利用率达到 90% 时由 CPU 生成候选，原 Qwen 模型在 Metal 上逐 token 校验。跨帧拼图使用融合 Metal 保留全局视觉注意力。受支持的单图可用 Core ML 掩码编码器，保留原图网格。组件不可用或输入超出对应范围时使用 MLX 的原有实现。
+桌面观察、游戏画面和原图问答共用一个 worker。视觉编码和语言预填充使用原有 Qwen 权重。GPU 利用率达到 90% 或读数不可用时，CPU 可以生成候选词，每个输出词都由当前画面的 Metal 目标模型校验。低负载时可使用兼容的 Metal MTP 预测头。缺少候选模型时，worker 使用常规 MLX 解码。
 
-下列命令用已安装的 Qwen3.5-0.8B MLX 权重构建完整运行包。需要 Xcode 命令行工具、`coremltools==9.0`、llama.cpp b12441 源码及其 macOS ARM64 动态库。提前设置 `LLAMA_SOURCE`、`LLAMA_LIBS`、`QWEN_GGUF_TEMPLATE` 和 `QWEN_MTP_HEAD` 为对应路径。GGUF 只提供同型号的模型和分词器元数据，CPU 权重由本地 MLX 权重导出。MTP 使用兼容的 Qwen3.5-0.8B MLX 预测头。
+在 Apple Silicon 上，下面的命令从本地 Qwen3.5-0.8B MLX 权重生成 CPU 起草模型。需要 Xcode 命令行工具、llama.cpp b12441 源码、匹配的 macOS ARM64 动态库，以及同型号的 GGUF 文件提供模型和分词器元数据。
 
 ```bash
 vision_python=.runtime/vision-venv/bin/python
 vision_model=.runtime/models/qwen3.5-0.8b-mlx
-build_deps=.runtime/vision-build-deps
-uv pip install --python "$vision_python" --target "$build_deps" coremltools==9.0
-export PYTHONPATH="$PWD/$build_deps:$LLAMA_SOURCE/gguf-py"
-"$vision_python" scripts/build_wuwa_cpu_draft.py "$vision_model" .runtime/vision-cpu-draft \
+vision_bundle=.runtime/vision-acceleration
+PYTHONPATH="$LLAMA_SOURCE/gguf-py" "$vision_python" scripts/build_wuwa_cpu_draft.py \
+  "$vision_model" "$vision_bundle/text/cpu-draft" \
   --llama-source "$LLAMA_SOURCE" --llama-libs "$LLAMA_LIBS" --gguf-template "$QWEN_GGUF_TEMPLATE"
-"$vision_python" scripts/build_wuwa_coreml.py "$vision_model" .runtime/vision-masked
-"$vision_python" scripts/build_wuwa_text_prefill.py "$vision_model" .runtime/vision-acceleration \
-  --vision-masked .runtime/vision-masked --cpu-draft .runtime/vision-cpu-draft \
-  --mtp-drafter "$QWEN_MTP_HEAD"
 ```
 
-在 `.env.local` 中设置 `BOXAGENT_WUWA_COREML_BUNDLE=.runtime/vision-acceleration` 后重启。环境变量名沿用现有部署，桌面和游戏入口都会读取。原生文本预填充已在 M3 Pro 上验证。三个编译产物都属于本机运行数据。
+如需 MTP，将本地 Qwen3.5-0.8B MLX 预测头的 `config.json` 和 `model.safetensors` 放入同一包的 `text/mtp/`。在 `.env.local` 设置 `BOXAGENT_WUWA_COREML_BUNDLE=.runtime/vision-acceleration` 后重启。已有加速包可以沿用该环境变量和原路径。
 
 ### 《鸣潮》陪玩预览
 

@@ -526,12 +526,11 @@ class LocalGameVisionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(prompt, REVIEW_PROMPT)
         self.assertEqual(kwargs, {"structured_review": True})
         with Image.open(BytesIO(sheet)) as image:
-            self.assertEqual(image.size, (1024, 896))
-            self.assertEqual(image.info.get("comment"), b"BoxAgent six-frame contact sheet v1")
+            self.assertEqual(image.size, (1024, 960))
             expected = [(255, 0, 0), (0, 128, 0), (0, 0, 255), (255, 255, 255),
                         (0, 0, 0), (255, 0, 255)]
             for i, color in enumerate(expected):
-                x, y = 256 + i % 2 * 512, 150 + i // 2 * 298
+                x, y = 256 + i % 2 * 512, 150 + i // 2 * 320
                 actual = image.getpixel((x, y))
                 assert isinstance(actual, tuple)
                 self.assertTrue(all(abs(a - b) <= 3 for a, b in zip(actual, color, strict=True)))
@@ -623,6 +622,8 @@ class GameHighlightContractTests(unittest.IsolatedAsyncioTestCase):
         result = HighlightReview.parse(json.dumps(raw), frames)
         self.assertEqual(result.observation, GameObservation("角色停在通道入口。", 2.5, 2.5))
         self.assertFalse(result.praise)
+        raw["observed_frames"] = ["6"]
+        self.assertEqual(HighlightReview.parse(json.dumps(raw), frames), result)
         raw["observed_frames"] = [7]
         self.assertIsNone(HighlightReview.parse(json.dumps(raw), frames).observation)
 
@@ -635,9 +636,11 @@ class GameHighlightContractTests(unittest.IsolatedAsyncioTestCase):
             "frames": [1, 4],
         }
         self.assertEqual(HighlightReview.parse(json.dumps(result), frames), PRAISE)
+        result.update(scene=" settled ", frames=["1", 4])
+        self.assertEqual(HighlightReview.parse(json.dumps(result), frames), PRAISE)
         repeated = tuple(GameFrame(frame.captured_at, b"same") for frame in frames)
         self.assertEqual(HighlightReview.parse(json.dumps(result), repeated).scene, "unclear")
-        for numbers in ([1, 1], [1, 7], [True, 4], [1]):
+        for numbers in ([1, 1], [1, "1"], [1, "7"], ["01", 4], ["1.0", 4], [True, 4], [1]):
             result["frames"] = numbers
             self.assertEqual(HighlightReview.parse(json.dumps(result), frames).scene, "unclear")
 

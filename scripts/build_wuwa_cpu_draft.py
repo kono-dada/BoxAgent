@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
-from wuwa_coreml import source_fingerprints
+from wuwa_cpu_draft import source_fingerprints
 
 RUNTIME = "llama.cpp b12441"
 TENSOR_NAMES = {

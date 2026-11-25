@@ -1,12 +1,15 @@
 """Draft Qwen vision responses on the CPU and verify them on Metal."""
 
 import ctypes
+import hashlib
 import json
 import os
 import struct
 import sys
+from collections import OrderedDict
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import Future, ThreadPoolExecutor, wait
+from contextlib import closing
 from importlib import import_module
 from io import BytesIO
 from pathlib import Path
@@ -27,6 +30,14 @@ _GREEDY_OPTIONS = {
     "max_tokens", "temperature", "prefill_step_size", "repetition_penalty",
     "repetition_context_size",
 }
+
+
+def source_fingerprints(model_path: Path) -> dict[str, str]:
+    values = {}
+    for name in ("model.safetensors", "config.json"):
+        with (model_path / name).open("rb") as source:
+            values[name] = hashlib.file_digest(source, "sha256").hexdigest()
+    return values
 
 
 def supports_greedy_speculation(options: dict[str, Any]) -> bool:
@@ -175,6 +186,7 @@ class WuwaCpuDraft:
         self.used_cpu_draft = False
         self.vision_logits: Callable[[mx.array], mx.array] | None = None
         self.reported_vision = False
+        self.recent_tokens: OrderedDict[str, tuple[int, ...]] = OrderedDict()
 
     def under_gpu_pressure(self) -> bool:
         load = self.gpu_load()
@@ -239,6 +251,8 @@ class WuwaCpuDraft:
         dispatch: Any = import_module("mlx_vlm.generate.dispatch")
         ar = import_module("mlx_vlm.generate.ar")
         original_steps = dispatch.generate_step
+        hint = self.recent_tokens.get(prompt, ()) if isinstance(prompt, str) else ()
+        generated: list[int] = []
 
         def choose_steps(
             ids: mx.array, target: Any, pixels: Any, mask: Any, **kwargs: Any,
@@ -253,17 +267,25 @@ class WuwaCpuDraft:
             if self.vision_logits is None:
                 _, self.vision_logits = qwen_verification_head(target.language_model)
             self.used_cpu_draft = True
-            yield from self._steps(
+            with closing(self._steps(
                 ids, target, pixels, mask, vision_logits=self.vision_logits,
                 prefill_step_size=kwargs.pop("prefill_step_size", ar.DEFAULT_PREFILL_STEP_SIZE),
-                **kwargs,
-            )
+                hint=hint, **kwargs,
+            )) as stream:
+                for token, logprobs in stream:
+                    generated.append(token)
+                    yield token, logprobs
 
         dispatch.generate_step = choose_steps
         try:
             result = generate(model, processor, prompt, image=[image], verbose=False, **options)
         finally:
             dispatch.generate_step = original_steps
+        if generated and isinstance(prompt, str):
+            self.recent_tokens[prompt] = tuple(generated)
+            self.recent_tokens.move_to_end(prompt)
+            if len(self.recent_tokens) > 4:
+                self.recent_tokens.popitem(last=False)
         if self.used_cpu_draft and not self.reported_vision:
             print("Local vision used CPU drafts with Metal verification", file=sys.stderr)
             self.reported_vision = True
@@ -271,7 +293,7 @@ class WuwaCpuDraft:
 
     def _steps(
         self, input_ids: mx.array, model: Any, pixel_values: Any, mask: Any, *,
-        max_tokens: int, vision_logits: Callable[[mx.array], mx.array],
+        max_tokens: int, vision_logits: Callable[[mx.array], mx.array], hint: tuple[int, ...],
         prefill_step_size: int | None = None, repetition_penalty: float | None = None,
         repetition_context_size: int = 64, **kwargs: Any,
     ) -> Iterator[tuple[int, None]]:
@@ -299,7 +321,6 @@ class WuwaCpuDraft:
             seed = input_ids[0, -1].item()
         if not isinstance(first_position, int) or not isinstance(seed, int):
             raise ValueError("Expected integer token and positional IDs")
-        self._sync(cache, positions[..., :-1], prefix)
 
         consumed: list[int] = []
         prompt_history: list[int] = (
@@ -320,9 +341,18 @@ class WuwaCpuDraft:
                 )
             return self._propose(position, token, count, stop)
 
-        pending = self.executor.submit(
-            propose, first_position, seed, min(_FIRST_BLOCK, max_tokens), cancel, [],
-        )
+        def sync_cpu() -> None:
+            if not consumed:
+                self._sync(cache, positions[..., :-1], prefix)
+                return
+            with mx.stream(stream):
+                ids = mx.array([consumed], dtype=input_ids.dtype)
+                text_positions = mx.broadcast_to(
+                    mx.arange(first_position, first_position + offset)[None, None], (3, 1, offset),
+                )
+                current_positions = mx.concatenate([positions[..., :-1], text_positions], axis=-1)
+                current_tokens = mx.concatenate([prefix, ids], axis=-1)
+            self._sync(cache, current_positions, current_tokens)
 
         def without_snapshots(*args: Any, state_steps: int | None = None, **options: Any) -> tuple[
             mx.array, mx.array, None,
@@ -330,16 +360,30 @@ class WuwaCpuDraft:
             output, state = delta.gated_delta_update(*args, **options)
             return output, state, None
 
+        pending: Future[list[int]] | None = None
         try:
             while offset < max_tokens:
-                proposal = pending.result()
+                # A previous answer is only a proposal. Re-evaluate each position against
+                # this image's target cache before yielding anything, including EOS.
+                if offset < len(hint):
+                    proposal = list(hint[offset:min(offset + _BLOCK, max_tokens)])
+                else:
+                    if pending is None:
+                        sync_cpu()
+                        width = min(_FIRST_BLOCK if not consumed else _BLOCK, max_tokens - offset)
+                        cancel = Event()
+                        pending = self.executor.submit(
+                            propose, first_position + offset, seed, width, cancel, consumed.copy(),
+                        )
+                    proposal = pending.result()
                 width = len(proposal)
                 inputs = [seed, *proposal[:-1]]
-                cancel = Event()
-                pending = self.executor.submit(
-                    propose, first_position + offset + width, proposal[-1],
-                    min(_BLOCK, max_tokens - offset - width), cancel, consumed + inputs,
-                )
+                if pending is not None:
+                    cancel = Event()
+                    pending = self.executor.submit(
+                        propose, first_position + offset + width, proposal[-1],
+                        min(_BLOCK, max_tokens - offset - width), cancel, consumed + inputs,
+                    )
                 with mx.stream(stream):
                     block = mx.array([inputs], dtype=input_ids.dtype)
                     # The original rollback can reconstruct just the accepted recurrent state.
@@ -365,6 +409,7 @@ class WuwaCpuDraft:
                 keep = min(accepted + 1, width)
                 if accepted < width:
                     cancel.set()
+                    hint = ()
                 consumed.extend(inputs[:keep])
                 offset += keep
                 seed = target[keep - 1]
@@ -376,24 +421,10 @@ class WuwaCpuDraft:
                 if keep < width:
                     with mx.stream(stream):
                         language.rollback_speculative_cache(cache, states, accepted, width)
-                if accepted < width:
-                    with mx.stream(stream):
-                        text = mx.array([consumed], dtype=input_ids.dtype)
-                        text_positions = mx.broadcast_to(
-                            mx.arange(first_position, first_position + offset)[None, None],
-                            (3, 1, offset),
-                        )
-                        current_positions = mx.concatenate(
-                            [positions[..., :-1], text_positions], axis=-1,
-                        )
-                        current_tokens = mx.concatenate([prefix, text], -1)
+                if accepted < width and pending is not None:
                     pending.result()
-                    self._sync(cache, current_positions, current_tokens)
-                    cancel = Event()
-                    pending = self.executor.submit(
-                        propose, first_position + offset, seed,
-                        min(_BLOCK, max_tokens - offset), cancel, consumed.copy(),
-                    )
+                    pending = None
         finally:
             cancel.set()
-            wait((pending,))
+            if pending is not None:
+                wait((pending,))

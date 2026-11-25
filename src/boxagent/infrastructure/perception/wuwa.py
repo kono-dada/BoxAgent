@@ -26,8 +26,6 @@ from boxagent.infrastructure.perception.wuwa_quest import encode_quest_region
 WUWA_BUNDLE = "com.kurogame.mingchao"
 TILE_WIDTH = 512
 TILE_HEIGHT = 320
-REVIEW_LABEL_HEIGHT = 14
-VISION_PATCH_STEP = 32
 logger = logging.getLogger(__name__)
 type ReviewInput = tuple[tuple[bytes, str], ...]
 
@@ -103,30 +101,18 @@ def _review_labels(frames: tuple[GameFrame, ...]) -> tuple[str, ...]:
 
 def game_contact_sheet(frames: tuple[GameFrame, ...]) -> bytes:
     columns = 2
-    tiles = []
-    for frame in frames:
-        with Image.open(BytesIO(frame.image)) as source:
-            source.thumbnail((TILE_WIDTH - 8, TILE_HEIGHT - 27))
-            tiles.append(source.convert("RGB"))
-    heights = [
-        REVIEW_LABEL_HEIGHT + max(tile.height for tile in tiles[i:i + columns])
-        for i in range(0, len(tiles), columns)
-    ]
-    # Align the canvas to the Qwen vision grid without resampling the full tiles.
-    height = sum(heights)
-    height = ((height + VISION_PATCH_STEP - 1) // VISION_PATCH_STEP) * VISION_PATCH_STEP
-    sheet = Image.new("RGB", (columns * TILE_WIDTH, height), (16, 16, 16))
+    rows = (len(frames) + columns - 1) // columns
+    sheet = Image.new("RGB", (columns * TILE_WIDTH, rows * TILE_HEIGHT), (16, 16, 16))
     draw = ImageDraw.Draw(sheet)
-    y = 0
-    for index, (image, label) in enumerate(zip(tiles, _review_labels(frames), strict=True)):
-        x = (index % columns) * TILE_WIDTH
-        sheet.paste(image, (x + (TILE_WIDTH - image.width) // 2, y + REVIEW_LABEL_HEIGHT))
-        draw.text((x + 8, y + 1), label, fill="white")
-        if index % columns == columns - 1:
-            y += heights[index // columns]
+    for index, (frame, label) in enumerate(zip(frames, _review_labels(frames), strict=True)):
+        with Image.open(BytesIO(frame.image)) as image:
+            image.thumbnail((TILE_WIDTH - 8, TILE_HEIGHT - 27))
+            x = (index % columns) * TILE_WIDTH
+            y = (index // columns) * TILE_HEIGHT
+            sheet.paste(image, (x + (TILE_WIDTH - image.width) // 2, y + 22))
+            draw.text((x + 8, y + 4), label, fill="white")
     with BytesIO() as encoded:
-        layout = {"comment": b"BoxAgent six-frame contact sheet v1"} if len(frames) == 6 else {}
-        sheet.save(encoded, "JPEG", quality=88, **layout)
+        sheet.save(encoded, "JPEG", quality=88)
         return encoded.getvalue()
 
 

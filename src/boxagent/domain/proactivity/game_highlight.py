@@ -72,9 +72,16 @@ def game_scene_reference(observations: tuple[GameObservation, ...], now: float) 
 def _frame_numbers(value: object, total: int, minimum: int) -> tuple[int, ...]:
     if not isinstance(value, list) or not minimum <= len(value) <= total:
         return ()
-    if any(type(number) is not int or not 1 <= number <= total for number in value):
-        return ()
-    numbers: tuple[int, ...] = tuple(sorted(value))
+    # Local models sometimes quote frame IDs. Only accept the canonical spelling
+    # of an actual frame; "1" and 1 must also count as the same citation.
+    labels = {str(i): i for i in range(1, total + 1)}
+    cited: list[int] = []
+    for item in value:
+        number = labels.get(item) if isinstance(item, str) else item
+        if type(number) is not int or not 1 <= number <= total:
+            return ()
+        cited.append(number)
+    numbers = tuple(sorted(cited))
     return numbers if len(set(numbers)) == len(numbers) else ()
 
 
@@ -103,6 +110,8 @@ class HighlightReview:
             observation = GameObservation(visible.strip(), frames[observed[0] - 1].captured_at,
                                           frames[observed[-1] - 1].captured_at)
         scene = result.get("scene")
+        if isinstance(scene, str):
+            scene = scene.strip()
         if scene == "fighting":
             return cls("fighting", observation=observation)
         unclear = cls("unclear", observation=observation)

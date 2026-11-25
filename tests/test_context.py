@@ -52,28 +52,35 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
         serve = runpy.run_path(str(script))["serve_mlx"]
         common = {"image": "clip.jpg", "analysis_prompt": "描述画面"}
-        native = SimpleNamespace(
-            cpu_draft=None,
-            analyze_image=Mock(side_effect=["可见两个目标。", '{"scene":"unclear"}']),
-        )
-        startup: Future[SimpleNamespace] = Future()
-        startup.set_result(native)
-        messages = StringIO(json.dumps(common) + "\n" + json.dumps({
-            **common, "structured_review": True,
-        }) + "\n")
+        review = '{"observation":"最右侧的角色跳起。","observed_frames":[5,6],"scene":"fighting"}'
+        moment = review.replace("fighting", "moment")
+        answers = [
+            "可见两个目标。", review, review[:-1], moment, "?", 'unclear"}',
+            "未能复盘", "bad", "第一轮原文",
+        ]
+        generate = Mock(side_effect=(
+            [SimpleNamespace(text=answer) for answer in answers] + [RuntimeError("retry failed")]
+        ))
+        draft = object()
+        startup: Future[object] = Future()
+        startup.set_result(draft)
+        requests = [common] + [{**common, "structured_review": True}] * 6
+        messages = StringIO("\n".join(map(json.dumps, requests)) + "\n")
         output = StringIO()
-        with patch("sys.stdin", messages), patch("sys.stdout", output):
-            serve(object(), object(), {}, text_startup=SimpleNamespace(future=startup))
+        with (
+            patch("sys.stdin", messages), patch("sys.stdout", output),
+            patch.dict(serve.__globals__, {"summarize_image": generate}),
+        ):
+            serve(object(), object(), {"model_type": "qwen3_5"}, draft_startup=startup)
         self.assertEqual([json.loads(line) for line in output.getvalue().splitlines()], [
             {"ready": True}, {"summary": "可见两个目标。"},
-            {"summary": '{"scene":"unclear"}'},
+            {"summary": review}, {"summary": review}, {"summary": moment},
+            {"summary": '{"scene":"unclear"}'}, {"summary": "未能复盘"}, {"summary": "第一轮原文"},
         ])
+        self.assertTrue(all(call.kwargs["cpu_draft"] is draft for call in generate.call_args_list))
         self.assertEqual(
-            [call.kwargs for call in native.analyze_image.call_args_list],
-            [
-                {"structured": False, "pressured": False},
-                {"structured": True, "pressured": False},
-            ],
+            [call.kwargs.get("prefix", "") for call in generate.call_args_list],
+            ["", "", "", "", "", '{"scene":"', "", '{"scene":"', "", '{"scene":"'],
         )
 
     def test_focused_window_accepts_an_unlisted_fullscreen_game(self) -> None:
