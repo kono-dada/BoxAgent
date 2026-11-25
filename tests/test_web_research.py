@@ -451,7 +451,7 @@ class WebBoundaryTests(unittest.TestCase):
         self.assertTrue({"search_web", "read_webpage"} <= names)
         with TemporaryDirectory() as directory, patch.dict("os.environ", {
             "BOXAGENT_DATA_DIR": directory, "DEEPSEEK_API_KEY": "fixture-key",
-            "BOXAGENT_WEB_SEARCH_ENABLED": "1"}):
+            "BOXAGENT_WEB_SEARCH_ENABLED": "1", "BOXAGENT_WEB_PROVIDER": "deepseek"}):
             service = create_web_research(load_settings())
             self.assertIsInstance(service.provider, DeepSeekWebProvider)
             self.assertEqual(service.provider.api_key, "fixture-key")

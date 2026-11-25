@@ -98,7 +98,9 @@ class WebResearchService:
 
     def _reserve(self, scope: str) -> None:
         if self.provider is None:
-            raise WebUnavailable("not_configured", "联网检索未启用，请检查 DeepSeek Key 与搜索设置")
+            raise WebUnavailable(
+                "not_configured", "联网检索未启用，请检查所选服务的 Key 与搜索设置"
+            )
         if scope:
             used = self.calls.get(scope, 0)
             if used >= self.max_calls_per_turn:
@@ -120,11 +122,17 @@ class WebResearchService:
             "speech_guidance": SPEECH_GUIDANCE,
         }
 
-    async def research(self, query: object, *, count: object = 5, scope: str = "",
-                       requested_version: object = "",
-                       preferred_sites: tuple[str, ...] = (),
-                       observer: WebResearchObserver | None = None,
-                       timeout: float = 25) -> WebToolPayload:
+    async def research(
+        self,
+        query: object,
+        *,
+        count: object = 5,
+        scope: str = "",
+        requested_version: object = "",
+        preferred_sites: tuple[str, ...] = (),
+        observer: WebResearchObserver | None = None,
+        timeout: float = 25,
+    ) -> WebToolPayload:
         """One bounded lookup: search, read two sites, then at most one fallback."""
         if not isinstance(requested_version, str) or len(requested_version) > 48:
             return self._failed(ValueError("游戏版本须为简短文字；未提供时留空"))
@@ -238,7 +246,7 @@ class WebResearchService:
             **result,
             "pages": pages,
             "requested_version": view["requested_version"],
-            "source_policy": "优先游戏官方社区 Wiki 与游戏 Wiki；没有匹配结果才扩大搜索"
+            "source_policy": "优先指定来源；没有匹配结果才扩大搜索"
             if preferred_sites
             else "通用搜索",
             "read_source_count": len(pages),

@@ -2839,3 +2839,72 @@ passed
 - **背景与问题**　独立启动 Engine 时，命令行默认值固定为 `codex`，桌宠的共享配置在未配置时使用 `deepseek`。
 - **决策与做法**　独立 Engine 仅在收到显式 `--task-provider` 时覆盖共享配置。省略参数时读取 `BOXAGENT_TASK_PROVIDER`，未配置时使用 DeepSeek。 [Engine 入口](../src/boxagent/entrypoints/engine.py) · [共享配置](../src/boxagent/bootstrap/settings.py)
 - **效果**　CLI 回归覆盖两种配置值和显式参数的双向覆盖。独立 Engine 使用默认配置和显式 `codex` 均通过启停与 IPC 冒烟。Ruff、strict mypy 和使用 uv 解释器的 Pyright 通过，pytest 通过 683 项、跳过 13 项。真实模型回合见上一轮实机复测。 [CLI 回归](../tests/test_engine.py)
+
+### 2026-11-23 · LoL 知识工具扩展与真实模型检索验证
+
+- **背景与问题**　已有 Data Dragon 工具只覆盖正式名称的英雄和装备。中文外号、符文、召唤师技能和基础教学缺入口。同一名称在竞技场等模式出现多条记录时，原实现直接返回查无资料。
+- **实现**　复用前台 lookup_lol_knowledge，增加常用英雄外号、符文、召唤师技能、六类带来源的本地教学条目，以及按补丁查询的 CommunityDragon 英雄补充。同名装备和召唤师技能优先选择召唤师峡谷并返回模式提示，准确 ID 保持原有查询语义。版本目录写入缓存，离线回退时返回实际缓存版本。基础条目为本地整理，动态数值仍查版本化数据。Wiki 复用已有 search_web/read_webpage，并要求读取正文后再作引用。
+- **验证**　全量 Python 测试 684 passed、13 skipped、124 subtests passed；Pyright 零错误，保留既有 PyAudio source-resolution 警告。通过应用前台工具真实查询 16.23.1 的石头人、瞎子、女枪、无尽之刃、不灭之握、闪现和补刀知识，以及 CommunityDragon 16.23 的墨菲特资料，八组均成功。CommunityDragon 首次 urllib 请求超时，另用 HTTPS curl 完整下载同一补丁公开 JSON 后校验英雄 ID 并写入本地缓存。将两个下载函数改为抛出网络错误后，八组缓存查询仍成功。真实千问 WebSocket 测试使用正常的模型工厂和工具回传，无麦克风、无扬声器，模型主动查询后回答“石头人的Q是地震碎片，能造成伤害并偷取移速。”。本地桌宠重启后 Engine health 为 ready。
+- **限制**　当前 DeepSeek Fetch 对 Wiki 请求返回 authentication_failed，尚未完成 Wiki 正文在线接入验证，也没有离线安装整站百科。CommunityDragon 首次在线下载仍取决于网络。基础教学不包含完整的伤害公式、兵线教程或版本出装排行榜。真实喊话、声学播放和游戏内问答待人工复测。模型探针因本机 SOCKS 依赖缺失，改用测试连接的 direct 参数完成，不更改生产代理配置。新版 LaunchServices 启动在本机停在文件打开阶段，本轮使用终端直接启动现有产品 bundle，Engine 已就绪；没有改变仓库启动代码。
+- **入口**　[静态资料与缓存](../src/boxagent/infrastructure/games/data_dragon.py)、[本地教学](../src/boxagent/domain/proactivity/lol_basics.py)、[工具路由](../src/boxagent/application/assistant.py)、[回归](../tests/test_lol_knowledge.py)、[Riot 新手指南](https://www.leagueoflegends.com/en-us/how-to-play/)、[CommunityDragon](https://communitydragon.org/docs)。
+
+### 2026-11-23 · 百炼联网来源与 LoL Wiki 正文读取
+
+- **背景与问题**　当前 DeepSeek 官方 Key 的普通对话和账户接口均返回 401；现有百炼 Key 能调用百炼托管的 DeepSeek，但百炼不存在同路径的 /v1/tools/fetch。直接替换 Key 不能修复网页读取。
+- **实现**　增加可选 BOXAGENT_WEB_PROVIDER=bailian，复用现有 DASHSCOPE_API_KEY、Workspace 与地域，通过 DashScope 原生 qwen-plus 联网搜索的 search_info.search_results 返回真实来源。只使用搜索元数据，不将模型生成的文字或网址当作网页证据。LoL Wiki 词条通过该站公开 MediaWiki parse API 读取，去除 HTML 标签与脚本样式，由现有 read_webpage 工具返回正文、来源、截断和外部数据标记。固定 HTTPS Wiki 域名、不跟随重定向、正文大小限制，Wiki 请求不携带模型 Key。其他网站继续交给原有 Fetch 适配器。默认服务保持 deepseek，本机 .env.local 显式选择 bailian。
+- **测试与结果**　全量 Python 测试 688 passed、13 skipped、128 subtests passed；Pyright 零错误，既有 PyAudio 警告一条。百炼原生检索接口实测返回搜索来源。正常应用工具 read_webpage 读取 Armor 词条成功，返回 12000 字符及截断标记。真实千问模型主动调用 read_webpage 成功，依据词条回答“护甲只减免物理伤害。”。无麦克风与扬声器的测试连接使用 direct 代理选项，不改生产代理。回归覆盖搜索元数据缺失时不能伪造来源、拒绝非 Wiki／凭据／内网链接、Wiki 请求不携带 Authorization，以及其他网站保留原有读取路径。
+- **限制**　百炼搜索本次短测的结果相关性不稳定；搜索返回来源不等于已读到相关正文。Wiki 英文正文由前台模型解释成中文。其他网站正文读取仍需要原有服务的有效 Key，当前 DeepSeek Key 仍返回 401。真实麦克风、游戏内对话以及整站离线镜像未验证。
+- **入口**　[百炼适配器](../src/boxagent/infrastructure/web/bailian.py)、[Wiki 读取](../src/boxagent/infrastructure/web/lol_wiki.py)、[装配](../src/boxagent/bootstrap/web.py)、[回归](../tests/test_bailian_web.py)。
+
+### 2026-11-23 · 首批赛事文化库、按需查阅与主动接梗偏好
+
+- **背景与问题**　技能和装备资料不覆盖比赛梗与职业名场面。需要保存可核对的事实和出处，并把解释、偶尔接梗以及个人偏好分开处理，避免每轮重复、口头承诺保存却未实际写入，或随意补写比赛细节。
+- **实现**　新增 assets/knowledge/lol-culture.json，首批 10 条覆盖天神下凡、双劫大战、xPeke 偷家、inSec 回旋踢、Bin 剑姬五杀、Deft 拆家遇高地复活、DRX 征程、Faker 发条高光及 Faker/Uzi 名人堂。条目包含别称、选手、英雄、事件、事实摘要、使用语境、避免误用、出处类型与复核日期。视频时间点未核对时留空。通过正常前台工具 lookup_lol_culture 检索，解释模式返回最多三条及来源卡片，未知内容复用已有 search_web 临时核对。主动接梗模式默认至少间隔 10 分钟，跳过最近五个条目和用户屏蔽项；检索时预留，重试或并发不会重复消耗同条候选。set_lol_culture_preference 保存全部开关和指定梗偏好到本机数据目录，明确询问出处仍可查询。
+- **模型联调**　首次真实千问测试查梗成功，但关闭偏好时只口头答应；增强工具与系统约定后，模型实际调用保存工具，并在主动接梗已关闭时继续查到 Bin 的决赛五杀资料。另一次回答曾自行补写资料没有记录的残血与人数；为文化工具结果增加单独的回复约束，复测只解释条目已有事实。最后实测输出为“TheShy 在 2018 年 S8 半决赛用剑魔打出的名场面，IG 对 G2 那场”。探针用临时偏好文件、无麦克风／扬声器的真实 WebSocket 模型连接，未修改用户偏好。
+- **验证**　自动化覆盖别称检索、赛事及出处、并发预留、冷却与最近条目、重启后持久化、全部关闭与单项屏蔽／恢复、关闭后仍可明确查询、未知内容按需检索且不修改经典库。全量 Python 测试 692 passed、13 skipped、133 subtests passed；Pyright 零错误，保留既有 PyAudio source-resolution 警告。重启后 Engine health 为 ready。真实麦克风、声学播放及游戏内接梗仍待人工复测。
+- **边界**　这是经典库与按需查阅的第一阶段，当前收录 10 条，未扩充到先前讨论的 30–50 条。视频出处按可访问的官方标题、描述和文章核对，不声称已完整观看全部视频。实时游戏事件自动点评沿用既有链路，本轮新增能力在前台模型的检索和聊天工具中使用。保留模型回答的不确定性，不能只凭历史典故声称观察到用户复刻操作。外部检索的相关性和读取能力受既有服务限制。定期抓取新梗、审核候选及自动发布尚未实现。预留以检索而非声学播放为准，检索后没有实际讲出的候选也会暂时被跳过。
+- **入口**　[首批条目](../assets/knowledge/lol-culture.json)、[领域服务](../src/boxagent/domain/proactivity/lol_culture.py)、[读取与本机偏好](../src/boxagent/infrastructure/persistence/lol_culture.py)、[工具路由](../src/boxagent/application/assistant.py)、[测试](../tests/test_lol_culture.py)。
+
+### 2026-11-23 · 赛事文化库扩充至 40 条
+
+- **背景与问题**　用户希望继续增加比赛梗、职业名场面与聊天素材。首批十条不足以覆盖不同选手、英雄和世界赛文化。
+- **实现**　在原库追加三十条，覆盖五把加里奥、一箭定江山、女枪辅助、凯南天雷、沙皇推尺、MadLife 神钩、Kingen/Ning FMVP、IG/FPX/EDG 冠军故事、MSI 与逆转故事，以及世界赛主题曲、百刀压制和团战连招等术语。每条保留比赛背景、中文别称、选手和英雄、事实摘要、使用语境、易混淆点、来源与复核日期。明确区分官方、赛事报道和社区参考来源；未核对的视频时间点仍留空，不保存歌词或虚构原话。已有冷却、最近五条去重、个人屏蔽和按需联网查询机制保持不变。
+- **验证**　新增十六组典型检索检查。扩充后剑魔对应 TheShy 与 Kingen 两条，回归同时验证同条去重和不同条目的正常轮换，避免旧测试把一个英雄误当成唯一典故。全量 Python 测试 693 passed、13 skipped、149 subtests passed；Pyright 零错误，保留既有 PyAudio source-resolution 警告。本机在语音关闭、任务空闲时重启桌宠，Engine health 为 ready。
+- **边界**　共四十条赛事文化资料，并非四十个纯比赛操作。视频依据可访问的官方标题、描述和文章核对，未声称完整观看；新梗定期采集、审核与自动发布仍未实现。真实麦克风和游戏内自然接梗仍待实测。
+- **模型实测**　无麦克风／扬声器、临时偏好文件的真实千问 WebSocket 探针中，三次均调用 lookup_lol_culture：五把加里奥回答 Faker、2017 年半决赛及并非五局全胜；一箭定江山回答 PraY、寒冰及延缓 Duke 回防；GODS 回答 2023 年、NewJeans。探针先后修正了测试回调的事件读取和工具元数据参数，最终三项通过，未改生产语音代码或用户偏好。
+- **入口**　[扩充资料](../assets/knowledge/lol-culture.json)、[来源类型校验](../src/boxagent/infrastructure/persistence/lol_culture.py)、[检索与偏好回归](../tests/test_lol_culture.py)。
+
+### 2026-11-23 · 修复自然语音问典故时绕过资料库
+
+- **现场证据**　events.jsonl 中用户转写为“哎，你知道五霸加里奥是什么吗？”，首答混入 S3、SKT 对 RNG、Ryu 与连赢五局；runtime/qwen/events.jsonl 同时段未调用文化工具。沙皇推尺与一剑定江山也先凭模型记忆回答错误，直到用户指出 S3 没有沙皇才首次查库。该次检索虽然首条正确，却还混入其他 Faker 事件。此前真实探针包含“先查经典库”的指示，没覆盖自然语音问法，不能据此声称普通问答已稳定查库。
+- **决策与实现**　不再只依赖系统提示要求模型调用工具。在共享 TurnPreparer 中使用同一个文化服务，对明确的典故事实问题匹配标题与别称，开口前加入本轮独立、限长、带 query_id 的参考；命中唯一典故时，使用已核对 event 与 summary 构成回答，在文字和语音的 response.create 指令中要求朗读该答案，覆盖历史错误说法。补充“五霸加里奥”“一剑定江山”“沙皇推迟”等现场 ASR 别称。工具检索优先具体典故，避免共享选手名把不同比赛塞进同一回答。电竞上下文中未确认的名场面提示资料不足并澄清，搜索请求、偏好设置和普通聊天不走固定事实回答。显式查询不修改接梗冷却和个人偏好。
+- **回归与实测**　回归覆盖自然问句、错误年份确认、ASR 别称、错误历史、典故唯一匹配、文字和语音创建回复时的约束、跨 Query 失效、记忆中伪造参考不被采用，以及偏好指令和普通话题不被截获。真实 WebSocket 与生产同类 AOQ 探针均使用 host_turn_control=True、正常装配工厂和 TurnPreparer；先注入“S3 打 Ryu、连赢五局”的错误历史，再原样询问五霸加里奥、沙皇推尺、一剑定江山和天使降临，不含“先查库”。两种连接均回答 2017 SKT/RNG、2023 Faker/Ruler、2016 PraY/寒冰，未知条目说明不确定并澄清，未编造 ShowMaker 或 Doinb。WebSocket 第四项最初因断言要求逐字匹配“没有可靠资料”、而模型说“没找到可靠资料”而失败，事实与不确定性均正确；AOQ 四项最终断言通过。
+- **边界**　这是已识别典故事实问题的宿主约束，不是所有自然语言问题的通用事实验证器。未收录内容、未识别的 ASR 错字、多典故比较与追问仍可能需要检索或澄清。朗读由真实语音模型生成，不能声称模型永远逐字无偏差。探针关闭麦克风和扬声器，真人声学唤醒与游戏现场尚待复测。未修改声音通道、退出口令和一分钟无对话退出机制。
+- **最终检查**　全量 Python 测试 696 passed、13 skipped、156 subtests passed；Pyright 零错误，保留既有 PyAudio source-resolution 警告；git diff --check 通过。在桌宠语音关闭、任务空闲时重启本机，Engine health 返回 ready。
+- **入口**　[匹配与事实参考](../src/boxagent/domain/proactivity/lol_culture.py)、[本轮准备](../src/boxagent/application/turn_preparation.py)、[生产装配](../src/boxagent/bootstrap/engine.py)、[回复创建](../src/boxagent/infrastructure/runtimes/qwen/realtime.py)、[回归](../tests/test_lol_culture.py)。
+
+### 2026-11-23 · 社区称呼、短词语境与 B 站／微博优先检索
+
+- **背景与问题**　用户指出资料偏官方赛事，缺少“马头”“僵尸”等中文社区称呼。这类短词有普通词义和其他游戏含义，不能直接套到某位选手或粉丝身上，也不能把社区评价当作人物事实。
+- **实现**　资料库由四十条增至四十三条，增加马头（TheShy 外号）、僵尸／姜丝（部分社区对其粉丝的称呼）、道长（相关社区调侃）。按社区词条与赛事报道记录含义、使用范围和误用边界，不收录未经核实的首创者、法律结果或人物评价。条目增加可选 requires_lol_context 与 allow_banter，旧条目默认行为兼容。新条目可明确查询，但不用于自动接梗；短词缺少 LoL 语境时先澄清，排除植物大战僵尸、赛恩、僵尸粉等其他话题。宿主支持短词与组合关系问句。未知 LoL 社区梗的已有搜索流程优先 bilibili.com、weibo.com 与 m.weibo.cn，仍保留无结果时的扩大检索，不改变游戏机制类问题的来源策略。
+- **来源与限制**　[马头词条](https://cnmeme.wiki/entry/%E9%A9%AC%E5%A4%B4)正文可读，并链接 B 站 BV1n5YM6rE56；该视频本次只能获取索引标题与简介，直接打开返回 412，不能声称观看、取得字幕或读过评论。[2023 年赛事报道](https://csgo.5eplay.com/article/230810zdilhe)的可索引正文用于交叉核对姜丝／僵尸及道长的社区含义。微博相关公开索引可见，但没有取得微博全站数据或登录后内容。新增优先来源只改变检索顺序，不代表这些站点的正文读取服务已经接通；现有其他站点 Fetch 仍受原 Key 状态与平台访问限制影响。未建立自动抓取、未审核候选直接发布或持续训练模型的流程。
+- **验证**　新增回归覆盖短词语境澄清、明确说明、组合关系、仅解释不主动接梗、冷却文件不被写入、其他僵尸话题不误触发，以及社区和游戏机制来源策略不同。真实 AOQ 使用正常工厂、宿主轮次准备、无麦克风／扬声器测试马头、僵尸、道长和无语境的僵尸：前三项解释正确，最后一项澄清语境；四项断言通过。模型有不改变事实的短句改写，不能声称逐字完全一致。真人喊话和平台视频正文仍待实测。
+- **入口**　[资料](../assets/knowledge/lol-culture.json)、[语境与使用范围](../src/boxagent/domain/proactivity/lol_culture.py)、[读取校验](../src/boxagent/infrastructure/persistence/lol_culture.py)、[检索来源](../src/boxagent/domain/web/game_context.py)、[回归](../tests/test_lol_culture.py)。
+- **最终检查**　697 passed、13 skipped、160 subtests passed；Pyright 零错误、既有 PyAudio source-resolution 警告一条；git diff --check 通过。本机语音关闭、任务空闲时重启桌宠，Engine health 为 ready。
+
+### 2026-11-23 · 未知社区词的按需学习、来源笔记和到期复查
+
+- **背景与现场证据**　用户转写“诶，你知道‘钢背兽’是什么意思吗？”，桌宠答“刚背兽就是那个皮糙肉厚、怎么打都打不死的家伙”，没有结合 LoL 社区语境找到 Bin。固定经典库和工具提示无法覆盖不断出现的外号，继续逐条手写不能解决问题。
+- **实现**　在正常文字／语音共享的 TurnPreparer 中接入 CultureLearningService。已匹配的经典条目走原路径；LoL 上下文中的未知词义、人物外号及介绍类问题，提取公开词语后主动检索，无需模型决定调用工具。接入站点公开客户端搜索接口 https://yanfa.lol/api/search-index ，本次返回 387 个索引条目。只缓存标题、别称、路径、类型作为发现索引，按使用情况每天刷新，不把索引摘要直接当正文。精确别称优先，仅在唯一候选时容忍一个字的拼写差异，兼容“刚背兽／钢背兽”，无需编写 Bin 的事实映射。发现失败时复用已有百炼搜索，读取能力限于公开词条站点。
+- **证据与存储边界**　新增无凭据、固定 HTTPS 域名、不跟随重定向、限大小和超时的社区正文读取器；提取文章区域，排除导航和脚本。只有读到与目标有关的正文摘录才保存，索引、搜索标题和摘要不作为已学习证据。笔记保存在本机 games/learned-culture，包含词语、短原文摘录、来源链接、查询时间和到期时间，不改共享经典库或模型权重。笔记有效期配置为七天，到期先重新查；一份来源明确提示尚未交叉核实，两份来源也只保留来源说法，不声称已验证一致或最早起源。断网可复用尚未过期的笔记。失败或超时说明未核实；取消时不提交半成品笔记。普通聊天、偏好指令、私密信息问题和明确其他游戏语境不启动这条 LoL 学习链路。
+- **真实联调**　百炼对该词的第一轮搜索混入其他游戏，部分限定站点查询返回空结果，不能当作可靠学习入口。公开客户端索引发现了“电竞钢背兽”，读取 https://yanfa.lol/meme/dianjing-gangbeishou 正文后获得包含 Bin 的原文摘录。临时目录冷启动完成学习，重建无搜索服务后从磁盘复用成功。真实 AOQ 使用生产工厂、host_turn_control=True 和新的 TurnPreparer，注入之前“皮糙肉厚”的错误历史，再用日志原问句询问，回答正确指向 Bin；第二轮重建 learner 并设置 provider=None 后，仍依据本地笔记正确回答，两项断言通过。模型第二次自行加了“又是这个梗”的开头，事实保持正确，不能声称所有朗读逐字一致。探针没有开启麦克风和扬声器。本机通过同一自动链路留下钢背兽来源笔记，没有手写该事实进经典库。
+- **测试与限制**　新增测试覆盖未知虚构外号学习、正文与摘要区分、重启断网复用、过期后失败不能沿用旧知识、并发复用及 Query 隔离、取消不写入、单来源标记、公开索引别称与安全路径、隐私／其他游戏／偏好排除及共享轮次装配。索引按需刷新与七天到期是配置策略，尚未经过整周实测。当前是可追溯的资料积累，非全面事实裁决；来源错误、覆盖不足、网络限制、题意和 ASR 歧义仍需澄清。未获得 B 站字幕、评论全量或微博登录后数据，也未后台爬取或自动学习私人对话。
+- **入口**　[学习服务](../src/boxagent/application/culture_learning.py)、[笔记模型](../src/boxagent/domain/proactivity/learned_culture.py)、[公开索引](../src/boxagent/infrastructure/web/culture_index.py)、[正文读取](../src/boxagent/infrastructure/web/culture_pages.py)、[本地存储](../src/boxagent/infrastructure/persistence/learned_culture.py)、[回归](../tests/test_culture_learning.py)。
+- **最终检查**　707 passed、13 skipped、160 subtests passed；Pyright 零错误、既有 PyAudio source-resolution 警告一条；git diff --check 通过。在语音关闭、任务空闲时重启桌宠，Engine health 返回 ready。
+
+
+### 2026-11-26 · LoL 知识库适配最新 main 并合并验证
+
+- **背景与问题**　本地 LoL 基础资料、赛事文化和按需学习基于旧目录，main 已迁移至 `src/` 并引入 Ruff 和 strict mypy。直接覆盖会丢失主干类型与工具分发改动。
+- **决策与做法**　在独立 Git worktree 三方合并，保留 main 的目录结构、默认模型及既有取消任务、任务状态和桌宠动作分发，补齐新语音来源字段的类型与资料模式校验。仅提交功能源码、公开资料、测试和文档；本机密钥、学习缓存和 VRM 下载文件不在提交范围内。
+- **验证与限制**　`uv run --locked ruff check`、`uv run --locked mypy` 均零诊断；Pyright 1.1.414 使用项目解释器检查零错误、零警告。完整 `uv run --locked pytest`：709 passed、13 skipped（Windows 专用传输及可选 Jev-Mem 解释器）。既有学习与语音事实约束回归通过；本次未使用真实麦克风、API Key 或抓取登录后社区内容。

@@ -21,6 +21,7 @@ from boxagent.agent.runtime.models import RuntimeMessage
 from boxagent.agent.runtime.registry import AgentRuntimeRegistry
 from boxagent.application.assistant import BoxAgentApplication, RuntimeResource
 from boxagent.application.context_checkpoint import ContextCheckpointCoordinator
+from boxagent.application.culture_learning import CultureLearningService
 from boxagent.application.lol_companion import LolCompanion
 from boxagent.application.skill_authoring import SkillAuthoringService
 from boxagent.bootstrap.memory import create_memory_module
@@ -43,6 +44,7 @@ from boxagent.domain.interaction.service import (
 from boxagent.domain.memory.contracts import MemoryBackend
 from boxagent.domain.notification import NotificationOutbox
 from boxagent.domain.proactivity.lol import LolCompanionPolicy, LolMoment
+from boxagent.domain.proactivity.lol_culture import LolCultureService
 from boxagent.domain.skill import SkillService
 from boxagent.infrastructure.context.qwen_ledger import QwenContextRecorder
 from boxagent.infrastructure.context.qwen_trace_history import QwenTraceHistory
@@ -58,6 +60,11 @@ from boxagent.infrastructure.persistence import (
     SkillFileRepository,
 )
 from boxagent.infrastructure.persistence.jsonl_context_ledger import JsonlContextLedgerStore
+from boxagent.infrastructure.persistence.learned_culture import JsonLearnedCultureRepository
+from boxagent.infrastructure.persistence.lol_culture import (
+    JsonCultureRepository,
+    load_culture_catalog,
+)
 from boxagent.infrastructure.persistence.session_events import SessionEventStore
 from boxagent.infrastructure.runtimes.codex import (
     CodexAgentRuntime,
@@ -68,6 +75,7 @@ from boxagent.infrastructure.runtimes.codex import (
 from boxagent.infrastructure.runtimes.codex.app_server import CodexAppServer
 from boxagent.infrastructure.runtimes.codex.computer_use import resolve_computer_use_home
 from boxagent.infrastructure.runtimes.codex.windows_skill import load_windows_skill
+from boxagent.infrastructure.web.culture_index import PublicCultureIndex
 
 if TYPE_CHECKING:
     from boxagent.infrastructure.runtimes.qwen.aoq import AoqRealtimeSession
@@ -274,16 +282,23 @@ def create_task_executor(
 
 
 def create_application(
-    publish: Callable[[dict[str, object]], None], *, task_provider: str | None = None,
-    task_model: str | None = None, auto_approve: bool = True,
-    memory_backend: MemoryBackend | None = None, voice_factory: VoiceFactory | None = None,
-    app_settings: Settings | None = None, registry: AgentRuntimeRegistry | None = None,
-    context_interval: float = 0, context_size: int = 960,
+    publish: Callable[[dict[str, object]], None],
+    *,
+    task_provider: str | None = None,
+    task_model: str | None = None,
+    auto_approve: bool = True,
+    memory_backend: MemoryBackend | None = None,
+    voice_factory: VoiceFactory | None = None,
+    app_settings: Settings | None = None,
+    registry: AgentRuntimeRegistry | None = None,
+    context_interval: float = 0,
+    context_size: int = 960,
 ) -> BoxAgentApplication:
     """Build the complete backend without importing AppKit or another UI module."""
     app_settings = app_settings or load_settings()
     registry = registry or create_agent_runtime_registry(app_settings)
     selected = registry.runtime(task_provider or app_settings.task_provider, task_model)
+
     def current_persona() -> Persona:
         source = app_settings.soul_file
         default = app_settings.root / "assets/personas/default/SOUL.md"
@@ -299,6 +314,7 @@ def create_application(
         UnifiedContextLedger,
         UnifiedSessionRepository,
     )
+
     use_unified = app_settings.uses_unified_sessions
     session_events = None
     conversation_store: SessionStore
@@ -317,6 +333,7 @@ def create_application(
         conversation_store = JsonlSessionStore(legacy_root)
         context_ledger = JsonlContextLedgerStore(legacy_root)
     context_log_path = app_settings.log_dir / "context/ledger.jsonl"
+
     def context_log(event: str, /, **data: object) -> None:
         append_jsonl(context_log_path, {"event": event, "occurred_at": time.time(), **data})
 
@@ -398,14 +415,29 @@ def create_application(
         checkpoint_sink=checkpoint_coordinator)
     from boxagent.application.turn_preparation import TurnPreparer
     from boxagent.bootstrap.memory import create_intent_reference
+
     intent_reference = create_intent_reference(app_settings) \
         if app_settings.intent_reference_enabled and app_settings.decision_api_key else None
     application: BoxAgentApplication
-    turn_preparer = TurnPreparer(memory,
+    lol_culture = LolCultureService(
+        load_culture_catalog(app_settings.root / "assets/knowledge/lol-culture.json"),
+        JsonCultureRepository(app_settings.data_dir / "games/lol-culture-preferences.json"),
+    )
+    web_research = create_web_research(app_settings)
+    culture_learner = CultureLearningService(
+        web_research.provider,
+        JsonLearnedCultureRepository(app_settings.data_dir / "games/learned-culture"),
+        discovery=PublicCultureIndex(app_settings.data_dir / "games/culture-search-index.json"),
+    )
+    turn_preparer = TurnPreparer(
+        memory,
+        culture=lol_culture,
+        culture_learner=culture_learner,
         intent=intent_reference,
         environment=lambda: context_projector.environment_packet(environment_provider.capture()),
         screen=lambda: current_screen_reference(application.events.state),
-        game=lambda: application.lol_companion.reference() if application.lol_companion else "")
+        game=lambda: application.lol_companion.reference() if application.lol_companion else "",
+    )
     front_voice_factory = voice_factory
     if front_voice_factory is None and app_settings.qwen_api_key:
         realtime_factory = create_voice_factory(
@@ -448,11 +480,13 @@ def create_application(
         front_voice_factory,
         memory=memory,
         turn_preparer=turn_preparer if voice_factory is None else None,
-        web_research=create_web_research(app_settings),
+        web_research=web_research,
         lol_knowledge=DataDragonKnowledge(
             app_settings.data_dir / "games" / "data-dragon",
             version=read_optional_setting("BOXAGENT_LOL_DATA_VERSION"),
-            locale=read_optional_setting("BOXAGENT_LOL_DATA_LOCALE") or "zh_CN"),
+            locale=read_optional_setting("BOXAGENT_LOL_DATA_LOCALE") or "zh_CN",
+        ),
+        lol_culture=lol_culture,
         conversation_service=conversation_service,
         notification_outbox=notification_outbox,
         skill_service=skill_service,
@@ -477,7 +511,8 @@ def create_application(
         ),
         voice_history_builder=partial(
             context_projector.restore_context,
-            character_budget=app_settings.qwen_history_character_budget),
+            character_budget=app_settings.qwen_history_character_budget,
+        ),
     )
     game_enabled = sys.platform == "darwin" and app_settings.game_companion_enabled
     game_entry_inbox = None
@@ -524,6 +559,7 @@ def create_application(
             or window["app"].casefold() == "league of legends"),
     )
     from boxagent.bootstrap.memory import configure_visual_memory
+
     application.observer = observer
     configure_visual_memory(memory, observer,
                             app_settings=app_settings, conversation_store=conversation_store)
