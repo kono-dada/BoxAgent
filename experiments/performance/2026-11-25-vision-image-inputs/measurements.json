@@ -828,5 +828,71 @@
       "mem-new": [[625126600, 1658811606, 631549204], [631549204, 1727807360, 631549204], [631549204, 1727431508, 631549204], [631549204, 1658844380, 631581978], [631581978, 1658877154, 631581978], [631581978, 1658877154, 631581978]]
     }
   },
-  "raw_archive_sha256": "3e561eb75227ac8a60554a1df6855381e8b3202fdb49f9fec0d7dcac3ae38749"
+  "raw_archive_sha256": "3e561eb75227ac8a60554a1df6855381e8b3202fdb49f9fec0d7dcac3ae38749",
+  "upstream_integration": {
+    "upstream_main": "d3568d649f3752aa1bad951b6ec669e5eae3adb1",
+    "vision_commit": "49ed85d28340036ddb3f1228a9f1c86c2c3c5116",
+    "protocol": "After incorporating upstream PR #21, verified all five worker file digests against the timed candidate. Replayed the four normal companion cases again, pairing older release 46c6266 with the integrated tree. These independent samples use the same renderer as the earlier production runs.",
+    "normal_companion": {
+      "latest_frame_to_result": {"pairs": 4, "baseline_p50_ms": 2306.22, "candidate_p50_ms": 2263.86, "reduction_pct": 1.84, "speedup": 1.019, "faster_pairs": 3, "baseline_p95_ms": 2379.13, "candidate_p95_ms": 2331.21},
+      "first_frame_to_result": {"pairs": 4, "baseline_p50_ms": 5049.3, "candidate_p50_ms": 5095.0, "reduction_pct": -0.91, "speedup": 0.991, "faster_pairs": 2, "baseline_p95_ms": 5587.24, "candidate_p95_ms": 5488.27},
+      "same_review": 4,
+      "matched_single_frame_descriptions": {"wall_time": {"pairs": 10, "baseline_p50_ms": 672.68, "candidate_p50_ms": 683.6, "reduction_pct": -1.62, "speedup": 0.984, "faster_pairs": 5, "baseline_p95_ms": 1322.85, "candidate_p95_ms": 1411.39}, "identical_text": 10},
+      "render_service": {"original": {"n_frames": 1159, "p50_ms": 16.59, "p95_ms": 23.85}, "optimized": {"n_frames": 1177, "p50_ms": 16.64, "p95_ms": 22.94}},
+      "samples": [
+        {
+          "case": "01-dialog-choices",
+          "from_latest_ms": [2210.76, 2331.21],
+          "from_first_ms": [5015.47, 5141.22],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["54c5f097b8d34e9a496dbf5f8f10fa710bc274adb374988f3be176d123ee2814", "fd4e74c00afd0ff5c131584a020d8b261c15e12fe309bc3fdf15871686694c7d"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [[], []]
+        },
+        {
+          "case": "02-echo-sequence",
+          "from_latest_ms": [2329.41, 2245.26],
+          "from_first_ms": [4534.4, 5048.78],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["7d3cd00d0dff20c891dae5b924150ea16fbde95fe1daf3cc6f672aa62f37f267", "bae948f7a199bf8f6631a921fe6bee52650ae71ba402361159386e49120f66af"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"], ["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"]]
+        },
+        {
+          "case": "03-camera-transition",
+          "from_latest_ms": [2283.03, 2228.38],
+          "from_first_ms": [5083.12, 5035.78],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["6eebe6a4679f85288ee063057c8165d878187451b97cf4823f03be6c4b05beb5", "6eebe6a4679f85288ee063057c8165d878187451b97cf4823f03be6c4b05beb5"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [[], []]
+        },
+        {
+          "case": "04-field-dialogue",
+          "from_latest_ms": [2379.13, 2282.47],
+          "from_first_ms": [5587.24, 5488.27],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["a3957f5bd3e911e87ad2f281871ff25fc69e0276087ed1cb2f0b588d6af7b5c5", "a3957f5bd3e911e87ad2f281871ff25fc69e0276087ed1cb2f0b588d6af7b5c5"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [["角色是红发少女，背景是蓝天白云和树木。"], ["角色是红发少女，背景是蓝天白云和树木。"]]
+        }
+      ]
+    },
+    "checks": {
+      "ruff": "All checks passed!",
+      "mypy": "Success: no issues found in 234 source files",
+      "pyright": "0 errors, 0 warnings, 0 informations",
+      "pytest": "======================= 719 passed, 13 skipped in 52.42s =======================",
+      "original-audio": "7 passed, 20 deselected in 0.14s",
+      "jev": "Ran 12 tests in 0.006s OK",
+      "pixel-parity": "Pixel tensors and image grids matched for four RGB images, including resize and retry.",
+      "packaged": "Packaged source contains all four visual worker modules, with contents verified."
+    },
+    "local_raw": "profile_output/integration.tar.gz",
+    "raw_archive_sha256": "2fd5da87a3c637b0336d6868b8a669b4ba077e0d3625a5c472faa31d8fd6835e"
+  }
 }

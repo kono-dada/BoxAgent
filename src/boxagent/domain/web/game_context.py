@@ -39,7 +39,10 @@ def game_clarification_reference(question: str) -> str:
 
 
 def preferred_game_sites(query: str) -> tuple[str, ...]:
-    """The first supported game prefers its publisher-hosted wiki and game wiki."""
+    """Prefer sources suited to either community terminology or gameplay facts."""
+    if any(name in query.casefold() for name in ("英雄联盟", "lol", "theshy")) and any(
+            word in query for word in ("名场面", "什么梗", "社区梗", "弹幕", "黑称", "粉丝称呼")):
+        return ("bilibili.com", "weibo.com", "m.weibo.cn")
     if "鸣潮" in query or "鸣朝" in query or "wuthering waves" in query.casefold():
         return ("wiki.kurobbs.com/mc/", "wiki.biligame.com/wutheringwaves/")
     return ()

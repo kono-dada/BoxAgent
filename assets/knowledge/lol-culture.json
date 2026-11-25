@@ -1,0 +1,1067 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "id": "theshy-aatrox",
+      "title": "天神下凡",
+      "aliases": [
+        "TheShy剑魔",
+        "剑魔天神下凡"
+      ],
+      "players": [
+        "TheShy",
+        "姜承録"
+      ],
+      "champions": [
+        "剑魔",
+        "亚托克斯",
+        "Aatrox"
+      ],
+      "event": "2018 全球总决赛半决赛，IG 对 G2",
+      "summary": "TheShy 的剑魔是这届半决赛官方高光回顾中的代表操作，中文社区用天神下凡称呼这段名场面。",
+      "usage": "用户谈到剑魔的精彩团战，或明确询问这个梗时使用。",
+      "avoid": "没有可靠画面或对局事件时，不能说用户刚复刻了这波操作。",
+      "source_url": "https://www.bilibili.com/video/av35028880",
+      "source_title": "S8之星：半决赛五佳选手",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "faker-ryu-zed",
+      "title": "双劫大战",
+      "aliases": [
+        "Faker反杀Ryu",
+        "岳伦",
+        "Faker vs Ryu"
+      ],
+      "players": [
+        "Faker",
+        "Ryu"
+      ],
+      "champions": [
+        "劫",
+        "Zed"
+      ],
+      "event": "2013 韩国职业赛，Faker 与 Ryu 的劫对决",
+      "summary": "Faker 和 Ryu 的劫对决成为反杀与操作讨论中的经典片段，LoL Esports 后来以双方名字重新发布回顾。",
+      "usage": "聊劫的操作、反杀和经典中路对决时可作类比。",
+      "avoid": "不要把解说惊呼编成 Faker 本人的发言，也不以此辱骂另一位选手。",
+      "source_url": "https://www.youtube.com/watch?v=DpDORYIo5Rc",
+      "source_title": "Faker vs Ryu — LoL Esports",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "xpeke-backdoor",
+      "title": "xPeke 偷家",
+      "aliases": [
+        "xPeke",
+        "卡萨丁偷家",
+        "XPeke backdoor"
+      ],
+      "players": [
+        "xPeke"
+      ],
+      "champions": [
+        "卡萨丁",
+        "Kassadin"
+      ],
+      "event": "Fnatic 对 SK Gaming 的经典拆家片段",
+      "summary": "xPeke 对 SK Gaming 的 backdoor 操作成为经典。LoL Esports 的回顾请 xPeke 本人谈了这次偷家。",
+      "usage": "讨论绕后拆家、结束比赛的决策或卡萨丁时使用。",
+      "avoid": "不能把推掉高地水晶说成比赛已结束；未核对的视频秒数不编造。",
+      "source_url": "https://www.youtube.com/watch?v=F6s2qdmMwAc",
+      "source_title": "xPeke's Greatest Play: The Legendary Backdoor",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "insec-kick",
+      "title": "inSec 回旋踢",
+      "aliases": [
+        "回旋踢",
+        "insec",
+        "摸眼回旋踢"
+      ],
+      "players": [
+        "inSec"
+      ],
+      "champions": [
+        "李青",
+        "盲僧",
+        "瞎子",
+        "Lee Sin"
+      ],
+      "event": "2013 全明星相关操作及其后形成的技能术语",
+      "summary": "赛事社区把李青绕到目标身后、用大招把对手踢向队友的操作称为 inSec。术语表把其流行与选手 inSec 在 2013 全明星的表现联系起来。",
+      "usage": "讨论李青位移衔接、大招方向或开团操作。",
+      "avoid": "说成选手让这招流行，不断言他是所有连招的唯一发明者。",
+      "source_url": "https://liquipedia.net/leagueoflegends/Glossary",
+      "source_title": "Liquipedia League of Legends Glossary",
+      "source_kind": "community_glossary",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "bin-fiora-penta",
+      "title": "Bin 剑姬五杀",
+      "aliases": [
+        "阿Bin剑姬",
+        "剑姬五杀",
+        "决赛五杀"
+      ],
+      "players": [
+        "Bin",
+        "陈泽彬",
+        "阿Bin"
+      ],
+      "champions": [
+        "剑姬",
+        "菲奥娜",
+        "Fiora"
+      ],
+      "event": "2020 全球总决赛决赛第二局，Suning 对 DAMWON Gaming",
+      "summary": "Bin 使用剑姬拿下全球总决赛决赛历史上的首次五杀。官方记录明确这是决赛首次，全球总决赛此前已有其他五杀。",
+      "usage": "用户聊剑姬、Bin 或比赛五杀时提起。",
+      "avoid": "不要说成整个全球总决赛历史上的第一次五杀，也不把该局胜利说成 Suning 最终夺冠。",
+      "source_url": "https://lolesports.com/en-GB/news/worlds-2020-by-the-numbers",
+      "source_title": "Worlds 2020 By The Numbers",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "deft-inhibitor",
+      "title": "Deft 拆家遇高地复活",
+      "aliases": [
+        "水晶复活",
+        "高地复活",
+        "Deft偷家",
+        "被水晶挡住"
+      ],
+      "players": [
+        "Deft",
+        "戴先生"
+      ],
+      "champions": [
+        "伊泽瑞尔",
+        "EZ",
+        "Ezreal"
+      ],
+      "event": "2022 全球总决赛 DRX 对 EDG 系列赛",
+      "summary": "Deft 的伊泽瑞尔尝试拆掉对方主基地时，高地水晶复活让基地重新受到保护，拆家没能完成。官方幕后回顾记录了这一瞬间。",
+      "usage": "谈到拆家差一点、建筑保护机制或 Deft 职业故事。",
+      "avoid": "不把高地水晶与主基地混为同一建筑，不嘲讽用户失败。",
+      "source_url": "https://lolesports.com/en-US/lolesports/news/making-of-a-god-behind-the-scenes-of-deft-s-worlds-2022",
+      "source_title": "Making of a God: Behind the Scenes of Deft's Worlds 2022",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "drx-2022-run",
+      "title": "DRX 逆袭之旅",
+      "aliases": [
+        "DRX奇迹",
+        "Deft夺冠",
+        "DRX2022"
+      ],
+      "players": [
+        "Deft",
+        "DRX",
+        "Zeka",
+        "Kingen",
+        "Pyosik",
+        "BeryL"
+      ],
+      "champions": [],
+      "event": "DRX 的 2022 全球总决赛征程",
+      "summary": "LoL Esports 的幕后长文记录了 DRX 从艰难晋级到世界赛征程的经历，以及 Deft 面对职业生涯压力的心路。",
+      "usage": "用户主动聊职业坚持或这支队伍时，作简短背景解释。",
+      "avoid": "不能把社区口号当作 Deft 的逐字原话；不用职业选手故事给用户施压。",
+      "source_url": "https://lolesports.com/en-US/lolesports/news/making-of-a-god-behind-the-scenes-of-deft-s-worlds-2022",
+      "source_title": "Making of a God: Behind the Scenes of Deft's Worlds 2022",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "faker-shockwave",
+      "title": "Faker 的发条冲击波",
+      "aliases": [
+        "Faker发条",
+        "Faker冲击波",
+        "shockwave"
+      ],
+      "players": [
+        "Faker"
+      ],
+      "champions": [
+        "发条",
+        "奥莉安娜",
+        "Orianna"
+      ],
+      "event": "LoL Esports 发条经典大招盘点",
+      "summary": "官方的七大经典发条大招盘点包含 Faker 的世界赛逆转名场面，把大招时机与团战配合作为回顾重点。",
+      "usage": "讨论发条大招、团控衔接或团战翻盘。",
+      "avoid": "没有进一步核对原场次时，不补写具体局数、经济差、命中人数或解说原句。",
+      "source_url": "https://www.youtube.com/watch?v=YRZqL0Tta0I",
+      "source_title": "The 7 Greatest Orianna Shockwaves in League of Legends History",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "faker-hall-2024",
+      "title": "Faker 名人堂",
+      "aliases": [
+        "Faker名人堂",
+        "Faker传奇",
+        "大魔王"
+      ],
+      "players": [
+        "Faker",
+        "李相赫"
+      ],
+      "champions": [],
+      "event": "2024 Hall of Legends",
+      "summary": "Faker 是 Hall of Legends 首位入选选手。Riot 的官方名人堂内容回顾他的职业影响。",
+      "usage": "用户询问 Faker 地位或名人堂背景时解释。",
+      "avoid": "不把历史收录日期当成当前冠军数量，也不虚构个人生活或性格。",
+      "source_url": "https://support.riotgames.com/en-us/league-of-legends/events/league-of-legends-hall-of-legends",
+      "source_title": "League of Legends — Hall of Legends",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "uzi-hall-2025",
+      "title": "Uzi 名人堂",
+      "aliases": [
+        "Uzi名人堂",
+        "Uzi传奇",
+        "小狗"
+      ],
+      "players": [
+        "Uzi",
+        "简自豪"
+      ],
+      "champions": [],
+      "event": "2025 Hall of Legends",
+      "summary": "Riot 于 2025 年公布 Uzi 为 Hall of Legends 第二位入选者，肯定他的下路表现与对赛事的影响。",
+      "usage": "用户聊 Uzi、下路职业选手或名人堂时解释。",
+      "avoid": "不把荣誉换算成未经资料支持的冠军数，不跟随粉丝互骂或编造选手语录。",
+      "source_url": "https://lolesports.com/en-US/news/uzi-honored-as-second-hall-of-legends-inductee",
+      "source_title": "Uzi Honored as Second Hall of Legends Inductee",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "pray-arrow",
+      "title": "PraY 一箭定江山",
+      "aliases": [
+        "一箭定江山",
+        "Pray神箭",
+        "鼠王神箭",
+        "一剑定江山"
+      ],
+      "players": [
+        "PraY",
+        "鼠王",
+        "Duke"
+      ],
+      "champions": [
+        "寒冰",
+        "艾希",
+        "Ashe"
+      ],
+      "event": "2016 全球总决赛，SKT 对 ROX",
+      "summary": "PraY 的寒冰大招跨越地图，延缓 Duke 回防，为 ROX 拆家争取时间，成为该系列赛的经典瞬间。",
+      "usage": "聊寒冰远距离大招、阻止回防和拆家配合。",
+      "avoid": "不凭这一局说 ROX 赢下整个系列赛；不补写准确距离或秒数。",
+      "source_url": "https://www.pcgamesn.com/league-of-legends/lol-skt-rox-ashe-arrow",
+      "source_title": "The best play of LoL Worlds 2016 wasn't enough to beat SKT",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "gorilla-mf-support",
+      "title": "GorillA 女枪辅助",
+      "aliases": [
+        "女枪辅助",
+        "辅助女枪",
+        "Gorilla女枪"
+      ],
+      "players": [
+        "GorillA",
+        "ROX"
+      ],
+      "champions": [
+        "女枪",
+        "厄运小姐",
+        "Miss Fortune"
+      ],
+      "event": "2016 全球总决赛半决赛，ROX 对 SKT",
+      "summary": "ROX 在对阵 SKT 的半决赛拿出女枪辅助这一奇招，官方回顾把它列为系列赛亮点。",
+      "usage": "聊辅助选角、非传统组合和赛场战术惊喜。",
+      "avoid": "历史成功不代表当前版本或所有阵容都适用，不鼓励用户盲目照搬。",
+      "source_url": "https://na.leagueoflegends.com/en/featured/relive-worlds-2016",
+      "source_title": "Relive Worlds 2016",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "bengi-2016-rescue",
+      "title": "Bengi 关键救场",
+      "aliases": [
+        "笨鸡救场",
+        "上帝右手",
+        "Bengi救场"
+      ],
+      "players": [
+        "Bengi",
+        "笨鸡",
+        "SKT"
+      ],
+      "champions": [],
+      "event": "2016 全球总决赛半决赛及决赛",
+      "summary": "官方回顾把 Bengi 视为 SKT 在关键局稳住比赛的重要人物，记录了他与 Faker 的配合。",
+      "usage": "聊老将、关键局心态和中野配合。",
+      "avoid": "本条不提供具体局的英雄与刷野路线，不把比喻当成选手自称。",
+      "source_url": "https://na.leagueoflegends.com/en/featured/relive-worlds-2016",
+      "source_title": "Relive Worlds 2016",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anx-2016-quarterfinal",
+      "title": "ANX 外卡八强",
+      "aliases": [
+        "外卡八强",
+        "ANX奇迹",
+        "ANX黑马"
+      ],
+      "players": [
+        "ANX",
+        "Albus NoX Luna",
+        "Likkrit"
+      ],
+      "champions": [],
+      "event": "2016 全球总决赛",
+      "summary": "Albus NoX Luna 成为首支进入全球总决赛八强的外卡队伍，Likkrit 的游走和非常规打法受到关注。",
+      "usage": "聊黑马、冷门和不被看好的队伍。",
+      "avoid": "八强不等于夺冠；不要把国际外卡称谓直接套到今日赛事制度。",
+      "source_url": "https://na.leagueoflegends.com/en/featured/relive-worlds-2016",
+      "source_title": "Relive Worlds 2016",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "smeb-kennen",
+      "title": "Smeb 凯南天雷",
+      "aliases": [
+        "凯南天雷",
+        "Smeb凯南",
+        "电耗子天雷"
+      ],
+      "players": [
+        "Smeb",
+        "ROX"
+      ],
+      "champions": [
+        "凯南",
+        "Kennen"
+      ],
+      "event": "2016 全球总决赛，ROX 对 G2",
+      "summary": "Smeb 的凯南抓住对手聚集的机会进场，成为 ROX 对 G2 团战中的经典高光。",
+      "usage": "聊凯南进场、范围团控和团战时机。",
+      "avoid": "不补写命中人数或伤害数字，不将相似操作直接称为复刻。",
+      "source_url": "https://www.redbull.com/dk-da/best-plays-at-league-of-legends-worlds-2016",
+      "source_title": "League of Legends Worlds 2016: best plays",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "faker-five-galios",
+      "title": "Faker 五把加里奥",
+      "aliases": [
+        "五把加里奥",
+        "Faker加里奥",
+        "五选加里奥",
+        "五霸加里奥",
+        "五把咖喱奥"
+      ],
+      "players": [
+        "Faker",
+        "SKT",
+        "RNG"
+      ],
+      "champions": [
+        "加里奥",
+        "Galio"
+      ],
+      "event": "2017 全球总决赛半决赛，SKT 对 RNG",
+      "summary": "Faker 在这个打满五局的系列赛连续选择加里奥。赛后采访和赛事分析记录了这一选角话题。",
+      "usage": "聊加里奥支援、系列赛适应和选手招牌表现。",
+      "avoid": "不是五局全胜，也不能仅用某次 BP 断言所有失利原因。",
+      "source_url": "https://www.invenglobal.com/articles/3416/why-did-faker-pick-galio-five-times",
+      "source_title": "Why Did Faker Pick Galio Five Times?",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "flame-horizon",
+      "title": "Flame Horizon 百刀压制",
+      "aliases": [
+        "Flame Horizon",
+        "百刀压制",
+        "百刀领先"
+      ],
+      "players": [
+        "Flame"
+      ],
+      "champions": [],
+      "event": "与职业选手 Flame 联系在一起的赛事术语",
+      "summary": "Flame Horizon 通常指对位补刀领先至少 100 刀；社区术语资料将名字与 Flame 的对线表现联系起来。",
+      "usage": "解释补刀差和这个选手相关术语。",
+      "avoid": "不是系统提供的额外增益，也不能仅凭补刀差断言当前输赢。",
+      "source_url": "https://wiki.leagueoflegends.com/en-us/Terminology",
+      "source_title": "League of Legends Wiki — Terminology",
+      "source_kind": "community_reference",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "ten-death-powerspike",
+      "title": "十死强势期",
+      "aliases": [
+        "0/10 powerspike",
+        "010强势期",
+        "十死超神",
+        "十次死亡强势期"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "英雄联盟社区玩笑",
+      "summary": "十死强势期是调侃死亡很多后会突然变强的社区玩笑，不是游戏中的真实属性机制。",
+      "usage": "仅在用户明确问梗意或主动自嘲时解释。",
+      "avoid": "不拿它挖苦用户、队友或职业选手，不暗示故意送死能变强。",
+      "source_url": "https://wiki.leagueoflegends.com/en-us/Terminology",
+      "source_title": "League of Legends Wiki — Terminology",
+      "source_kind": "community_reference",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "madlife-hooks",
+      "title": "MadLife 神钩",
+      "aliases": [
+        "MadLife",
+        "神钩",
+        "Madlife预判钩"
+      ],
+      "players": [
+        "MadLife"
+      ],
+      "champions": [
+        "锤石",
+        "Thresh"
+      ],
+      "event": "LoL Esports 的经典锤石操作盘点",
+      "summary": "MadLife 的锤石操作被收入官方经典盘点，玩家聊到他的高光时常联想到预判与钩子命中。",
+      "usage": "聊锤石预判、辅助选手和钩子型英雄的操作。",
+      "avoid": "不编具体哪场、哪个对手或命中率，也不宣称他发明了所有钩子技巧。",
+      "source_url": "https://www.youtube.com/watch?v=xxuPn8JnfK4",
+      "source_title": "Top 5 GENIUS Thresh plays in LoL Esports History",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "wombo-combo",
+      "title": "Wombo Combo 团战连招",
+      "aliases": [
+        "Wombo Combo",
+        "团战连招",
+        "完美团控"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "游戏社区与英雄联盟解说术语",
+      "summary": "Wombo Combo 在英雄联盟语境中指队友技能有效衔接，形成连续的团战配合。",
+      "usage": "用户询问英文解说词，或主动聊团战技能衔接。",
+      "avoid": "不是特定版本唯一阵容，也不将普通单人操作夸成整队完美配合。",
+      "source_url": "https://wiki.leagueoflegends.com/en-us/Terminology",
+      "source_title": "League of Legends Wiki — Terminology",
+      "source_kind": "community_reference",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "faker-azir-ruler-2023",
+      "title": "Faker 沙皇推尺",
+      "aliases": [
+        "沙皇推尺",
+        "Faker推尺",
+        "推回Ruler",
+        "沙皇推迟"
+      ],
+      "players": [
+        "Faker",
+        "Ruler",
+        "T1",
+        "JDG"
+      ],
+      "champions": [
+        "沙皇",
+        "阿兹尔",
+        "Azir"
+      ],
+      "event": "2023 全球总决赛半决赛第三局，JDG 对 T1",
+      "summary": "Faker 的沙皇在这一局对 Ruler 的关键开团，是该系列赛广为回看的名场面。",
+      "usage": "聊沙皇开团、关键目标与经典半决赛。",
+      "avoid": "不捏造选手即时心理，不把一波开团当作整场系列赛的唯一胜因。",
+      "source_url": "https://www.youtube.com/watch?v=B8Gj5SSZjGY",
+      "source_title": "JDG vs T1 — Game 3, Worlds 2023 Semifinals",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "kingen-2022-mvp",
+      "title": "Kingen 的 S12 FMVP",
+      "aliases": [
+        "Kingen剑魔",
+        "S12FMVP",
+        "Kingen决赛MVP"
+      ],
+      "players": [
+        "Kingen",
+        "DRX"
+      ],
+      "champions": [
+        "剑魔",
+        "亚托克斯",
+        "Aatrox"
+      ],
+      "event": "2022 全球总决赛决赛",
+      "summary": "Kingen 获得 2022 全球总决赛决赛 MVP，成为 DRX 冠军故事中的关键人物。",
+      "usage": "聊 DRX 冠军、上路选手和决赛 MVP。",
+      "avoid": "MVP 是决赛奖项，不能直接表述为整个赛季唯一最佳选手。",
+      "source_url": "https://www.invenglobal.com/articles/18035/kingen-named-2022-oneplus-finals-mvp",
+      "source_title": "Kingen named 2022 ONEPLUS Finals MVP",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "ig-2018-first-lpl",
+      "title": "IG 的 LPL 首冠",
+      "aliases": [
+        "IG首冠",
+        "LPL首冠",
+        "IG2018",
+        "仁川夺冠"
+      ],
+      "players": [
+        "IG",
+        "Invictus Gaming",
+        "Rookie",
+        "TheShy",
+        "JackeyLove",
+        "Ning",
+        "Baolan"
+      ],
+      "champions": [],
+      "event": "2018 全球总决赛决赛",
+      "summary": "IG 在 2018 全球总决赛决赛战胜 Fnatic，为 LPL 拿到首座全球总决赛冠军。",
+      "usage": "聊 IG、仁川记忆和 LPL 的世界赛历史。",
+      "avoid": "明确是 LPL 首个全球总决赛冠军，不泛化成中国电竞第一次夺冠。",
+      "source_url": "https://nexus.leagueoflegends.com/en-us/2018/11/an-lpl-first-invictus-gaming-wins-it-all/",
+      "source_title": "An LPL First: Invictus Gaming Wins It All",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "fpx-2019-title",
+      "title": "FPX 凤凰夺冠",
+      "aliases": [
+        "FPX2019",
+        "凤凰夺冠",
+        "FPX冠军"
+      ],
+      "players": [
+        "FPX",
+        "FunPlus Phoenix",
+        "Doinb",
+        "Tian",
+        "Lwx",
+        "Crisp",
+        "GimGoon"
+      ],
+      "champions": [],
+      "event": "2019 全球总决赛决赛，FPX 对 G2",
+      "summary": "FPX 在 2019 全球总决赛决赛击败 G2，成为那一年的世界冠军。",
+      "usage": "聊凤凰队、Doinb 与 Tian 的冠军征程。",
+      "avoid": "不要把同年 G2 的 MSI 冠军误说成世界赛冠军。",
+      "source_url": "https://www.oneesports.gg/league-of-legends/get-to-know-league-of-legends-2019-world-champions-funplus-phoenix/",
+      "source_title": "Get to know League of Legends 2019 World Champions, FunPlus Phoenix",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "edg-2021-title",
+      "title": "EDG S11 夺冠",
+      "aliases": [
+        "EDG夺冠",
+        "EDG2021",
+        "S11冠军"
+      ],
+      "players": [
+        "EDG",
+        "Scout",
+        "Meiko",
+        "JieJie",
+        "Viper",
+        "Flandre"
+      ],
+      "champions": [],
+      "event": "2021 全球总决赛决赛，EDG 对 DWG KIA",
+      "summary": "EDG 在 2021 全球总决赛决赛以 3 比 2 战胜 DWG KIA，拿到队史首个世界赛冠军。",
+      "usage": "聊 EDG、决胜局和 S11 冠军回忆。",
+      "avoid": "不要把电子竞技俱乐部其他项目的冠军混入英雄联盟战绩。",
+      "source_url": "https://en.wikipedia.org/wiki/2021_League_of_Legends_World_Championship_final",
+      "source_title": "2021 League of Legends World Championship final",
+      "source_kind": "community_reference",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "g2-msi-2019",
+      "title": "G2 的 MSI 冠军",
+      "aliases": [
+        "G2MSI",
+        "G22019",
+        "欧洲MSI冠军"
+      ],
+      "players": [
+        "G2",
+        "Caps",
+        "Perkz",
+        "Wunder",
+        "Jankos",
+        "Mikyx"
+      ],
+      "champions": [],
+      "event": "2019 MSI 决赛，G2 对 Team Liquid",
+      "summary": "G2 在 2019 MSI 决赛以 3 比 0 战胜 Team Liquid，拿下该届 MSI 冠军。",
+      "usage": "聊欧洲战队和 G2 的国际赛高光。",
+      "avoid": "MSI 与全球总决赛是不同赛事，不混用冠军身份。",
+      "source_url": "https://nexus.leagueoflegends.com/en-us/2019/05/msi-2019-winners/",
+      "source_title": "ONE KING TO RULE THEM ALL",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "tl-ig-msi-2019",
+      "title": "TL 爆冷淘汰 IG",
+      "aliases": [
+        "TL淘汰IG",
+        "液体淘汰IG",
+        "TL2019半决赛"
+      ],
+      "players": [
+        "Team Liquid",
+        "TL",
+        "IG",
+        "Doublelift",
+        "CoreJJ"
+      ],
+      "champions": [],
+      "event": "2019 MSI 半决赛，Team Liquid 对 IG",
+      "summary": "Team Liquid 在这场半决赛战胜 IG，晋级 MSI 决赛，是当届比赛的焦点冷门。",
+      "usage": "聊北美战队、爆冷和 MSI 往事。",
+      "avoid": "晋级决赛不代表赢下最终冠军。",
+      "source_url": "https://sports.yahoo.com/team-liquid-stun-invictus-gaming-msi-semifinal-165327906--spt.html",
+      "source_title": "Team Liquid stun Invictus Gaming in MSI semifinal",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "tes-fnc-reverse-2020",
+      "title": "TES 对 FNC 让二追三",
+      "aliases": [
+        "TES让二追三",
+        "滔搏让二追三",
+        "FNC让二追三"
+      ],
+      "players": [
+        "TES",
+        "Top Esports",
+        "Fnatic",
+        "FNC",
+        "Karsa",
+        "JackeyLove",
+        "Knight",
+        "369"
+      ],
+      "champions": [],
+      "event": "2020 全球总决赛四分之一决赛",
+      "summary": "TES 在对 Fnatic 的系列赛先输两局后连赢三局，完成全球总决赛正赛淘汰赛中经典的让二追三。",
+      "usage": "聊落后时的调整、BO5 和逆转。",
+      "avoid": "不借这个故事要求用户硬撑或暗示每场劣势都能翻盘。",
+      "source_url": "https://www.invenglobal.com/articles/12510/worlds-2020-top-esports-reverse-sweeps-fnatic-in-epic-5-game-series",
+      "source_title": "Top Esports reverse sweeps Fnatic in epic 5-game series",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "rng-msi-2018",
+      "title": "Uzi 与 RNG 的 MSI 冠军",
+      "aliases": [
+        "RNG2018MSI",
+        "UziMSI",
+        "RNG季中冠军"
+      ],
+      "players": [
+        "RNG",
+        "Uzi",
+        "简自豪"
+      ],
+      "champions": [],
+      "event": "2018 MSI",
+      "summary": "Uzi 与 RNG 在 2018 年夺得 MSI 冠军，官方历届 MSI 名场面回顾记录了这一段征程。",
+      "usage": "聊 Uzi、RNG 和国际赛事冠军。",
+      "avoid": "不能据此说 RNG 获得该年全球总决赛冠军。",
+      "source_url": "https://lolesports.com/en-US/news/top-moments-in-msi-history",
+      "source_title": "Top Moments in MSI History",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "ning-2018-fmvp",
+      "title": "Ning 的 S8 FMVP",
+      "aliases": [
+        "宁王FMVP",
+        "NingFMVP",
+        "S8FMVP"
+      ],
+      "players": [
+        "Ning",
+        "宁王",
+        "高振宁",
+        "IG"
+      ],
+      "champions": [],
+      "event": "2018 全球总决赛决赛",
+      "summary": "IG 打野 Ning 获得 2018 全球总决赛决赛 MVP。",
+      "usage": "用户聊冠军打野、IG 和决赛奖项。",
+      "avoid": "不把决赛奖项说成对一个选手整个职业生涯的排名。",
+      "source_url": "https://www.invenglobal.com/articles/6646/ning-is-your-2018-league-of-legends-world-championship-finals-mvp",
+      "source_title": "Ning is your 2018 World Championship Finals MVP",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-rise-2018",
+      "title": "RISE 登峰造极",
+      "aliases": [
+        "RISE",
+        "登峰造极",
+        "2018主题曲"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2018 全球总决赛主题曲",
+      "summary": "RISE 是 2018 全球总决赛主题曲，由 The Glitch Mob、Mako 和 The Word Alive 参与演出。",
+      "usage": "聊 S8 主题曲、赛前氛围和世界赛回忆。",
+      "avoid": "不引用整段歌词，不把 MV 的艺术化画面当逐帧比赛事实。",
+      "source_url": "https://www.youtube.com/watch?v=fB8TyLTD7EE",
+      "source_title": "RISE — Worlds 2018",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-phoenix-2019",
+      "title": "Phoenix 涅槃",
+      "aliases": [
+        "Phoenix主题曲",
+        "2019主题曲",
+        "涅槃主题曲"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2019 全球总决赛主题曲",
+      "summary": "Phoenix 是 2019 全球总决赛主题曲，由 Cailin Russo 和 Chrissy Costanza 演唱。",
+      "usage": "聊世界赛主题曲和 2019 年赛事文化。",
+      "avoid": "歌曲名称与 FPX 队名相关词汇相同，不代表歌曲专为冠军队事后创作。",
+      "source_url": "https://www.youtube.com/watch?v=i1IKnWDecwA",
+      "source_title": "Phoenix — Worlds 2019",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-legends-2017",
+      "title": "Legends Never Die",
+      "aliases": [
+        "传奇永不熄",
+        "2017主题曲",
+        "Legends Never Die"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2017 全球总决赛主题曲",
+      "summary": "Legends Never Die 是 Against The Current 演唱的 2017 全球总决赛主题曲。",
+      "usage": "用户聊世界赛音乐或解释这句英文标题。",
+      "avoid": "不把歌词当作职业选手发言，不提供长段歌词。",
+      "source_url": "https://www.invenglobal.com/articles/2965/the-release-of-league-of-legends-2017-world-championship-theme-song-legends-never-die",
+      "source_title": "The Release of Worlds 2017 Theme Song: Legends Never Die",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-takeover-2020",
+      "title": "Take Over 所向无前",
+      "aliases": [
+        "Take Over",
+        "所向无前",
+        "2020主题曲"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2020 全球总决赛主题曲",
+      "summary": "Take Over 是 2020 全球总决赛主题曲，Spotify 的幕后采访介绍了这首赛事歌曲的创作背景。",
+      "usage": "聊 S10 主题曲和赛前氛围。",
+      "avoid": "不把宣传动画直接当作真实赛事录像。",
+      "source_url": "https://newsroom.spotify.com/2020-09-25/behind-the-scenes-of-the-league-of-legends-2020-worlds-anthem/",
+      "source_title": "Behind the Scenes of the League of Legends 2020 Worlds Anthem",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-burn-2021",
+      "title": "Burn It All Down 不破不立",
+      "aliases": [
+        "Burn It All Down",
+        "不破不立",
+        "2021主题曲"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2021 全球总决赛主题曲",
+      "summary": "Burn It All Down 是 PVRIS 参与演唱的 2021 全球总决赛主题曲。",
+      "usage": "用户聊 S11 主题曲或其中文常见称呼。",
+      "avoid": "不提供整段歌词，不假定用户喜欢某种音乐。",
+      "source_url": "https://www.youtube.com/watch?v=1Z6CHioIn3s",
+      "source_title": "Burn It All Down — Worlds 2021",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-starwalkin-2022",
+      "title": "STAR WALKIN 逐星",
+      "aliases": [
+        "STAR WALKIN",
+        "逐星",
+        "2022主题曲"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2022 全球总决赛主题曲",
+      "summary": "LoL Esports 与 Lil Nas X 发布 STAR WALKIN 作为 2022 全球总决赛主题曲。",
+      "usage": "聊 S12 音乐与世界赛回忆。",
+      "avoid": "歌曲发布时间与某场比赛结果没有因果关系。",
+      "source_url": "https://lolesports.com/en-US/news/the-one-only-star-walkin-",
+      "source_title": "The One & Only STAR WALKIN",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-gods-2023",
+      "title": "GODS 登神",
+      "aliases": [
+        "GODS",
+        "登神主题曲",
+        "2023主题曲"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2023 全球总决赛主题曲",
+      "summary": "GODS 是 NewJeans 演唱的 2023 全球总决赛主题曲，官方开幕式介绍列出了该曲表演。",
+      "usage": "聊 S13 主题曲和开幕式；登神作为中文检索别称。",
+      "avoid": "不要从歌曲标题推断某位选手的发言或未核实的 MV 细节。",
+      "source_url": "https://lolesports.com/en-US/news/worlds-2023-opening-ceremony-presented-by-mastercard",
+      "source_title": "Worlds 2023 Opening Ceremony Presented by Mastercard",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "anthem-crown-2024",
+      "title": "Heavy Is The Crown 王冠之重",
+      "aliases": [
+        "Heavy Is The Crown",
+        "王冠之重",
+        "2024主题曲"
+      ],
+      "players": [],
+      "champions": [],
+      "event": "2024 全球总决赛主题曲",
+      "summary": "Heavy Is The Crown 由 Linkin Park 演唱，是 2024 全球总决赛官方主题曲。",
+      "usage": "聊世界赛音乐和冠军压力的作品表达。",
+      "avoid": "不把音乐作品的表达当成真实选手的心理诊断。",
+      "source_url": "https://www.youtube.com/watch?v=5FrhtahQiRc",
+      "source_title": "Heavy Is The Crown — Worlds 2024 Anthem",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "skt-2016-repeat-title",
+      "title": "SKT 的 S6 卫冕",
+      "aliases": [
+        "SKT2016",
+        "S6卫冕",
+        "SKT连冠"
+      ],
+      "players": [
+        "SKT",
+        "Faker",
+        "Bengi",
+        "Bang",
+        "Wolf",
+        "Duke"
+      ],
+      "champions": [],
+      "event": "2016 全球总决赛",
+      "summary": "SKT 在 2016 年夺冠，完成 2015 和 2016 两届全球总决赛连冠。",
+      "usage": "用户聊早期 SKT 冠军历史或中野组合。",
+      "avoid": "限定这两个年份，不直接将当年的累计冠军数当作选手现在的总数。",
+      "source_url": "https://na.leagueoflegends.com/en/featured/relive-worlds-2016",
+      "source_title": "Relive Worlds 2016",
+      "source_kind": "official_article",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "t1-2023-title",
+      "title": "T1 的 S13 冠军阵容",
+      "aliases": [
+        "T12023",
+        "S13冠军",
+        "T1冠军阵容"
+      ],
+      "players": [
+        "T1",
+        "Zeus",
+        "Oner",
+        "Faker",
+        "Gumayusi",
+        "Keria"
+      ],
+      "champions": [],
+      "event": "2023 全球总决赛冠军",
+      "summary": "官方冠军皮肤预告纪念 Zeus、Oner、Faker、Gumayusi、Keria 随 T1 获得 2023 全球总决赛冠军。",
+      "usage": "用户询问当年的冠军阵容和纪念皮肤背景。",
+      "avoid": "历史冠军阵容不等于战队当前在役名单。",
+      "source_url": "https://www.youtube.com/watch?v=O80IY4TO420",
+      "source_title": "T1: World Championship 2023 — Official Skins Trailer",
+      "source_kind": "official_video",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null
+    },
+    {
+      "id": "theshy-matou",
+      "title": "马头（电竞社区称呼）",
+      "aliases": [
+        "马头"
+      ],
+      "players": [
+        "TheShy",
+        "姜承録"
+      ],
+      "champions": [],
+      "event": "英雄联盟中文社区用语，并非具体比赛操作",
+      "summary": "在部分英雄联盟社区中，“马头”是指 TheShy 的外号，通常带嘲讽或贬义，也有人在夸赞时使用。具体语气取决于上下文，不能当作他的正式称呼。",
+      "usage": "用户明确问词义时解释，保留语境；不用于主动评价选手或粉丝。",
+      "avoid": "不能把社区对外貌的嘲讽当成客观评价；不声称已确认最早首创者，不复述未核实的法律细节。",
+      "source_url": "https://cnmeme.wiki/entry/%E9%A9%AC%E5%A4%B4",
+      "source_title": "马头｜梗Wiki",
+      "source_kind": "community_glossary",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null,
+      "requires_lol_context": true,
+      "allow_banter": false
+    },
+    {
+      "id": "theshy-fans-jiangshi",
+      "title": "僵尸／姜丝（电竞粉丝称呼）",
+      "aliases": [
+        "僵尸",
+        "姜丝",
+        "僵尸粉丝"
+      ],
+      "players": [
+        "TheShy",
+        "姜承録"
+      ],
+      "champions": [],
+      "event": "英雄联盟中文社区用语，并非具体比赛操作",
+      "summary": "在部分英雄联盟电竞讨论中，“僵尸”“姜丝”用于指 TheShy 的粉丝，与他姓姜的谐音有关，常带贬义，也有人自嘲使用。这不是对所有粉丝行为的事实判断。",
+      "usage": "用户明确问词义时解释，保留语境；不用于主动评价选手或粉丝。",
+      "avoid": "不能混同微博僵尸粉、赛恩的死亡后形态或植物大战僵尸；不推断所有支持者都极端，不把外界称呼说成粉丝统一自称。",
+      "source_url": "https://csgo.5eplay.com/article/230810zdilhe",
+      "source_title": "比赛结束，场外没有：EDG赛中鸡汤引发TheShy粉丝集体不满",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null,
+      "requires_lol_context": true,
+      "allow_banter": false
+    },
+    {
+      "id": "theshy-daozhang",
+      "title": "道长（电竞社区称呼）",
+      "aliases": [
+        "道长"
+      ],
+      "players": [
+        "TheShy"
+      ],
+      "champions": [],
+      "event": "英雄联盟中文社区用语，并非具体比赛操作",
+      "summary": "在部分英雄联盟社区里，“道长”会被用来调侃击败或对位单杀 TheShy 的选手，和把其粉丝称为“僵尸”的说法相连。它不是某位选手固定的官方称号。",
+      "usage": "用户明确问词义时解释，保留语境；不用于主动评价选手或粉丝。",
+      "avoid": "不能认为所有击败过TheShy的人都有这个称号；不把粉丝对立当成比赛事实，不编造某场赛后采访原话。",
+      "source_url": "https://csgo.5eplay.com/article/230810zdilhe",
+      "source_title": "比赛结束，场外没有：EDG赛中鸡汤引发TheShy粉丝集体不满",
+      "source_kind": "esports_report",
+      "checked_at": "2026-11-23",
+      "video_offset_seconds": null,
+      "requires_lol_context": true,
+      "allow_banter": false
+    }
+  ]
+}

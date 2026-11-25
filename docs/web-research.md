@@ -129,3 +129,9 @@ uv run --python 3.12 python scripts/experiments/web_research_smoke.py --live \
 | 后续 | ASR/TTS | 已有 Qwen AOQ 全双工，不急于替换；只有声音、质量或成本有明确收益时再做可选语音适配 |
 
 首版验收要求是“真实搜索、可追溯来源、版本不乱说、失败不冒充成功”。基础工具接通后，仍需用选定宣传片台词检查实际前台回复和现场游戏体验；不能把测试 fixture、单次网页读取或提示词视为完整验收。
+
+## 百炼搜索与 LoL Wiki（2026-11-23）
+
+源码运行可在本机 .env.local 设置 BOXAGENT_WEB_PROVIDER=bailian，复用 DASHSCOPE_API_KEY 和现有百炼 Workspace。可用 BOXAGENT_WEB_SEARCH_MODEL 覆盖搜索模型，默认 qwen-plus。搜索使用 DashScope 原生返回的来源列表，缺少来源元数据时报错。默认未设置时沿用 DeepSeek。
+
+LoL Wiki 的 HTTPS 词条链接由公开 MediaWiki parse API 直接读取，不需要 DeepSeek Key，不向 Wiki 发送百炼 Key。其他网站的正文继续走原有 DeepSeek Fetch 服务。百炼搜索成功不能证明网页正文已读取，应用仍分别显示来源读取状态。查看护甲词条可测试 https://wiki.leagueoflegends.com/en-us/Armor 。

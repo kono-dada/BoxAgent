@@ -5,6 +5,7 @@ import json
 import logging
 import time
 from collections.abc import Callable, Iterable
+from dataclasses import asdict
 from typing import Any, Literal, Protocol
 from uuid import uuid4
 
@@ -45,6 +46,7 @@ from boxagent.domain.notification import NotificationOutbox
 from boxagent.domain.notification.models import NotificationItem
 from boxagent.domain.perception.service import PerceptionObserver, PerceptionService
 from boxagent.domain.proactivity.game_news import Game, GameNews
+from boxagent.domain.proactivity.lol_culture import LolCultureService
 from boxagent.domain.proactivity.lol_knowledge import LolKnowledge, LolKnowledgeKind
 from boxagent.domain.skill import SkillDraftStatus
 from boxagent.domain.skill.service import SkillService
@@ -91,6 +93,7 @@ class BoxAgentApplication:
         turn_preparer: _TurnPreparation | None = None,
         web_research: WebResearchService | None = None,
         lol_knowledge: LolKnowledge | None = None,
+        lol_culture: LolCultureService | None = None,
     ) -> None:
         self.events = StateEvents(publish)
         self.camera: CameraInteractionService | None = None
@@ -102,6 +105,7 @@ class BoxAgentApplication:
         self.memory = memory or DisabledMemoryModule()
         self.web_research = web_research or WebResearchService(None)
         self.lol_knowledge = lol_knowledge
+        self.lol_culture = lol_culture
         self.skill_service = skill_service
         self.skill_authoring = skill_authoring
         self.task_trace_reader = task_trace_reader
@@ -736,28 +740,40 @@ class BoxAgentApplication:
             return True
         return False
 
-    async def _lookup_lol_knowledge(self, data: object,
-                                    interaction: InteractionContext | None) -> dict[str, object]:
+    async def _lookup_lol_knowledge(
+        self, data: object, interaction: InteractionContext | None
+    ) -> dict[str, object]:
         if self.lol_knowledge is None:
-            return {"status": "failed", "message": "当前无法查询 Riot 资料"}
+            return {"status": "failed", "message": "当前无法查询 LoL 资料"}
         if not isinstance(data, dict):
             return {"status": "failed", "message": "请选择英雄或装备并提供名称"}
         kind = data.get("kind")
         name = data.get("name")
+        categories: dict[str, LolKnowledgeKind] = {
+            value: value
+            for value in ("champion", "item", "rune", "summoner", "basic", "champion_detail")
+        }
         if (
-            kind not in ("champion", "item")
+            not isinstance(kind, str)
+            or kind not in categories
             or not isinstance(name, str)
             or not 1 <= len(name.strip()) <= 80
         ):
-            return {"status": "failed", "message": "请选择英雄或装备并提供准确名称"}
-        category: LolKnowledgeKind = "champion" if kind == "champion" else "item"
+            return {
+                "status": "failed",
+                "message": "请选择英雄、装备、符文、召唤师技能或基础知识并提供名称",
+            }
+        category = categories[kind]
         try:
             entry = await self.lol_knowledge.lookup(category, name.strip())
         except (OSError, ValueError):
-            return {"status": "failed", "message": "暂时无法读取 Riot Data Dragon，请稍后再试"}
+            return {
+                "status": "failed",
+                "message": "暂时无法读取 LoL 资料源，请稍后再试或使用已缓存的资料",
+            }
         if entry is None:
             return {"status": "not_found", "message": "没有匹配的资料，请核对英雄或装备的正式名称"}
-        title = f"{entry.name} · Riot Data Dragon {entry.version}"
+        title = f"{entry.name} · {entry.source_name} {entry.version}"
         await self._publish_web_research(
             {
                 "session_id": "",
@@ -772,7 +788,7 @@ class BoxAgentApplication:
                         "title": title,
                         "url": entry.source_url,
                         "published_at": None,
-                        "site_name": "Riot Data Dragon",
+                        "site_name": entry.source_name,
                         "read_status": "read",
                     }
                 ],
@@ -786,8 +802,97 @@ class BoxAgentApplication:
             "catalog_version": entry.version,
             "locale": entry.locale,
             "source_url": entry.source_url,
-            "speech_guidance": "只解释用户问的英雄技能或装备效果，以资料版本为准，"
-                "不推断实际对局版本。",
+            "source_name": entry.source_name,
+            "speech_guidance": "只解释用户问的部分，以资料版本为准，不推断实际对局版本。"
+            "基础教学条目是带来源的整理，不包含当前版本的完整数值；需要精确机制时查阅 Wiki。",
+        }
+
+    async def _lookup_lol_culture(
+        self, data: object, interaction: InteractionContext | None
+    ) -> dict[str, object]:
+        if self.lol_culture is None:
+            return {"status": "failed", "message": "赛事文化资料尚未配置"}
+        if not isinstance(data, dict):
+            return {"status": "failed", "message": "请提供想了解的选手、英雄或梗"}
+        query = data.get("query")
+        purpose = data.get("purpose", "explain")
+        if (
+            not isinstance(query, str)
+            or not 1 <= len(query.strip()) <= 80
+            or not isinstance(purpose, str)
+            or purpose not in {"explain", "banter"}
+        ):
+            return {"status": "failed", "message": "查询须为 1–80 字，purpose 为 explain 或 banter"}
+        mode: Literal["explain", "banter"] = "banter" if purpose == "banter" else "explain"
+        result = await self.lol_culture.lookup(query.strip(), purpose=mode)
+        if result.status == "not_found" and mode == "explain":
+            research = await self.handle_tool(
+                "search_web",
+                {
+                    "query": f"英雄联盟赛事 {query.strip()} 名场面 出处",
+                    "count": 3,
+                },
+                interaction=interaction,
+            )
+            return {
+                "status": "web_result",
+                "research": research,
+                "message": "经典库未收录，下面是临时检索结果；只有摘要或来源不相关时说明未核实。",
+                "speech_guidance": "仅依据相关正文回答；本次结果不会自动加入经典库。",
+            }
+        if result.status != "found":
+            return {
+                "status": "suppressed",
+                "reason": result.status,
+                "speech_guidance": "继续自然聊天，这次不接梗，不向用户解释内部冷却或屏蔽规则。",
+            }
+        await self._publish_web_research(
+            {
+                "session_id": "",
+                "interaction_id": interaction.interaction_id if interaction else "",
+                "stage": "ready",
+                "query": query,
+                "requested_version": "",
+                "retrieved_at": "",
+                "message": "经典赛事资料；不代表当前对局状态。",
+                "sources": [
+                    {
+                        "title": entry.source_title,
+                        "url": entry.source_url,
+                        "published_at": None,
+                        "site_name": "赛事文化资料库",
+                        "read_status": "read",
+                    }
+                    for entry in result.entries
+                ],
+            },
+            interaction,
+        )
+        return {
+            "status": "succeeded",
+            "entries": [asdict(entry) for entry in result.entries],
+            "speech_guidance": (
+                "解释时只讲用户问的梗和真实出处。接梗时最多一句，"
+                "结合 usage 与 avoid；"
+            "未观察到用户实际操作，不声称用户刚复刻名场面。summary 是整理，不是选手原话。"
+            "只复述条目明确记录的事实，不补写残血、击杀数、局数、连招或解说台词。"
+            "视频时间点为空时不得补写秒数。"),
+        }
+
+    async def _set_lol_culture_preference(self, data: object) -> dict[str, object]:
+        if self.lol_culture is None or not isinstance(data, dict):
+            return {"status": "failed", "message": "赛事文化偏好暂不可用"}
+        enabled, name = data.get("enabled"), data.get("name", "")
+        if not isinstance(enabled, bool) or not isinstance(name, str) or len(name) > 80:
+            return {"status": "failed", "message": "请提供启用状态和可选的梗名"}
+        affected = await self.lol_culture.set_preference(enabled=enabled, name=name.strip())
+        if affected is None:
+            return {"status": "not_found", "message": "没有找到唯一的梗，请确认具体名称"}
+        return {
+            "status": "succeeded",
+            "affected": affected,
+            "enabled": enabled,
+            "message": "已保存主动接梗偏好；明确询问出处仍可查询。",
         }
 
     async def handle_tool(
@@ -805,6 +910,10 @@ class BoxAgentApplication:
             if name == "play_avatar_action":
                 action = data.get("action") if isinstance(data, dict) else None
                 return dict(self.request_avatar_action(action))
+            if name == "lookup_lol_culture":
+                return await self._lookup_lol_culture(data, interaction)
+            if name == "set_lol_culture_preference":
+                return await self._set_lol_culture_preference(data)
             if name == "lookup_lol_knowledge":
                 return await self._lookup_lol_knowledge(data, interaction)
             if not isinstance(data, dict):
@@ -982,8 +1091,7 @@ class BoxAgentApplication:
                 return await self.install_skill_draft(
                     data.get("draft_id", ""), interaction=interaction)
             return {"status": "failed", "message": "未知的委托入口。"}
-        except (MemoryUnavailable, OSError, ValueError, KeyError, TypeError,
-                SyntaxError) as exc:
+        except (MemoryUnavailable, OSError, ValueError, KeyError, TypeError, SyntaxError) as exc:
             return {"status": "failed", "message": str(exc)}
 
     async def _publish_background_result(

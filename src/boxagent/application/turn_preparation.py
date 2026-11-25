@@ -10,6 +10,8 @@ from collections.abc import Callable, Coroutine
 from typing import Any, Protocol
 
 from boxagent.domain.interaction.delegation import DecisionAdvice, probability
+from boxagent.domain.proactivity.learned_culture import CultureLearner
+from boxagent.domain.proactivity.lol_culture import LolCultureService
 
 logger = logging.getLogger(__name__)
 
@@ -26,28 +28,52 @@ class QueryMemory(Protocol):
 
 
 class TurnPreparer:
-    def __init__(self, memory: QueryMemory, *, intent: IntentEstimator | None = None,
-                 environment: Callable[[], str] | None = None,
-                 screen: Callable[[], str] | None = None, budget: float = 1.5,
-                 game: Callable[[], str] | None = None,
-                 decision_timeout: float = 5.0,
-                 character_budget: int = 1600) -> None:
+    def __init__(
+        self,
+        memory: QueryMemory,
+        *,
+        intent: IntentEstimator | None = None,
+        environment: Callable[[], str] | None = None,
+        screen: Callable[[], str] | None = None,
+        budget: float = 1.5,
+        game: Callable[[], str] | None = None,
+        decision_timeout: float = 5.0,
+        culture: LolCultureService | None = None,
+        culture_learner: CultureLearner | None = None,
+        character_budget: int = 1600,
+    ) -> None:
         self.memory = memory
         self.intent = intent
         self.environment = environment
         self.screen = screen
         self.game = game
+        self.culture = culture
+        self.culture_learner = culture_learner
         self.budget = budget
         self.decision_timeout = decision_timeout
         self.character_budget = character_budget
         self.inflight: dict[str, asyncio.Task[Any]] = {}
         self.pending: set[asyncio.Task[Any]] = set()
 
-    async def prepare(self, query: str, *, session_id: str,
-                      query_id: str, context: str = "") -> tuple[str, dict[str, Any]]:
+    async def prepare(
+        self, query: str, *, session_id: str, query_id: str, context: str = ""
+    ) -> tuple[str, dict[str, Any]]:
         started = time.perf_counter()
         statuses: dict[str, Any] = {}
+        culture_packet = (
+            self.culture.question_reference(query, query_id=query_id, context=context)
+            if self.culture
+            else ""
+        )
+        if len(culture_packet) > self.character_budget:
+            culture_packet = ""
+        packet_budget = self.character_budget - len(culture_packet)
+        statuses["culture"] = {
+            "status": "ready" if culture_packet else "empty",
+            "chars": len(culture_packet),
+        }
         tasks: dict[str, asyncio.Task[Any]] = {}
+
         def launch(name: str, factory: Callable[[], Coroutine[Any, Any, Any]]) -> None:
             previous = self.inflight.get(name)
             if name != "jev" and previous is not None and not previous.done():
@@ -61,6 +87,12 @@ class TurnPreparer:
             tasks[name] = self.inflight[name] = task
 
         launch("memory", lambda: self.memory.context_packet(query, session_id=session_id, top_k=3))
+        learner = self.culture_learner
+        if learner is not None and (not culture_packet or '"id": "unverified"' in culture_packet):
+            launch(
+                "culture_learning",
+                lambda: learner.reference(query, query_id=query_id, context=context),
+            )
         intent_source, environment_source, screen_source = (
             self.intent,
             self.environment,
@@ -79,7 +111,7 @@ class TurnPreparer:
             launch("game", lambda: asyncio.to_thread(game_source))
         # Capture optional references at their own deadline. Waiting longer for
         # the mandatory current decision must not admit stale/late recalls.
-        optional = {task for name, task in tasks.items() if name != "jev"}
+        optional = {task for name, task in tasks.items() if name not in {"jev", "culture_learning"}}
         try:
             done, _ = (
                 await asyncio.wait(optional, timeout=self.budget) if optional else (set(), set())
@@ -88,6 +120,10 @@ class TurnPreparer:
             if decision is not None:
                 await asyncio.gather(decision, return_exceptions=True)
                 done.add(decision)
+            learning = tasks.get("culture_learning")
+            if learning is not None:
+                await asyncio.gather(learning, return_exceptions=True)
+                done.add(learning)
         except asyncio.CancelledError:
             for task in tasks.values():
                 task.cancel()
@@ -106,6 +142,11 @@ class TurnPreparer:
                 statuses[name] = {"status": "timeout"}
             except Exception as exc:
                 statuses[name] = {"status": "failed:" + type(exc).__name__}
+        learned = values.get("culture_learning")
+        if isinstance(learned, str) and learned and len(learned) <= self.character_budget:
+            culture_packet = learned
+            packet_budget = self.character_budget - len(culture_packet)
+            statuses["culture"] = {"status": "ready", "chars": len(culture_packet)}
         reference: dict[str, Any] = {"query_id": query_id}
         advice = DecisionAdvice.from_payload(values.get("jev"))
         if advice is not None:
@@ -141,10 +182,10 @@ class TurnPreparer:
                 prefix + json.dumps(reference, ensure_ascii=False, separators=(",", ":")) + suffix
             )
             for name in ("memory", "screen", "environment", "game"):
-                if len(packet) <= self.character_budget:
+                if len(packet) <= packet_budget:
                     break
                 if name in reference:
-                    excess = len(packet) - self.character_budget
+                    excess = len(packet) - packet_budget
                     reference[name] = (
                         reference[name][:-excess] if excess < len(reference[name]) else ""
                     )
@@ -155,8 +196,9 @@ class TurnPreparer:
                         + json.dumps(reference, ensure_ascii=False, separators=(",", ":"))
                         + suffix
                     )
-            if len(packet) > self.character_budget or len(reference) == 1:
+            if len(packet) > packet_budget or len(reference) == 1:
                 packet = ""
+        packet = culture_packet + packet
         statuses["wall_ms"] = round((time.perf_counter() - started) * 1000, 1)
         statuses["query_id"] = query_id
         statuses["chars"] = len(packet)
