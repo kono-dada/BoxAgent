@@ -128,6 +128,35 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertIsNone(worker["fenced_review"](invalid))
 
+    def test_review_pixels_are_scoped_to_one_image(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/vision_inputs.py"
+        module = runpy.run_path(str(script))
+        adapter = module["QwenImageInputs"]
+        scope = module["for_review"]
+        original = Mock(return_value={"pixel_values": "custom"})
+        processor = SimpleNamespace(image_processor=adapter(original, None))
+        red = Image.new("RGB", (2, 2), "red")
+        blue = Image.new("RGB", (2, 2), "blue")
+        pack = Mock(side_effect=lambda img: {"pixel_values": img.getpixel((0, 0))})
+        core = SimpleNamespace(array=Mock(side_effect=lambda value: value))
+        with (
+            patch.dict("sys.modules", {"mlx": SimpleNamespace(core=core), "mlx.core": core}),
+            patch.object(adapter, "_pack", pack),
+        ):
+            first = scope(processor).image_processor
+            self.assertIs(first([red]), first([red]))
+            self.assertEqual(first([red], min_pixels=100), {"pixel_values": "custom"})
+            original.assert_called_once_with(images=[red], min_pixels=100)
+            second = scope(processor).image_processor
+            self.assertEqual(second([blue])["pixel_values"], (0, 0, 255))
+            self.assertEqual(first([red])["pixel_values"], (255, 0, 0))
+            shared = processor.image_processor
+            self.assertIsNot(shared([red]), shared([blue]))
+        self.assertEqual(pack.call_count, 4)
+        self.assertEqual(core.array.call_count, 2)
+        other = SimpleNamespace(image_processor=object())
+        self.assertIs(scope(other), other)
+
     def test_focused_window_accepts_an_unlisted_fullscreen_game(self) -> None:
         front = SimpleNamespace(
             bundleIdentifier=lambda: "example.unlisted.game",

@@ -345,9 +345,12 @@ def main() -> None:
         metal_draft = None
         with contextlib.redirect_stdout(sys.stderr):
             from mlx_vlm.utils import load
+            from vision_inputs import enable_image_inputs
             from wuwa_mlx_prefill import enable_delta_prefill, enable_mlp_prefill
 
             model, processor = load(str(args.model))
+            if getattr(model.config, "model_type", None) == "qwen3_5":
+                enable_image_inputs(processor)
             enable_vision_kernel(model)
             enable_delta_prefill(model)
             enable_mlp_prefill(model)
@@ -381,6 +384,10 @@ def summarize_request(
     if config.get("model_type") == "qwen3_5" and analysis_prompt:
         options = {**options, "prefill_step_size": VISION_PREFILL_STEP_SIZE}
     structured = request.get("structured_review") is True and bool(analysis_prompt)
+    if structured and hasattr(processor, "image_processor"):
+        from vision_inputs import for_review
+
+        processor = for_review(processor)
     checkpoint = None
     if structured and draft is not None:
         from wuwa_cpu_draft import ReviewCheckpoint
