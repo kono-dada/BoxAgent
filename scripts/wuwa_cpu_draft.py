@@ -17,6 +17,7 @@ from importlib import import_module
 from io import BytesIO
 from pathlib import Path
 from threading import Event
+from time import sleep
 from typing import Any, cast
 
 import mlx.core as mx
@@ -72,7 +73,25 @@ def qwen_verification_head(language: Any) -> tuple[Any, Callable[[mx.array], mx.
     if not verifier.can_quantized_head(head):
         raise ValueError("The full vocabulary verifier cannot use these weights")
 
+    from vision_projection import matrix_verifier
+
+    try:
+        matrix = matrix_verifier()
+    except (AttributeError, RuntimeError, ValueError) as exc:
+        matrix = None
+        print(f"Matrix vocabulary projection unavailable: {exc}", file=sys.stderr)
+
     def logits(hidden: mx.array) -> mx.array:
+        nonlocal matrix
+        if matrix is not None:
+            try:
+                projected = matrix(head, hidden)
+            except (RuntimeError, ValueError) as exc:
+                matrix = None
+                print(f"Matrix vocabulary projection unavailable: {exc}", file=sys.stderr)
+            else:
+                if projected is not None:
+                    return projected
         output = verifier.quantized_linear(head, hidden)
         if output is None:
             raise RuntimeError("Qwen verifier does not support the current token block")
@@ -157,6 +176,7 @@ class ReviewCheckpoint:
     positions: mx.array | None = None
     rope_deltas: mx.array | None = None
     layers: tuple[tuple[mx.array, ...], ...] = ()
+    started_under_gpu_pressure: bool | None = None
 
     def watch_opening(self, tokenizer: Any, tokens: list[int]) -> bool:
         opening = tokenizer.decode(tokens).lstrip()
@@ -204,6 +224,47 @@ class ReviewCheckpoint:
         return positions
 
 
+def clear_winners(logits: mx.array, selected: mx.array) -> mx.array:
+    """Leave ties and near-ties to the usual short-block decoder."""
+    top = mx.take_along_axis(logits, selected[..., None], axis=-1).astype(mx.float32)
+    margin = mx.maximum(0.125, mx.abs(top) / 64)
+    nearby = mx.sum(logits >= (top - margin).astype(logits.dtype), axis=-1)
+    return (nearby == 1) & mx.isfinite(top[..., 0])
+
+
+def repeated_tail(tokens: list[int], remaining: int) -> list[int]:
+    """Propose a repeated suffix without consulting any other request."""
+    for width in range(1, min(48, (len(tokens) - 3) // 2) + 1):
+        match = max(7, width)
+        if tokens[-match:] == tokens[-width - match:-width]:
+            pattern = tokens[-width:]
+            return (pattern * ((remaining + width - 1) // width))[:remaining]
+    return []
+
+
+def matches_target_tail(
+    language: Any, cache: list[Any], seed: int, proposal: list[int], dtype: Any,
+    history: list[int], penalty: float | None, context: int,
+) -> bool:
+    # Each recurrent layer owns a mutable state list, and each attention cache owns
+    # its offset. Only immutable MLX arrays may be shared with the active decoder.
+    shadow = language.make_cache()
+    for target, source in zip(shadow, cache, strict=True):
+        target.state = list(source.state)
+    inputs = [seed, *proposal[:-1]]
+    # Give the renderer a scheduling point between long full-vocabulary projections.
+    for i in range(0, len(inputs), 64):
+        block = inputs[i:i + 64]
+        logits = language(mx.array([block], dtype=dtype), cache=shadow).logits
+        if penalty:
+            logits = penalize_repeated_tokens(logits, history + inputs[:i], block, penalty, context)
+        expected = mx.array([proposal[i:i + len(block)]], dtype=mx.int32)
+        selected = greedy_tokens(logits)
+        if not mx.all((selected == expected) & clear_winners(logits, selected)).item():
+            return False
+    return True
+
+
 class WuwaCpuDraft:
     def __init__(self, directory: Path, fingerprints: dict[str, str]) -> None:
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
@@ -243,14 +304,31 @@ class WuwaCpuDraft:
             raise RuntimeError("Could not initialize the Wuwa CPU draft decoder")
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="wuwa-cpu-draft")
         self.used_cpu_draft = False
+        self.previous_gpu_pressure: bool | None = None
         self.vision_logits: Callable[[mx.array], mx.array] | None = None
         self.reported_vision = False
         self.recent_tokens: OrderedDict[str, tuple[int, ...]] = OrderedDict()
 
-    def under_gpu_pressure(self) -> bool:
+    def under_gpu_pressure(self, checkpoint: ReviewCheckpoint | None = None) -> bool:
+        if checkpoint is not None and checkpoint.started_under_gpu_pressure is True:
+            return True
+        first_read = checkpoint is None or checkpoint.started_under_gpu_pressure is None
         load = self.gpu_load()
-        # Select the route once per request when GPU load is high or unavailable.
-        return load < 0 or load >= _GPU_PRESSURE_PERCENT
+        if (
+            first_read and 0 <= load < _GPU_PRESSURE_PERCENT
+            and self.previous_gpu_pressure is not False
+        ):
+            # A renderer can briefly drain its queue between frames. Confirm a transition to
+            # the native decoder after one frame, while steady idle requests can start at once.
+            sleep(0.020)
+            load = self.gpu_load()
+        pressured = load < 0 or load >= _GPU_PRESSURE_PERCENT
+        self.previous_gpu_pressure = pressured
+        if checkpoint is not None and first_read:
+            # Keep high-load retries on one route. Requests started at idle can resample
+            # after prefill, just as they did before steering high-load requests.
+            checkpoint.started_under_gpu_pressure = pressured
+        return pressured
 
     def close(self) -> None:
         self.executor.shutdown(cancel_futures=True)
@@ -305,7 +383,7 @@ class WuwaCpuDraft:
         if (
             self.handle is None or options["max_tokens"] < _FIRST_BLOCK
             or not supports_greedy_speculation(options)
-            or not (self.under_gpu_pressure() if pressured is None else pressured)
+            or not (self.under_gpu_pressure(checkpoint) if pressured is None else pressured)
         ):
             return None
         dispatch: Any = import_module("mlx_vlm.generate.dispatch")
@@ -444,9 +522,31 @@ class WuwaCpuDraft:
             output, state = delta.gated_delta_update(*args, **options)
             return output, state, None
 
+        next_tail_check = 30
         pending: Future[list[int]] | None = None
         try:
             while offset < max_tokens:
+                remaining = max_tokens - offset
+                if offset >= next_tail_check and remaining >= 24:
+                    tail = repeated_tail(consumed[1:] + [seed], remaining)
+                    if tail:
+                        next_tail_check = offset + 32
+                        try:
+                            with mx.stream(stream):
+                                matched = matches_target_tail(
+                                    language, cache, seed, tail, input_ids.dtype,
+                                    prompt_history + consumed[-repetition_context_size:],
+                                    repetition_penalty, repetition_context_size,
+                                )
+                        except (MemoryError, RuntimeError, ValueError):
+                            # A speculative allocation may fail under load. Keep the live cache.
+                            next_tail_check, matched = max_tokens, False
+                        if matched:
+                            # The entire remaining budget was checked on this image; the
+                            # outer generator still handles EOS and the normal stop criteria.
+                            for token in tail:
+                                yield token, None
+                            return
                 # A previous answer is only a proposal. Re-evaluate each position against
                 # this image's target cache before yielding anything, including EOS.
                 if offset < len(hint):

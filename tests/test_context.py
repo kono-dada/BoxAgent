@@ -129,6 +129,72 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertIsNone(worker["fenced_review"](invalid))
 
+    def test_vision_route_survives_a_frame_gap_and_is_shared_by_format_retries(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/wuwa_cpu_draft.py"
+        modules = {"mlx": SimpleNamespace(core=Mock()), "mlx.core": Mock(), "numpy": Mock()}
+        with patch.dict("sys.modules", modules):
+            worker = runpy.run_path(str(script))
+        choose, checkpoint = worker["WuwaCpuDraft"].under_gpu_pressure, worker["ReviewCheckpoint"]
+        load = Mock(side_effect=[100, 75, 99, 40, 39, 35, 100, -1])
+        draft = SimpleNamespace(previous_gpu_pressure=None, gpu_load=load)
+        wait = Mock()
+        with patch.dict(choose.__globals__, {"sleep": wait}):
+            review = checkpoint()
+            self.assertTrue(choose(draft, review))
+            self.assertTrue(choose(draft, review))
+            self.assertEqual(load.call_count, 1)
+            self.assertTrue(choose(draft, checkpoint()))
+            self.assertFalse(choose(draft, checkpoint()))
+            self.assertFalse(choose(draft))
+            self.assertTrue(choose(draft))
+            self.assertTrue(choose(draft))
+        self.assertEqual(wait.call_count, 2)
+
+        idle = SimpleNamespace(previous_gpu_pressure=False, gpu_load=Mock(side_effect=[35, 95, 40]))
+        review = checkpoint()
+        with patch.dict(choose.__globals__, {"sleep": wait}):
+            self.assertFalse(choose(idle, review))
+            self.assertTrue(choose(idle, review))
+            self.assertFalse(choose(idle, review))
+        self.assertEqual(wait.call_count, 2)
+
+    def test_repeated_draft_must_match_every_token_on_an_independent_cache(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/wuwa_cpu_draft.py"
+        arrays = SimpleNamespace(array=lambda values, dtype: values, int32=int,
+                                 all=lambda value: SimpleNamespace(item=lambda: value))
+        modules = {"mlx": SimpleNamespace(core=arrays), "mlx.core": arrays, "numpy": Mock()}
+        with patch.dict("sys.modules", modules):
+            worker = runpy.run_path(str(script))
+        propose, verify = worker["repeated_tail"], worker["matches_target_tail"]
+        self.assertEqual(propose(list(range(40)), 30), [])
+        self.assertEqual(propose([1, 2, 3] * 12, 5), [1, 2, 3, 1, 2])
+        self.assertEqual(propose([7] * 30, 70), [7] * 70)
+
+        active = SimpleNamespace(state=[13])
+        for mismatch in (False, True):
+            shadow = SimpleNamespace(state=[])
+            target = Mock()
+            target.make_cache.return_value = [shadow]
+
+            def forward(
+                ids: list[list[int]], cache: list[SimpleNamespace], fail: bool = mismatch,
+                expected_cache: SimpleNamespace = shadow,
+            ) -> SimpleNamespace:
+                self.assertIs(cache[0], expected_cache)
+                self.assertIsNot(cache[0].state, active.state)
+                cache[0].state[0] += len(ids[0])
+                result = [7] * len(ids[0])
+                if fail and cache[0].state[0] == 83:
+                    result[-1] = 8
+                return SimpleNamespace(logits=[result])
+
+            target.side_effect = forward
+            with patch.dict(verify.__globals__, {"greedy_tokens": lambda scores: scores,
+                                                 "clear_winners": lambda *args: True}):
+                self.assertEqual(verify(target, [active], 7, [7] * 70, None, [], None, 64),
+                                 not mismatch)
+            self.assertEqual(active.state, [13])
+
     def test_review_opening_preserves_eos_and_restores_tokenizer(self) -> None:
         script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
         worker = runpy.run_path(str(script))

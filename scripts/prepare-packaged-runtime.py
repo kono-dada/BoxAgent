@@ -196,6 +196,7 @@ def copy_source(stage: Path) -> None:
         "window_summary_worker.py",
         "vision_decode.py",
         "vision_inputs.py",
+        "vision_projection.py",
         "wuwa_cpu_draft.py",
         "wuwa_mlx_prefill.py",
         "game-window-stream.swift",

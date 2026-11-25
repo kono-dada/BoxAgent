@@ -138,7 +138,7 @@ def summarize_image(
     if prefix and isinstance(prompt, str):
         prompt += prefix
     generation = GENERATION_OPTIONS if options is None else options
-    if cpu_draft is not None and cpu_draft.under_gpu_pressure():
+    if cpu_draft is not None and cpu_draft.under_gpu_pressure(checkpoint):
         try:
             accelerated = cpu_draft.generate_vision(
                 generate, model, processor, prompt, str(image), generation,

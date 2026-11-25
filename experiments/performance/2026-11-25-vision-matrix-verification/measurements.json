@@ -1,0 +1,5071 @@
+{
+  "date": "2026-11-25",
+  "host": "MacBook Pro, Apple M3 Pro, 18 GiB unified memory, macOS 14.7.8",
+  "initial": "1cf6e36908bc44dbaabee0170131ce498481a323",
+  "published": "e74b2f86947be2765fa720f927ef9ba46eb64a89",
+  "implementation_sha256": {
+    "wuwa_cpu_draft.py": "96e9f48a1545684faddcccb86c601566b92515752686f302ff192815597957f4",
+    "vision_projection.py": "2b5b7eb2c02492e243800c6a3f8889a43b54dee7272b29f6109cc4cc786c3ab4",
+    "window_summary_worker.py": "6bb55ff444b4dfc6d76367eb973946c55ac73f61682bb4752bdda8bc3f8c7233",
+    "prepare-packaged-runtime.py": "e9d8b9963486a5d2ea20a1670c935ebe5ebaec0def50c570087ec00632f225db"
+  },
+  "weights_sha256": "f5a0d9dd3efa73510542a8023d610ff26be2b4b020d181cfc4bedaa1fcc5dd9e",
+  "sources": [
+    {
+      "key": "game-hud",
+      "url": "https://archive.org/details/defeat-utterance-of-marvels-1-wuthering-waves",
+      "file": ")Defeat  -Utterance of Marvels 1-Wuthering Waves.mp4",
+      "sha1": "52536e816d7b60b53f503fd4ceead13c6f7be35c",
+      "bytes": 24308988
+    },
+    {
+      "key": "combat-nohud",
+      "url": "https://archive.org/details/wuthering-waves-2025-05-02-08-13-23",
+      "file": "10 min combat no HUD 2025-05-08 17-25-04.ia.mp4",
+      "sha1": "324b52985b26c06d2a5ea54222922dd1755d1f59",
+      "bytes": 59096590
+    }
+  ],
+  "protocol": {
+    "model": "Same installed Qwen3.5-0.8B 4-bit MLX weights and full-vocabulary target. CPU llama.cpp drafts under high pressure, MTP/Metal otherwise.",
+    "render": "Independent 1280x720 60-Hz Metal renderer, 1450 shader iterations. Service-time P95 describes the simulator. On-device GPU utilization is sampled at 0.5 s where available. No game client or loudspeaker was running.",
+    "timing": "Fresh worker per variant per suite, one held-out warmup, interleaved within each case. Fixed sheets time file write and worker IPC to final returned text. Synthetic long includes building the contact sheet. For the original product replay the entry point includes capture selection, scheduling and final parsing. P95 is nearest rank; for eight samples it is the largest value. Three workers (published, initial and candidate) interleaved for the first detailed combat run; the initial worker takes rotating positions. The second combat run reverses the order of each published/candidate pair. Two independent opposite orders also used for the published vs candidate native capture-to-review comparison.",
+    "quality": "Complete content requires a valid scene (trim as the product does), nonempty observation and distinct cited frame IDs all within 1–6. For this offline measure, accept a single outer Markdown fence and Frame N labels. Product acceptance is separately measured by the product parser. Scene-only results and invalid/truncated responses remain in all-trial statistics. Each fixed pair compares the same prompt and identical six-frame JPEG bytes. Check exact text and the full output budget. Our fixed diagnostic uses the current product parser for both sides. Native replays run each revision’s own product code.",
+    "long_prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+    "token_cap": 160,
+    "raw": "Compact row data below; full local traces and harnesses in profile_output/validation.tar.gz. The capture replay uses local vision, intercepts speech submissions and selects actual frames through the normal scheduler. No physical game client or speaker.",
+    "local_raw_sha256": "e673ca65db08a361b6ca649bca32b672f9e37a69a0abc7d962c3939c80600037"
+  },
+  "six_frame_inputs": [
+    {
+      "case": "battle-00-warm",
+      "source": "game-hud",
+      "warmup": true,
+      "sha256": "3342aa9f5ca7fd4221e04b6c7870f70a38aadd1e89ef5e50ace271b8419c34b3",
+      "frames": [
+        "004-37.80.jpg",
+        "007-38.40.jpg",
+        "009-38.80.jpg",
+        "012-39.40.jpg",
+        "014-39.80.jpg",
+        "017-40.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-01-hud-blue",
+      "source": "game-hud",
+      "warmup": false,
+      "sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+      "frames": [
+        "004-69.80.jpg",
+        "007-70.40.jpg",
+        "009-70.80.jpg",
+        "012-71.40.jpg",
+        "014-71.80.jpg",
+        "017-72.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-02-hud-enemy",
+      "source": "game-hud",
+      "warmup": false,
+      "sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+      "frames": [
+        "004-85.80.jpg",
+        "007-86.40.jpg",
+        "009-86.80.jpg",
+        "012-87.40.jpg",
+        "014-87.80.jpg",
+        "017-88.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-03-hud-purple",
+      "source": "game-hud",
+      "warmup": false,
+      "sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+      "frames": [
+        "004-179.80.jpg",
+        "007-180.40.jpg",
+        "009-180.80.jpg",
+        "012-181.40.jpg",
+        "014-181.80.jpg",
+        "017-182.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-04-hud-spin",
+      "source": "game-hud",
+      "warmup": false,
+      "sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+      "frames": [
+        "004-211.80.jpg",
+        "007-212.40.jpg",
+        "009-212.80.jpg",
+        "012-213.40.jpg",
+        "014-213.80.jpg",
+        "017-214.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-05-green-arena",
+      "source": "combat-nohud",
+      "warmup": false,
+      "sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+      "frames": [
+        "004-51.80.jpg",
+        "007-52.40.jpg",
+        "009-52.80.jpg",
+        "012-53.40.jpg",
+        "014-53.80.jpg",
+        "017-54.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-06-dodge",
+      "source": "combat-nohud",
+      "warmup": false,
+      "sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+      "frames": [
+        "004-164.80.jpg",
+        "007-165.40.jpg",
+        "009-165.80.jpg",
+        "012-166.40.jpg",
+        "014-166.80.jpg",
+        "017-167.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-07-red-arena",
+      "source": "combat-nohud",
+      "warmup": false,
+      "sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+      "frames": [
+        "004-314.80.jpg",
+        "007-315.40.jpg",
+        "009-315.80.jpg",
+        "012-316.40.jpg",
+        "014-316.80.jpg",
+        "017-317.40.jpg"
+      ]
+    },
+    {
+      "case": "battle-08-effects",
+      "source": "combat-nohud",
+      "warmup": false,
+      "sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+      "frames": [
+        "004-540.80.jpg",
+        "007-541.40.jpg",
+        "009-541.80.jpg",
+        "012-542.40.jpg",
+        "014-542.80.jpg",
+        "017-543.40.jpg"
+      ]
+    }
+  ],
+  "fixed_requests": {
+    "published_to_candidate": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 6752.28,
+          "p95": 7633.69
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2837,
+          "p50": 16.05,
+          "p95": 21.4
+        },
+        "gpu_percent": {
+          "n": 98,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 5402.3,
+          "p95": 6524.7
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2419,
+          "p50": 16.13,
+          "p95": 22.72
+        },
+        "gpu_percent": {
+          "n": 84,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 7,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -795.18,
+        "p95": 69.12
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": 20.0,
+      "matched_complete": {
+        "reference": {
+          "n": 1,
+          "p50": 3804.96,
+          "p95": 3804.96
+        },
+        "candidate": {
+          "n": 1,
+          "p50": 3676.99,
+          "p95": 3676.99
+        }
+      },
+      "full_text_identical": 8,
+      "rows": [
+        {
+          "case": "battle-01-hud-blue",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "reference_ms": 7003.09,
+          "candidate_ms": 6153.54,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Yangyang在连续战斗中不断与敌人互动，屏幕中不断显示着与敌人对话的文本，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "reference_ms": 7051.72,
+          "candidate_ms": 6524.7,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗准备状态（Frame 1）到战斗结束（Frame 6）的过程中，经历了从站立、准备攻击、攻击、被击退到被击退的完整过程。角色身上的伤害数值（如20、10、10、29）和战斗提示（Utterance of Marvels I）也随着战斗的进行而发生变化，最终角色被击退。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 139
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 139
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "reference_ms": 6923.19,
+          "candidate_ms": 5537.94,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从站立对峙状态变为攻击姿态，武器从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "reference_ms": 6007.46,
+          "candidate_ms": 5266.66,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角的防御姿态转变为右下角的主动攻击姿态，屏幕上的伤害数值从10增加到24，显示出战斗的激烈程度和角色实力的提升。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 61
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 61
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-05-green-arena",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "reference_ms": 3804.96,
+          "candidate_ms": 3676.99,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色在绿色草地上行走，屏幕左上角显示角色等级为60，右上角显示角色名称为Tempest Megae，下方显示角色名称为Nourning Thunder。角色周围有紫色花朵，背景是石墙和红色装饰物，整体环境看起来是游戏内的一个场景。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 115
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 115
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-06-dodge",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "reference_ms": 7633.69,
+          "candidate_ms": 6210.67,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色在绿色草地中奔跑，画面中可见角色与敌人之间的互动。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-07-red-arena",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "reference_ms": 4926.39,
+          "candidate_ms": 4995.51,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色正在进行激烈的战斗，可以看到角色们使用武器进行攻击，其中角色们身上有能量特效，如能量球和能量束。场景中的角色们被描述为战斗中的角色，他们正在与敌人进行战斗。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 83
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 83
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-08-effects",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "reference_ms": 6581.38,
+          "candidate_ms": 4786.18,
+          "reference_text": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色与敌人之间的激烈战斗场景，其中角色在战斗中不断受到攻击，火焰和爆炸特效频繁出现，角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        }
+      ]
+    },
+    "published_to_candidate_reversed": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 6650.85,
+          "p95": 7483.42
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2829,
+          "p50": 16.01,
+          "p95": 21.71
+        },
+        "gpu_percent": {
+          "n": 98,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 5335.61,
+          "p95": 6508.82
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2394,
+          "p50": 16.1,
+          "p95": 22.78
+        },
+        "gpu_percent": {
+          "n": 84,
+          "p50": 99.5,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 8,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -865.31,
+        "p95": -56.63
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": 19.8,
+      "matched_complete": {
+        "reference": {
+          "n": 1,
+          "p50": 3736.11,
+          "p95": 3736.11
+        },
+        "candidate": {
+          "n": 1,
+          "p50": 3615.33,
+          "p95": 3615.33
+        }
+      },
+      "full_text_identical": 8,
+      "rows": [
+        {
+          "case": "battle-01-hud-blue",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "reference_ms": 6782.88,
+          "candidate_ms": 6161.6,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Yangyang在连续战斗中不断与敌人互动，屏幕中不断显示着与敌人对话的文本，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "reference_ms": 7013.21,
+          "candidate_ms": 6508.82,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗准备状态（Frame 1）到战斗结束（Frame 6）的过程中，经历了从站立、准备攻击、攻击、被击退到被击退的完整过程。角色身上的伤害数值（如20、10、10、29）和战斗提示（Utterance of Marvels I）也随着战斗的进行而发生变化，最终角色被击退。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 139
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 139
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "reference_ms": 6823.35,
+          "candidate_ms": 5428.83,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从站立对峙状态变为攻击姿态，武器从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "reference_ms": 6351.74,
+          "candidate_ms": 5242.39,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角的防御姿态转变为右下角的主动攻击姿态，屏幕上的伤害数值从10增加到24，显示出战斗的激烈程度和角色实力的提升。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 61
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 61
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-05-green-arena",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "reference_ms": 3736.11,
+          "candidate_ms": 3615.33,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色在绿色草地上行走，屏幕左上角显示角色等级为60，右上角显示角色名称为Tempest Megae，下方显示角色名称为Nourning Thunder。角色周围有紫色花朵，背景是石墙和红色装饰物，整体环境看起来是游戏内的一个场景。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 115
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 115
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-06-dodge",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "reference_ms": 7483.42,
+          "candidate_ms": 6257.99,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色在绿色草地中奔跑，画面中可见角色与敌人之间的互动。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-07-red-arena",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "reference_ms": 5025.43,
+          "candidate_ms": 4968.8,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色正在进行激烈的战斗，可以看到角色们使用武器进行攻击，其中角色们身上有能量特效，如能量球和能量束。场景中的角色们被描述为战斗中的角色，他们正在与敌人进行战斗。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 83
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 83
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-08-effects",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "reference_ms": 6518.82,
+          "candidate_ms": 4766.24,
+          "reference_text": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色与敌人之间的激烈战斗场景，其中角色在战斗中不断受到攻击，火焰和爆炸特效频繁出现，角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        }
+      ]
+    },
+    "initial_to_candidate": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 9266.6,
+          "p95": 10023.23
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 4039,
+          "p50": 15.75,
+          "p95": 19.78
+        },
+        "gpu_percent": {
+          "n": 136,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 5402.3,
+          "p95": 6524.7
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2419,
+          "p50": 16.13,
+          "p95": 22.72
+        },
+        "gpu_percent": {
+          "n": 84,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 8,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -3537.92,
+        "p95": -1482.75
+      },
+      "reference_mode": "base",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": 41.7,
+      "matched_complete": {
+        "reference": {
+          "n": 1,
+          "p50": 7403.14,
+          "p95": 7403.14
+        },
+        "candidate": {
+          "n": 1,
+          "p50": 3676.99,
+          "p95": 3676.99
+        }
+      },
+      "full_text_identical": 7,
+      "rows": [
+        {
+          "case": "battle-01-hud-blue",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "reference_ms": 9503.23,
+          "candidate_ms": 6153.54,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Yangyang在连续战斗中不断与敌人互动，屏幕中不断显示着与敌人对话的文本，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'。角色不断进行攻击，屏幕中不断显示着攻击特效，如'Rover is with me... And... that strange Tacet Discord is here too'",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "reference_ms": 9029.98,
+          "candidate_ms": 6524.7,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗准备状态（Frame 1）到战斗结束（Frame 6）的过程中，经历了从站立、准备攻击、攻击、被击退到被击退的完整过程。角色身上的伤害数值（如20、10、10、29）和战斗提示（Utterance of Marvels I）也随着战斗的进行而发生变化，最终角色被击退。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 139
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 139
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "reference_ms": 9708.74,
+          "candidate_ms": 5537.94,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从站立对峙状态变为攻击姿态，武器从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器，角色从武器变为武器",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "reference_ms": 6749.41,
+          "candidate_ms": 5266.66,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角的防御姿态转变为右下角的主动攻击姿态，屏幕上的伤害数值从10增加到24，显示出战斗的激烈程度和角色实力的提升。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 61
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 61
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-05-green-arena",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "reference_ms": 7403.14,
+          "candidate_ms": 3676.99,
+          "reference_text": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从左上角的草丛中向右侧移动，画面中可以看到角色正在与敌人进行战斗，屏幕左上角显示角色等级为60，右上角显示敌人名称为Tempest Megae Mourning Thunder，右下角显示角色等级为60。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "candidate_text": "{\"scene\":\"settled\",\"observation\":\"角色在绿色草地上行走，屏幕左上角显示角色等级为60，右上角显示角色名称为Tempest Megae，下方显示角色名称为Nourning Thunder。角色周围有紫色花朵，背景是石墙和红色装饰物，整体环境看起来是游戏内的一个场景。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 104
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 115
+          }
+        },
+        {
+          "case": "battle-06-dodge",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "reference_ms": 10023.23,
+          "candidate_ms": 6210.67,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色在绿色草地中奔跑，画面中可见角色与敌人之间的互动。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人吸收。角色与敌人之间有明显的能量交换，能量从角色身上散发，同时有能量被敌人",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-07-red-arena",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "reference_ms": 7563.64,
+          "candidate_ms": 4995.51,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色正在进行激烈的战斗，可以看到角色们使用武器进行攻击，其中角色们身上有能量特效，如能量球和能量束。场景中的角色们被描述为战斗中的角色，他们正在与敌人进行战斗。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 83
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 83
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "battle-08-effects",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "reference_ms": 9794.5,
+          "candidate_ms": 4786.18,
+          "reference_text": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色与敌人之间的激烈战斗场景，其中角色在战斗中不断受到攻击，火焰和爆炸特效频繁出现，角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒的画面中可以看到角色被击倒",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        }
+      ]
+    },
+    "six_frame_synthetic": {
+      "reference": {
+        "all_ms": {
+          "n": 6,
+          "p50": 3591.54,
+          "p95": 5443.56
+        },
+        "full": 5,
+        "accepted": 1,
+        "renderer_frame_ms": {
+          "n": 1297,
+          "p50": 16.44,
+          "p95": 24.66
+        },
+        "gpu_percent": {
+          "n": 47,
+          "p50": 100,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 6,
+          "p50": 3671.68,
+          "p95": 4772.77
+        },
+        "full": 5,
+        "accepted": 1,
+        "renderer_frame_ms": {
+          "n": 1233,
+          "p50": 16.55,
+          "p95": 25.38
+        },
+        "gpu_percent": {
+          "n": 44,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 4,
+      "paired_change_ms": {
+        "n": 6,
+        "p50": -80.61,
+        "p95": 123.98
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": -2.2,
+      "matched_complete": {
+        "reference": {
+          "n": 5,
+          "p50": 3535.21,
+          "p95": 4302.38
+        },
+        "candidate": {
+          "n": 5,
+          "p50": 3659.19,
+          "p95": 4150.47
+        }
+      },
+      "full_text_identical": 6,
+      "rows": [
+        {
+          "case": "0-0",
+          "image_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+          "reference_ms": 3647.87,
+          "candidate_ms": 3684.16,
+          "reference_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在从第1帧的右侧移动到第6帧的左侧，红色目标在从第1帧的右侧移动到第6帧的右侧，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+          "reference_outcome": {
+            "scene": " unclear ",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 72
+          },
+          "candidate_outcome": {
+            "scene": " unclear ",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 72
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "0-1",
+          "image_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+          "reference_ms": 3212.54,
+          "candidate_ms": 3203.24,
+          "reference_text": "{\n\"scene\": \"unclear\",\n\"observation\": \"蓝色圆形从第1帧右上角移动到第6帧右下角，红色目标在最后一帧左上角出现，第1帧右上角是黄色圆形，第6帧右上角是绿色圆形。\",\n\"observed_frames\": [\n  \"1\",\n  \"6\"\n]\n}",
+          "reference_outcome": {
+            "scene": "unclear",
+            "complete_with_citations": true,
+            "accepted_observation": true,
+            "observation_characters": 60
+          },
+          "candidate_outcome": {
+            "scene": "unclear",
+            "complete_with_citations": true,
+            "accepted_observation": true,
+            "observation_characters": 60
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "1-0",
+          "image_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+          "reference_ms": 5443.56,
+          "candidate_ms": 4772.77,
+          "reference_text": "{\"scene\":\"unclear\",\"observation\":\"蓝色圆形从第1帧右上角移动到第5帧左下角，红色目标在最后一帧左上角消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\"observed_frames\":[\"1\",\"5\",\"6\",\"74\"]}",
+          "reference_outcome": {
+            "scene": "unclear",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 64
+          },
+          "candidate_outcome": {
+            "scene": "unclear",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 64
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "1-1",
+          "image_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+          "reference_ms": 3535.21,
+          "candidate_ms": 3659.19,
+          "reference_text": "{\n  \"scene\": \" unclear\",\n  \"observation\": \"蓝色圆形在从第1帧到第6帧中从左向右移动，红色目标在从第1帧到第6帧中始终可见，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+          "reference_outcome": {
+            "scene": " unclear",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 68
+          },
+          "candidate_outcome": {
+            "scene": " unclear",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 68
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "2-0",
+          "image_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+          "reference_ms": 4302.38,
+          "candidate_ms": 4150.47,
+          "reference_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在早期（Frame 1）向左移动，红色目标在早期（Frame 1）可见，黄色圆形在早期（Frame 1）可见。蓝色圆形在较晚帧（Frame 6）向右移动，红色目标在较晚帧（Frame 6）可见，黄色圆形在较晚帧（Frame 6）可见。最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+          "reference_outcome": {
+            "scene": " unclear ",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 149
+          },
+          "candidate_outcome": {
+            "scene": " unclear ",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 149
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "2-1",
+          "image_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+          "reference_ms": 3347.34,
+          "candidate_ms": 3183.63,
+          "reference_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形从第1帧右上角移动到第3帧中间，红色目标在红色目标出现后逐渐消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"3\",\n    \"6\"\n  ]\n}",
+          "reference_outcome": {
+            "scene": " unclear ",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 65
+          },
+          "candidate_outcome": {
+            "scene": " unclear ",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 65
+          },
+          "candidate_text_identical": true
+        }
+      ]
+    },
+    "recorded_game_and_trailer": {
+      "reference": {
+        "all_ms": {
+          "n": 10,
+          "p50": 5821.44,
+          "p95": 7437.15
+        },
+        "full": 5,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2994,
+          "p50": 16.1,
+          "p95": 22.64
+        },
+        "gpu_percent": {
+          "n": 105,
+          "p50": 100,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 10,
+          "p50": 4350.18,
+          "p95": 7593.4
+        },
+        "full": 5,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2674,
+          "p50": 16.2,
+          "p95": 23.58
+        },
+        "gpu_percent": {
+          "n": 95,
+          "p50": 100,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 5,
+      "paired_change_ms": {
+        "n": 10,
+        "p50": 6.2,
+        "p95": 156.25
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": 25.3,
+      "matched_complete": {
+        "reference": {
+          "n": 5,
+          "p50": 4310.92,
+          "p95": 6841.91
+        },
+        "candidate": {
+          "n": 5,
+          "p50": 4331.96,
+          "p95": 6754.83
+        }
+      },
+      "full_text_identical": 10,
+      "rows": [
+        {
+          "case": "gameplay-01-dialog-choices",
+          "image_sha256": "a65778ac2e5b8977f278f5a876f53ae9e523ebe9544a5af1a4335bcc7e0deb07",
+          "reference_ms": 3638.3,
+          "candidate_ms": 3661.55,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang与Rover在画面中对话，背景为深色，角色表情平静，屏幕上有对话文本和角色名称，场景显示为战斗结束后的对峙。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 64
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 64
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "gameplay-02-echo-sequence",
+          "image_sha256": "f7c75baf3af2f5df7ef30ad992e7f61bbc71b4d91953d146264c8d57809a9a61",
+          "reference_ms": 4310.92,
+          "candidate_ms": 4331.96,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Chixia在画面中保持站立姿态，背景为金色光芒下的山峦，角色周围有文字提示“Chixia Anyways, come check this out”，界面中有“An Boss... left by the Face Discord”和“And this is...”的对话气泡，显示角色处于战斗或对话状态，角色和背景环境保持一致，没有明显的动作变化。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 178
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 178
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "gameplay-03-camera-transition",
+          "image_sha256": "77af91f30be7576321660f733fffb16d4519758a917d4905e6b7e19e52277791",
+          "reference_ms": 6462.39,
+          "candidate_ms": 4368.4,
+          "reference_text": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从远景的远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "gameplay-04-field-dialogue",
+          "image_sha256": "cf54842899070823792016c20b34f9e2bd1a352a65d49eba82d5d90dc974c58a",
+          "reference_ms": 3091.33,
+          "candidate_ms": 3166.09,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang和Xinxia在画面中对话，背景是开阔的户外场景，有树木和天空，角色们表情平静，没有激烈动作，场景看起来是平静的对话场景。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 71
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 71
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "trailer-01-corridor",
+          "image_sha256": "195e5ea38311515da16a6262bd5d0cd2d84ef875591c6ce15b16498366242eec",
+          "reference_ms": 6060.54,
+          "candidate_ms": 3806.18,
+          "reference_text": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从远景的远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "trailer-02-landscape",
+          "image_sha256": "7ebb8bf5845aace00e2d3540ac3d59b24fd3fc26e3c5413243a47f6d631b5493",
+          "reference_ms": 3087.31,
+          "candidate_ms": 3078.68,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"场景从左上角的紫色标题“Lilies in a Dying Dream”逐渐过渡到右侧的红色岩石峡谷，其中可见远处有火光和建筑轮廓，前景是覆盖着白色积雪的岩石和地面，整体氛围由神秘开始，逐渐进入一个充满危险和探索感的场景。\"}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 111
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 111
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "trailer-03-combat-start",
+          "image_sha256": "17383d393e13abb587ee040a0710d40a67d992ca92a0f2c0e62c9b18f4b8290e",
+          "reference_ms": 6841.91,
+          "candidate_ms": 5892.65,
+          "reference_text": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"场景从左侧的宁静对峙转为右侧的激烈战斗。角色们从静止状态变为动态的格斗动作，其中角色4（右侧）展现出明显的攻击姿态，而角色1（左侧）则处于防御或准备攻击的状态。背景中的环境也发生了变化，从昏暗的走廊变为充满紫色光晕的开阔区域，暗示了战斗的激烈程度和场景的转换。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+          "reference_outcome": {
+            "scene": "fighting",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 130
+          },
+          "candidate_outcome": {
+            "scene": "fighting",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 130
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "trailer-04-rail-combat",
+          "image_sha256": "83f0dc5d7846ed2898312ec3477c6dc579f52d6fd3c2383863ec756b2c5a9331",
+          "reference_ms": 7437.15,
+          "candidate_ms": 7593.4,
+          "reference_text": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色们正在进行激烈的战斗，其中角色1（左上）和角色2（右上）使用紫色能量攻击，角色3（左下）和角色4（中上）则处于战斗状态。角色5（左下）和角色6（右下）似乎处于被击倒或受伤的状态，角色5的紫色能量爆炸效果明显，而角色6则被击倒，身上有白色烟雾。场景中的角色们处于不同的战斗状态，角色1和2是攻击方，角色3和4是防守方，角色5和6是受伤方。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "trailer-05-combat-effects",
+          "image_sha256": "c2d141dcb0f75a5df932f5f72465f0b79b1e91105d1963f0f39e54a37a365e97",
+          "reference_ms": 6707.64,
+          "candidate_ms": 6754.83,
+          "reference_text": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在战斗场景中不断进行攻击和防御。角色1（左上）和角色2（右上）在红色地毯上移动，角色3（左下）和角色4（右下）则进行攻击和防御。场景中的紫色光效和能量粒子表明有魔法或能量攻击正在进行。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+          "reference_outcome": {
+            "scene": "fighting",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 94
+          },
+          "candidate_outcome": {
+            "scene": "fighting",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 94
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "trailer-06-battle-transition",
+          "image_sha256": "1965cb2e393e3d02afe3e4bd60c30e04aa8163cb3cfb8a41c0ea23e0a6f0baab",
+          "reference_ms": 5582.34,
+          "candidate_ms": 5536.35,
+          "reference_text": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色在紫色花丛和建筑间进行着类似战斗或仪式的动作，角色们使用发光道具进行攻击或施放魔法，周围有烟雾和光晕效果，背景是带有窗户的建筑，整体氛围充满奇幻色彩。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}\n```",
+          "reference_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 80
+          },
+          "candidate_outcome": {
+            "scene": "fictive",
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": 80
+          },
+          "candidate_text_identical": true
+        }
+      ]
+    },
+    "idle_recorded_game_dialogue": {
+      "reference": {
+        "all_ms": {
+          "n": 4,
+          "p50": 2063.91,
+          "p95": 3403.97
+        },
+        "full": 3,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        },
+        "gpu_percent": {
+          "n": 18,
+          "p50": 87.0,
+          "p95": 99
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 4,
+          "p50": 1946.98,
+          "p95": 3042.36
+        },
+        "full": 3,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        },
+        "gpu_percent": {
+          "n": 18,
+          "p50": 94.5,
+          "p95": 98
+        }
+      },
+      "faster_pairs": 2,
+      "paired_change_ms": {
+        "n": 4,
+        "p50": -44.91,
+        "p95": 1041.79
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": 5.7,
+      "matched_complete": {
+        "reference": {
+          "n": 3,
+          "p50": 2000.57,
+          "p95": 2127.26
+        },
+        "candidate": {
+          "n": 3,
+          "p50": 2016.81,
+          "p95": 3042.36
+        }
+      },
+      "full_text_identical": 3,
+      "rows": [
+        {
+          "case": "gameplay-01-dialog-choices",
+          "image_sha256": "a65778ac2e5b8977f278f5a876f53ae9e523ebe9544a5af1a4335bcc7e0deb07",
+          "reference_ms": 1856.52,
+          "candidate_ms": 1877.15,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang与Rover在画面中保持相对静止，背景为深色，角色表情平静，屏幕右侧显示对话文本，说明场景处于对话结束后的对峙状态。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 68
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 68
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "gameplay-02-echo-sequence",
+          "image_sha256": "f7c75baf3af2f5df7ef30ad992e7f61bbc71b4d91953d146264c8d57809a9a61",
+          "reference_ms": 2000.57,
+          "candidate_ms": 3042.36,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Chixia在画面中保持站立姿态，背景为金色光芒下的山峦，角色周围有文字提示“Chixia Anyways, come check this out”，界面中有“An Boss... left by the Face Discord”和“And this is...”的对话气泡，显示角色处于战斗或对话状态，角色和背景环境保持一致，没有明显的动作变化。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "candidate_text": "{\n  \"scene\": \"settled\",\n  \"observation\": \"角色Chixia在画面中持续展示，背景是夕阳下的山峦和天空，角色周围有能量粒子特效，屏幕下方有Chixia的台词提示，界面左上角有角色控制按钮，整体场景稳定，角色处于战斗或休息状态。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 178
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 91
+          }
+        },
+        {
+          "case": "gameplay-03-camera-transition",
+          "image_sha256": "77af91f30be7576321660f733fffb16d4519758a917d4905e6b7e19e52277791",
+          "reference_ms": 3403.97,
+          "candidate_ms": 1750.61,
+          "reference_text": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从远景的远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景",
+          "reference_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_outcome": {
+            "scene": null,
+            "complete_with_citations": false,
+            "accepted_observation": false,
+            "observation_characters": null
+          },
+          "candidate_text_identical": true
+        },
+        {
+          "case": "gameplay-04-field-dialogue",
+          "image_sha256": "cf54842899070823792016c20b34f9e2bd1a352a65d49eba82d5d90dc974c58a",
+          "reference_ms": 2127.26,
+          "candidate_ms": 2016.81,
+          "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang和Xinxia在户外场景中出现，背景是树木和天空，角色们有对话和互动，场景看起来是平静的环境。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+          "reference_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 57
+          },
+          "candidate_outcome": {
+            "scene": "settled",
+            "complete_with_citations": true,
+            "accepted_observation": false,
+            "observation_characters": 57
+          },
+          "candidate_text_identical": true
+        }
+      ]
+    }
+  },
+  "paired_across_orders": {
+    "unit": "Eight distinct clips, median within each clip over the two orderings, then across clips.",
+    "reference": {
+      "n": 8,
+      "p50": 6711.69,
+      "p95": 7558.56
+    },
+    "candidate": {
+      "n": 8,
+      "p50": 5368.95,
+      "p95": 6516.76
+    },
+    "reduction_percent": 20.0,
+    "clips": [
+      {
+        "case": "battle-01-hud-blue",
+        "reference_ms": 6892.985000000001,
+        "candidate_ms": 6157.57
+      },
+      {
+        "case": "battle-02-hud-enemy",
+        "reference_ms": 7032.465,
+        "candidate_ms": 6516.76
+      },
+      {
+        "case": "battle-03-hud-purple",
+        "reference_ms": 6873.27,
+        "candidate_ms": 5483.385
+      },
+      {
+        "case": "battle-04-hud-spin",
+        "reference_ms": 6179.6,
+        "candidate_ms": 5254.525
+      },
+      {
+        "case": "battle-05-green-arena",
+        "reference_ms": 3770.535,
+        "candidate_ms": 3646.16
+      },
+      {
+        "case": "battle-06-dodge",
+        "reference_ms": 7558.555,
+        "candidate_ms": 6234.33
+      },
+      {
+        "case": "battle-07-red-arena",
+        "reference_ms": 4975.91,
+        "candidate_ms": 4982.155000000001
+      },
+      {
+        "case": "battle-08-effects",
+        "reference_ms": 6550.1,
+        "candidate_ms": 4776.21
+      }
+    ]
+  },
+  "pre_route_fix": {
+    "final-combat": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 6678.6,
+          "p95": 7489.3
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2807,
+          "p50": 16.04,
+          "p95": 21.72
+        },
+        "gpu_percent": {
+          "n": 98,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 5459.09,
+          "p95": 15922.43
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2857,
+          "p50": 16.16,
+          "p95": 27.01
+        },
+        "gpu_percent": {
+          "n": 105,
+          "p50": 100,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 7,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -566.14,
+        "p95": 9171.62
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": 18.3,
+      "matched_complete": {
+        "reference": {
+          "n": 1,
+          "p50": 3773.55,
+          "p95": 3773.55
+        },
+        "candidate": {
+          "n": 1,
+          "p50": 3722.0,
+          "p95": 3722.0
+        }
+      },
+      "full_text_identical": 8
+    },
+    "final-reverse": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 6676.73,
+          "p95": 7563.5
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2807,
+          "p50": 16.08,
+          "p95": 22.25
+        },
+        "gpu_percent": {
+          "n": 96,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 5297.62,
+          "p95": 6597.07
+        },
+        "full": 1,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 2377,
+          "p50": 16.13,
+          "p95": 23.09
+        },
+        "gpu_percent": {
+          "n": 84,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 6,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -829.55,
+        "p95": 44.31
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": 20.7,
+      "matched_complete": {
+        "reference": {
+          "n": 1,
+          "p50": 3707.38,
+          "p95": 3707.38
+        },
+        "candidate": {
+          "n": 1,
+          "p50": 3720.99,
+          "p95": 3720.99
+        }
+      },
+      "full_text_identical": 8
+    }
+  },
+  "product": {
+    "published_to_candidate": {
+      "original": {
+        "last_frame_ms": {
+          "n": 8,
+          "p50": 2353.31,
+          "p95": 2399.79
+        },
+        "since_first_capture_ms": {
+          "n": 8,
+          "p50": 5020.65,
+          "p95": 5170.96
+        },
+        "six_frames": 8,
+        "deadline_timeouts": 0,
+        "scenes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "accepted_six_frame_review_observations": 0,
+        "speech_requests": 0,
+        "renderer_frame_ms": {
+          "n": 2264,
+          "p50": 16.64,
+          "p95": 23.27
+        },
+        "gpu_percent": {
+          "n": 79,
+          "p50": 100,
+          "p95": 100
+        },
+        "accepted_single_frame_descriptions": 4,
+        "first_accepted_scene_ms": {
+          "n": 3,
+          "p50": 1231.8,
+          "p95": 1502.31
+        }
+      },
+      "optimized": {
+        "last_frame_ms": {
+          "n": 8,
+          "p50": 2337.12,
+          "p95": 2471.06
+        },
+        "since_first_capture_ms": {
+          "n": 8,
+          "p50": 5108.92,
+          "p95": 5174.65
+        },
+        "six_frames": 8,
+        "deadline_timeouts": 0,
+        "scenes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "accepted_six_frame_review_observations": 0,
+        "speech_requests": 0,
+        "renderer_frame_ms": {
+          "n": 2303,
+          "p50": 16.57,
+          "p95": 22.31
+        },
+        "gpu_percent": {
+          "n": 79,
+          "p50": 100,
+          "p95": 100
+        },
+        "accepted_single_frame_descriptions": 5,
+        "first_accepted_scene_ms": {
+          "n": 3,
+          "p50": 1220.84,
+          "p95": 1600.84
+        }
+      },
+      "pairs": [
+        {
+          "case": "01-hud-blue",
+          "reference_ms": 2351.9,
+          "candidate_ms": 2274.37,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "b61424ea19a5703f4424a0d4296294b17e5d39d691bab8ba6bdf68dac845f9b5",
+            "58f9930c77e52261577f2a8e1139bb8dd31056bfa448f4b63d445957f890afe2",
+            "4aca6f172660f497689aaaa98175fa8808ae2fb18109cf4e5b2c919926ce33bb",
+            "28e8eb8a3efe3725bb569777a280d7afe9b4c7e198d3437725b8356fcce0d451",
+            "3ae98d74b9d5820b77100161cefebf73d8d52c85e1da06bf75f164b27c1685ad",
+            "185d2d57654e7118d0c5c286668be42065534350f2c1ef607c6be5ea2705f656"
+          ],
+          "candidate_input_frame_sha256": [
+            "b61424ea19a5703f4424a0d4296294b17e5d39d691bab8ba6bdf68dac845f9b5",
+            "58f9930c77e52261577f2a8e1139bb8dd31056bfa448f4b63d445957f890afe2",
+            "4aca6f172660f497689aaaa98175fa8808ae2fb18109cf4e5b2c919926ce33bb",
+            "3ae98d74b9d5820b77100161cefebf73d8d52c85e1da06bf75f164b27c1685ad",
+            "185d2d57654e7118d0c5c286668be42065534350f2c1ef607c6be5ea2705f656",
+            "ffcaf63b2a32969cdc7628addd256eb0c29e251328e6f8c0a0295120e7235511"
+          ],
+          "reference_descriptions": [
+            "画面显示一个角色站在一个有枯树和迷雾的荒凉环境中，角色名为Yangyang，屏幕上有“Rover is with me”的文字提示。"
+          ],
+          "reference_first_scene_ms": 1502.31,
+          "candidate_descriptions": [
+            "画面显示一个角色站在一个有枯树和迷雾的荒凉环境中，角色名为Yangyang，屏幕上有“Rover is with me”的文字提示。"
+          ],
+          "candidate_first_scene_ms": 1600.84
+        },
+        {
+          "case": "02-hud-enemy",
+          "reference_ms": 2387.5,
+          "candidate_ms": 2360.05,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "95fc892c49151a175308f3d43e196500316b818aa9de14546636adf4e63d2eed",
+            "7bb2ce2204c8ec15824a6d5ce030f38a774fcc41b0446fa1d0d65cbf439140dd",
+            "4f808d937a634911ee57f56e23553c756e196b6a9f52a7f5d88391f8425a0762",
+            "a76d79fa2a021bb2b7c952ea3a02e67b6d5b4108e87978eb85f6cc5824ddbde4",
+            "e3011949ae13712036607c267244e3e3868919647c0cea27638912dde43c371b",
+            "89553584a7245f257e3760579d4f23686e5d91c6d70b26909110c52759f53c0c"
+          ],
+          "candidate_input_frame_sha256": [
+            "95fc892c49151a175308f3d43e196500316b818aa9de14546636adf4e63d2eed",
+            "7bb2ce2204c8ec15824a6d5ce030f38a774fcc41b0446fa1d0d65cbf439140dd",
+            "4f808d937a634911ee57f56e23553c756e196b6a9f52a7f5d88391f8425a0762",
+            "e3011949ae13712036607c267244e3e3868919647c0cea27638912dde43c371b",
+            "88605a9303749a28a3465959e28ff81c04b7310c5f12430d0fdeaf9c65381b90",
+            "89d7bbff455b11d1c034524e7cea8e1b3d0347a16226e7cb65ccd4b262463090"
+          ],
+          "reference_descriptions": [
+            "画面显示一个角色站在一个有雾气的黑色区域，背景是模糊的岩石和树木，角色手中拿着一把武器，周围有技能按钮和状态栏。"
+          ],
+          "reference_first_scene_ms": 1231.8,
+          "candidate_descriptions": [
+            "画面显示一个角色站在一个有雾气的黑色区域，背景是模糊的岩石和树木，角色手中拿着一把武器，周围有技能按钮和状态栏。",
+            "画面显示一个角色在黑暗环境中，背景有岩石和树木，角色周围有发光特效，但环境细节看不清。"
+          ],
+          "candidate_first_scene_ms": 1220.84
+        },
+        {
+          "case": "03-hud-purple",
+          "reference_ms": 2360.93,
+          "candidate_ms": 2471.06,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "3996f59ccd6f7b5d5efcfe06c95eb73fa1955ff71e2f97f2aced291b2a9d2ef7",
+            "35fd28d5913254ea20eb658205229ef47a97a3f440d03e1dc59c8964291749a3",
+            "bfb33a94d5a111be00ce382674c5644d51c1762ae8a0927302e4e8259c3a78ca",
+            "f5976eb700a96a94ba37d7b6cacad2660898653021014b5e4fc154f8957f2cbf",
+            "71a81b9290980f54f36545c3541f1919d8a04733f6209b56f88d382849b888f1",
+            "eae387205abc512f8dcf2adf5cfc94280eca70179bc0e92922c31cf8f1cd1211"
+          ],
+          "candidate_input_frame_sha256": [
+            "3996f59ccd6f7b5d5efcfe06c95eb73fa1955ff71e2f97f2aced291b2a9d2ef7",
+            "35fd28d5913254ea20eb658205229ef47a97a3f440d03e1dc59c8964291749a3",
+            "bfb33a94d5a111be00ce382674c5644d51c1762ae8a0927302e4e8259c3a78ca",
+            "86445bb47ed55675de9d6a84ef16d5fb999f61d2447aa86dcbd4cd8ce760f189",
+            "f5976eb700a96a94ba37d7b6cacad2660898653021014b5e4fc154f8957f2cbf",
+            "ebea200fa033e5222bf6569f94c94af702a418bad66da185e1ddfa0dee095a9c"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "04-hud-spin",
+          "reference_ms": 2163.91,
+          "candidate_ms": 2318.02,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "cea18c44c276fc97251eba2559abb2cb9fddbf0b5b02fab73df6390e4d6a07fc",
+            "f812e1e07a21db188e32694931633b2200ffc53825b7acd9a78c4c07f40965f7",
+            "ac91dcf3425a30f551fc259a68a05f7dff4c32eeed16e231f7749769669284e9",
+            "246352b9482ecd3274ada967f3b20c197611f1a0fb266365fd3228fc8056b1aa",
+            "e9153b3504eebbac70818b62769f73319da55f15661e63c447afe01810b6f6d1",
+            "218bdc23fe761a178d6ee34960d7caf8ada6bc61244bc5d9b53a476f4c6369f3"
+          ],
+          "candidate_input_frame_sha256": [
+            "cea18c44c276fc97251eba2559abb2cb9fddbf0b5b02fab73df6390e4d6a07fc",
+            "f812e1e07a21db188e32694931633b2200ffc53825b7acd9a78c4c07f40965f7",
+            "ac91dcf3425a30f551fc259a68a05f7dff4c32eeed16e231f7749769669284e9",
+            "246352b9482ecd3274ada967f3b20c197611f1a0fb266365fd3228fc8056b1aa",
+            "e9153b3504eebbac70818b62769f73319da55f15661e63c447afe01810b6f6d1",
+            "218bdc23fe761a178d6ee34960d7caf8ada6bc61244bc5d9b53a476f4c6369f3"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "05-green-arena",
+          "reference_ms": 2354.71,
+          "candidate_ms": 2364.61,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "f9b585b623fff7e8b1a75a239cb0142b5a8d88ed886757699d217cfcc6319f5f",
+            "8b004f888a50f77e3912e760ac0c8ff585ab977494292ec8c2c10e32bc2208bc",
+            "5a0562e86b4c3e21c74e033557ec2d782d737d43dd4d74d60a32305ea44d6a7d",
+            "aea9c3fb40ed7d2b6769493db4a8fa08aa14cb1852d81ce7ba079ab2d9bae6b9",
+            "b6e8d20e1875e700d01bd27120491418e10982ee9840c8aff77458094fbfb438",
+            "430ec199e3c7c18c080efbbacaf496163b60dd48baf24eaee3a0573b36cc5923"
+          ],
+          "candidate_input_frame_sha256": [
+            "f9b585b623fff7e8b1a75a239cb0142b5a8d88ed886757699d217cfcc6319f5f",
+            "8b004f888a50f77e3912e760ac0c8ff585ab977494292ec8c2c10e32bc2208bc",
+            "5a0562e86b4c3e21c74e033557ec2d782d737d43dd4d74d60a32305ea44d6a7d",
+            "aea9c3fb40ed7d2b6769493db4a8fa08aa14cb1852d81ce7ba079ab2d9bae6b9",
+            "b6e8d20e1875e700d01bd27120491418e10982ee9840c8aff77458094fbfb438",
+            "430ec199e3c7c18c080efbbacaf496163b60dd48baf24eaee3a0573b36cc5923"
+          ],
+          "reference_descriptions": [
+            "玩家角色站在一片紫色的花丛里，背景是夜晚的建筑物和星空。",
+            "玩家正在一个充满绿色植被和紫色花朵的草地上，角色站在一片开阔的草地上，周围有树木和灌木丛，远处有建筑物和天空。"
+          ],
+          "reference_first_scene_ms": 1080.66,
+          "candidate_descriptions": [
+            "玩家角色站在一片紫色的花丛里，背景是夜晚的建筑物和星空。",
+            "玩家正在一个充满绿色植被和紫色花朵的草地上，角色站在一片开阔的草地上，周围有树木和灌木丛，远处有建筑物和天空。"
+          ],
+          "candidate_first_scene_ms": 1067.87
+        },
+        {
+          "case": "06-dodge",
+          "reference_ms": 2399.79,
+          "candidate_ms": 2356.22,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "5f59b8780b7d89f255e22658ed528fe23303a45e560fd703ea9c8b18865c3e06",
+            "a4f86191f86658d75b6bd605b8a20b14b190e087b7cd440d2440f9af7ddc8a21",
+            "dd5f200c4d9ee244bd5a6adcad9bb7657570851cd5cbaf325125d20fee017880",
+            "8e75d78a6f3f9cc8383e173ba711e92001a89ad2ad8cdb01854e8867968cf1d5",
+            "599223c02abeec3c7818cd4aaf977cf0e15345a2ccdb928e218394f1f2ef47c4",
+            "445ec7856a613a98b15fd5b689f664455222a1a85aa2a79c7dcdcde57049e73f"
+          ],
+          "candidate_input_frame_sha256": [
+            "5f59b8780b7d89f255e22658ed528fe23303a45e560fd703ea9c8b18865c3e06",
+            "a4f86191f86658d75b6bd605b8a20b14b190e087b7cd440d2440f9af7ddc8a21",
+            "dd5f200c4d9ee244bd5a6adcad9bb7657570851cd5cbaf325125d20fee017880",
+            "599223c02abeec3c7818cd4aaf977cf0e15345a2ccdb928e218394f1f2ef47c4",
+            "589c51b7350f25473a212def89c272f8c5a2f2339c38c169fff3919e3ed301e3",
+            "54ef1fe884b28e7a970055aee2815c59e65c7b2932d4182ffd0c2521b992b302"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "07-red-arena",
+          "reference_ms": 2346.22,
+          "candidate_ms": 2279.78,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "722d1a7df2c8376c6a4d0601077744b12afce21ef0d15191302edc691dddb5dd",
+            "bd81389b032d10d7ad162729ed0156536521bf2d9bf256234c899544de0893e7",
+            "0e7c1d9ee45e3df6dc8ff89e5235ad56fcbd880e235a40e0071650c401debeb0",
+            "28bda7a9a0e038b742b3ca5f2c786e8dac765dc823b5bbd80e82e11ffdffc3bb",
+            "b22979bea67e50312c470ccab89041668eea11edc30bdbce13a58d50ff6565a1",
+            "7240cb2359d58afb5252efa844f76b84cb965680a2830b55bd92d39dc30fc83e"
+          ],
+          "candidate_input_frame_sha256": [
+            "722d1a7df2c8376c6a4d0601077744b12afce21ef0d15191302edc691dddb5dd",
+            "bd81389b032d10d7ad162729ed0156536521bf2d9bf256234c899544de0893e7",
+            "0e7c1d9ee45e3df6dc8ff89e5235ad56fcbd880e235a40e0071650c401debeb0",
+            "28bda7a9a0e038b742b3ca5f2c786e8dac765dc823b5bbd80e82e11ffdffc3bb",
+            "7943bb7e326df1029060307686343d1c1dd11daba62728bafe6266eba0b67e29",
+            "7240cb2359d58afb5252efa844f76b84cb965680a2830b55bd92d39dc30fc83e"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "08-effects",
+          "reference_ms": 2258.55,
+          "candidate_ms": 2224.43,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "8e387d7411b510b09331de053ce9bb11fb54f4a4b2819b17c45039624cf286d2",
+            "9f9aa33731bade498f50d7315736b4c1b5ef3469509d7ddc5c6c06c715c26940",
+            "509963bee65fb6be80cce3082c6825fae4796949655d357ce56fd76bb23c9494",
+            "c80afac645c1e31f592d0bc68f84b708782781f72fbda67de5c121dd7521b456",
+            "874108f4bdad3d3051adbc3c88edaaccf34eb74687dcde3be97175000692a076",
+            "8861a143da7eed5e84b47950438b28118b02a9bc93da0f2de3a846dbb881a792"
+          ],
+          "candidate_input_frame_sha256": [
+            "8e387d7411b510b09331de053ce9bb11fb54f4a4b2819b17c45039624cf286d2",
+            "b33b3eff1ee4ec2fdc4cce7b973ba684fe537a75180ae5349a525eb0283534fa",
+            "509963bee65fb6be80cce3082c6825fae4796949655d357ce56fd76bb23c9494",
+            "c80afac645c1e31f592d0bc68f84b708782781f72fbda67de5c121dd7521b456",
+            "25ac978e482fd1a77cf90372cfd7f9d956df4bb3032f125ad403d34aef15105c",
+            "8861a143da7eed5e84b47950438b28118b02a9bc93da0f2de3a846dbb881a792"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        }
+      ],
+      "matched_first_accepted_scene_ms": {
+        "reference": {
+          "n": 3,
+          "p50": 1231.8,
+          "p95": 1502.31
+        },
+        "candidate": {
+          "n": 3,
+          "p50": 1220.84,
+          "p95": 1600.84
+        }
+      },
+      "identical_description_lists": 7,
+      "identical_input_frame_sequences": 2,
+      "identical_review_outputs": 8,
+      "faster_pairs": 5,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -30.79,
+        "p95": 154.11
+      },
+      "p50_change_percent": 0.7
+    },
+    "published_to_candidate_reversed": {
+      "original": {
+        "last_frame_ms": {
+          "n": 8,
+          "p50": 2344.55,
+          "p95": 2413.56
+        },
+        "since_first_capture_ms": {
+          "n": 8,
+          "p50": 5068.41,
+          "p95": 5163.58
+        },
+        "six_frames": 8,
+        "deadline_timeouts": 0,
+        "scenes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "accepted_six_frame_review_observations": 0,
+        "speech_requests": 0,
+        "renderer_frame_ms": {
+          "n": 2236,
+          "p50": 16.62,
+          "p95": 22.92
+        },
+        "gpu_percent": {
+          "n": 77,
+          "p50": 100,
+          "p95": 100
+        },
+        "accepted_single_frame_descriptions": 4,
+        "first_accepted_scene_ms": {
+          "n": 3,
+          "p50": 1224.21,
+          "p95": 1486.44
+        }
+      },
+      "optimized": {
+        "last_frame_ms": {
+          "n": 8,
+          "p50": 2276.3,
+          "p95": 2450.43
+        },
+        "since_first_capture_ms": {
+          "n": 8,
+          "p50": 5003.39,
+          "p95": 5113.24
+        },
+        "six_frames": 8,
+        "deadline_timeouts": 0,
+        "scenes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "accepted_six_frame_review_observations": 0,
+        "speech_requests": 0,
+        "renderer_frame_ms": {
+          "n": 2242,
+          "p50": 16.64,
+          "p95": 22.67
+        },
+        "gpu_percent": {
+          "n": 80,
+          "p50": 100.0,
+          "p95": 100
+        },
+        "accepted_single_frame_descriptions": 3,
+        "first_accepted_scene_ms": {
+          "n": 3,
+          "p50": 1202.43,
+          "p95": 1539.4
+        }
+      },
+      "pairs": [
+        {
+          "case": "01-hud-blue",
+          "reference_ms": 2342.5,
+          "candidate_ms": 2332.23,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "b61424ea19a5703f4424a0d4296294b17e5d39d691bab8ba6bdf68dac845f9b5",
+            "58f9930c77e52261577f2a8e1139bb8dd31056bfa448f4b63d445957f890afe2",
+            "4aca6f172660f497689aaaa98175fa8808ae2fb18109cf4e5b2c919926ce33bb",
+            "28e8eb8a3efe3725bb569777a280d7afe9b4c7e198d3437725b8356fcce0d451",
+            "3ae98d74b9d5820b77100161cefebf73d8d52c85e1da06bf75f164b27c1685ad",
+            "185d2d57654e7118d0c5c286668be42065534350f2c1ef607c6be5ea2705f656"
+          ],
+          "candidate_input_frame_sha256": [
+            "b61424ea19a5703f4424a0d4296294b17e5d39d691bab8ba6bdf68dac845f9b5",
+            "58f9930c77e52261577f2a8e1139bb8dd31056bfa448f4b63d445957f890afe2",
+            "4aca6f172660f497689aaaa98175fa8808ae2fb18109cf4e5b2c919926ce33bb",
+            "28e8eb8a3efe3725bb569777a280d7afe9b4c7e198d3437725b8356fcce0d451",
+            "3ae98d74b9d5820b77100161cefebf73d8d52c85e1da06bf75f164b27c1685ad",
+            "185d2d57654e7118d0c5c286668be42065534350f2c1ef607c6be5ea2705f656"
+          ],
+          "reference_descriptions": [
+            "画面显示一个角色站在一个有枯树和迷雾的荒凉环境中，角色名为Yangyang，屏幕上有“Rover is with me”的文字提示。"
+          ],
+          "reference_first_scene_ms": 1486.44,
+          "candidate_descriptions": [
+            "画面显示一个角色站在一个有枯树和迷雾的荒凉环境中，角色名为Yangyang，屏幕上有“Rover is with me”的文字提示。"
+          ],
+          "candidate_first_scene_ms": 1539.4
+        },
+        {
+          "case": "02-hud-enemy",
+          "reference_ms": 2413.56,
+          "candidate_ms": 2450.43,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "95fc892c49151a175308f3d43e196500316b818aa9de14546636adf4e63d2eed",
+            "7bb2ce2204c8ec15824a6d5ce030f38a774fcc41b0446fa1d0d65cbf439140dd",
+            "4f808d937a634911ee57f56e23553c756e196b6a9f52a7f5d88391f8425a0762",
+            "a76d79fa2a021bb2b7c952ea3a02e67b6d5b4108e87978eb85f6cc5824ddbde4",
+            "e3011949ae13712036607c267244e3e3868919647c0cea27638912dde43c371b",
+            "89553584a7245f257e3760579d4f23686e5d91c6d70b26909110c52759f53c0c"
+          ],
+          "candidate_input_frame_sha256": [
+            "95fc892c49151a175308f3d43e196500316b818aa9de14546636adf4e63d2eed",
+            "7bb2ce2204c8ec15824a6d5ce030f38a774fcc41b0446fa1d0d65cbf439140dd",
+            "4f808d937a634911ee57f56e23553c756e196b6a9f52a7f5d88391f8425a0762",
+            "a76d79fa2a021bb2b7c952ea3a02e67b6d5b4108e87978eb85f6cc5824ddbde4",
+            "e3011949ae13712036607c267244e3e3868919647c0cea27638912dde43c371b",
+            "89553584a7245f257e3760579d4f23686e5d91c6d70b26909110c52759f53c0c"
+          ],
+          "reference_descriptions": [
+            "画面显示一个角色站在一个有雾气的黑色区域，背景是模糊的岩石和树木，角色手中拿着一把武器，周围有技能按钮和状态栏。"
+          ],
+          "reference_first_scene_ms": 1224.21,
+          "candidate_descriptions": [
+            "画面显示一个角色站在一个有雾气的黑色区域，背景是模糊的岩石和树木，角色手中拿着一把武器，周围有技能按钮和状态栏。"
+          ],
+          "candidate_first_scene_ms": 1202.43
+        },
+        {
+          "case": "03-hud-purple",
+          "reference_ms": 2346.6,
+          "candidate_ms": 2265.76,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "3996f59ccd6f7b5d5efcfe06c95eb73fa1955ff71e2f97f2aced291b2a9d2ef7",
+            "35fd28d5913254ea20eb658205229ef47a97a3f440d03e1dc59c8964291749a3",
+            "bfb33a94d5a111be00ce382674c5644d51c1762ae8a0927302e4e8259c3a78ca",
+            "f5976eb700a96a94ba37d7b6cacad2660898653021014b5e4fc154f8957f2cbf",
+            "ebea200fa033e5222bf6569f94c94af702a418bad66da185e1ddfa0dee095a9c",
+            "eae387205abc512f8dcf2adf5cfc94280eca70179bc0e92922c31cf8f1cd1211"
+          ],
+          "candidate_input_frame_sha256": [
+            "3996f59ccd6f7b5d5efcfe06c95eb73fa1955ff71e2f97f2aced291b2a9d2ef7",
+            "35fd28d5913254ea20eb658205229ef47a97a3f440d03e1dc59c8964291749a3",
+            "bfb33a94d5a111be00ce382674c5644d51c1762ae8a0927302e4e8259c3a78ca",
+            "f5976eb700a96a94ba37d7b6cacad2660898653021014b5e4fc154f8957f2cbf",
+            "ebea200fa033e5222bf6569f94c94af702a418bad66da185e1ddfa0dee095a9c",
+            "eae387205abc512f8dcf2adf5cfc94280eca70179bc0e92922c31cf8f1cd1211"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "04-hud-spin",
+          "reference_ms": 2274.17,
+          "candidate_ms": 2139.46,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "cea18c44c276fc97251eba2559abb2cb9fddbf0b5b02fab73df6390e4d6a07fc",
+            "f812e1e07a21db188e32694931633b2200ffc53825b7acd9a78c4c07f40965f7",
+            "ac91dcf3425a30f551fc259a68a05f7dff4c32eeed16e231f7749769669284e9",
+            "246352b9482ecd3274ada967f3b20c197611f1a0fb266365fd3228fc8056b1aa",
+            "e9153b3504eebbac70818b62769f73319da55f15661e63c447afe01810b6f6d1",
+            "218bdc23fe761a178d6ee34960d7caf8ada6bc61244bc5d9b53a476f4c6369f3"
+          ],
+          "candidate_input_frame_sha256": [
+            "cea18c44c276fc97251eba2559abb2cb9fddbf0b5b02fab73df6390e4d6a07fc",
+            "f812e1e07a21db188e32694931633b2200ffc53825b7acd9a78c4c07f40965f7",
+            "ac91dcf3425a30f551fc259a68a05f7dff4c32eeed16e231f7749769669284e9",
+            "246352b9482ecd3274ada967f3b20c197611f1a0fb266365fd3228fc8056b1aa",
+            "e9153b3504eebbac70818b62769f73319da55f15661e63c447afe01810b6f6d1",
+            "218bdc23fe761a178d6ee34960d7caf8ada6bc61244bc5d9b53a476f4c6369f3"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "05-green-arena",
+          "reference_ms": 2281.89,
+          "candidate_ms": 2233.79,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "f9b585b623fff7e8b1a75a239cb0142b5a8d88ed886757699d217cfcc6319f5f",
+            "8b004f888a50f77e3912e760ac0c8ff585ab977494292ec8c2c10e32bc2208bc",
+            "5a0562e86b4c3e21c74e033557ec2d782d737d43dd4d74d60a32305ea44d6a7d",
+            "aea9c3fb40ed7d2b6769493db4a8fa08aa14cb1852d81ce7ba079ab2d9bae6b9",
+            "ce9bc33a1643cf3923b67e5577d4c3d4681c2d19f7f6a0cd0761b59be6e7d8e6",
+            "430ec199e3c7c18c080efbbacaf496163b60dd48baf24eaee3a0573b36cc5923"
+          ],
+          "candidate_input_frame_sha256": [
+            "f9b585b623fff7e8b1a75a239cb0142b5a8d88ed886757699d217cfcc6319f5f",
+            "266cd3b9ed694454535b4fdaa7a8d03a3f1b6069b8c09fd1d6f20056d60d21b1",
+            "5a0562e86b4c3e21c74e033557ec2d782d737d43dd4d74d60a32305ea44d6a7d",
+            "f12ab83749063aa48628abe5928475e73da1d2a509f2c3e7fe0d0ffc2858ac07",
+            "aea9c3fb40ed7d2b6769493db4a8fa08aa14cb1852d81ce7ba079ab2d9bae6b9",
+            "b6e8d20e1875e700d01bd27120491418e10982ee9840c8aff77458094fbfb438"
+          ],
+          "reference_descriptions": [
+            "玩家角色站在一片紫色的花丛里，背景是夜晚的建筑物和星空。",
+            "玩家正在一个充满绿色植被和紫色花朵的草地上，角色站在一片开阔的草地上，周围有树木和灌木丛，远处有建筑物和天空。"
+          ],
+          "reference_first_scene_ms": 1119.2,
+          "candidate_descriptions": [
+            "玩家角色站在一片紫色的花丛里，背景是夜晚的建筑物和星空。"
+          ],
+          "candidate_first_scene_ms": 1076.03
+        },
+        {
+          "case": "06-dodge",
+          "reference_ms": 2382.53,
+          "candidate_ms": 2303.22,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "5f59b8780b7d89f255e22658ed528fe23303a45e560fd703ea9c8b18865c3e06",
+            "a4f86191f86658d75b6bd605b8a20b14b190e087b7cd440d2440f9af7ddc8a21",
+            "dd5f200c4d9ee244bd5a6adcad9bb7657570851cd5cbaf325125d20fee017880",
+            "8e75d78a6f3f9cc8383e173ba711e92001a89ad2ad8cdb01854e8867968cf1d5",
+            "599223c02abeec3c7818cd4aaf977cf0e15345a2ccdb928e218394f1f2ef47c4",
+            "445ec7856a613a98b15fd5b689f664455222a1a85aa2a79c7dcdcde57049e73f"
+          ],
+          "candidate_input_frame_sha256": [
+            "5f59b8780b7d89f255e22658ed528fe23303a45e560fd703ea9c8b18865c3e06",
+            "a4f86191f86658d75b6bd605b8a20b14b190e087b7cd440d2440f9af7ddc8a21",
+            "dd5f200c4d9ee244bd5a6adcad9bb7657570851cd5cbaf325125d20fee017880",
+            "599223c02abeec3c7818cd4aaf977cf0e15345a2ccdb928e218394f1f2ef47c4",
+            "589c51b7350f25473a212def89c272f8c5a2f2339c38c169fff3919e3ed301e3",
+            "54ef1fe884b28e7a970055aee2815c59e65c7b2932d4182ffd0c2521b992b302"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "07-red-arena",
+          "reference_ms": 2250.88,
+          "candidate_ms": 2286.83,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "722d1a7df2c8376c6a4d0601077744b12afce21ef0d15191302edc691dddb5dd",
+            "bd81389b032d10d7ad162729ed0156536521bf2d9bf256234c899544de0893e7",
+            "0e7c1d9ee45e3df6dc8ff89e5235ad56fcbd880e235a40e0071650c401debeb0",
+            "28bda7a9a0e038b742b3ca5f2c786e8dac765dc823b5bbd80e82e11ffdffc3bb",
+            "7943bb7e326df1029060307686343d1c1dd11daba62728bafe6266eba0b67e29",
+            "7240cb2359d58afb5252efa844f76b84cb965680a2830b55bd92d39dc30fc83e"
+          ],
+          "candidate_input_frame_sha256": [
+            "722d1a7df2c8376c6a4d0601077744b12afce21ef0d15191302edc691dddb5dd",
+            "bd81389b032d10d7ad162729ed0156536521bf2d9bf256234c899544de0893e7",
+            "0e7c1d9ee45e3df6dc8ff89e5235ad56fcbd880e235a40e0071650c401debeb0",
+            "28bda7a9a0e038b742b3ca5f2c786e8dac765dc823b5bbd80e82e11ffdffc3bb",
+            "7943bb7e326df1029060307686343d1c1dd11daba62728bafe6266eba0b67e29",
+            "7240cb2359d58afb5252efa844f76b84cb965680a2830b55bd92d39dc30fc83e"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "08-effects",
+          "reference_ms": 2356.21,
+          "candidate_ms": 2250.12,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "8e387d7411b510b09331de053ce9bb11fb54f4a4b2819b17c45039624cf286d2",
+            "9f9aa33731bade498f50d7315736b4c1b5ef3469509d7ddc5c6c06c715c26940",
+            "509963bee65fb6be80cce3082c6825fae4796949655d357ce56fd76bb23c9494",
+            "c80afac645c1e31f592d0bc68f84b708782781f72fbda67de5c121dd7521b456",
+            "874108f4bdad3d3051adbc3c88edaaccf34eb74687dcde3be97175000692a076",
+            "8861a143da7eed5e84b47950438b28118b02a9bc93da0f2de3a846dbb881a792"
+          ],
+          "candidate_input_frame_sha256": [
+            "8e387d7411b510b09331de053ce9bb11fb54f4a4b2819b17c45039624cf286d2",
+            "9f9aa33731bade498f50d7315736b4c1b5ef3469509d7ddc5c6c06c715c26940",
+            "509963bee65fb6be80cce3082c6825fae4796949655d357ce56fd76bb23c9494",
+            "c80afac645c1e31f592d0bc68f84b708782781f72fbda67de5c121dd7521b456",
+            "25ac978e482fd1a77cf90372cfd7f9d956df4bb3032f125ad403d34aef15105c",
+            "8861a143da7eed5e84b47950438b28118b02a9bc93da0f2de3a846dbb881a792"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        }
+      ],
+      "matched_first_accepted_scene_ms": {
+        "reference": {
+          "n": 3,
+          "p50": 1224.21,
+          "p95": 1486.44
+        },
+        "candidate": {
+          "n": 3,
+          "p50": 1202.43,
+          "p95": 1539.4
+        }
+      },
+      "identical_description_lists": 7,
+      "identical_input_frame_sequences": 5,
+      "identical_review_outputs": 8,
+      "faster_pairs": 6,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -63.71,
+        "p95": 36.87
+      },
+      "p50_change_percent": 2.9
+    },
+    "initial_to_candidate": {
+      "original": {
+        "last_frame_ms": {
+          "n": 8,
+          "p50": 3075.68,
+          "p95": 3163.29
+        },
+        "since_first_capture_ms": {
+          "n": 8,
+          "p50": 5900.1,
+          "p95": 6884.43
+        },
+        "six_frames": 8,
+        "deadline_timeouts": 0,
+        "scenes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "accepted_six_frame_review_observations": 0,
+        "speech_requests": 0,
+        "renderer_frame_ms": {
+          "n": 2792,
+          "p50": 16.28,
+          "p95": 20.74
+        },
+        "gpu_percent": {
+          "n": 96,
+          "p50": 100.0,
+          "p95": 100
+        },
+        "accepted_single_frame_descriptions": 4,
+        "first_accepted_scene_ms": {
+          "n": 3,
+          "p50": 2522.1,
+          "p95": 2530.05
+        }
+      },
+      "optimized": {
+        "last_frame_ms": {
+          "n": 8,
+          "p50": 2303.85,
+          "p95": 2406.13
+        },
+        "since_first_capture_ms": {
+          "n": 8,
+          "p50": 5025.05,
+          "p95": 5123.48
+        },
+        "six_frames": 8,
+        "deadline_timeouts": 0,
+        "scenes": [
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled",
+          "settled"
+        ],
+        "accepted_six_frame_review_observations": 0,
+        "speech_requests": 0,
+        "renderer_frame_ms": {
+          "n": 2230,
+          "p50": 16.62,
+          "p95": 22.36
+        },
+        "gpu_percent": {
+          "n": 77,
+          "p50": 100,
+          "p95": 100
+        },
+        "accepted_single_frame_descriptions": 4,
+        "first_accepted_scene_ms": {
+          "n": 3,
+          "p50": 1234.18,
+          "p95": 1521.76
+        }
+      },
+      "pairs": [
+        {
+          "case": "01-hud-blue",
+          "reference_ms": 3044.82,
+          "candidate_ms": 2375.23,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "b61424ea19a5703f4424a0d4296294b17e5d39d691bab8ba6bdf68dac845f9b5",
+            "58f9930c77e52261577f2a8e1139bb8dd31056bfa448f4b63d445957f890afe2",
+            "28e8eb8a3efe3725bb569777a280d7afe9b4c7e198d3437725b8356fcce0d451",
+            "3ae98d74b9d5820b77100161cefebf73d8d52c85e1da06bf75f164b27c1685ad",
+            "ffcaf63b2a32969cdc7628addd256eb0c29e251328e6f8c0a0295120e7235511",
+            "9d4ec3e2bde31ce876560d8e549f6e4f9364af51d411220bfc999f7f778bd006"
+          ],
+          "candidate_input_frame_sha256": [
+            "b61424ea19a5703f4424a0d4296294b17e5d39d691bab8ba6bdf68dac845f9b5",
+            "58f9930c77e52261577f2a8e1139bb8dd31056bfa448f4b63d445957f890afe2",
+            "4aca6f172660f497689aaaa98175fa8808ae2fb18109cf4e5b2c919926ce33bb",
+            "28e8eb8a3efe3725bb569777a280d7afe9b4c7e198d3437725b8356fcce0d451",
+            "3ae98d74b9d5820b77100161cefebf73d8d52c85e1da06bf75f164b27c1685ad",
+            "185d2d57654e7118d0c5c286668be42065534350f2c1ef607c6be5ea2705f656"
+          ],
+          "reference_descriptions": [
+            "画面显示一个角色站在一个有枯树和迷雾的荒凉环境中，角色名为Yangyang，屏幕上有“Rover is with me”的文字提示。"
+          ],
+          "reference_first_scene_ms": 2522.1,
+          "candidate_descriptions": [
+            "画面显示一个角色站在一个有枯树和迷雾的荒凉环境中，角色名为Yangyang，屏幕上有“Rover is with me”的文字提示。"
+          ],
+          "candidate_first_scene_ms": 1521.76
+        },
+        {
+          "case": "02-hud-enemy",
+          "reference_ms": 3107.12,
+          "candidate_ms": 2380.74,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "95fc892c49151a175308f3d43e196500316b818aa9de14546636adf4e63d2eed",
+            "7bb2ce2204c8ec15824a6d5ce030f38a774fcc41b0446fa1d0d65cbf439140dd",
+            "4f808d937a634911ee57f56e23553c756e196b6a9f52a7f5d88391f8425a0762",
+            "e3011949ae13712036607c267244e3e3868919647c0cea27638912dde43c371b",
+            "89553584a7245f257e3760579d4f23686e5d91c6d70b26909110c52759f53c0c",
+            "89d7bbff455b11d1c034524e7cea8e1b3d0347a16226e7cb65ccd4b262463090"
+          ],
+          "candidate_input_frame_sha256": [
+            "95fc892c49151a175308f3d43e196500316b818aa9de14546636adf4e63d2eed",
+            "7bb2ce2204c8ec15824a6d5ce030f38a774fcc41b0446fa1d0d65cbf439140dd",
+            "4f808d937a634911ee57f56e23553c756e196b6a9f52a7f5d88391f8425a0762",
+            "a76d79fa2a021bb2b7c952ea3a02e67b6d5b4108e87978eb85f6cc5824ddbde4",
+            "e3011949ae13712036607c267244e3e3868919647c0cea27638912dde43c371b",
+            "89553584a7245f257e3760579d4f23686e5d91c6d70b26909110c52759f53c0c"
+          ],
+          "reference_descriptions": [
+            "画面显示一个角色站在一个有雾气的黑色区域，背景是模糊的岩石和树木，角色手中拿着一把武器，周围有技能按钮和状态栏。"
+          ],
+          "reference_first_scene_ms": 2530.05,
+          "candidate_descriptions": [
+            "画面显示一个角色站在一个有雾气的黑色区域，背景是模糊的岩石和树木，角色手中拿着一把武器，周围有技能按钮和状态栏。"
+          ],
+          "candidate_first_scene_ms": 1234.18
+        },
+        {
+          "case": "03-hud-purple",
+          "reference_ms": 3129.43,
+          "candidate_ms": 2313.46,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "3996f59ccd6f7b5d5efcfe06c95eb73fa1955ff71e2f97f2aced291b2a9d2ef7",
+            "35fd28d5913254ea20eb658205229ef47a97a3f440d03e1dc59c8964291749a3",
+            "bfb33a94d5a111be00ce382674c5644d51c1762ae8a0927302e4e8259c3a78ca",
+            "f5976eb700a96a94ba37d7b6cacad2660898653021014b5e4fc154f8957f2cbf",
+            "ebea200fa033e5222bf6569f94c94af702a418bad66da185e1ddfa0dee095a9c",
+            "eae387205abc512f8dcf2adf5cfc94280eca70179bc0e92922c31cf8f1cd1211"
+          ],
+          "candidate_input_frame_sha256": [
+            "3996f59ccd6f7b5d5efcfe06c95eb73fa1955ff71e2f97f2aced291b2a9d2ef7",
+            "35fd28d5913254ea20eb658205229ef47a97a3f440d03e1dc59c8964291749a3",
+            "bfb33a94d5a111be00ce382674c5644d51c1762ae8a0927302e4e8259c3a78ca",
+            "f5976eb700a96a94ba37d7b6cacad2660898653021014b5e4fc154f8957f2cbf",
+            "ebea200fa033e5222bf6569f94c94af702a418bad66da185e1ddfa0dee095a9c",
+            "eae387205abc512f8dcf2adf5cfc94280eca70179bc0e92922c31cf8f1cd1211"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "04-hud-spin",
+          "reference_ms": 3073.03,
+          "candidate_ms": 2208.11,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "cea18c44c276fc97251eba2559abb2cb9fddbf0b5b02fab73df6390e4d6a07fc",
+            "f812e1e07a21db188e32694931633b2200ffc53825b7acd9a78c4c07f40965f7",
+            "ac91dcf3425a30f551fc259a68a05f7dff4c32eeed16e231f7749769669284e9",
+            "246352b9482ecd3274ada967f3b20c197611f1a0fb266365fd3228fc8056b1aa",
+            "e9153b3504eebbac70818b62769f73319da55f15661e63c447afe01810b6f6d1",
+            "218bdc23fe761a178d6ee34960d7caf8ada6bc61244bc5d9b53a476f4c6369f3"
+          ],
+          "candidate_input_frame_sha256": [
+            "cea18c44c276fc97251eba2559abb2cb9fddbf0b5b02fab73df6390e4d6a07fc",
+            "f812e1e07a21db188e32694931633b2200ffc53825b7acd9a78c4c07f40965f7",
+            "ac91dcf3425a30f551fc259a68a05f7dff4c32eeed16e231f7749769669284e9",
+            "246352b9482ecd3274ada967f3b20c197611f1a0fb266365fd3228fc8056b1aa",
+            "e9153b3504eebbac70818b62769f73319da55f15661e63c447afe01810b6f6d1",
+            "218bdc23fe761a178d6ee34960d7caf8ada6bc61244bc5d9b53a476f4c6369f3"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "05-green-arena",
+          "reference_ms": 3078.32,
+          "candidate_ms": 2221.96,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "f9b585b623fff7e8b1a75a239cb0142b5a8d88ed886757699d217cfcc6319f5f",
+            "5a0562e86b4c3e21c74e033557ec2d782d737d43dd4d74d60a32305ea44d6a7d",
+            "4b6f50686516b30e20bf2cc80a0baf5f5d516b424227ba90d34625f124936c5b",
+            "ce9bc33a1643cf3923b67e5577d4c3d4681c2d19f7f6a0cd0761b59be6e7d8e6",
+            "430ec199e3c7c18c080efbbacaf496163b60dd48baf24eaee3a0573b36cc5923",
+            "04f501ad396f92d28f55476fa4c3291bee46aaa93266eaa417806f53eff0ae6e"
+          ],
+          "candidate_input_frame_sha256": [
+            "f9b585b623fff7e8b1a75a239cb0142b5a8d88ed886757699d217cfcc6319f5f",
+            "8b004f888a50f77e3912e760ac0c8ff585ab977494292ec8c2c10e32bc2208bc",
+            "5a0562e86b4c3e21c74e033557ec2d782d737d43dd4d74d60a32305ea44d6a7d",
+            "aea9c3fb40ed7d2b6769493db4a8fa08aa14cb1852d81ce7ba079ab2d9bae6b9",
+            "ce9bc33a1643cf3923b67e5577d4c3d4681c2d19f7f6a0cd0761b59be6e7d8e6",
+            "430ec199e3c7c18c080efbbacaf496163b60dd48baf24eaee3a0573b36cc5923"
+          ],
+          "reference_descriptions": [
+            "玩家角色站在一片紫色的花丛里，背景是夜晚的建筑物和星空。",
+            "玩家角色在绿色草地中奔跑，周围有紫色花朵和远处模糊的建筑物。"
+          ],
+          "reference_first_scene_ms": 1594.06,
+          "candidate_descriptions": [
+            "玩家角色站在一片紫色的花丛里，背景是夜晚的建筑物和星空。",
+            "玩家正在一个充满绿色植被和紫色花朵的草地上，角色站在一片开阔的草地上，周围有树木和灌木丛，远处有建筑物和天空。"
+          ],
+          "candidate_first_scene_ms": 1086.85
+        },
+        {
+          "case": "06-dodge",
+          "reference_ms": 3163.29,
+          "candidate_ms": 2406.13,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "5f59b8780b7d89f255e22658ed528fe23303a45e560fd703ea9c8b18865c3e06",
+            "a4f86191f86658d75b6bd605b8a20b14b190e087b7cd440d2440f9af7ddc8a21",
+            "020b5d81c410fb39069d9f4f6cec0c2cb65bb6cd971d7d46327fadc1e82c5daf",
+            "8e75d78a6f3f9cc8383e173ba711e92001a89ad2ad8cdb01854e8867968cf1d5",
+            "599223c02abeec3c7818cd4aaf977cf0e15345a2ccdb928e218394f1f2ef47c4",
+            "445ec7856a613a98b15fd5b689f664455222a1a85aa2a79c7dcdcde57049e73f"
+          ],
+          "candidate_input_frame_sha256": [
+            "5f59b8780b7d89f255e22658ed528fe23303a45e560fd703ea9c8b18865c3e06",
+            "a4f86191f86658d75b6bd605b8a20b14b190e087b7cd440d2440f9af7ddc8a21",
+            "dd5f200c4d9ee244bd5a6adcad9bb7657570851cd5cbaf325125d20fee017880",
+            "8e75d78a6f3f9cc8383e173ba711e92001a89ad2ad8cdb01854e8867968cf1d5",
+            "599223c02abeec3c7818cd4aaf977cf0e15345a2ccdb928e218394f1f2ef47c4",
+            "445ec7856a613a98b15fd5b689f664455222a1a85aa2a79c7dcdcde57049e73f"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "07-red-arena",
+          "reference_ms": 3064.73,
+          "candidate_ms": 2262.15,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "722d1a7df2c8376c6a4d0601077744b12afce21ef0d15191302edc691dddb5dd",
+            "bd81389b032d10d7ad162729ed0156536521bf2d9bf256234c899544de0893e7",
+            "0e7c1d9ee45e3df6dc8ff89e5235ad56fcbd880e235a40e0071650c401debeb0",
+            "28bda7a9a0e038b742b3ca5f2c786e8dac765dc823b5bbd80e82e11ffdffc3bb",
+            "b22979bea67e50312c470ccab89041668eea11edc30bdbce13a58d50ff6565a1",
+            "7240cb2359d58afb5252efa844f76b84cb965680a2830b55bd92d39dc30fc83e"
+          ],
+          "candidate_input_frame_sha256": [
+            "722d1a7df2c8376c6a4d0601077744b12afce21ef0d15191302edc691dddb5dd",
+            "bd81389b032d10d7ad162729ed0156536521bf2d9bf256234c899544de0893e7",
+            "0e7c1d9ee45e3df6dc8ff89e5235ad56fcbd880e235a40e0071650c401debeb0",
+            "28bda7a9a0e038b742b3ca5f2c786e8dac765dc823b5bbd80e82e11ffdffc3bb",
+            "7943bb7e326df1029060307686343d1c1dd11daba62728bafe6266eba0b67e29",
+            "7240cb2359d58afb5252efa844f76b84cb965680a2830b55bd92d39dc30fc83e"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        },
+        {
+          "case": "08-effects",
+          "reference_ms": 3011.95,
+          "candidate_ms": 2294.23,
+          "reference_reply": "{\"scene\":\"settled\"}",
+          "candidate_reply": "{\"scene\":\"settled\"}",
+          "reference_input_frame_sha256": [
+            "8e387d7411b510b09331de053ce9bb11fb54f4a4b2819b17c45039624cf286d2",
+            "9f9aa33731bade498f50d7315736b4c1b5ef3469509d7ddc5c6c06c715c26940",
+            "509963bee65fb6be80cce3082c6825fae4796949655d357ce56fd76bb23c9494",
+            "c80afac645c1e31f592d0bc68f84b708782781f72fbda67de5c121dd7521b456",
+            "874108f4bdad3d3051adbc3c88edaaccf34eb74687dcde3be97175000692a076",
+            "8861a143da7eed5e84b47950438b28118b02a9bc93da0f2de3a846dbb881a792"
+          ],
+          "candidate_input_frame_sha256": [
+            "8e387d7411b510b09331de053ce9bb11fb54f4a4b2819b17c45039624cf286d2",
+            "9f9aa33731bade498f50d7315736b4c1b5ef3469509d7ddc5c6c06c715c26940",
+            "509963bee65fb6be80cce3082c6825fae4796949655d357ce56fd76bb23c9494",
+            "c80afac645c1e31f592d0bc68f84b708782781f72fbda67de5c121dd7521b456",
+            "874108f4bdad3d3051adbc3c88edaaccf34eb74687dcde3be97175000692a076",
+            "8861a143da7eed5e84b47950438b28118b02a9bc93da0f2de3a846dbb881a792"
+          ],
+          "reference_descriptions": [],
+          "reference_first_scene_ms": null,
+          "candidate_descriptions": [],
+          "candidate_first_scene_ms": null
+        }
+      ],
+      "matched_first_accepted_scene_ms": {
+        "reference": {
+          "n": 3,
+          "p50": 2522.1,
+          "p95": 2530.05
+        },
+        "candidate": {
+          "n": 3,
+          "p50": 1234.18,
+          "p95": 1521.76
+        }
+      },
+      "identical_description_lists": 7,
+      "identical_input_frame_sequences": 3,
+      "identical_review_outputs": 8,
+      "faster_pairs": 8,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -779.87,
+        "p95": -669.59
+      },
+      "p50_change_percent": 25.1
+    }
+  },
+  "product_across_orders": {
+    "reference": {
+      "n": 8,
+      "p50": 2332.75,
+      "p95": 2400.53
+    },
+    "candidate": {
+      "n": 8,
+      "p50": 2301.25,
+      "p95": 2405.24
+    },
+    "reduction_percent": 1.4,
+    "clips": [
+      {
+        "case": "01-hud-blue",
+        "reference_ms": 2347.2,
+        "candidate_ms": 2303.3
+      },
+      {
+        "case": "02-hud-enemy",
+        "reference_ms": 2400.5299999999997,
+        "candidate_ms": 2405.24
+      },
+      {
+        "case": "03-hud-purple",
+        "reference_ms": 2353.765,
+        "candidate_ms": 2368.41
+      },
+      {
+        "case": "04-hud-spin",
+        "reference_ms": 2219.04,
+        "candidate_ms": 2228.74
+      },
+      {
+        "case": "05-green-arena",
+        "reference_ms": 2318.3,
+        "candidate_ms": 2299.2
+      },
+      {
+        "case": "06-dodge",
+        "reference_ms": 2391.16,
+        "candidate_ms": 2329.72
+      },
+      {
+        "case": "07-red-arena",
+        "reference_ms": 2298.55,
+        "candidate_ms": 2283.3050000000003
+      },
+      {
+        "case": "08-effects",
+        "reference_ms": 2307.38,
+        "candidate_ms": 2237.2749999999996
+      }
+    ]
+  },
+  "quality": {
+    "real_battle_questions": {
+      "baseline": {
+        "n": 16,
+        "correct": 11,
+        "only_requested_letter": 9
+      },
+      "candidate": {
+        "n": 16,
+        "correct": 11,
+        "only_requested_letter": 9
+      },
+      "exact_reply_pairs": 16,
+      "cases": [
+        {
+          "case": "battle-01-hud-blue-fact1",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "question": "六帧按从左上到右下的时间顺序排列。第 2 帧角色身旁的挥击光是哪种颜色？ A 是蓝白色，B 是红橙色。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-01-hud-blue-fact2",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "question": "六帧按从左上到右下的时间顺序排列。第 6 帧仍可见的黄色人物字幕名是哪个？ A 是Chixia，B 是Yangyang。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "B",
+          "candidate": "B",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-02-hud-enemy-fact1",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "question": "六帧按从左上到右下的时间顺序排列。第 6 帧中心横向扫过敌人的是哪种形状？ A 是竖直光柱，B 是金色弧形光圈。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "B",
+          "candidate": "B",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-02-hud-enemy-fact2",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "question": "六帧按从左上到右下的时间顺序排列。第 1 帧左上角的圆形小地图是否可见？ A 是可见，B 是不可见。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-03-hud-purple-fact1",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "question": "六帧按从左上到右下的时间顺序排列。第 1 帧敌人手边向右延伸的长条光是什么颜色？ A 是紫色，B 是橙色。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-03-hud-purple-fact2",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "question": "六帧按从左上到右下的时间顺序排列。比较第 2 和第 5 帧，哪一帧有中心金白色星芒？ A 是第 2 帧，B 是第 5 帧。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "battle-04-hud-spin-fact1",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "question": "六帧按从左上到右下的时间顺序排列。第 2 帧中央的明亮斜线是什么颜色？ A 是蓝色，B 是金黄色。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "A 是金黄色",
+          "candidate": "A 是金黄色",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "battle-04-hud-spin-fact2",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "question": "六帧按从左上到右下的时间顺序排列。第 6 帧敌人身体附近最清楚的黄色两位数是什么？ A 是24，B 是48。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-05-green-arena-fact1",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "question": "六帧按从左上到右下的时间顺序排列。六帧的地面主要是什么？ A 是绿色草地，B 是红色石板。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A 是绿色草地",
+          "candidate": "A 是绿色草地",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-05-green-arena-fact2",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "question": "六帧按从左上到右下的时间顺序排列。比较第 1 和第 6 帧，哪一帧顶部出现了长条敌人血条？ A 是第 1 帧，B 是第 6 帧。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "battle-06-dodge-fact1",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "question": "六帧按从左上到右下的时间顺序排列。第 3 帧最亮的橙色爆炸相对角色位于哪一侧？ A 是左侧，B 是右侧。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "battle-06-dodge-fact2",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "question": "六帧按从左上到右下的时间顺序排列。第 5 帧周围的橙色光线主要沿哪个方向？ A 是竖直，B 是水平。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-07-red-arena-fact1",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "question": "六帧按从左上到右下的时间顺序排列。第 2 帧下方弹出的浅色标签中可以读出什么？ A 是Master Damage IV，B 是Master Dodge V。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A 是Master Damage IV",
+          "candidate": "A 是Master Damage IV",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-07-red-arena-fact2",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "question": "六帧按从左上到右下的时间顺序排列。第 1 到第 6 帧战斗区域的地面是什么颜色？ A 是绿色，B 是暗红色。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "B",
+          "candidate": "B",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "battle-08-effects-fact1",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "question": "六帧按从左上到右下的时间顺序排列。第 1 帧画面中央的大团特效是什么颜色？ A 是绿色，B 是橙色。只回答 A 或 B。",
+          "truth": "B",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "battle-08-effects-fact2",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "question": "六帧按从左上到右下的时间顺序排列。第 6 帧角色周围能看到什么？ A 是飞起的碎块，B 是蓝色海浪。只回答 A 或 B。",
+          "truth": "A",
+          "reference": "A",
+          "candidate": "A",
+          "reference_correct": true,
+          "candidate_correct": true
+        }
+      ]
+    },
+    "synthetic_questions": {
+      "baseline": {
+        "n": 20,
+        "correct": 14,
+        "only_requested_letter": null
+      },
+      "candidate": {
+        "n": 20,
+        "correct": 14,
+        "only_requested_letter": null
+      },
+      "exact_reply_pairs": 20,
+      "cases": [
+        {
+          "case": "0-0",
+          "image_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+          "question": "蓝色的圆形从第一帧到最后一帧往屏幕哪边移动？只回答「左」或「右」。",
+          "truth": "右",
+          "reference": "从第一帧到最后一帧，蓝色的圆形从屏幕左侧向屏幕右侧移动。",
+          "candidate": "从第一帧到最后一帧，蓝色的圆形从屏幕左侧向屏幕右侧移动。",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "0-1",
+          "image_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+          "question": "最后一帧右侧还有红色敌人吗？只回答「有」或「无」。",
+          "truth": "有",
+          "reference": "有",
+          "candidate": "有",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "0-2",
+          "image_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+          "question": "最后一帧左上角的两位数字是多少？只输出两个数字。",
+          "truth": "27",
+          "reference": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 27。",
+          "candidate": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 27。",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "0-3",
+          "image_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+          "question": "第一帧右上角的图标是什么颜色？只回答「绿」或「黄」。",
+          "truth": "黄",
+          "reference": "绿",
+          "candidate": "绿",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "1-0",
+          "image_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+          "question": "蓝色的圆形从第一帧到最后一帧往屏幕哪边移动？只回答「左」或「右」。",
+          "truth": "左",
+          "reference": "从第一帧到最后一帧，蓝色的圆形从屏幕的左边向右边移动。",
+          "candidate": "从第一帧到最后一帧，蓝色的圆形从屏幕的左边向右边移动。",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "1-1",
+          "image_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+          "question": "最后一帧右侧还有红色敌人吗？只回答「有」或「无」。",
+          "truth": "无",
+          "reference": "根据图片内容，最后一帧（Frame 6）右侧确实有红色敌人。\n\n**有**",
+          "candidate": "根据图片内容，最后一帧（Frame 6）右侧确实有红色敌人。\n\n**有**",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "1-2",
+          "image_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+          "question": "最后一帧左上角的两位数字是多少？只输出两个数字。",
+          "truth": "74",
+          "reference": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 74。",
+          "candidate": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 74。",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "1-3",
+          "image_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+          "question": "第一帧右上角的图标是什么颜色？只回答「绿」或「黄」。",
+          "truth": "绿",
+          "reference": "绿",
+          "candidate": "绿",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "2-0",
+          "image_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+          "question": "蓝色的圆形从第一帧到最后一帧往屏幕哪边移动？只回答「左」或「右」。",
+          "truth": "右",
+          "reference": "从第一帧到最后一帧，蓝色的圆形从屏幕左侧向屏幕右侧移动。",
+          "candidate": "从第一帧到最后一帧，蓝色的圆形从屏幕左侧向屏幕右侧移动。",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "2-1",
+          "image_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+          "question": "最后一帧右侧还有红色敌人吗？只回答「有」或「无」。",
+          "truth": "有",
+          "reference": "有",
+          "candidate": "有",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "2-2",
+          "image_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+          "question": "最后一帧左上角的两位数字是多少？只输出两个数字。",
+          "truth": "27",
+          "reference": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 27。",
+          "candidate": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 27。",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "2-3",
+          "image_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+          "question": "第一帧右上角的图标是什么颜色？只回答「绿」或「黄」。",
+          "truth": "黄",
+          "reference": "绿",
+          "candidate": "绿",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "mid-0",
+          "image_sha256": "6a1220e5048fa6019873ebdcaa649f56c98ae71ffa0e1864de3813416d9a77a8",
+          "question": "第2帧中间有橙色星形标记吗？只回答「有」或「无」。",
+          "truth": "有",
+          "reference": "有",
+          "candidate": "有",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "mid-1",
+          "image_sha256": "488c0a9c81af1c308eede14d31c2f846e6323b1b37c30fcea35bd4cbfea2a06e",
+          "question": "第4帧中间有橙色星形标记吗？只回答「有」或「无」。",
+          "truth": "无",
+          "reference": "有",
+          "candidate": "有",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "mid-2",
+          "image_sha256": "1a64497cadc39894db28e7c01c22b665b842f4877f7d0bcec6ebe3cfe393894e",
+          "question": "第4帧中间有橙色星形标记吗？只回答「有」或「无」。",
+          "truth": "有",
+          "reference": "有",
+          "candidate": "有",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "mid-3",
+          "image_sha256": "2809d6a3b9afcd6a93d53ab1baa13d540b81266f8eab4e24d3b9fca15f2b8b88",
+          "question": "最后一帧中间还有橙色星形标记吗？只回答「有」或「无」。",
+          "truth": "无",
+          "reference": "有",
+          "candidate": "有",
+          "reference_correct": false,
+          "candidate_correct": false
+        },
+        {
+          "case": "mid-4",
+          "image_sha256": "14df48b83900886e7bf65f83a7e224b220c3595ab8ee699ac37b03247f57a550",
+          "question": "第2帧中央提示框的两位数字是多少？只输出两个数字。",
+          "truth": "36",
+          "reference": "36",
+          "candidate": "36",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "mid-5",
+          "image_sha256": "e66631f20bca69f92f4d6190a0041d1afc1af9639fceda7f991f788058279b9a",
+          "question": "第4帧中央提示框的两位数字是多少？只输出两个数字。",
+          "truth": "63",
+          "reference": "根据图片内容，第4帧中央提示框中的两位数字是63。",
+          "candidate": "根据图片内容，第4帧中央提示框中的两位数字是63。",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "mid-6",
+          "image_sha256": "23d474cdf7c13cf0890fe507879f94f3fcab0ea59bfa6270d45bc58bc64b9622",
+          "question": "第2帧中央提示框的两位数字是多少？只输出两个数字。",
+          "truth": "63",
+          "reference": "根据您提供的图片，第2帧（Frame 2）中央提示框中的数字是：\n\n63",
+          "candidate": "根据您提供的图片，第2帧（Frame 2）中央提示框中的数字是：\n\n63",
+          "reference_correct": true,
+          "candidate_correct": true
+        },
+        {
+          "case": "mid-7",
+          "image_sha256": "2a56d5a6cb227cc330fdb16fe16a69d7bad2411e34701b6af9aea240ae3ca4a6",
+          "question": "第5帧中央提示框的两位数字是多少？只输出两个数字。",
+          "truth": "36",
+          "reference": "根据图片内容，第5帧中央提示框中的两位数字是36。",
+          "candidate": "根据图片内容，第5帧中央提示框中的两位数字是36。",
+          "reference_correct": true,
+          "candidate_correct": true
+        }
+      ]
+    }
+  },
+  "projection": {
+    "numerical": {
+      "sums": {
+        "logits": 337715200,
+        "different_logits": 0,
+        "blocks": 174,
+        "tokens": 1360,
+        "matrix_blocks": 162,
+        "matrix_logits": 321822720
+      },
+      "peak": 0,
+      "errors": []
+    },
+    "microbenchmark": {
+      "ref": {
+        "n": 20,
+        "p50": 17.54,
+        "p95": 31.29
+      },
+      "(2, 4)": {
+        "n": 20,
+        "p50": 8.71,
+        "p95": 17.17
+      }
+    },
+    "raw_ms": {
+      "ref": [
+        18.539625,
+        25.528167,
+        17.110375,
+        17.183041,
+        17.32275,
+        31.256333,
+        17.303542,
+        26.052959,
+        17.461,
+        23.614833,
+        16.981583,
+        17.500041,
+        17.221792,
+        31.293333,
+        16.840458,
+        20.377834,
+        17.265625,
+        31.626208,
+        17.5725,
+        17.672167
+      ],
+      "(2, 4)": [
+        3.4765,
+        8.989167,
+        3.327708,
+        17.188667,
+        14.216084,
+        6.619917,
+        3.328917,
+        8.421417,
+        3.245541,
+        10.53925,
+        3.260125,
+        17.17475,
+        11.505167,
+        9.035375,
+        6.261542,
+        11.235833,
+        13.331208,
+        6.880541,
+        12.869625,
+        7.263584
+      ]
+    },
+    "micro_description": "Same real eight-token hidden block, tied 248,320 x 1,024 affine 4-bit vocabulary, no vocabulary shortlist or dense weight copy. Twenty interleaved runs per kernel under the same independent renderer. Timing is for this projection only."
+  },
+  "discarded_candidates": {
+    "widths_and_route": {
+      "underfilled_matrix_short": {
+        "reference": {
+          "all_ms": {
+            "n": 8,
+            "p50": 2210.54,
+            "p95": 2382.77
+          },
+          "full": 0,
+          "accepted": 0,
+          "renderer_frame_ms": {
+            "n": 920,
+            "p50": 18.39,
+            "p95": 26.65
+          },
+          "gpu_percent": {
+            "n": 34,
+            "p50": 100.0,
+            "p95": 100
+          }
+        },
+        "candidate": {
+          "all_ms": {
+            "n": 8,
+            "p50": 2254.52,
+            "p95": 2406.9
+          },
+          "full": 0,
+          "accepted": 0,
+          "renderer_frame_ms": {
+            "n": 926,
+            "p50": 18.61,
+            "p95": 26.54
+          },
+          "gpu_percent": {
+            "n": 37,
+            "p50": 100,
+            "p95": 100
+          }
+        },
+        "faster_pairs": 1,
+        "paired_change_ms": {
+          "n": 8,
+          "p50": 52.49,
+          "p95": 107.42
+        },
+        "reference_mode": "reference",
+        "candidate_mode": "candidate",
+        "all_p50_change_percent": -2.0,
+        "matched_complete": {
+          "reference": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          },
+          "candidate": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          }
+        },
+        "full_text_identical": 8
+      },
+      "bidirectional_route_lock_idle": {
+        "reference": {
+          "all_ms": {
+            "n": 4,
+            "p50": 2708.32,
+            "p95": 3561.52
+          },
+          "full": 3,
+          "accepted": 0,
+          "renderer_frame_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          },
+          "gpu_percent": {
+            "n": 21,
+            "p50": 96,
+            "p95": 98
+          }
+        },
+        "candidate": {
+          "all_ms": {
+            "n": 4,
+            "p50": 4836.63,
+            "p95": 7550.5
+          },
+          "full": 3,
+          "accepted": 0,
+          "renderer_frame_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          },
+          "gpu_percent": {
+            "n": 38,
+            "p50": 99.0,
+            "p95": 100
+          }
+        },
+        "faster_pairs": 0,
+        "paired_change_ms": {
+          "n": 4,
+          "p50": 2386.94,
+          "p95": 3988.98
+        },
+        "reference_mode": "reference",
+        "candidate_mode": "candidate",
+        "all_p50_change_percent": -78.6,
+        "matched_complete": {
+          "reference": {
+            "n": 3,
+            "p50": 1917.76,
+            "p95": 3561.52
+          },
+          "candidate": {
+            "n": 3,
+            "p50": 2780.94,
+            "p95": 7550.5
+          }
+        },
+        "full_text_identical": 4
+      },
+      "only_lock_initial_high_idle": {
+        "reference": {
+          "all_ms": {
+            "n": 4,
+            "p50": 2753.75,
+            "p95": 3591.52
+          },
+          "full": 3,
+          "accepted": 0,
+          "renderer_frame_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          },
+          "gpu_percent": {
+            "n": 21,
+            "p50": 94,
+            "p95": 98
+          }
+        },
+        "candidate": {
+          "all_ms": {
+            "n": 4,
+            "p50": 3755.86,
+            "p95": 5297.91
+          },
+          "full": 3,
+          "accepted": 0,
+          "renderer_frame_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          },
+          "gpu_percent": {
+            "n": 29,
+            "p50": 98,
+            "p95": 100
+          }
+        },
+        "faster_pairs": 1,
+        "paired_change_ms": {
+          "n": 4,
+          "p50": 1084.45,
+          "p95": 1706.39
+        },
+        "reference_mode": "reference",
+        "candidate_mode": "idle-adaptive",
+        "all_p50_change_percent": -36.4,
+        "matched_complete": {
+          "reference": {
+            "n": 3,
+            "p50": 2031.73,
+            "p95": 3591.52
+          },
+          "candidate": {
+            "n": 3,
+            "p50": 2831.58,
+            "p95": 5297.91
+          }
+        },
+        "full_text_identical": 4
+      },
+      "product-increment": {
+        "published": {
+          "n": 8,
+          "p50": 2286.28,
+          "p95": 2364.79
+        },
+        "discarded": {
+          "n": 8,
+          "p50": 2345.64,
+          "p95": 2459.75
+        },
+        "identical_texts": 8
+      },
+      "product-reverse": {
+        "published": {
+          "n": 8,
+          "p50": 2303.89,
+          "p95": 2372.97
+        },
+        "discarded": {
+          "n": 8,
+          "p50": 2373.44,
+          "p95": 2477.55
+        },
+        "identical_texts": 8
+      }
+    },
+    "full_block_ablation_source_sha256": "a258282894539be87c6109fa49c3314099464f51a35fd81ad4b9777006b24531",
+    "description": "Earlier gated matrix prototype also ran on 3–7 tokens. Seven-token blocks were slower in isolation and the default product regressed on both run orders. An earlier route guard also locked idle on format retries. Release dispatch uses the full 8-token kernel only, and only high-load starts lock retries. These measurements are for the discarded versions."
+  },
+  "checks": {
+    "ruff": [
+      "All checks passed!"
+    ],
+    "mypy": [
+      "Success: no issues found in 234 source files"
+    ],
+    "pyright": [
+      "0 errors, 0 warnings, 0 informations"
+    ],
+    "pytest": [
+      "SKIPPED [1] tests/test_jev_client.py:161: 需要 Jev-Mem 解释器",
+      "SKIPPED [1] tests/test_jev_client.py:153: 需要 Jev-Mem 解释器",
+      "======================= 723 passed, 13 skipped in 53.56s ======================="
+    ],
+    "jev": [
+      "Ran 12 tests in 0.007s",
+      "",
+      "OK"
+    ],
+    "original-audio": [
+      ".......                                                                  [100%]",
+      "7 passed, 20 deselected in 0.42s"
+    ],
+    "packaged": [
+      "Packaged source contains the visual worker modules, with contents verified."
+    ],
+    "pixel-parity": [
+      "Pixel tensors and image grids matched for four RGB images, including resize and retry."
+    ],
+    "kernel-parity": [
+      "Matched 9216 full projection values, including wide-exponent blocks."
+    ]
+  },
+  "cache-integrity": [
+    {
+      "case": "real",
+      "calls": 1,
+      "matched": false,
+      "live_state_sha256": "f1ba20b2645d1ac4e259861b9acaa3a13c0ff8f36b2b8a457597e1941b891897"
+    },
+    {
+      "case": "known-match",
+      "calls": 2,
+      "matched": true,
+      "live_state_sha256": "f1ba20b2645d1ac4e259861b9acaa3a13c0ff8f36b2b8a457597e1941b891897"
+    },
+    {
+      "case": "late-mismatch",
+      "calls": 2,
+      "matched": false,
+      "live_state_sha256": "f1ba20b2645d1ac4e259861b9acaa3a13c0ff8f36b2b8a457597e1941b891897"
+    },
+    {
+      "case": "close-runner",
+      "calls": 1,
+      "matched": false,
+      "live_state_sha256": "f1ba20b2645d1ac4e259861b9acaa3a13c0ff8f36b2b8a457597e1941b891897"
+    }
+  ],
+  "route-diagnostics": {
+    "route-natural": {
+      "route-trace": [
+        {
+          "case": "battle-01-hud-blue",
+          "ms": 6252.34,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "96",
+              "96"
+            ],
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "ms": 6570.42,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "ms": 5552.6,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "ms": 5217.32,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-05-green-arena",
+          "ms": 3725.37,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-06-dodge",
+          "ms": 6271.38,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-07-red-arena",
+          "ms": 4893.89,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "98",
+              "98"
+            ],
+            [
+              "100",
+              "100"
+            ],
+            [
+              "99",
+              "99"
+            ]
+          ]
+        },
+        {
+          "case": "battle-08-effects",
+          "ms": 4824.25,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        }
+      ],
+      "route-stable": [
+        {
+          "case": "battle-01-hud-blue",
+          "ms": 6198.14,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "ms": 6607.97,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "ms": 5577.75,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "ms": 5262.94,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "98",
+              "98"
+            ]
+          ]
+        },
+        {
+          "case": "battle-05-green-arena",
+          "ms": 3647.5,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-06-dodge",
+          "ms": 6161.22,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-07-red-arena",
+          "ms": 4682.37,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-08-effects",
+          "ms": 4966.48,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        }
+      ],
+      "identical_final_text": 8
+    },
+    "route-dip-control": {
+      "trace-dip": [
+        {
+          "case": "battle-01-hud-blue",
+          "ms": 15617.67,
+          "native_fallbacks": 1,
+          "gpu_load_reads": [
+            [
+              "97",
+              "97"
+            ],
+            [
+              "75",
+              "75"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "ms": 16771.32,
+          "native_fallbacks": 1,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ],
+            [
+              "75",
+              "75"
+            ],
+            [
+              "100",
+              "100"
+            ]
+          ]
+        }
+      ],
+      "stable-dip": [
+        {
+          "case": "battle-01-hud-blue",
+          "ms": 6139.67,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "ms": 5599.54,
+          "native_fallbacks": 0,
+          "gpu_load_reads": [
+            [
+              "100",
+              "100"
+            ]
+          ]
+        }
+      ],
+      "identical_final_text": 2
+    },
+    "interpretation": "Natural load and injected transient are independent runs. The fault injection changes only the first GPU-utilization observation during the format retry to 75%; the separate renderer still runs at the original settings. A cold MTP load appeared in an earlier 15.92 s high-load request. Its uninstrumented instantaneous route reading was not recorded."
+  },
+  "desktop_and_unlisted_game": {
+    "cases": [
+      {
+        "mode": "reference",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 716.72,
+        "start": 154299.079340291,
+        "end": 154299.796061833,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 453.32,
+        "start": 154299.796112333,
+        "end": 154300.249427875,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 371.89,
+        "start": 154300.255054958,
+        "end": 154300.626942875,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "reference",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 361.02,
+        "start": 154300.62696175,
+        "end": 154300.987982791,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "reference",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 365.17,
+        "start": 154300.996251,
+        "end": 154301.361422708,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 416.27,
+        "start": 154301.361445833,
+        "end": 154301.777712458,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 353.11,
+        "start": 154301.782720458,
+        "end": 154302.135825541,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      },
+      {
+        "mode": "reference",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 366.27,
+        "start": 154302.135840583,
+        "end": 154302.502107375,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      },
+      {
+        "mode": "reference",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 1489.12,
+        "start": 154306.000507291,
+        "end": 154307.489629333,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 1526.29,
+        "start": 154307.489664291,
+        "end": 154309.01595025,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 1356.06,
+        "start": 154309.021732916,
+        "end": 154310.377789041,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "reference",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 1364.29,
+        "start": 154310.377808375,
+        "end": 154311.742097083,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "reference",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 1478.43,
+        "start": 154311.751565625,
+        "end": 154313.229994625,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 1531.46,
+        "start": 154313.230017208,
+        "end": 154314.761473041,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 1329.53,
+        "start": 154314.766534,
+        "end": 154316.096064291,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      },
+      {
+        "mode": "reference",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 1355.04,
+        "start": 154316.096081333,
+        "end": 154317.451121791,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      }
+    ],
+    "protocol": "WindowSummary.describe with the normal repetition penalty, generated English editor and arbitrary-game HUD fixtures, two changed visible values per application per load."
+  },
+  "identical_image_default_review": {
+    "reference": {
+      "all_ms": {
+        "n": 8,
+        "p50": 2188.32,
+        "p95": 2424.66
+      },
+      "full": 0,
+      "accepted": 0,
+      "renderer_frame_ms": {
+        "n": 900,
+        "p50": 18.59,
+        "p95": 26.33
+      },
+      "gpu_percent": {
+        "n": 35,
+        "p50": 100,
+        "p95": 100
+      }
+    },
+    "candidate": {
+      "all_ms": {
+        "n": 8,
+        "p50": 2195.7,
+        "p95": 2395.62
+      },
+      "full": 0,
+      "accepted": 0,
+      "renderer_frame_ms": {
+        "n": 907,
+        "p50": 18.55,
+        "p95": 26.48
+      },
+      "gpu_percent": {
+        "n": 35,
+        "p50": 100,
+        "p95": 100
+      }
+    },
+    "faster_pairs": 4,
+    "paired_change_ms": {
+      "n": 8,
+      "p50": -2.6,
+      "p95": 63.91
+    },
+    "reference_mode": "reference",
+    "candidate_mode": "candidate",
+    "all_p50_change_percent": -0.3,
+    "matched_complete": {
+      "reference": {
+        "n": 0,
+        "p50": null,
+        "p95": null
+      },
+      "candidate": {
+        "n": 0,
+        "p50": null,
+        "p95": null
+      }
+    },
+    "full_text_identical": 8,
+    "rows": [
+      {
+        "case": "battle-01-hud-blue",
+        "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+        "reference_ms": 2152.34,
+        "candidate_ms": 2158.58,
+        "reference_text": "{\"scene\":\"settled\"}",
+        "candidate_text": "{\"scene\":\"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "battle-02-hud-enemy",
+        "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+        "reference_ms": 2216.53,
+        "candidate_ms": 2206.42,
+        "reference_text": "{\"scene\":\"settled\"}",
+        "candidate_text": "{\"scene\":\"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "battle-03-hud-purple",
+        "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+        "reference_ms": 2205.21,
+        "candidate_ms": 2137.72,
+        "reference_text": "{\"scene\":\"settled\"}",
+        "candidate_text": "{\"scene\":\"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "battle-04-hud-spin",
+        "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+        "reference_ms": 2214.09,
+        "candidate_ms": 2219.01,
+        "reference_text": "{\"scene\":\"settled\"}",
+        "candidate_text": "{\"scene\":\"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "battle-05-green-arena",
+        "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+        "reference_ms": 2137.72,
+        "candidate_ms": 2186.46,
+        "reference_text": "{\"scene\":\"settled\"}",
+        "candidate_text": "{\"scene\":\"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "battle-06-dodge",
+        "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+        "reference_ms": 2141.04,
+        "candidate_ms": 2204.95,
+        "reference_text": "{\"scene\":\"settled\"}",
+        "candidate_text": "{\"scene\":\"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "battle-07-red-arena",
+        "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+        "reference_ms": 2171.44,
+        "candidate_ms": 2142.13,
+        "reference_text": "{\"scene\":\"settled\"}",
+        "candidate_text": "{\"scene\":\"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "battle-08-effects",
+        "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+        "reference_ms": 2424.66,
+        "candidate_ms": 2395.62,
+        "reference_text": "{\"scene\": \"settled\"}",
+        "candidate_text": "{\"scene\": \"settled\"}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      }
+    ]
+  },
+  "spaced_idle": {
+    "reference": {
+      "all_ms": {
+        "n": 4,
+        "p50": 2746.09,
+        "p95": 3800.44
+      },
+      "full": 3,
+      "accepted": 0,
+      "renderer_frame_ms": {
+        "n": 0,
+        "p50": null,
+        "p95": null
+      },
+      "gpu_percent": {
+        "n": 21,
+        "p50": 90,
+        "p95": 98
+      }
+    },
+    "candidate": {
+      "all_ms": {
+        "n": 4,
+        "p50": 2345.03,
+        "p95": 3097.23
+      },
+      "full": 3,
+      "accepted": 0,
+      "renderer_frame_ms": {
+        "n": 0,
+        "p50": null,
+        "p95": null
+      },
+      "gpu_percent": {
+        "n": 19,
+        "p50": 96,
+        "p95": 99
+      }
+    },
+    "faster_pairs": 2,
+    "paired_change_ms": {
+      "n": 4,
+      "p50": -331.25,
+      "p95": 52.32
+    },
+    "reference_mode": "reference",
+    "candidate_mode": "candidate",
+    "all_p50_change_percent": 14.6,
+    "matched_complete": {
+      "reference": {
+        "n": 3,
+        "p50": 2051.49,
+        "p95": 3800.44
+      },
+      "candidate": {
+        "n": 3,
+        "p50": 2103.81,
+        "p95": 3097.23
+      }
+    },
+    "full_text_identical": 4,
+    "rows": [
+      {
+        "case": "gameplay-01-dialog-choices",
+        "image_sha256": "a65778ac2e5b8977f278f5a876f53ae9e523ebe9544a5af1a4335bcc7e0deb07",
+        "reference_ms": 1861.06,
+        "candidate_ms": 1901.77,
+        "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang与Rover在画面中保持相对静止，背景为深色，角色表情平静，屏幕右侧显示对话文本，说明场景处于对话结束后的对峙状态。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+        "candidate_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang与Rover在画面中保持相对静止，背景为深色，角色表情平静，屏幕右侧显示对话文本，说明场景处于对话结束后的对峙状态。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 68
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 68
+        }
+      },
+      {
+        "case": "gameplay-02-echo-sequence",
+        "image_sha256": "f7c75baf3af2f5df7ef30ad992e7f61bbc71b4d91953d146264c8d57809a9a61",
+        "reference_ms": 3800.44,
+        "candidate_ms": 3097.23,
+        "reference_text": "{\n  \"scene\": \"settled\",\n  \"observation\": \"角色Chixia在画面中持续展示，背景是夕阳下的山峦和天空，角色周围有能量粒子特效，屏幕下方有Chixia的台词提示，界面左上角有角色控制按钮，整体场景稳定，角色处于战斗或休息状态。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}",
+        "candidate_text": "{\n  \"scene\": \"settled\",\n  \"observation\": \"角色Chixia在画面中持续展示，背景是夕阳下的山峦和天空，角色周围有能量粒子特效，屏幕下方有Chixia的台词提示，界面左上角有角色控制按钮，整体场景稳定，角色处于战斗或休息状态。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 91
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 91
+        }
+      },
+      {
+        "case": "gameplay-03-camera-transition",
+        "image_sha256": "77af91f30be7576321660f733fffb16d4519758a917d4905e6b7e19e52277791",
+        "reference_ms": 3440.69,
+        "candidate_ms": 2586.26,
+        "reference_text": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从远景的远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景",
+        "candidate_text": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从远景的远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景远景",
+        "reference_outcome": {
+          "scene": null,
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        },
+        "candidate_outcome": {
+          "scene": null,
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": null
+        }
+      },
+      {
+        "case": "gameplay-04-field-dialogue",
+        "image_sha256": "cf54842899070823792016c20b34f9e2bd1a352a65d49eba82d5d90dc974c58a",
+        "reference_ms": 2051.49,
+        "candidate_ms": 2103.81,
+        "reference_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang和Xinxia在户外场景中出现，背景是树木和天空，角色们有对话和互动，场景看起来是平静的环境。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+        "candidate_text": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang和Xinxia在户外场景中出现，背景是树木和天空，角色们有对话和互动，场景看起来是平静的环境。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+        "reference_outcome": {
+          "scene": "settled",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 57
+        },
+        "candidate_outcome": {
+          "scene": "settled",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 57
+        }
+      }
+    ],
+    "immediately_before_request_gpu": {
+      "reference": {
+        "n": 4,
+        "p50": 12.0,
+        "p95": 18
+      },
+      "candidate": {
+        "n": 4,
+        "p50": 11.0,
+        "p95": 13
+      }
+    },
+    "protocol": "No independent renderer, two seconds between successive calls, identical six gameplay screenshots. Hardware utilization sampled immediately before each timed request."
+  },
+  "changed_trailer_scene": {
+    "case": "trailer-03-combat-start",
+    "first_observed_in": "discarded broad-width, both-directions-locked candidate vs published (final-dialogue), before the shipping changes",
+    "visual_check": "The sheet shows a seated/standing figure and benches in an interior, creatures on the red carpet in later frames, and a purple overlay in the last frame with the room and benches still visible. Neither version establishes the named fighting roles, and a transition to a different open area is unsupported. The candidate provided parseable frame numbers in the unforced run. The production parser accepted neither observation. The three follow-up questions were chosen after identifying the changed reply.",
+    "ship-control-high": [
+      {
+        "case": "trailer-02-landscape",
+        "equal": true,
+        "reference": "{\"scene\":\"settled\",\"observation\":\"场景从左上角的紫色标题“Lilies in a Dying Dream”逐渐过渡到右侧的红色岩石峡谷，其中可见远处有火光和建筑轮廓，前景是覆盖着白色积雪的岩石和地面，整体氛围由神秘开始，逐渐进入一个充满危险和探索感的场景。\"}",
+        "candidate": "{\"scene\":\"settled\",\"observation\":\"场景从左上角的紫色标题“Lilies in a Dying Dream”逐渐过渡到右侧的红色岩石峡谷，其中可见远处有火光和建筑轮廓，前景是覆盖着白色积雪的岩石和地面，整体氛围由神秘开始，逐渐进入一个充满危险和探索感的场景。\"}",
+        "reference_ms": 3163.37,
+        "candidate_ms": 3104.02
+      },
+      {
+        "case": "trailer-03-combat-start",
+        "equal": true,
+        "reference": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"场景从左侧的宁静对峙转为右侧的激烈战斗。角色们从静止状态变为动态的格斗动作，其中角色4（右侧）展现出明显的攻击姿态，而角色1（左侧）则处于防御或准备攻击的状态。背景中的环境也发生了变化，从昏暗的走廊变为充满紫色光晕的开阔区域，暗示了战斗的激烈程度和场景的转换。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "candidate": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"场景从左侧的宁静对峙转为右侧的激烈战斗。角色们从静止状态变为动态的格斗动作，其中角色4（右侧）展现出明显的攻击姿态，而角色1（左侧）则处于防御或准备攻击的状态。背景中的环境也发生了变化，从昏暗的走廊变为充满紫色光晕的开阔区域，暗示了战斗的激烈程度和场景的转换。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "reference_ms": 6370.55,
+        "candidate_ms": 5691.76
+      }
+    ],
+    "ship-control-native": [
+      {
+        "case": "trailer-02-landscape",
+        "equal": true,
+        "reference": "{\"scene\":\"settled\",\"observation\":\"场景从左上角的紫色标题“Lilies in a Dying Dream”逐渐过渡到右侧的红色岩石峡谷，其中可见远处有建筑、火光和烟雾，地面覆盖着白色积雪，整体氛围由神秘开始，逐渐进入一个充满危险和探索感的场景。\"}",
+        "candidate": "{\"scene\":\"settled\",\"observation\":\"场景从左上角的紫色标题“Lilies in a Dying Dream”逐渐过渡到右侧的红色岩石峡谷，其中可见远处有建筑、火光和烟雾，地面覆盖着白色积雪，整体氛围由神秘开始，逐渐进入一个充满危险和探索感的场景。\"}",
+        "reference_ms": 6227.51,
+        "candidate_ms": 6345.22
+      },
+      {
+        "case": "trailer-03-combat-start",
+        "equal": true,
+        "reference": "{\"scene\":\"fighting\",\"observation\":\"角色们从静止对峙到激烈战斗，其中角色4（白色长尾生物）和角色5（白色长尾生物）在画面中表现出明显的攻击姿态，角色4的腿部肌肉紧绷，角色5的头部和身体前倾，显示出攻击性。背景中的长椅和地面也暗示了战斗的激烈程度。\",\"observed_frames\":[\"Frame 4 -1.0s\",\"Frame 5 -0.4s\",\"Frame 6 0.0s\"]}",
+        "candidate": "{\"scene\":\"fighting\",\"observation\":\"角色们从静止对峙到激烈战斗，其中角色4（白色长尾生物）和角色5（白色长尾生物）在画面中表现出明显的攻击姿态，角色4的腿部肌肉紧绷，角色5的头部和身体前倾，显示出攻击性。背景中的长椅和地面也暗示了战斗的激烈程度。\",\"observed_frames\":[\"Frame 4 -1.0s\",\"Frame 5 -0.4s\",\"Frame 6 0.0s\"]}",
+        "reference_ms": 7512.77,
+        "candidate_ms": 7445.74
+      }
+    ],
+    "follow_up": [
+      {
+        "mode": "reference",
+        "case": "later-setting",
+        "truth": "B",
+        "question": "第六帧的紫色光效后还能看见什么？A 室外天空和山脉，B 室内的长椅和灯。只答 A 或 B。",
+        "answer": "根据图片内容，第六帧（Frame 6）的场景是室内，可以看到有长椅和灯。\n\n因此，正确答案是 **B**。"
+      },
+      {
+        "mode": "candidate",
+        "case": "later-setting",
+        "truth": "B",
+        "question": "第六帧的紫色光效后还能看见什么？A 室外天空和山脉，B 室内的长椅和灯。只答 A 或 B。",
+        "answer": "根据图片内容，第六帧（Frame 6）的场景是室内，可以看到有长椅和灯。\n\n因此，正确答案是 **B**。"
+      },
+      {
+        "mode": "candidate",
+        "case": "creatures",
+        "truth": "A",
+        "question": "第4、5帧的前景有大型生物吗？A 有，B 没有。只答 A 或 B。",
+        "answer": "A"
+      },
+      {
+        "mode": "reference",
+        "case": "creatures",
+        "truth": "A",
+        "question": "第4、5帧的前景有大型生物吗？A 有，B 没有。只答 A 或 B。",
+        "answer": "A"
+      },
+      {
+        "mode": "reference",
+        "case": "floor",
+        "truth": "B",
+        "question": "第2、3帧中央的地面是什么颜色？A 蓝色，B 红色。只答 A 或 B。",
+        "answer": "B"
+      },
+      {
+        "mode": "candidate",
+        "case": "floor",
+        "truth": "B",
+        "question": "第2、3帧中央的地面是什么颜色？A 蓝色，B 红色。只答 A 或 B。",
+        "answer": "B"
+      }
+    ],
+    "follow_up_scoring": "Both revisions explicitly answered B (indoors with benches and lights) in prose for the last frame, A for the presence of creatures, and B for the red floor. Substantive answers 3/3 each; exact one-letter format 2/3 each."
+  },
+  "short_projection_ablation": {
+    "projection_by_block_tokens": {
+      "3": {
+        "published": {
+          "n": 14,
+          "p50": 11.94,
+          "p95": 16.33
+        },
+        "matrix": {
+          "n": 14,
+          "p50": 61.42,
+          "p95": 73.3
+        }
+      },
+      "4": {
+        "published": {
+          "n": 14,
+          "p50": 12.27,
+          "p95": 18.5
+        },
+        "matrix": {
+          "n": 14,
+          "p50": 62.4,
+          "p95": 76.91
+        }
+      },
+      "5": {
+        "published": {
+          "n": 14,
+          "p50": 13.58,
+          "p95": 18.68
+        },
+        "matrix": {
+          "n": 14,
+          "p50": 66.48,
+          "p95": 76.41
+        }
+      },
+      "6": {
+        "published": {
+          "n": 14,
+          "p50": 16.63,
+          "p95": 31.05
+        },
+        "matrix": {
+          "n": 14,
+          "p50": 64.63,
+          "p95": 80.36
+        }
+      },
+      "7": {
+        "published": {
+          "n": 14,
+          "p50": 16.73,
+          "p95": 26.02
+        },
+        "matrix": {
+          "n": 14,
+          "p50": 68.0,
+          "p95": 78.75
+        }
+      },
+      "8": {
+        "published": {
+          "n": 14,
+          "p50": 17.28,
+          "p95": 31.28
+        },
+        "matrix": {
+          "n": 14,
+          "p50": 8.51,
+          "p95": 15.65
+        }
+      }
+    },
+    "protocol": "Pre-release ablation on eight identical six-frame short requests. Here candidate denotes the discarded all-width kernel, and full-block limits that prototype to eight-token blocks but still uses its earlier route guard. Projection-only measurements use the same real hidden block sliced to each width and 14 interleaved timed evaluations.",
+    "reference-to-candidate": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 2198.73,
+          "p95": 2393.57
+        },
+        "full": 0,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 914,
+          "p50": 18.51,
+          "p95": 26.46
+        },
+        "gpu_percent": {
+          "n": 36,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 2254.95,
+          "p95": 2490.63
+        },
+        "full": 0,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 933,
+          "p50": 18.49,
+          "p95": 26.76
+        },
+        "gpu_percent": {
+          "n": 36,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 1,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": 56.43,
+        "p95": 137.02
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "candidate",
+      "all_p50_change_percent": -2.6,
+      "matched_complete": {
+        "reference": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        },
+        "candidate": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        }
+      },
+      "full_text_identical": 8,
+      "rows": [
+        {
+          "case": "battle-01-hud-blue",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "reference_ms": 2241.04,
+          "alternative_ms": 2271.07,
+          "same_text": true
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "reference_ms": 2185.45,
+          "alternative_ms": 2183.96,
+          "same_text": true
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "reference_ms": 2153.72,
+          "alternative_ms": 2245.12,
+          "same_text": true
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "reference_ms": 2171.57,
+          "alternative_ms": 2238.09,
+          "same_text": true
+        },
+        {
+          "case": "battle-05-green-arena",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "reference_ms": 2212.01,
+          "alternative_ms": 2258.36,
+          "same_text": true
+        },
+        {
+          "case": "battle-06-dodge",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "reference_ms": 2125.38,
+          "alternative_ms": 2262.4,
+          "same_text": true
+        },
+        {
+          "case": "battle-07-red-arena",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "reference_ms": 2220.0,
+          "alternative_ms": 2251.55,
+          "same_text": true
+        },
+        {
+          "case": "battle-08-effects",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "reference_ms": 2393.57,
+          "alternative_ms": 2490.63,
+          "same_text": true
+        }
+      ]
+    },
+    "reference-to-full-block": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 2198.73,
+          "p95": 2393.57
+        },
+        "full": 0,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 914,
+          "p50": 18.51,
+          "p95": 26.46
+        },
+        "gpu_percent": {
+          "n": 36,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 2226.03,
+          "p95": 2378.29
+        },
+        "full": 0,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 927,
+          "p50": 18.37,
+          "p95": 26.63
+        },
+        "gpu_percent": {
+          "n": 34,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 3,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": 18.83,
+        "p95": 97.88
+      },
+      "reference_mode": "reference",
+      "candidate_mode": "full-block",
+      "all_p50_change_percent": -1.2,
+      "matched_complete": {
+        "reference": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        },
+        "candidate": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        }
+      },
+      "full_text_identical": 8,
+      "rows": [
+        {
+          "case": "battle-01-hud-blue",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "reference_ms": 2241.04,
+          "alternative_ms": 2274.87,
+          "same_text": true
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "reference_ms": 2185.45,
+          "alternative_ms": 2254.85,
+          "same_text": true
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "reference_ms": 2153.72,
+          "alternative_ms": 2138.93,
+          "same_text": true
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "reference_ms": 2171.57,
+          "alternative_ms": 2200.44,
+          "same_text": true
+        },
+        {
+          "case": "battle-05-green-arena",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "reference_ms": 2212.01,
+          "alternative_ms": 2172.75,
+          "same_text": true
+        },
+        {
+          "case": "battle-06-dodge",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "reference_ms": 2125.38,
+          "alternative_ms": 2223.26,
+          "same_text": true
+        },
+        {
+          "case": "battle-07-red-arena",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "reference_ms": 2220.0,
+          "alternative_ms": 2228.79,
+          "same_text": true
+        },
+        {
+          "case": "battle-08-effects",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "reference_ms": 2393.57,
+          "alternative_ms": 2378.29,
+          "same_text": true
+        }
+      ]
+    },
+    "candidate-to-full-block": {
+      "reference": {
+        "all_ms": {
+          "n": 8,
+          "p50": 2254.95,
+          "p95": 2490.63
+        },
+        "full": 0,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 933,
+          "p50": 18.49,
+          "p95": 26.76
+        },
+        "gpu_percent": {
+          "n": 36,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "candidate": {
+        "all_ms": {
+          "n": 8,
+          "p50": 2226.03,
+          "p95": 2378.29
+        },
+        "full": 0,
+        "accepted": 0,
+        "renderer_frame_ms": {
+          "n": 927,
+          "p50": 18.37,
+          "p95": 26.63
+        },
+        "gpu_percent": {
+          "n": 34,
+          "p50": 100.0,
+          "p95": 100
+        }
+      },
+      "faster_pairs": 6,
+      "paired_change_ms": {
+        "n": 8,
+        "p50": -38.39,
+        "p95": 70.89
+      },
+      "reference_mode": "candidate",
+      "candidate_mode": "full-block",
+      "all_p50_change_percent": 1.3,
+      "matched_complete": {
+        "reference": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        },
+        "candidate": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        }
+      },
+      "full_text_identical": 8,
+      "rows": [
+        {
+          "case": "battle-01-hud-blue",
+          "image_sha256": "691602035f7d80b2ccf88d5ea4a2a7a299b4057d23edce4011212ac1a3a6dc0c",
+          "reference_ms": 2271.07,
+          "alternative_ms": 2274.87,
+          "same_text": true
+        },
+        {
+          "case": "battle-02-hud-enemy",
+          "image_sha256": "9507f66307712e5d0a77b14ebc1f3c141e438a8ec814478b68c6cbdc71a4db33",
+          "reference_ms": 2183.96,
+          "alternative_ms": 2254.85,
+          "same_text": true
+        },
+        {
+          "case": "battle-03-hud-purple",
+          "image_sha256": "e497be7bde8635d4636eaa34fefb326c59cb6687782cec08ddc12c3f49f3f20d",
+          "reference_ms": 2245.12,
+          "alternative_ms": 2138.93,
+          "same_text": true
+        },
+        {
+          "case": "battle-04-hud-spin",
+          "image_sha256": "6a660f5700838aadd2fd76a9a7f6207617aa343e389182d663d3e6a4830ef32d",
+          "reference_ms": 2238.09,
+          "alternative_ms": 2200.44,
+          "same_text": true
+        },
+        {
+          "case": "battle-05-green-arena",
+          "image_sha256": "71e54d9da98aeeac87a1509fab29c900cd336a16f1125a86b34a0db274bb08d6",
+          "reference_ms": 2258.36,
+          "alternative_ms": 2172.75,
+          "same_text": true
+        },
+        {
+          "case": "battle-06-dodge",
+          "image_sha256": "eb7f7aefc91bca5b3a680a929e88909346f457be887bf7735261dfc656f7b272",
+          "reference_ms": 2262.4,
+          "alternative_ms": 2223.26,
+          "same_text": true
+        },
+        {
+          "case": "battle-07-red-arena",
+          "image_sha256": "55d41a138fd9a4e2bd7f1fd1a27a236ab896cf168735e1338ee0549a7b9cfcff",
+          "reference_ms": 2251.55,
+          "alternative_ms": 2228.79,
+          "same_text": true
+        },
+        {
+          "case": "battle-08-effects",
+          "image_sha256": "1326d246df14a56cb8a56053a697491def45adc2c2dcead2c742d8e65b486ec8",
+          "reference_ms": 2490.63,
+          "alternative_ms": 2378.29,
+          "same_text": true
+        }
+      ]
+    }
+  },
+  "reversed_synthetic_long": {
+    "reference": {
+      "all_ms": {
+        "n": 6,
+        "p50": 3655.95,
+        "p95": 5520.43
+      },
+      "full": 5,
+      "accepted": 1,
+      "renderer_frame_ms": {
+        "n": 1282,
+        "p50": 16.41,
+        "p95": 24.64
+      },
+      "gpu_percent": {
+        "n": 46,
+        "p50": 100.0,
+        "p95": 100
+      }
+    },
+    "candidate": {
+      "all_ms": {
+        "n": 6,
+        "p50": 3681.11,
+        "p95": 4692.07
+      },
+      "full": 5,
+      "accepted": 1,
+      "renderer_frame_ms": {
+        "n": 1233,
+        "p50": 16.63,
+        "p95": 25.21
+      },
+      "gpu_percent": {
+        "n": 45,
+        "p50": 100,
+        "p95": 100
+      }
+    },
+    "faster_pairs": 4,
+    "paired_change_ms": {
+      "n": 6,
+      "p50": -12.05,
+      "p95": 55.12
+    },
+    "reference_mode": "reference",
+    "candidate_mode": "candidate",
+    "all_p50_change_percent": -0.7,
+    "matched_complete": {
+      "reference": {
+        "n": 5,
+        "p50": 3652.17,
+        "p95": 4094.41
+      },
+      "candidate": {
+        "n": 5,
+        "p50": 3647.37,
+        "p95": 4075.12
+      }
+    },
+    "full_text_identical": 6,
+    "rows": [
+      {
+        "case": "0-0",
+        "image_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+        "reference_ms": 3659.73,
+        "candidate_ms": 3714.85,
+        "reference_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在从第1帧的右侧移动到第6帧的左侧，红色目标在从第1帧的右侧移动到第6帧的右侧，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "candidate_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在从第1帧的右侧移动到第6帧的左侧，红色目标在从第1帧的右侧移动到第6帧的右侧，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "reference_outcome": {
+          "scene": " unclear ",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 72
+        },
+        "candidate_outcome": {
+          "scene": " unclear ",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 72
+        }
+      },
+      {
+        "case": "0-1",
+        "image_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+        "reference_ms": 3122.39,
+        "candidate_ms": 3175.55,
+        "reference_text": "{\n\"scene\": \"unclear\",\n\"observation\": \"蓝色圆形从第1帧右上角移动到第6帧右下角，红色目标在最后一帧左上角出现，第1帧右上角是黄色圆形，第6帧右上角是绿色圆形。\",\n\"observed_frames\": [\n  \"1\",\n  \"6\"\n]\n}",
+        "candidate_text": "{\n\"scene\": \"unclear\",\n\"observation\": \"蓝色圆形从第1帧右上角移动到第6帧右下角，红色目标在最后一帧左上角出现，第1帧右上角是黄色圆形，第6帧右上角是绿色圆形。\",\n\"observed_frames\": [\n  \"1\",\n  \"6\"\n]\n}",
+        "reference_outcome": {
+          "scene": "unclear",
+          "complete_with_citations": true,
+          "accepted_observation": true,
+          "observation_characters": 60
+        },
+        "candidate_outcome": {
+          "scene": "unclear",
+          "complete_with_citations": true,
+          "accepted_observation": true,
+          "observation_characters": 60
+        }
+      },
+      {
+        "case": "1-0",
+        "image_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+        "reference_ms": 5520.43,
+        "candidate_ms": 4692.07,
+        "reference_text": "{\"scene\":\"unclear\",\"observation\":\"蓝色圆形从第1帧右上角移动到第5帧左下角，红色目标在最后一帧左上角消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\"observed_frames\":[\"1\",\"5\",\"6\",\"74\"]}",
+        "candidate_text": "{\"scene\":\"unclear\",\"observation\":\"蓝色圆形从第1帧右上角移动到第5帧左下角，红色目标在最后一帧左上角消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\"observed_frames\":[\"1\",\"5\",\"6\",\"74\"]}",
+        "reference_outcome": {
+          "scene": "unclear",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": 64
+        },
+        "candidate_outcome": {
+          "scene": "unclear",
+          "complete_with_citations": false,
+          "accepted_observation": false,
+          "observation_characters": 64
+        }
+      },
+      {
+        "case": "1-1",
+        "image_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+        "reference_ms": 3652.17,
+        "candidate_ms": 3647.37,
+        "reference_text": "{\n  \"scene\": \" unclear\",\n  \"observation\": \"蓝色圆形在从第1帧到第6帧中从左向右移动，红色目标在从第1帧到第6帧中始终可见，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "candidate_text": "{\n  \"scene\": \" unclear\",\n  \"observation\": \"蓝色圆形在从第1帧到第6帧中从左向右移动，红色目标在从第1帧到第6帧中始终可见，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "reference_outcome": {
+          "scene": " unclear",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 68
+        },
+        "candidate_outcome": {
+          "scene": " unclear",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 68
+        }
+      },
+      {
+        "case": "2-0",
+        "image_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+        "reference_ms": 4094.41,
+        "candidate_ms": 4075.12,
+        "reference_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在早期（Frame 1）向左移动，红色目标在早期（Frame 1）可见，黄色圆形在早期（Frame 1）可见。蓝色圆形在较晚帧（Frame 6）向右移动，红色目标在较晚帧（Frame 6）可见，黄色圆形在较晚帧（Frame 6）可见。最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "candidate_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在早期（Frame 1）向左移动，红色目标在早期（Frame 1）可见，黄色圆形在早期（Frame 1）可见。蓝色圆形在较晚帧（Frame 6）向右移动，红色目标在较晚帧（Frame 6）可见，黄色圆形在较晚帧（Frame 6）可见。最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "reference_outcome": {
+          "scene": " unclear ",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 149
+        },
+        "candidate_outcome": {
+          "scene": " unclear ",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 149
+        }
+      },
+      {
+        "case": "2-1",
+        "image_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+        "reference_ms": 3331.86,
+        "candidate_ms": 3296.19,
+        "reference_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形从第1帧右上角移动到第3帧中间，红色目标在红色目标出现后逐渐消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"3\",\n    \"6\"\n  ]\n}",
+        "candidate_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形从第1帧右上角移动到第3帧中间，红色目标在红色目标出现后逐渐消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"3\",\n    \"6\"\n  ]\n}",
+        "reference_outcome": {
+          "scene": " unclear ",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 65
+        },
+        "candidate_outcome": {
+          "scene": " unclear ",
+          "complete_with_citations": true,
+          "accepted_observation": false,
+          "observation_characters": 65
+        }
+      }
+    ]
+  },
+  "echo_dialogue_review": {
+    "case": "gameplay-02-echo-sequence",
+    "text_sha256": {
+      "ship-idle": {
+        "candidate": "a051e321a865c908e6554ee1e23fcfd6ddd54db73c6b12722e5a2576a8914012",
+        "reference": "8a9b81ad8445337af50a3b9b41d4c30a82439ebf32ae3830c5aa9712570f650e"
+      },
+      "ship-spaced": {
+        "candidate": "a051e321a865c908e6554ee1e23fcfd6ddd54db73c6b12722e5a2576a8914012",
+        "reference": "a051e321a865c908e6554ee1e23fcfd6ddd54db73c6b12722e5a2576a8914012"
+      },
+      "ship-dialogue": {
+        "candidate": "8a9b81ad8445337af50a3b9b41d4c30a82439ebf32ae3830c5aa9712570f650e",
+        "reference": "8a9b81ad8445337af50a3b9b41d4c30a82439ebf32ae3830c5aa9712570f650e"
+      },
+      "final-idle": {
+        "candidate": "8a9b81ad8445337af50a3b9b41d4c30a82439ebf32ae3830c5aa9712570f650e",
+        "reference": "a051e321a865c908e6554ee1e23fcfd6ddd54db73c6b12722e5a2576a8914012"
+      }
+    },
+    "inspection": "The same six screenshots show a glowing winged figure. Two dialogue choices first appear at frame 3 and remain through frame 6. One reply mentions the choices but mistranscribes them; the other omits them. Both replies occur verbatim on both the published and shipping implementation, including with identical media and prompts. On the back-to-back no-render run the shipping answer omitted the choices. The two-second-spaced pair both omitted them; under external render load both mentioned them."
+  }
+}
