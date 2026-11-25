@@ -1,8 +1,74 @@
-"""Reduce repeated Q and K loads during Qwen Gated DeltaNet prefill on M3 Pro."""
+"""Metal prefill kernels for the local Qwen worker on M3 Pro."""
 
 import sys
 from importlib import import_module
 from typing import Any
+
+
+def enable_mlp_prefill(model: Any) -> None:
+    """Project the gate and up branches together for large prompts."""
+    import mlx.core as mx
+    import mlx.nn as nn
+    from mlx_vlm.models.activations import swiglu
+    from mlx_vlm.models.qwen3_5.language import Qwen3_5MLP
+
+    if (
+        getattr(model.config, "model_type", None) != "qwen3_5"
+        or mx.default_device() != mx.gpu
+        or mx.device_info().get("architecture") != "applegpu_g15s"
+    ):
+        return
+
+    class PackedMLP(Qwen3_5MLP):
+        def __init__(self, original: Qwen3_5MLP) -> None:
+            nn.Module.__init__(self)
+            self.gate_proj = original.gate_proj
+            self.up_proj = original.up_proj
+            self.down_proj = original.down_proj
+            gate, up = self.gate_proj, self.up_proj
+            weights, scales, biases = (
+                mx.concatenate([gate[key], up[key]], axis=0)
+                for key in ("weight", "scales", "biases")
+            )
+            mx.eval(weights, scales, biases)
+            for key, joined in (("weight", weights), ("scales", scales), ("biases", biases)):
+                # The verifier still sees its original projections as views of the same storage.
+                gate[key], up[key] = mx.split(joined, 2, axis=0)
+
+            def project(x: mx.array) -> mx.array:
+                return mx.quantized_matmul(
+                    x, weights, scales, biases, transpose=True, group_size=64, bits=4,
+                    mode="affine",
+                )
+
+            self.project = project
+            self.train(original.training)
+
+        def __call__(self, x: mx.array) -> mx.array:
+            if x.ndim != 3 or x.shape[0] != 1 or x.shape[1] < 128:
+                return super().__call__(x)
+            gate, up = mx.split(self.project(x), 2, axis=-1)
+            return self.down_proj(swiglu(gate, up))
+
+    for layer in model.language_model.model.layers:
+        mlp = layer.mlp
+        if type(mlp) is not Qwen3_5MLP:
+            continue
+        gate, up = mlp.gate_proj, mlp.up_proj
+        if all(
+            type(p) is nn.QuantizedLinear and "bias" not in p and p.biases is not None
+            and (p.bits, p.group_size, p.mode) == (4, 64, "affine")
+            for p in (gate, up)
+        ) and (
+            gate.weight.shape == up.weight.shape == (3584, 128)
+            and gate.scales.dtype == up.scales.dtype == mx.bfloat16
+            and gate.biases.dtype == up.biases.dtype == mx.bfloat16
+        ):
+            try:
+                layer.mlp = PackedMLP(mlp)
+            except (MemoryError, RuntimeError, ValueError) as exc:
+                print(f"Could not pack further Qwen prefill projections: {exc}", file=sys.stderr)
+                return
 
 
 def _make_kernel(mx: Any, *, masked: bool) -> Any:

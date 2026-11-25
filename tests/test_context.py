@@ -70,6 +70,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("sys.stdin", messages), patch("sys.stdout", output),
             patch.dict(serve.__globals__, {"summarize_image": generate}),
+            patch.dict("sys.modules", {"wuwa_cpu_draft": SimpleNamespace(ReviewCheckpoint=object)}),
         ):
             serve(object(), object(), {"model_type": "qwen3_5"}, draft_startup=startup)
         self.assertEqual([json.loads(line) for line in output.getvalue().splitlines()], [
@@ -78,6 +79,10 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
             {"summary": '{"scene":"unclear"}'}, {"summary": "未能复盘"}, {"summary": "第一轮原文"},
         ])
         self.assertTrue(all(call.kwargs["cpu_draft"] is draft for call in generate.call_args_list))
+        checkpoints = [call.kwargs["checkpoint"] for call in generate.call_args_list]
+        self.assertIsNone(checkpoints[0])
+        self.assertEqual(len(set(checkpoints[1:])), 6)
+        self.assertEqual(checkpoints[4::2], checkpoints[5::2])
         self.assertEqual(
             [call.kwargs.get("prefix", "") for call in generate.call_args_list],
             ["", "", "", "", "", '{"scene":"', "", '{"scene":"', "", '{"scene":"'],

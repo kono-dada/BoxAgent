@@ -1,5 +1,7 @@
 """Draft Qwen vision responses on the CPU and verify them on Metal."""
 
+from __future__ import annotations
+
 import ctypes
 import hashlib
 import json
@@ -10,6 +12,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from contextlib import closing
+from dataclasses import dataclass
 from importlib import import_module
 from io import BytesIO
 from pathlib import Path
@@ -145,6 +148,50 @@ def cpu_cache(cache: list[Any], positions: mx.array, tokens: mx.array) -> bytes:
         return state.getvalue()
 
 
+@dataclass
+class ReviewCheckpoint:
+    """Prefill state shared only by the two format attempts on one image."""
+
+    tokens: tuple[int, ...] = ()
+    positions: mx.array | None = None
+    rope_deltas: mx.array | None = None
+    layers: tuple[tuple[mx.array, ...], ...] = ()
+
+    def remember(
+        self, ids: mx.array, positions: mx.array, rope_deltas: mx.array, cache: list[Any],
+    ) -> None:
+        self.tokens = tuple(ids[0].tolist())
+        self.positions, self.rope_deltas = positions, rope_deltas
+        # ArraysCache.state is a mutable list. Retain the arrays before decoding advances it.
+        self.layers = tuple(tuple(entry.state) for entry in cache)
+
+    def resume(self, ids: mx.array, model: Any, cache: list[Any]) -> mx.array | None:
+        if self.positions is None or self.rope_deltas is None or ids.shape[1] <= len(self.tokens):
+            return None
+        current = tuple(ids[0].tolist())
+        size = len(self.tokens)
+        appended = current[size:]
+        if (
+            current[:size] != self.tokens or len(cache) != len(self.layers)
+            or model.config.image_token_index in appended
+            or model.config.video_token_index in appended
+        ):
+            return None
+        # The first attempt consumed the entire prompt except its final seed token.
+        offset = size - 1
+        positions = mx.concatenate([
+            self.positions[..., :offset],
+            self.positions[..., offset:] + mx.arange(ids.shape[1] - offset),
+        ], axis=-1)
+        for entry, state in zip(cache, self.layers, strict=True):
+            entry.state = list(state)
+        suffix = ids[:, offset:-1]
+        language = model.language_model
+        language(suffix, inputs_embeds=language.model.embed_tokens(suffix), cache=cache,
+                 position_ids=positions, rope_deltas=self.rope_deltas, skip_logits=True)
+        return positions
+
+
 class WuwaCpuDraft:
     def __init__(self, directory: Path, fingerprints: dict[str, str]) -> None:
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
@@ -239,6 +286,7 @@ class WuwaCpuDraft:
     def generate_vision(
         self, generate: Callable[..., Any], model: Any, processor: Any, prompt: Any,
         image: str, options: dict[str, Any], *, pressured: bool | None = None,
+        checkpoint: ReviewCheckpoint | None = None,
     ) -> Any | None:
         """Use CPU drafts with Metal verification for a compatible image request."""
         self.used_cpu_draft = False
@@ -270,7 +318,7 @@ class WuwaCpuDraft:
             with closing(self._steps(
                 ids, target, pixels, mask, vision_logits=self.vision_logits,
                 prefill_step_size=kwargs.pop("prefill_step_size", ar.DEFAULT_PREFILL_STEP_SIZE),
-                hint=hint, **kwargs,
+                hint=hint, checkpoint=checkpoint, **kwargs,
             )) as stream:
                 for token, logprobs in stream:
                     generated.append(token)
@@ -294,6 +342,7 @@ class WuwaCpuDraft:
     def _steps(
         self, input_ids: mx.array, model: Any, pixel_values: Any, mask: Any, *,
         max_tokens: int, vision_logits: Callable[[mx.array], mx.array], hint: tuple[int, ...],
+        checkpoint: ReviewCheckpoint | None = None,
         prefill_step_size: int | None = None, repetition_penalty: float | None = None,
         repetition_context_size: int = 64, **kwargs: Any,
     ) -> Iterator[tuple[int, None]]:
@@ -304,19 +353,23 @@ class WuwaCpuDraft:
         language = model.language_model
         prefix = input_ids[:, :-1]
         with mx.stream(stream):
-            embedded = model.get_input_embeddings(input_ids, pixel_values, mask=mask, **kwargs)
-            positions = embedded.position_ids
-            chunk_size = prefill_step_size or prefix.shape[1]
-            for start in range(0, prefix.shape[1], chunk_size):
-                end = min(start + chunk_size, prefix.shape[1])
-                language(
-                    prefix[:, start:end], inputs_embeds=embedded.inputs_embeds[:, start:end],
-                    cache=cache, position_ids=positions, rope_deltas=embedded.rope_deltas,
-                    skip_logits=True,
-                )
-                if end < prefix.shape[1]:
-                    mx.eval([entry.state for entry in cache])
-                    mx.clear_cache()
+            positions = checkpoint.resume(input_ids, model, cache) if checkpoint else None
+            if positions is None:
+                embedded = model.get_input_embeddings(input_ids, pixel_values, mask=mask, **kwargs)
+                positions = embedded.position_ids
+                chunk_size = prefill_step_size or prefix.shape[1]
+                for start in range(0, prefix.shape[1], chunk_size):
+                    end = min(start + chunk_size, prefix.shape[1])
+                    language(
+                        prefix[:, start:end], inputs_embeds=embedded.inputs_embeds[:, start:end],
+                        cache=cache, position_ids=positions, rope_deltas=embedded.rope_deltas,
+                        skip_logits=True,
+                    )
+                    if end < prefix.shape[1]:
+                        mx.eval([entry.state for entry in cache])
+                        mx.clear_cache()
+                if checkpoint is not None:
+                    checkpoint.remember(input_ids, positions, embedded.rope_deltas, cache)
             first_position = positions[0, 0, -1].item()
             seed = input_ids[0, -1].item()
         if not isinstance(first_position, int) or not isinstance(seed, int):
