@@ -36,6 +36,11 @@ def enable_mlp_prefill(model: Any) -> None:
                 gate[key], up[key] = mx.split(joined, 2, axis=0)
 
             def project(x: mx.array) -> mx.array:
+                if x.shape[1] >= 512 and x.dtype == mx.bfloat16:
+                    # MLX's dense prefill GEMM takes these same unpacked affine weights.
+                    # Keep the compact storage between requests and for the verifier.
+                    dense = mx.dequantize(weights, scales, biases, group_size=64, bits=4)
+                    return x @ dense.T
                 return mx.quantized_matmul(
                     x, weights, scales, biases, transpose=True, group_size=64, bits=4,
                     mode="affine",

@@ -152,6 +152,7 @@ def cpu_cache(cache: list[Any], positions: mx.array, tokens: mx.array) -> bytes:
 class ReviewCheckpoint:
     """Prefill state shared only by the two format attempts on one image."""
 
+    deferred_first_reply: bool = False
     tokens: tuple[int, ...] = ()
     positions: mx.array | None = None
     rope_deltas: mx.array | None = None
@@ -166,7 +167,7 @@ class ReviewCheckpoint:
         self.layers = tuple(tuple(entry.state) for entry in cache)
 
     def resume(self, ids: mx.array, model: Any, cache: list[Any]) -> mx.array | None:
-        if self.positions is None or self.rope_deltas is None or ids.shape[1] <= len(self.tokens):
+        if self.positions is None or self.rope_deltas is None or ids.shape[1] < len(self.tokens):
             return None
         current = tuple(ids[0].tolist())
         size = len(self.tokens)
@@ -177,14 +178,18 @@ class ReviewCheckpoint:
             or model.config.video_token_index in appended
         ):
             return None
+        for entry, state in zip(cache, self.layers, strict=True):
+            entry.state = list(state)
+        if not appended:
+            # A failed format retry needs the original prompt and its original seed again.
+            model.language_model._rope_deltas = self.rope_deltas
+            return self.positions
         # The first attempt consumed the entire prompt except its final seed token.
         offset = size - 1
         positions = mx.concatenate([
             self.positions[..., :offset],
             self.positions[..., offset:] + mx.arange(ids.shape[1] - offset),
         ], axis=-1)
-        for entry, state in zip(cache, self.layers, strict=True):
-            entry.state = list(state)
         suffix = ids[:, offset:-1]
         language = model.language_model
         language(suffix, inputs_embeds=language.model.embed_tokens(suffix), cache=cache,
@@ -286,7 +291,7 @@ class WuwaCpuDraft:
     def generate_vision(
         self, generate: Callable[..., Any], model: Any, processor: Any, prompt: Any,
         image: str, options: dict[str, Any], *, pressured: bool | None = None,
-        checkpoint: ReviewCheckpoint | None = None,
+        checkpoint: ReviewCheckpoint | None = None, check_review_opening: bool = False,
     ) -> Any | None:
         """Use CPU drafts with Metal verification for a compatible image request."""
         self.used_cpu_draft = False
@@ -301,10 +306,13 @@ class WuwaCpuDraft:
         original_steps = dispatch.generate_step
         hint = self.recent_tokens.get(prompt, ()) if isinstance(prompt, str) else ()
         generated: list[int] = []
+        watch_opening = check_review_opening and checkpoint is not None
+        deferred = False
 
         def choose_steps(
             ids: mx.array, target: Any, pixels: Any, mask: Any, **kwargs: Any,
         ) -> Iterator[tuple[int, Any]]:
+            nonlocal watch_opening, deferred
             length = ids.shape[-1]
             if (
                 ids.ndim != 2 or ids.shape[0] != 1 or pixels is None or length < 2
@@ -322,6 +330,15 @@ class WuwaCpuDraft:
             )) as stream:
                 for token, logprobs in stream:
                     generated.append(token)
+                    if watch_opening and checkpoint is not None:
+                        opening = processor.tokenizer.decode(generated).lstrip()
+                        if opening.startswith("```"):
+                            # This verified opening cannot parse as a bare object. Let the
+                            # usual retry run first, keeping the image state for either outcome.
+                            deferred = checkpoint.deferred_first_reply = True
+                            yield token, logprobs
+                            return
+                        watch_opening = len(generated) < 8 and "```".startswith(opening)
                     yield token, logprobs
 
         dispatch.generate_step = choose_steps
@@ -329,7 +346,7 @@ class WuwaCpuDraft:
             result = generate(model, processor, prompt, image=[image], verbose=False, **options)
         finally:
             dispatch.generate_step = original_steps
-        if generated and isinstance(prompt, str):
+        if generated and not deferred and isinstance(prompt, str):
             self.recent_tokens[prompt] = tuple(generated)
             self.recent_tokens.move_to_end(prompt)
             if len(self.recent_tokens) > 4:

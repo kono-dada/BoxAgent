@@ -70,7 +70,9 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("sys.stdin", messages), patch("sys.stdout", output),
             patch.dict(serve.__globals__, {"summarize_image": generate}),
-            patch.dict("sys.modules", {"wuwa_cpu_draft": SimpleNamespace(ReviewCheckpoint=object)}),
+            patch.dict("sys.modules", {"wuwa_cpu_draft": SimpleNamespace(
+                ReviewCheckpoint=lambda: SimpleNamespace(deferred_first_reply=False),
+            )}),
         ):
             serve(object(), object(), {"model_type": "qwen3_5"}, draft_startup=startup)
         self.assertEqual([json.loads(line) for line in output.getvalue().splitlines()], [
@@ -81,12 +83,50 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(call.kwargs["cpu_draft"] is draft for call in generate.call_args_list))
         checkpoints = [call.kwargs["checkpoint"] for call in generate.call_args_list]
         self.assertIsNone(checkpoints[0])
-        self.assertEqual(len(set(checkpoints[1:])), 6)
-        self.assertEqual(checkpoints[4::2], checkpoints[5::2])
+        self.assertEqual(len({id(checkpoint) for checkpoint in checkpoints[1:]}), 6)
+        for primary, retry in zip(checkpoints[4::2], checkpoints[5::2], strict=True):
+            self.assertIs(primary, retry)
         self.assertEqual(
             [call.kwargs.get("prefix", "") for call in generate.call_args_list],
             ["", "", "", "", "", '{"scene":"', "", '{"scene":"', "", '{"scene":"'],
         )
+
+    def test_fenced_review_prioritizes_the_retry_and_preserves_the_full_fallback(self) -> None:
+        worker = runpy.run_path(str(Path(__file__).resolve().parents[1]
+                                    / "scripts/window_summary_worker.py"))
+        summarize = worker["summarize_request"]
+        req = {"image": "clip.jpg", "analysis_prompt": "复盘", "structured_review": True}
+        primary = '{"scene":"settled","observation":"角色停下。","observed_frames":[1,6]}'
+        fenced = f"```json\r\n{primary}\r\n```"
+        valid_retry = 'fighting","observation":"角色跳起。","observed_frames":[3,6]}'
+        for retry, full, expected in (
+            (valid_retry, fenced, '{"scene":"' + valid_retry),
+            ("无效", fenced, primary),
+            (OSError("retry unavailable"), fenced, primary),
+            ("无效", "完整的第一轮原文", "完整的第一轮原文"),
+        ):
+            state = SimpleNamespace(deferred_first_reply=True)
+            results = [SimpleNamespace(text="```"),
+                       retry if isinstance(retry, OSError) else SimpleNamespace(text=retry),
+                       SimpleNamespace(text=full)]
+            generate = Mock(side_effect=results)
+            with (
+                patch.dict(summarize.__globals__, {"summarize_image": generate}),
+                patch.dict("sys.modules", {"wuwa_cpu_draft": SimpleNamespace(
+                    ReviewCheckpoint=Mock(return_value=state),
+                )}),
+            ):
+                answer = summarize(req, None, None, {"model_type": "qwen3_5"}, object(), None)
+            self.assertEqual(answer, expected)
+            self.assertEqual(generate.call_count, 2 if retry == valid_retry else 3)
+            self.assertEqual(generate.call_args_list[1].kwargs["prefix"], '{"scene":"')
+
+        for invalid in (
+            f"解释\n{fenced}", f"{fenced}\n其他内容", f"{fenced}\n{fenced}",
+            '```json\n{"scene":"unknown"}\n```',
+            '```json\n{"scene":"settled","observation":"未写完\n```',
+        ):
+            self.assertIsNone(worker["fenced_review"](invalid))
 
     def test_focused_window_accepts_an_unlisted_fullscreen_game(self) -> None:
         front = SimpleNamespace(

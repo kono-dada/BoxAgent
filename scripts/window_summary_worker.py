@@ -70,6 +70,16 @@ def complete_review(answer: str) -> str | None:
     return closed if valid_review(closed) else None
 
 
+def fenced_review(answer: str) -> str | None:
+    opening, newline, rest = answer.partition("\n")
+    if not newline or opening.rstrip().lower() not in {"```", "```json"}:
+        return None
+    content, newline, closing = rest.rpartition("\n")
+    if newline and closing.rstrip() == "```" and valid_review(content):
+        return content.strip()
+    return None
+
+
 def summarize_image(
     model: Any, processor: Any, config: dict[str, Any], image: str | Path, *,
     options: dict[str, Any] | None = None, question: str = "", analysis_prompt: str = "",
@@ -92,6 +102,9 @@ def summarize_image(
             accelerated = cpu_draft.generate_vision(
                 generate, model, processor, prompt, str(image), generation,
                 pressured=True, checkpoint=checkpoint,
+                check_review_opening=(
+                    checkpoint is not None and not prefix and not checkpoint.deferred_first_reply
+                ),
             )
         except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             print(f"Local vision CPU draft failed; using Metal: {exc}", file=sys.stderr)
@@ -389,7 +402,10 @@ def summarize_request(
             else:
                 complete = complete_review(REVIEW_PREFIX + fragment)
         if complete is not None:
-            answer = complete
+            return complete
+        if checkpoint is not None and checkpoint.deferred_first_reply:
+            answer = str(decode().text).strip()
+        return fenced_review(answer) or answer
     return answer
 
 
