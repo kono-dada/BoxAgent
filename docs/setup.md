@@ -128,6 +128,28 @@ macOS 源码入口会准备 `.runtime/desktop/BoxAgent.app`，再通过 LaunchSe
 
 用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 macOS 系统依赖装进视觉环境。
 
+#### 可选的 Apple Silicon 视觉加速包
+
+桌面观察、游戏画面和原图问答共用同一个 worker 实现。装有配套运行包时，低负载可用 Metal MTP，GPU 利用率达到 90% 时由 CPU 生成候选，原 Qwen 模型在 Metal 上逐 token 校验。跨帧拼图使用融合 Metal 保留全局视觉注意力。受支持的单图可用 Core ML 掩码编码器，保留原图网格。组件不可用或输入超出对应范围时使用 MLX 的原有实现。
+
+下列命令用已安装的 Qwen3.5-0.8B MLX 权重构建完整运行包。需要 Xcode 命令行工具、`coremltools==9.0`、llama.cpp b12441 源码及其 macOS ARM64 动态库。提前设置 `LLAMA_SOURCE`、`LLAMA_LIBS`、`QWEN_GGUF_TEMPLATE` 和 `QWEN_MTP_HEAD` 为对应路径。GGUF 只提供同型号的模型和分词器元数据，CPU 权重由本地 MLX 权重导出。MTP 使用兼容的 Qwen3.5-0.8B MLX 预测头。
+
+```bash
+vision_python=.runtime/vision-venv/bin/python
+vision_model=.runtime/models/qwen3.5-0.8b-mlx
+build_deps=.runtime/vision-build-deps
+uv pip install --python "$vision_python" --target "$build_deps" coremltools==9.0
+export PYTHONPATH="$PWD/$build_deps:$LLAMA_SOURCE/gguf-py"
+"$vision_python" scripts/build_wuwa_cpu_draft.py "$vision_model" .runtime/vision-cpu-draft \
+  --llama-source "$LLAMA_SOURCE" --llama-libs "$LLAMA_LIBS" --gguf-template "$QWEN_GGUF_TEMPLATE"
+"$vision_python" scripts/build_wuwa_coreml.py "$vision_model" .runtime/vision-masked
+"$vision_python" scripts/build_wuwa_text_prefill.py "$vision_model" .runtime/vision-acceleration \
+  --vision-masked .runtime/vision-masked --cpu-draft .runtime/vision-cpu-draft \
+  --mtp-drafter "$QWEN_MTP_HEAD"
+```
+
+在 `.env.local` 中设置 `BOXAGENT_WUWA_COREML_BUNDLE=.runtime/vision-acceleration` 后重启。环境变量名沿用现有部署，桌面和游戏入口都会读取。原生文本预填充已在 M3 Pro 上验证。三个编译产物都属于本机运行数据。
+
 ### 《鸣潮》陪玩预览
 
 在 macOS 源码版中设置 `BOXAGENT_GAME_COMPANION=1` 后启动桌宠。点击小窗的「鸣潮」，再把游戏放到前台。预览使用上面的本地视觉环境和屏幕录制权限。切走游戏后暂停采集。

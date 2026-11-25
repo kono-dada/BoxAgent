@@ -194,6 +194,10 @@ def copy_source(stage: Path) -> None:
     for name in (
         "jev_mem_worker.py",
         "window_summary_worker.py",
+        "wuwa_coreml.py",
+        "wuwa_cpu_draft.py",
+        "wuwa_mlx_prefill.py",
+        "wuwa_text_prefill.py",
         "game-window-stream.swift",
         "intent_worker.py",
         "codex_computer_use.py",

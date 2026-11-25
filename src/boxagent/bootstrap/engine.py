@@ -519,6 +519,7 @@ def create_application(
         python=app_settings.perception_python,
         worker_script=app_settings.root / "scripts/window_summary_worker.py",
         log_path=app_settings.log_dir / "context-worker.log",
+        vision_bundle=app_settings.vision_bundle if sys.platform == "darwin" else None,
         window_allowed=lambda window: (
             not application.state.lol_companion_enabled
             or window["app"].casefold() == "league of legends"),

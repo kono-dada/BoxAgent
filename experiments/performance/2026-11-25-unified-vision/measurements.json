@@ -1,0 +1,173 @@
+{
+  "date": "2026-11-25",
+  "hardware": "Apple M3 Pro, 18 GiB",
+  "model": "Qwen3.5-0.8B MLX affine 4-bit",
+  "renderer": "1280x720 offscreen Metal, target 60 Hz, 1450 shader iterations; idle used no renderer",
+  "samples": {
+    "source": "Local branch verification, transcribed from the original JSON output",
+    "smoke_timing": "Image bytes through the complete WindowSummary IPC reply; no capture or speech",
+    "smoke": [
+      {
+        "entry": "window",
+        "shader_iterations": 0,
+        "input": "six-plain",
+        "ms": 1278.64
+      },
+      {
+        "entry": "window",
+        "shader_iterations": 0,
+        "input": "six-json",
+        "ms": 1080.52
+      },
+      {
+        "entry": "window",
+        "shader_iterations": 0,
+        "input": "game-single-image",
+        "ms": 414.34
+      },
+      {
+        "entry": "window",
+        "shader_iterations": 0,
+        "input": "desktop-single-image",
+        "ms": 424.54
+      },
+      {
+        "entry": "window",
+        "shader_iterations": 1450,
+        "input": "six-plain",
+        "ms": 5739.89
+      },
+      {
+        "entry": "window",
+        "shader_iterations": 1450,
+        "input": "six-json",
+        "ms": 2408.87
+      },
+      {
+        "entry": "window",
+        "shader_iterations": 1450,
+        "input": "game-single-image",
+        "ms": 11101.37
+      },
+      {
+        "entry": "window",
+        "shader_iterations": 1450,
+        "input": "desktop-single-image",
+        "ms": 11237.54
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 0,
+        "input": "six-plain",
+        "ms": 1892.98
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 0,
+        "input": "six-json",
+        "ms": 985.73
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 0,
+        "input": "game-single-image",
+        "ms": 377.5
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 0,
+        "input": "desktop-single-image",
+        "ms": 428.01
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 1450,
+        "input": "six-plain",
+        "ms": 2929.12
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 1450,
+        "input": "six-json",
+        "ms": 1704.81
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 1450,
+        "input": "game-single-image",
+        "ms": 1339.72
+      },
+      {
+        "entry": "companion",
+        "shader_iterations": 1450,
+        "input": "desktop-single-image",
+        "ms": 1450.93
+      }
+    ],
+    "paired_comparison_timing": "Prepared image file through the complete WindowSummary IPC reply",
+    "paired_comparison_method": "Same branch worker and renderer; alternating bundle order, three warm pairs per input, with a 1.2 second gap between timed requests",
+    "paired_comparison": {
+      "six-plain": {
+        "samples_ms_in_trial_order": {
+          "installed": [
+            3600.97,
+            3916.39,
+            3437.87
+          ],
+          "rebuilt": [
+            3390.21,
+            3226.53,
+            3659.11
+          ]
+        },
+        "median_ms": {
+          "installed": 3600.97,
+          "rebuilt": 3390.21
+        },
+        "equal_full_outputs_for_all_pairs": true
+      },
+      "single-image": {
+        "samples_ms_in_trial_order": {
+          "installed": [
+            1170.92,
+            939.17,
+            1174.02
+          ],
+          "rebuilt": [
+            1127.16,
+            1248.06,
+            958.82
+          ]
+        },
+        "median_ms": {
+          "installed": 1170.92,
+          "rebuilt": 1127.16
+        },
+        "equal_full_outputs_for_all_pairs": true
+      }
+    }
+  },
+  "validation": {
+    "identical_full_outputs_between_worker_entries": true,
+    "six_frame_scores": [
+      24,
+      25,
+      26,
+      28,
+      31,
+      35
+    ],
+    "positions_unchanged": true,
+    "game_score": 24,
+    "desktop_meeting_time": "14:30",
+    "observed_backends": [
+      "Metal MTP",
+      "CPU draft and full Metal verification",
+      "native text prefill",
+      "masked Core ML image encoding"
+    ],
+    "mlx_fallback_without_bundle": "passed",
+    "rebuilt_cpu_weights_and_2048_patch_graph_match_installed_files": true
+  },
+  "limitations": "Initial requests with the rebuilt bundle under the simulator included latency outliers. This is a small synthetic replay, without live game FPS or speech timing."
+}

@@ -1,19 +1,104 @@
 """验证过时上下文丢弃、临时图片清理和独立生命周期。"""
 
 import asyncio
+import json
+import runpy
 import time
 import unittest
+from concurrent.futures import Future
+from io import StringIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from PIL import Image
 
 from boxagent.application.assistant import BoxAgentApplication
-from boxagent.infrastructure.perception.qwen_mlx import WindowSummary, foreground_game
+from boxagent.infrastructure.perception.qwen_mlx import (
+    WindowSummary,
+    focused_window,
+    foreground_game,
+)
 
 
 class ContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_worker_launch_forwards_the_optional_vision_bundle(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "python"
+            executable.touch()
+            bundle = root / "wuwa-coreml"
+            for configured_bundle in (None, bundle):
+                flags = ("--review-coreml-bundle", str(bundle)) if configured_bundle else ()
+                observer = WindowSummary(
+                    lambda *_args, **_kwargs: None,
+                    workspace=root, model=root, python=executable,
+                    vision_bundle=configured_bundle,
+                )
+                observer.reply = AsyncMock(return_value={"ready": True})
+                try:
+                    with patch(
+                        "boxagent.infrastructure.perception.qwen_mlx.asyncio.create_subprocess_exec",
+                        return_value=SimpleNamespace(returncode=0),
+                    ) as launch:
+                        await observer._ensure_model()
+                    observer.reply.assert_awaited_once_with(120)
+                    self.assertEqual(launch.call_args.args[7:], flags)
+                finally:
+                    await observer.stop()
+
+    def test_worker_uses_shared_acceleration_for_plain_and_structured_input(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
+        serve = runpy.run_path(str(script))["serve_mlx"]
+        common = {"image": "clip.jpg", "analysis_prompt": "描述画面"}
+        native = SimpleNamespace(
+            cpu_draft=None,
+            analyze_image=Mock(side_effect=["可见两个目标。", '{"scene":"unclear"}']),
+        )
+        startup: Future[SimpleNamespace] = Future()
+        startup.set_result(native)
+        messages = StringIO(json.dumps(common) + "\n" + json.dumps({
+            **common, "structured_review": True,
+        }) + "\n")
+        output = StringIO()
+        with patch("sys.stdin", messages), patch("sys.stdout", output):
+            serve(object(), object(), {}, text_startup=SimpleNamespace(future=startup))
+        self.assertEqual([json.loads(line) for line in output.getvalue().splitlines()], [
+            {"ready": True}, {"summary": "可见两个目标。"},
+            {"summary": '{"scene":"unclear"}'},
+        ])
+        self.assertEqual(
+            [call.kwargs for call in native.analyze_image.call_args_list],
+            [
+                {"structured": False, "pressured": False},
+                {"structured": True, "pressured": False},
+            ],
+        )
+
+    def test_focused_window_accepts_an_unlisted_fullscreen_game(self) -> None:
+        front = SimpleNamespace(
+            bundleIdentifier=lambda: "example.unlisted.game",
+            processIdentifier=lambda: 42,
+            localizedName=lambda: "Unlisted Game",
+        )
+        appkit = SimpleNamespace(NSWorkspace=Mock())
+        appkit.NSWorkspace.sharedWorkspace.return_value.frontmostApplication.return_value = front
+        quartz = SimpleNamespace(CGShieldingWindowLevel=lambda: 2147483628)
+        fullscreen = {"id": 12, "app": "Unlisted Game", "layer": 2147483628}
+        with (
+            patch.dict("sys.modules", {"AppKit": appkit, "Quartz": quartz}),
+            patch("boxagent.infrastructure.perception.qwen_mlx.sys.platform", "darwin"),
+            patch("boxagent.infrastructure.perception.qwen_mlx.os.getpid", return_value=1),
+            patch(
+                "boxagent.infrastructure.perception.qwen_mlx._mac_window",
+                side_effect=[None, fullscreen],
+            ) as window,
+        ):
+            self.assertEqual(focused_window(), fullscreen)
+            self.assertEqual([call.args[-1] for call in window.call_args_list],
+                             [{0}, {2147483628}])
+
     def test_foreground_dock_recognizes_only_the_real_lol_shield_window(self) -> None:
         bundle = Mock(return_value="com.riotgames.LeagueofLegends.GameClient")
         front = SimpleNamespace(

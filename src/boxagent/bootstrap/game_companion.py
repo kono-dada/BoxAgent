@@ -1,16 +1,19 @@
 """Opt-in macOS game companion composition."""
 
+import asyncio
 from collections.abc import Callable
 
 from boxagent.application.assistant import BoxAgentApplication
-from boxagent.application.game_companion import GameCompanion
+from boxagent.application.game_companion import QUEST_PERIOD, GameCompanion
 from boxagent.application.game_entry import GameEntry, GameEntryInbox
 from boxagent.bootstrap.settings import Settings
+from boxagent.domain.proactivity.game_entry import TrackedQuest
 from boxagent.domain.proactivity.game_highlight import GameHighlight
 from boxagent.infrastructure.perception.deepseek_quest import DeepSeekQuestVision
 from boxagent.infrastructure.perception.game_stream import GameWindowStream
 from boxagent.infrastructure.perception.qwen_mlx import WindowSummary
 from boxagent.infrastructure.perception.wuwa import WuwaVision
+from boxagent.infrastructure.perception.wuwa_quest import read_quest
 from boxagent.infrastructure.persistence.game_entry import QuestProgressFile
 
 
@@ -31,6 +34,7 @@ def install_game_companion(
         python=settings.perception_python,
         worker_script=settings.root / "scripts/window_summary_worker.py",
         log_path=settings.log_dir / "game-vision-worker.log",
+        vision_bundle=settings.vision_bundle,
     )
     entry = GameEntry(QuestProgressFile(settings.data_dir / "games/wuwa-progress.json"), publish)
     cloud = (
@@ -38,8 +42,11 @@ def install_game_companion(
         if settings.wuwa_cloud_vision_enabled or settings.wuwa_scene_vision_enabled
         else None
     )
-    recognize_quest = cloud if settings.wuwa_cloud_vision_enabled else None
+    cloud_quest = cloud if settings.wuwa_cloud_vision_enabled else None
     cloud_scene = cloud if settings.wuwa_scene_vision_enabled else None
+
+    async def recognize_local_quest(image: bytes) -> TrackedQuest | None:
+        return await asyncio.to_thread(read_quest, image, cropped=True)
 
     async def announce(highlight: GameHighlight, still_current: Callable[[], bool]) -> bool:
         return await publish(
@@ -48,7 +55,6 @@ def install_game_companion(
 
     vision = WuwaVision(
         local_model,
-        defer_quest=recognize_quest is not None,
         cloud_scene=cloud_scene,
         recent_comment=lambda: companion.last_moment,
         resumed_quest=entry.resumed_quest,
@@ -62,7 +68,8 @@ def install_game_companion(
         interaction.game_voice,
         announce,
         entry=entry,
-        recognize_quest=recognize_quest,
+        recognize_quest=cloud_quest or recognize_local_quest,
+        quest_period=QUEST_PERIOD if cloud_quest else 0.0,
         cloud_scene=cloud_scene is not None,
         prepare_audio=interaction.prepare_game_audio,
         enabled=lambda: application.state.game_companion_enabled,

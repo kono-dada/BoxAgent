@@ -42,7 +42,9 @@ def clean_summary(text: str) -> str:
     return "".join(kept)
 
 
-def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
+def focused_window(
+    *, bundle_id: str | None = None, allow_fullscreen: bool = True,
+) -> WindowInfo | None:
     """选择前台应用最上层的普通窗口；不截整屏，也不改变焦点。"""
     if sys.platform == "win32":
         from boxagent.infrastructure.perception.windows import (
@@ -56,9 +58,15 @@ def focused_window(*, bundle_id: str | None = None) -> WindowInfo | None:
     if (not app or app.processIdentifier() == os.getpid()
             or (bundle_id is not None and app.bundleIdentifier() != bundle_id)):
         return None
-    return _mac_window(
-        app.processIdentifier(), str(app.localizedName()), str(app.bundleIdentifier() or ""), {0}
+    pid, name, identifier = (
+        app.processIdentifier(), str(app.localizedName()), str(app.bundleIdentifier() or "")
     )
+    window = _mac_window(pid, name, identifier, {0})
+    if window is None and allow_fullscreen:
+        import Quartz as Q
+
+        window = _mac_window(pid, name, identifier, {Q.CGShieldingWindowLevel()})
+    return window
 
 
 def _mac_window(pid: int, app: str, bundle_id: str, layers: set[int]) -> WindowInfo | None:
@@ -113,7 +121,7 @@ def foreground_game() -> ForegroundGame | None:
                     shield + 1 - Q.CGWindowLevelForKey(Q.kCGScreenSaverWindowLevelKey)
                 )
             return result
-    window = focused_window()
+    window = focused_window(allow_fullscreen=False)
     if window is None:
         return None
     app = window["app"].strip().casefold()
@@ -136,6 +144,7 @@ class WindowSummary:
         python: str | Path | None = None, worker_script: str | Path | None = None,
         log_path: str | Path | None = None,
         window_allowed: Callable[[WindowInfo], bool] | None = None,
+        vision_bundle: Path | None = None,
     ) -> None:
         self.workspace = Path(workspace or Path.cwd())
         self.emit, self.interval = emit, interval
@@ -169,6 +178,7 @@ class WindowSummary:
         self.inference_lock = asyncio.Lock()
         self.model_errors: TextIO | None = None
         self.window_allowed = window_allowed
+        self.vision_bundle = vision_bundle
 
     async def stop(self) -> None:
         self.latest_frame = None
@@ -208,21 +218,32 @@ class WindowSummary:
             raise RuntimeError("缺少本地视觉环境或模型")
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.model_errors = self.log_path.open("a")
-        self.process = await asyncio.create_subprocess_exec(
+        command = [
             "uv", "run", "--no-project", "--python", str(self.python),
             str(self.worker_script), str(self.model),
+        ]
+        if self.vision_bundle is not None:
+            command.extend(("--review-coreml-bundle", str(self.vision_bundle)))
+        self.process = await asyncio.create_subprocess_exec(
+            *command,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=self.model_errors,
             env={**os.environ, "HF_HUB_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"})
         await self.reply(120)
 
     async def _infer(self, path: Path, question: str = "", *, analysis_prompt: str = "",
-                     window: WindowInfo | None = None) -> dict[str, object]:
+                     max_tokens: int | None = None,
+                     window: WindowInfo | None = None,
+                     structured_review: bool = False) -> dict[str, object]:
         async with self.inference_lock:
             try:
                 await self._ensure_model()
-                request = {"image": str(path), "question": question}
+                request: dict[str, object] = {"image": str(path), "question": question}
                 if analysis_prompt:
                     request["analysis_prompt"] = analysis_prompt
+                if max_tokens is not None:
+                    request["max_tokens"] = max_tokens
+                if structured_review:
+                    request["structured_review"] = True
                 if window is not None:
                     request.update(app=window["app"], title=window.get("title", ""))
                 if self.process is None or self.process.stdin is None:
@@ -231,17 +252,21 @@ class WindowSummary:
                 writer.write((json.dumps(request) + "\n").encode())
                 await writer.drain()
                 return await self.reply(180 if sys.platform == "win32" else 60)
-            except (asyncio.CancelledError, TimeoutError, RuntimeError, OSError):
+            except (asyncio.CancelledError, TimeoutError, RuntimeError, ValueError, OSError):
                 # An unread reply must never become the next request's answer.
                 await self._stop_model()
                 raise
 
-    async def analyze_image(self, image: bytes, prompt: str) -> str:
+    async def analyze_image(
+        self, image: bytes, prompt: str, *, max_tokens: int | None = None,
+        structured_review: bool = False,
+    ) -> str:
         """Return the raw local answer to a host-supplied visual analysis prompt."""
         with tempfile.TemporaryDirectory(prefix="boxagent-game-review-") as directory:
             path = Path(directory) / "clip.jpg"
             path.write_bytes(image)
-            result = await self._infer(path, analysis_prompt=prompt)
+            result = await self._infer(path, analysis_prompt=prompt, max_tokens=max_tokens,
+                                       structured_review=structured_review)
         return str(result.get("summary", "")).strip()
 
     async def describe(self, image: bytes, question: str) -> str:

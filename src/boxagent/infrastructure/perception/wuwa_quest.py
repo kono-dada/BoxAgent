@@ -44,19 +44,25 @@ def _vision_classes() -> tuple[Any, Any]:
 
 
 def quest_region(data: bytes) -> bytes:
-    with Image.open(BytesIO(data)) as source, BytesIO() as encoded:
-        width, height = source.size
-        crop = source.crop((0, round(height * .14), round(width * .30), round(height * .48)))
-        crop.thumbnail((800, 735))
+    with Image.open(BytesIO(data)) as source:
+        return encode_quest_region(source)
+
+
+def encode_quest_region(source: Image.Image) -> bytes:
+    width, height = source.size
+    crop = source.crop((0, round(height * .14), round(width * .30), round(height * .48)))
+    crop.thumbnail((800, 735))
+    with BytesIO() as encoded:
         crop.save(encoded, format="PNG")
         return encoded.getvalue()
 
 
-def read_quest(data: bytes) -> TrackedQuest | None:
+def read_quest(data: bytes, *, cropped: bool = False) -> TrackedQuest | None:
+    """Read the tracker from a game frame or an already cropped tracker image."""
     import objc
     from Foundation import NSData, NSDictionary
 
-    pixels = quest_region(data)
+    pixels = data if cropped else quest_region(data)
     request_class, handler_class = _vision_classes()
     with objc.autorelease_pool():
         request = request_class.alloc().init()

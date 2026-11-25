@@ -2839,3 +2839,9 @@ passed
 - **背景与问题**　独立启动 Engine 时，命令行默认值固定为 `codex`，桌宠的共享配置在未配置时使用 `deepseek`。
 - **决策与做法**　独立 Engine 仅在收到显式 `--task-provider` 时覆盖共享配置。省略参数时读取 `BOXAGENT_TASK_PROVIDER`，未配置时使用 DeepSeek。 [Engine 入口](../src/boxagent/entrypoints/engine.py) · [共享配置](../src/boxagent/bootstrap/settings.py)
 - **效果**　CLI 回归覆盖两种配置值和显式参数的双向覆盖。独立 Engine 使用默认配置和显式 `codex` 均通过启停与 IPC 冒烟。Ruff、strict mypy 和使用 uv 解释器的 Pyright 通过，pytest 通过 683 项、跳过 13 项。真实模型回合见上一轮实机复测。 [CLI 回归](../tests/test_engine.py)
+
+### 2026-11-25 · 统一桌面、游戏与图片问答的本地视觉推理
+
+- **实现**　两个入口使用同一视觉 worker。低负载可用 Metal MTP，重载由 CPU 起草并由原 Qwen 模型在 Metal 上完整校验。六帧照常送模，跨帧图像使用全局视觉注意力。Apple Silicon 的可选 Core ML 包可从本机相同权重重建。 [Worker](../scripts/window_summary_worker.py) · [构建方式](setup.md)
+- **对照**　M3 Pro 上以 1280×720、目标 60 Hz 和 1450 次 shader 迭代模拟渲染。用同一分支的 worker 轮换加载现用包与重编译包，每类输入各计时三对，从准备好的画面到完整回复。六帧长回复中位数为 3601 和 3390 ms，单图问答为 1171 和 1127 ms。六对回复全文一致。该批样本用于合并验证。
+- **验证范围**　重建包的空载和重载冒烟均通过，桌面和陪玩入口的八对回复全文一致。六帧分数序列与图形位置判断正确。首次重载回放的六帧长回复出现 5740 ms 样本，两次单图超过 11 秒。回放使用合成素材，计时截至文本完成。Ruff、strict mypy、Pyright 通过，pytest 691 项通过、13 项跳过。 [本机验收测量](../experiments/performance/2026-11-25-unified-vision/measurements.json) · [入口测试](../tests/test_context.py)

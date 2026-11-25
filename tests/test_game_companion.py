@@ -2,8 +2,12 @@ import asyncio
 import json
 import unittest
 from collections.abc import Callable
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock, patch
+
+from PIL import Image
 
 from boxagent.application.game_companion import GameCompanion
 from boxagent.application.game_entry import GameEntry
@@ -14,11 +18,16 @@ from boxagent.domain.conversation import ConversationService
 from boxagent.domain.interaction.service import InteractionService
 from boxagent.domain.proactivity.game_entry import GameCapture, TrackedQuest
 from boxagent.domain.proactivity.game_highlight import (
+    REVIEW_PROMPT,
+    SCENE_PROMPT,
     GameFrame,
     GameHighlight,
     GameObservation,
     HighlightReview,
 )
+from boxagent.infrastructure.perception.game_stream import CapturedGameFrame, GameWindowStream
+from boxagent.infrastructure.perception.qwen_mlx import WindowSummary
+from boxagent.infrastructure.perception.wuwa import WuwaVision, game_contact_sheet
 from boxagent.infrastructure.persistence import JsonlSessionStore
 from boxagent.infrastructure.persistence.game_entry import QuestProgressFile
 from boxagent.infrastructure.runtimes.qwen.realtime import QwenRealtimeSession
@@ -34,14 +43,19 @@ class FakeVision:
     captures = 0
     result = PRAISE
     hold_review: asyncio.Event | None = None
+    last_review: tuple[GameFrame, ...] = ()
     description = ""
     relevant = True
+    ready = True
 
     def visible_window(self) -> int | None:
         return self.window
 
     def launch_id(self) -> str:
         return self.launch
+
+    def ready_for_inference(self) -> bool:
+        return self.ready
 
     async def capture(self, window: int) -> GameCapture:
         self.captures += 1
@@ -52,6 +66,7 @@ class FakeVision:
                 if self.description else None)
 
     async def review(self, frames: tuple[GameFrame, ...]) -> HighlightReview:
+        self.last_review = frames
         if self.hold_review is not None:
             await self.hold_review.wait()
         return self.result
@@ -94,7 +109,12 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
         await self.tick()
         self.assertEqual(self.vision.captures, 0)
         self.vision.window = 42
-        await self.tick(6)
+        await self.tick(5)
+        self.assertEqual(self.vision.last_review, ())
+        await self.tick()
+        frames = self.vision.last_review
+        self.assertEqual(len(frames), 6)
+        self.assertEqual(frames[-1].captured_at - frames[0].captured_at, 2.5)
         self.assertEqual(len(self.announced), 1)
         self.assertEqual(self.game.reference(), "")
 
@@ -118,6 +138,17 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
         self.vision.window = None
         await self.tick()
         self.assertFalse(self.game.is_active())
+
+    async def test_uses_latest_frame_after_model_warmup(self) -> None:
+        self.vision.ready = False
+        self.vision.description = "角色停在通道入口。"
+        await self.tick(8)
+        self.assertEqual(len(self.game.frames), 8)
+        self.assertEqual(len(self.game.observations), 0)
+
+        self.vision.ready = True
+        await self.tick()
+        self.assertEqual(self.game.observations[-1].last_seen_at, self.now)
 
     async def test_explicit_mode_disables_capture_and_discards_old_context(self) -> None:
         enabled = False
@@ -465,6 +496,124 @@ class GameCompanionTests(unittest.IsolatedAsyncioTestCase):
         self.vision.result = PRAISE
         await self.tick(5)
         self.assertEqual(len(self.announced), 2)
+
+
+class LocalGameVisionTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def image(color: str) -> bytes:
+        with BytesIO() as buffer:
+            Image.new("RGB", (1280, 720), color).save(buffer, "JPEG")
+            return buffer.getvalue()
+
+    async def test_inference_preserves_scene_size_review_frames_and_prompts(self) -> None:
+        model = AsyncMock(spec=WindowSummary)
+        model.analyze_image.return_value = "画面中有角色。"
+        vision = WuwaVision(model)
+        capture = vision._inspect(self.image("blue"), 100)
+        frame = GameFrame(100, capture.image)
+        observation = await vision.describe(frame)
+        self.assertEqual(observation, GameObservation("画面中有角色。", 100, 100))
+        model.analyze_image.assert_awaited_once_with(frame.image, SCENE_PROMPT)
+        with Image.open(BytesIO(frame.image)) as image:
+            self.assertEqual(image.size, (512, 288))
+
+        colors = ("red", "green", "blue", "white", "black", "magenta")
+        frames = tuple(GameFrame(100 + i / 2, vision._thumbnail(self.image(color)))
+                       for i, color in enumerate(colors))
+        await vision.review(frames)
+        args, kwargs = model.analyze_image.await_args
+        sheet, prompt = args
+        self.assertEqual(prompt, REVIEW_PROMPT)
+        self.assertEqual(kwargs, {"structured_review": True})
+        with Image.open(BytesIO(sheet)) as image:
+            self.assertEqual(image.size, (1024, 896))
+            self.assertEqual(image.info.get("comment"), b"BoxAgent six-frame contact sheet v1")
+            expected = [(255, 0, 0), (0, 128, 0), (0, 0, 255), (255, 255, 255),
+                        (0, 0, 0), (255, 0, 255)]
+            for i, color in enumerate(expected):
+                x, y = 256 + i % 2 * 512, 150 + i // 2 * 298
+                actual = image.getpixel((x, y))
+                assert isinstance(actual, tuple)
+                self.assertTrue(all(abs(a - b) <= 3 for a, b in zip(actual, color, strict=True)))
+
+    async def test_reuses_only_identical_inputs_and_refreshes_observation_times(self) -> None:
+        model = AsyncMock(spec=WindowSummary)
+        model.analyze_image.return_value = "画面中有角色。"
+        vision = WuwaVision(model)
+        thumbnail = vision._thumbnail(self.image("blue"))
+        await vision.describe(GameFrame(10, thumbnail))
+        repeated = await vision.describe(GameFrame(11, thumbnail))
+        self.assertEqual(repeated, GameObservation("画面中有角色。", 11, 11))
+        model.analyze_image.assert_awaited_once()
+        await vision.describe(GameFrame(12, vision._thumbnail(self.image("red"))))
+        self.assertEqual(model.analyze_image.await_count, 2)
+
+        model.analyze_image.return_value = (
+            '{"scene":"unclear","observation":"角色停在通道入口。","observed_frames":[6]}'
+        )
+        first = tuple(GameFrame(i * .5, thumbnail) for i in range(6))
+        second = tuple(GameFrame(frame.captured_at + 5, frame.image) for frame in first)
+        with patch(
+            "boxagent.infrastructure.perception.wuwa.game_contact_sheet",
+            wraps=game_contact_sheet,
+        ) as compose:
+            await vision.review(first)
+            repeated_review = await vision.review(second)
+            compose.assert_called_once_with(first)
+        self.assertEqual(
+            repeated_review.observation, GameObservation("角色停在通道入口。", 7.5, 7.5)
+        )
+        self.assertEqual(model.analyze_image.await_count, 3)
+        retimed = (*second[:-1], GameFrame(7.75, thumbnail))
+        await vision.review(retimed)
+        self.assertEqual(model.analyze_image.await_count, 4)
+        await vision.pause_capture()
+        await vision.review(retimed)
+        self.assertEqual(model.analyze_image.await_count, 5)
+
+    def test_capture_provides_only_the_tracker_crop_to_quest_readers(self) -> None:
+        model = AsyncMock(spec=WindowSummary)
+        source = self.image("blue")
+        capture = WuwaVision(model)._inspect(source, 100)
+        self.assertIsNone(capture.quest)
+        assert capture.quest_image is not None
+        with Image.open(BytesIO(capture.quest_image)) as image:
+            self.assertEqual(image.size, (384, 245))
+
+    async def test_model_warms_once_without_blocking_capture(self) -> None:
+        model = AsyncMock(spec=WindowSummary)
+        stream = AsyncMock(spec=GameWindowStream)
+        started = asyncio.Event()
+        finish = asyncio.Event()
+        source = self.image("blue")
+        capture_time = 100.0
+
+        async def warm(image: bytes, prompt: str, *, max_tokens: int) -> str:
+            with Image.open(BytesIO(image)) as placeholder:
+                self.assertEqual(placeholder.size, (512, 288))
+            self.assertEqual(max_tokens, 1)
+            started.set()
+            await finish.wait()
+            return ""
+
+        async def capture(window: int) -> CapturedGameFrame:
+            nonlocal capture_time
+            await started.wait()
+            capture_time += 0.5
+            return CapturedGameFrame(source, capture_time)
+
+        model.analyze_image.side_effect = warm
+        stream.frame.side_effect = capture
+        vision = WuwaVision(model, capture_stream=stream)
+        self.addAsyncCleanup(vision.close)
+        first = await asyncio.wait_for(vision.capture(42), 1)
+        second = await asyncio.wait_for(vision.capture(42), 1)
+        model.analyze_image.assert_awaited_once()
+        self.assertEqual(first.captured_at, 100.5)
+        self.assertEqual(second.captured_at, 101.0)
+        self.assertFalse(vision.ready_for_inference())
+        await vision.pause_capture()
+        self.assertTrue(vision.ready_for_inference())
 
 
 class GameHighlightContractTests(unittest.IsolatedAsyncioTestCase):
