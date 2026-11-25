@@ -49,9 +49,9 @@ class QwenImageInputs:
         gh, gw = height // 16, width // 16
         rgb = np.asarray(image).reshape(gh // 2, 2, 16, gw // 2, 2, 16, 3)
         # Match Qwen's spatial merge order, then duplicate each patch's temporal plane.
-        ordered = self.table[rgb.transpose(0, 3, 1, 4, 6, 2, 5)]
-        temporal = np.broadcast_to(ordered[..., None, :, :], (*ordered.shape[:5], 2, 16, 16))
-        patches = np.ascontiguousarray(temporal).reshape(gh * gw, 1536)
+        spatial = np.ascontiguousarray(rgb.transpose(0, 3, 1, 4, 6, 2, 5)).reshape(-1, 3, 256)
+        ordered = self.table[spatial]
+        patches = np.repeat(ordered[:, :, None, :], 2, axis=2).reshape(gh * gw, 1536)
         return {"pixel_values": patches, "image_grid_thw": np.array([[1, gh, gw]], dtype=np.int64)}
 
 

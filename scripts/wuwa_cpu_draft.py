@@ -158,6 +158,13 @@ class ReviewCheckpoint:
     rope_deltas: mx.array | None = None
     layers: tuple[tuple[mx.array, ...], ...] = ()
 
+    def watch_opening(self, tokenizer: Any, tokens: list[int]) -> bool:
+        opening = tokenizer.decode(tokens).lstrip()
+        if opening.startswith("```"):
+            self.deferred_first_reply = True
+            return False
+        return len(tokens) < 8 and "```".startswith(opening)
+
     def remember(
         self, ids: mx.array, positions: mx.array, rope_deltas: mx.array, cache: list[Any],
     ) -> None:
@@ -307,6 +314,12 @@ class WuwaCpuDraft:
         hint = self.recent_tokens.get(prompt, ()) if isinstance(prompt, str) else ()
         generated: list[int] = []
         watch_opening = check_review_opening and checkpoint is not None
+        if (
+            watch_opening and hint
+            and processor.tokenizer.decode(hint[:1]).lstrip().startswith("```")
+        ):
+            # Only this verified opening is needed before trying the JSON form.
+            hint = hint[:1]
         deferred = False
 
         def choose_steps(
@@ -331,14 +344,13 @@ class WuwaCpuDraft:
                 for token, logprobs in stream:
                     generated.append(token)
                     if watch_opening and checkpoint is not None:
-                        opening = processor.tokenizer.decode(generated).lstrip()
-                        if opening.startswith("```"):
+                        watch_opening = checkpoint.watch_opening(processor.tokenizer, generated)
+                        if checkpoint.deferred_first_reply:
                             # This verified opening cannot parse as a bare object. Let the
                             # usual retry run first, keeping the image state for either outcome.
-                            deferred = checkpoint.deferred_first_reply = True
+                            deferred = True
                             yield token, logprobs
                             return
-                        watch_opening = len(generated) < 8 and "```".startswith(opening)
                     yield token, logprobs
 
         dispatch.generate_step = choose_steps
@@ -346,8 +358,10 @@ class WuwaCpuDraft:
             result = generate(model, processor, prompt, image=[image], verbose=False, **options)
         finally:
             dispatch.generate_step = original_steps
-        if generated and not deferred and isinstance(prompt, str):
-            self.recent_tokens[prompt] = tuple(generated)
+        if generated and isinstance(prompt, str):
+            # Keep an observed fence as a proposal when there is no earlier complete answer.
+            if not deferred or prompt not in self.recent_tokens:
+                self.recent_tokens[prompt] = tuple(generated)
             self.recent_tokens.move_to_end(prompt)
             if len(self.recent_tokens) > 4:
                 self.recent_tokens.popitem(last=False)

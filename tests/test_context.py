@@ -5,6 +5,7 @@ import json
 import runpy
 import time
 import unittest
+from collections.abc import Callable
 from concurrent.futures import Future
 from io import StringIO
 from pathlib import Path
@@ -127,6 +128,86 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
             '```json\n{"scene":"settled","observation":"未写完\n```',
         ):
             self.assertIsNone(worker["fenced_review"](invalid))
+
+    def test_review_opening_preserves_eos_and_restores_tokenizer(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
+        worker = runpy.run_path(str(script))
+        first = worker["generate_review_opening"]
+        core = SimpleNamespace()
+        with patch.dict("sys.modules", {"mlx": SimpleNamespace(core=core), "mlx.core": core,
+                                        "numpy": SimpleNamespace()}):
+            draft_module = runpy.run_path(str(script.with_name("wuwa_cpu_draft.py")))
+            checkpoint = draft_module["ReviewCheckpoint"]
+        pieces = {1: " ", 2: "`", 3: "``", 4: "{", 5: "}", 6: "```", 7: ""}
+        eos = Mock(side_effect=lambda token: token == 7)
+        tokenizer = SimpleNamespace(
+            stopping_criteria=eos, decode=lambda ids: "".join(pieces[token] for token in ids),
+        )
+        model = SimpleNamespace(config=SimpleNamespace(eos_token_id=7))
+        processor = SimpleNamespace(tokenizer=tokenizer)
+        for ids, kept, deferred in (
+            ([1, 2, 3, 4], [1, 2], True),
+            ([4, 6, 5, 7], [4, 6, 5], False),
+            ([7, 6], [], False),
+        ):
+            state = checkpoint()
+
+            def generate(
+                target: object, adapter: object, prompt: str, *,
+                stopping_criteria: Callable[[int], bool], input_tokens: list[int] = ids,
+            ) -> list[int]:
+                tokenizer.stopping_criteria = stopping_criteria
+                result: list[int] = []
+                for token in input_tokens:
+                    if stopping_criteria(token):
+                        break
+                    result.append(token)
+                return result
+
+            self.assertEqual(first(generate, state, model, processor, "prompt"), kept)
+            self.assertEqual(state.deferred_first_reply, deferred)
+            self.assertIs(tokenizer.stopping_criteria, eos)
+
+        with self.assertRaises(RuntimeError):
+            first(Mock(side_effect=RuntimeError("decode failed")), state, model, processor,
+                  "prompt")
+        self.assertIs(tokenizer.stopping_criteria, eos)
+
+    def test_review_feature_scope_ends_after_each_request(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
+        worker = runpy.run_path(str(script))
+        summarize = worker["summarize_request"]
+        scope = worker["_review_image"]
+        seen: list[object] = []
+
+        def decode(*args: object, **kwargs: object) -> SimpleNamespace:
+            seen.append(kwargs["review_image"])
+            return SimpleNamespace(text='fighting"}' if "prefix" in kwargs else "?")
+
+        with patch.dict(summarize.__globals__, {"summarize_image": decode}):
+            for _ in range(2):
+                result = summarize({"image": "clip.jpg", "analysis_prompt": "描述画面",
+                                    "structured_review": True}, None, None,
+                                   {"model_type": "qwen3_5"}, None, None)
+                self.assertEqual(result, '{"scene":"fighting"}')
+                self.assertIsNone(scope.get())
+        self.assertIsNotNone(seen[0])
+        self.assertIs(seen[0], seen[1])
+        self.assertIs(seen[2], seen[3])
+        self.assertIsNot(seen[0], seen[2])
+        def fail(*args: object, **kwargs: object) -> None:
+            self.assertIs(scope.get(), seen[0])
+            raise OSError("decode failed")
+
+        with (
+            patch.dict("sys.modules", {
+                "mlx_vlm.generate.dispatch": SimpleNamespace(generate=fail),
+                "mlx_vlm.prompt_utils": SimpleNamespace(apply_chat_template=Mock(return_value="p")),
+            }),
+            self.assertRaises(OSError),
+        ):
+            worker["summarize_image"](None, None, {}, "clip.jpg", review_image=seen[0])
+        self.assertIsNone(scope.get())
 
     def test_review_pixels_are_scoped_to_one_image(self) -> None:
         script = Path(__file__).resolve().parents[1] / "scripts/vision_inputs.py"

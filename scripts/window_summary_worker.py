@@ -8,6 +8,8 @@ import json
 import sys
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextvars import ContextVar
+from dataclasses import dataclass
 from functools import lru_cache, partial
 from importlib import import_module
 from pathlib import Path
@@ -80,11 +82,50 @@ def fenced_review(answer: str) -> str | None:
     return None
 
 
+@dataclass
+class ReviewImageFeatures:
+    """One request may encode the same pixel tensor with several text prompts."""
+
+    pixels: Any = None
+    grid: tuple[int, int, Any] | None = None
+    features: Any = None
+
+
+_review_image: ContextVar[ReviewImageFeatures | None] = ContextVar("review_image", default=None)
+
+
+def generate_review_opening(
+    generate: Callable[..., Any], checkpoint: ReviewCheckpoint,
+    model: Any, processor: Any, prompt: str, **options: Any,
+) -> Any:
+    """Use the same fenced-answer retry on the native Metal decoder."""
+    tokenizer = processor.tokenizer
+    previous = tokenizer.stopping_criteria
+    previous.reset(model.config.eos_token_id)
+    tokens: list[int] = []
+    watching = True
+
+    def stop(token: int) -> bool:
+        nonlocal watching
+        if previous(token):
+            return True
+        if watching:
+            tokens.append(token)
+            watching = checkpoint.watch_opening(tokenizer, tokens)
+            return checkpoint.deferred_first_reply
+        return False
+
+    try:
+        return generate(model, processor, prompt, stopping_criteria=stop, **options)
+    finally:
+        tokenizer.stopping_criteria = previous
+
+
 def summarize_image(
     model: Any, processor: Any, config: dict[str, Any], image: str | Path, *,
     options: dict[str, Any] | None = None, question: str = "", analysis_prompt: str = "",
     cpu_draft: WuwaCpuDraft | None = None, metal_draft: MetalDraft | None = None, prefix: str = "",
-    checkpoint: ReviewCheckpoint | None = None,
+    checkpoint: ReviewCheckpoint | None = None, review_image: ReviewImageFeatures | None = None,
 ) -> Any:
     """产品与离线验收共用提示词及解码配置。"""
     from mlx_vlm.generate.dispatch import generate
@@ -111,12 +152,22 @@ def summarize_image(
         else:
             if accelerated is not None and accelerated.text.strip():
                 return accelerated
-    if metal_draft is not None:
-        result = metal_draft.generate(generate, model, processor, prompt, str(image), generation)
-        if result is not None:
-            return result
-    return generate(model, processor, prompt, image=[str(image)],
-                    verbose=False, **generation)
+    if checkpoint is not None and not prefix and not checkpoint.deferred_first_reply:
+        generate = partial(generate_review_opening, generate, checkpoint)
+    # The CPU route already restores both image and language state. The native Metal
+    # decoder needs only the image features across its independent text attempts.
+    scope = _review_image.set(review_image)
+    try:
+        if metal_draft is not None:
+            result = metal_draft.generate(
+                generate, model, processor, prompt, str(image), generation,
+            )
+            if result is not None:
+                return result
+        return generate(model, processor, prompt, image=[str(image)],
+                        verbose=False, **generation)
+    finally:
+        _review_image.reset(scope)
 
 
 def load_vision_draft(directory: Path, model_path: Path) -> WuwaCpuDraft | None:
@@ -314,9 +365,14 @@ def enable_vision_prefill(model: Any) -> None:
         ):
             return original(input_ids, pixel_values, **kwargs)
 
-        image_features = encoder(height, width, grid.dtype)(
-            pixel_values.astype(projection.weight.dtype)
-        )
+        review = _review_image.get()
+        shape = (height, width, grid.dtype)
+        if review is not None and review.pixels is pixel_values and review.grid == shape:
+            image_features = review.features
+        else:
+            image_features = encoder(*shape)(pixel_values.astype(projection.weight.dtype))
+            if review is not None:
+                review.pixels, review.grid, review.features = pixel_values, shape, image_features
         embed = language.model.embed_tokens
         inputs = mx.concatenate([
             embed(input_ids[:, :start]), image_features[None], embed(input_ids[:, end:]),
@@ -397,6 +453,7 @@ def summarize_request(
         summarize_image, model, processor, config, request["image"],
         question=str(request.get("question") or ""), analysis_prompt=analysis_prompt,
         options=options, cpu_draft=draft, metal_draft=metal_draft, checkpoint=checkpoint,
+        review_image=ReviewImageFeatures() if structured else None,
     )
     answer = str(decode().text).strip()
     if structured:
