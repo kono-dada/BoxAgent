@@ -83,15 +83,15 @@ def fenced_review(answer: str) -> str | None:
 
 
 @dataclass
-class ReviewImageFeatures:
-    """One request may encode the same pixel tensor with several text prompts."""
+class ImageFeatures:
+    """One image grid and its text-independent visual features."""
 
     pixels: Any = None
     grid: tuple[int, int, Any] | None = None
     features: Any = None
 
 
-_review_image: ContextVar[ReviewImageFeatures | None] = ContextVar("review_image", default=None)
+_review_image: ContextVar[ImageFeatures | None] = ContextVar("review_image", default=None)
 
 
 def generate_review_opening(
@@ -125,7 +125,7 @@ def summarize_image(
     model: Any, processor: Any, config: dict[str, Any], image: str | Path, *,
     options: dict[str, Any] | None = None, question: str = "", analysis_prompt: str = "",
     cpu_draft: WuwaCpuDraft | None = None, metal_draft: MetalDraft | None = None, prefix: str = "",
-    checkpoint: ReviewCheckpoint | None = None, review_image: ReviewImageFeatures | None = None,
+    checkpoint: ReviewCheckpoint | None = None, review_image: ImageFeatures | None = None,
 ) -> Any:
     """产品与离线验收共用提示词及解码配置。"""
     from mlx_vlm.generate.dispatch import generate
@@ -296,6 +296,7 @@ def enable_vision_prefill(model: Any) -> None:
         return
     language = model.language_model
     original = model.get_input_embeddings
+    previous = ImageFeatures()
 
     @lru_cache(maxsize=4)
     def encoder(height: int, width: int, grid_dtype: Any) -> Callable[[Any], Any]:
@@ -315,6 +316,26 @@ def enable_vision_prefill(model: Any) -> None:
             return tower.merger(hidden)
 
         return encode
+
+    def encode_pixels(pixels: Any, height: int, width: int, grid_dtype: Any) -> Any:
+        import numpy as np
+
+        shape = (height, width, grid_dtype)
+        encode = encoder(height, width, grid_dtype)
+        if pixels.dtype != mx.float32:
+            return encode(pixels.astype(projection.weight.dtype))
+        # The worker's CPU image processor supplies immutable FP32 patches.
+        # A sparse comparison cheaply rules out new frames. A hit always requires
+        # bitwise equality of the complete model input, including the final patch.
+        raw = np.asarray(pixels).view(np.uint32)
+        last = previous.pixels
+        if previous.grid == shape and last is not None and (
+            np.array_equal(raw[::64, 0], last[::64, 0]) and np.array_equal(raw, last)
+        ):
+            return previous.features
+        features = encode(pixels.astype(projection.weight.dtype))
+        previous.pixels, previous.grid, previous.features = raw, shape, features
+        return features
 
     @lru_cache(maxsize=8)
     def text_positions(
@@ -370,7 +391,7 @@ def enable_vision_prefill(model: Any) -> None:
         if review is not None and review.pixels is pixel_values and review.grid == shape:
             image_features = review.features
         else:
-            image_features = encoder(*shape)(pixel_values.astype(projection.weight.dtype))
+            image_features = encode_pixels(pixel_values, *shape)
             if review is not None:
                 review.pixels, review.grid, review.features = pixel_values, shape, image_features
         embed = language.model.embed_tokens
@@ -453,7 +474,7 @@ def summarize_request(
         summarize_image, model, processor, config, request["image"],
         question=str(request.get("question") or ""), analysis_prompt=analysis_prompt,
         options=options, cpu_draft=draft, metal_draft=metal_draft, checkpoint=checkpoint,
-        review_image=ReviewImageFeatures() if structured else None,
+        review_image=ImageFeatures() if structured else None,
     )
     answer = str(decode().text).strip()
     if structured:

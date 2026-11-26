@@ -1,0 +1,1933 @@
+{
+  "date": "2026-11-25",
+  "hardware": "MacBook Pro, Apple M3 Pro, 18 GiB unified memory, macOS 14.7.8",
+  "runtime": {
+    "python": "3.12.9",
+    "macos": "14.7.8",
+    "machine": "arm64",
+    "packages": {
+      "mlx": "0.32.2",
+      "mlx-metal": "0.32.2",
+      "mlx-vlm": "0.7.0",
+      "safetensors": "0.8.0",
+      "transformers": "5.17.0",
+      "numpy": "2.5.3",
+      "Pillow": "12.3.0"
+    }
+  },
+  "model_weights_sha256": "f5a0d9dd3efa73510542a8023d610ff26be2b4b020d181cfc4bedaa1fcc5dd9e",
+  "original": "1cf6e36908bc44dbaabee0170131ce498481a323",
+  "published_baseline": "fee2b183644a8ff9d65964047fd64ec67ebbdb2c",
+  "candidate_source_sha256": "ea51e15ab5eadd06cf225001babc4aee2193907337ea436e4d56461c13f4db56",
+  "sources": [
+    {
+      "key": "game-hud",
+      "url": "https://archive.org/details/defeat-utterance-of-marvels-1-wuthering-waves",
+      "file": ")Defeat  -Utterance of Marvels 1-Wuthering Waves.mp4",
+      "sha1": "52536e816d7b60b53f503fd4ceead13c6f7be35c",
+      "bytes": 24308988
+    },
+    {
+      "key": "combat-nohud",
+      "url": "https://archive.org/details/wuthering-waves-2025-05-02-08-13-23",
+      "file": "10 min combat no HUD 2025-05-08 17-25-04.ia.mp4",
+      "sha1": "324b52985b26c06d2a5ea54222922dd1755d1f59",
+      "bytes": 59096590
+    }
+  ],
+  "method": {
+    "test_footage": "Two Wuthering Waves gameplay recordings, 8 new timestamps and one separate unscored warmup. Saved-image and fixed-window trials use identical 1024x960 six-frame JPEGs, new temporary paths for each saved-image question. Native entry selects six frames by normal runtime timing.",
+    "native": "Production install_game_companion, local vision and real Qwen worker. 5 Hz framed capture replay, normal 2 Hz product sampling. Capture source and voice inbox replaced. No actual loudspeaker or game client.",
+    "paired": "WindowSummary.analyze_image structured default 160 tokens, followed by two distinct WindowSummary.describe questions with normal 256 budget. Reference/candidate alternate order across scenes. Separate warmed worker per version. One request runs at a time. Timings end after the complete return.",
+    "gpu": "1280x720 offscreen Metal fragment renderer, target 60 Hz and 1450 shader iterations. IORegistry sampled about every 0.5 s. Frame service times are for the simulated renderer.",
+    "scoring": "Detailed JSON requires legal scene, nonempty observation, unique citations among frames 1–6. Numeric and Frame N citations accepted for this content check. The strict product parser is also reported. Raw-text equality compares all returned characters. p95 uses nearest rank.",
+    "version_names": "base/original = initial commit, baseline = published commit, staged/optimized = candidate. image-recall is the preliminary equivalent implementation.",
+    "inputs": [
+      {
+        "case": "battle-00-warm",
+        "source": "game-hud",
+        "warmup": true,
+        "sha256": "3342aa9f5ca7fd4221e04b6c7870f70a38aadd1e89ef5e50ace271b8419c34b3",
+        "frames": [
+          "004-37.80.jpg",
+          "007-38.40.jpg",
+          "009-38.80.jpg",
+          "012-39.40.jpg",
+          "014-39.80.jpg",
+          "017-40.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-game-hud-19",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "frames": [
+          "004-19.80.jpg",
+          "007-20.40.jpg",
+          "009-20.80.jpg",
+          "012-21.40.jpg",
+          "014-21.80.jpg",
+          "017-22.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。第6帧是什么景别？A 远景中的明亮沙滩，B 深色头发角色的面部近景。只回答 A 或 B。",
+        "answer": "B"
+      },
+      {
+        "case": "battle-novel-game-hud-65",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "frames": [
+          "004-65.80.jpg",
+          "007-66.40.jpg",
+          "009-66.80.jpg",
+          "012-67.40.jpg",
+          "014-67.80.jpg",
+          "017-68.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。蓝色亮光出现在哪里？A 室外战场中央，B 表格窗口的标题栏。只回答 A 或 B。",
+        "answer": "A"
+      },
+      {
+        "case": "battle-novel-game-hud-127",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "frames": [
+          "004-127.80.jpg",
+          "007-128.40.jpg",
+          "009-128.80.jpg",
+          "012-129.40.jpg",
+          "014-129.80.jpg",
+          "017-130.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。哪一项描述顺序正确？A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场，B 先是有界面图标的暗色战场，最后才出现亮金圆环。只回答 A 或 B。",
+        "answer": "A"
+      },
+      {
+        "case": "battle-novel-game-hud-175",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "frames": [
+          "004-175.80.jpg",
+          "007-176.40.jpg",
+          "009-176.80.jpg",
+          "012-177.40.jpg",
+          "014-177.80.jpg",
+          "017-178.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。最后两帧能看到哪种颜色的发光攻击特效？A 橙红色，B 紫色。只回答 A 或 B。",
+        "answer": "B"
+      },
+      {
+        "case": "battle-novel-combat-nohud-49",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "frames": [
+          "004-49.80.jpg",
+          "007-50.40.jpg",
+          "009-50.80.jpg",
+          "012-51.40.jpg",
+          "014-51.80.jpg",
+          "017-52.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。是怎样的明暗变化？A 开头很黑，随后变亮并显出绿色草地和界面，B 开头明亮，到最后完全变黑。只回答 A 或 B。",
+        "answer": "A"
+      },
+      {
+        "case": "battle-novel-combat-nohud-167",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "frames": [
+          "004-167.80.jpg",
+          "007-168.40.jpg",
+          "009-168.80.jpg",
+          "012-169.40.jpg",
+          "014-169.80.jpg",
+          "017-170.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。场地主要颜色和短时特效分别是什么？A 红色地面和紫色数字菜单，B 绿色草地和明亮的橙黄色闪光。只回答 A 或 B。",
+        "answer": "B"
+      },
+      {
+        "case": "battle-novel-combat-nohud-329",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "frames": [
+          "004-329.80.jpg",
+          "007-330.40.jpg",
+          "009-330.80.jpg",
+          "012-331.40.jpg",
+          "014-331.80.jpg",
+          "017-332.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。画面中的战斗特效有什么颜色？A 青绿色与橙黄色，B 只有暗灰色而没有发光效果。只回答 A 或 B。",
+        "answer": "A"
+      },
+      {
+        "case": "battle-novel-combat-nohud-462",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "frames": [
+          "004-462.80.jpg",
+          "007-463.40.jpg",
+          "009-463.80.jpg",
+          "012-464.40.jpg",
+          "014-464.80.jpg",
+          "017-465.40.jpg"
+        ],
+        "question": "看六张按时间排列的游戏截图。第2帧发光最明显的部分是什么颜色？A 天蓝色，B 火焰般的橙黄色。只回答 A 或 B。",
+        "answer": "B"
+      }
+    ]
+  },
+  "saved_and_fresh_validation": {
+    "fresh-long": {
+      "versions": [
+        "baseline",
+        "staged"
+      ],
+      "pairs": 8,
+      "candidate_faster": 4,
+      "identical_text": 8,
+      "paired_saving_ms": {
+        "n": 8,
+        "p50": 0.36,
+        "p95_nearest_rank": 200.73
+      },
+      "baseline": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 5652.39,
+          "p95_nearest_rank": 7059.95
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 264.0,
+          "p95_nearest_rank": 300
+        },
+        "device_gpu_percent": {
+          "n": 90,
+          "p50": 99.0,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 2581,
+          "p50": 16.09,
+          "p95_nearest_rank": 22.16
+        }
+      },
+      "staged": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 5743.25,
+          "p95_nearest_rank": 7095.75
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 264.0,
+          "p95_nearest_rank": 300
+        },
+        "device_gpu_percent": {
+          "n": 89,
+          "p50": 99,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 2583,
+          "p50": 16.11,
+          "p95_nearest_rank": 22.28
+        }
+      },
+      "reduction_at_median_percent": -1.61
+    },
+    "saved-question": {
+      "versions": [
+        "baseline",
+        "staged"
+      ],
+      "pairs": 8,
+      "candidate_faster": 8,
+      "identical_text": 8,
+      "paired_saving_ms": {
+        "n": 8,
+        "p50": 672.57,
+        "p95_nearest_rank": 931.55
+      },
+      "baseline": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 2139.81,
+          "p95_nearest_rank": 2348.37
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 9.5,
+          "p95_nearest_rank": 28
+        },
+        "device_gpu_percent": {
+          "n": 34,
+          "p50": 100.0,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 887,
+          "p50": 18.31,
+          "p95_nearest_rank": 26.82
+        }
+      },
+      "staged": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 1488.34,
+          "p95_nearest_rank": 1637.82
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 9.5,
+          "p95_nearest_rank": 28
+        },
+        "device_gpu_percent": {
+          "n": 25,
+          "p50": 100,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 646,
+          "p50": 17.49,
+          "p95_nearest_rank": 21.76
+        }
+      },
+      "reduction_at_median_percent": 30.45
+    },
+    "saved-detail": {
+      "versions": [
+        "baseline",
+        "staged"
+      ],
+      "pairs": 8,
+      "candidate_faster": 8,
+      "identical_text": 8,
+      "paired_saving_ms": {
+        "n": 8,
+        "p50": 765.45,
+        "p95_nearest_rank": 792.89
+      },
+      "baseline": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 3531.41,
+          "p95_nearest_rank": 4524.22
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 137.0,
+          "p95_nearest_rank": 189
+        },
+        "device_gpu_percent": {
+          "n": 54,
+          "p50": 100.0,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 1559,
+          "p50": 16.71,
+          "p95_nearest_rank": 24.47
+        }
+      },
+      "staged": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 2776.99,
+          "p95_nearest_rank": 3744.74
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 137.0,
+          "p95_nearest_rank": 189
+        },
+        "device_gpu_percent": {
+          "n": 46,
+          "p50": 99.0,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 1295,
+          "p50": 16.24,
+          "p95_nearest_rank": 19.98
+        }
+      },
+      "reduction_at_median_percent": 21.36
+    }
+  },
+  "independent_run_same_cases": {
+    "fresh-long": {
+      "versions": [
+        "baseline",
+        "image-recall"
+      ],
+      "pairs": 8,
+      "candidate_faster": 3,
+      "identical_text": 8,
+      "paired_saving_ms": {
+        "n": 8,
+        "p50": -33.51,
+        "p95_nearest_rank": 177.63
+      },
+      "baseline": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 5752.32,
+          "p95_nearest_rank": 7095.66
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 264.0,
+          "p95_nearest_rank": 300
+        },
+        "device_gpu_percent": {
+          "n": 91,
+          "p50": 100,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 2589,
+          "p50": 16.07,
+          "p95_nearest_rank": 22.11
+        }
+      },
+      "image-recall": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 5829.45,
+          "p95_nearest_rank": 7154.61
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 264.0,
+          "p95_nearest_rank": 300
+        },
+        "device_gpu_percent": {
+          "n": 90,
+          "p50": 99.5,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 2603,
+          "p50": 16.09,
+          "p95_nearest_rank": 22.18
+        }
+      },
+      "reduction_at_median_percent": -1.34
+    },
+    "saved-question": {
+      "versions": [
+        "baseline",
+        "image-recall"
+      ],
+      "pairs": 8,
+      "candidate_faster": 8,
+      "identical_text": 8,
+      "paired_saving_ms": {
+        "n": 8,
+        "p50": 633.43,
+        "p95_nearest_rank": 782.69
+      },
+      "baseline": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 2078.39,
+          "p95_nearest_rank": 2433.33
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 9.5,
+          "p95_nearest_rank": 28
+        },
+        "device_gpu_percent": {
+          "n": 33,
+          "p50": 100,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 884,
+          "p50": 18.39,
+          "p95_nearest_rank": 26.87
+        }
+      },
+      "image-recall": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 1489.1,
+          "p95_nearest_rank": 1678.47
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 9.5,
+          "p95_nearest_rank": 28
+        },
+        "device_gpu_percent": {
+          "n": 24,
+          "p50": 100.0,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 664,
+          "p50": 17.48,
+          "p95_nearest_rank": 21.43
+        }
+      },
+      "reduction_at_median_percent": 28.35
+    },
+    "saved-detail": {
+      "versions": [
+        "baseline",
+        "image-recall"
+      ],
+      "pairs": 8,
+      "candidate_faster": 8,
+      "identical_text": 8,
+      "paired_saving_ms": {
+        "n": 8,
+        "p50": 725.99,
+        "p95_nearest_rank": 1842.52
+      },
+      "baseline": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 3483.81,
+          "p95_nearest_rank": 5550.88
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 137.0,
+          "p95_nearest_rank": 189
+        },
+        "device_gpu_percent": {
+          "n": 59,
+          "p50": 100,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 1612,
+          "p50": 16.92,
+          "p95_nearest_rank": 24.71
+        }
+      },
+      "image-recall": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 2777.06,
+          "p95_nearest_rank": 3708.36
+        },
+        "answer_characters": {
+          "n": 8,
+          "p50": 137.0,
+          "p95_nearest_rank": 189
+        },
+        "device_gpu_percent": {
+          "n": 45,
+          "p50": 99,
+          "p95_nearest_rank": 100
+        },
+        "render_frame_service_ms": {
+          "n": 1296,
+          "p50": 16.29,
+          "p95_nearest_rank": 20.25
+        }
+      },
+      "reduction_at_median_percent": 20.29
+    }
+  },
+  "native_original_vs_candidate": {
+    "original": {
+      "last_frame_to_return_ms": {
+        "n": 8,
+        "p50": 3081.61,
+        "p95_nearest_rank": 3155.08
+      },
+      "session_start_to_return_ms": {
+        "n": 8,
+        "p50": 5858.75,
+        "p95_nearest_rank": 5928.55
+      },
+      "cases_with_six_frames": 8,
+      "timeout_count": 0,
+      "accepted_review_observations": 0,
+      "speech_requests": 0,
+      "device_gpu_percent": {
+        "n": 93,
+        "p50": 100,
+        "p95_nearest_rank": 100
+      },
+      "render_frame_service_ms": {
+        "n": 2626,
+        "p50": 16.39,
+        "p95_nearest_rank": 21.18
+      }
+    },
+    "optimized": {
+      "last_frame_to_return_ms": {
+        "n": 8,
+        "p50": 2160.42,
+        "p95_nearest_rank": 2251.33
+      },
+      "session_start_to_return_ms": {
+        "n": 8,
+        "p50": 4967.49,
+        "p95_nearest_rank": 5061.37
+      },
+      "cases_with_six_frames": 8,
+      "timeout_count": 0,
+      "accepted_review_observations": 0,
+      "speech_requests": 0,
+      "device_gpu_percent": {
+        "n": 79,
+        "p50": 100,
+        "p95_nearest_rank": 100
+      },
+      "render_frame_service_ms": {
+        "n": 2237,
+        "p50": 16.64,
+        "p95_nearest_rank": 22.87
+      }
+    },
+    "pairs": [
+      {
+        "case": "novel-combat-nohud-167",
+        "original_ms": 3155.08,
+        "candidate_ms": 2145.93,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "54ef1fe884b28e7a970055aee2815c59e65c7b2932d4182ffd0c2521b992b302",
+          "9c4a3ce77a164d08a960677f510ae7b30e033683846d01dc44e41c75b694f0a3",
+          "8dcf7807fa5125c1c27f28a17e62a28a354fb46772db9780f4a13fd0aeebd6e0",
+          "617fe928cdefe019e904aec315b91e8c53d0e693fa1bf12265f0b361709d9363",
+          "cbaa0d523e7197ef8f7d1696df7e366ef7e6a3ab63bff5582effcb71ed853476",
+          "5f17ae805b393adc7610ba18661be4c0156bda9c53d1836ade8f46adc8ceae01"
+        ],
+        "candidate_frames": [
+          "54ef1fe884b28e7a970055aee2815c59e65c7b2932d4182ffd0c2521b992b302",
+          "9c4a3ce77a164d08a960677f510ae7b30e033683846d01dc44e41c75b694f0a3",
+          "8dcf7807fa5125c1c27f28a17e62a28a354fb46772db9780f4a13fd0aeebd6e0",
+          "cbaa0d523e7197ef8f7d1696df7e366ef7e6a3ab63bff5582effcb71ed853476",
+          "5f17ae805b393adc7610ba18661be4c0156bda9c53d1836ade8f46adc8ceae01",
+          "9c9141f88ef82f66e555db0a2f3da87cbdbf6dc015539911a02bf86866249b07"
+        ]
+      },
+      {
+        "case": "novel-combat-nohud-329",
+        "original_ms": 3045.22,
+        "candidate_ms": 2147.38,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "e263845cd4899b2ab11dde88421c28761675827e7f0e5bb0889d09b080d7a86e",
+          "38f6a172237f3261a71277df2f0bd45ef6429bf8d4264bf0373a37d243375687",
+          "0a4591503434719aa03027af3ee7ddc5a57ac8daeb8a0e00e4cc1fa432b4c78a",
+          "b5e7e005bd722fb4ec11af5dccc5ab6db3c780d868f9f132bf4309e94872a425",
+          "85ffc68560ede44a7b0105278f20735f824fb7efcc234a7cd1bb032b80aa827a",
+          "62b81778e2012005da82d60aa0ba394555ae86f2522cbb4f2db19b18fc1f2e02"
+        ],
+        "candidate_frames": [
+          "e263845cd4899b2ab11dde88421c28761675827e7f0e5bb0889d09b080d7a86e",
+          "c6d56774a86dce8200e33957251a69704fb5ebae333ff847a0c8f87e764ecb87",
+          "0a4591503434719aa03027af3ee7ddc5a57ac8daeb8a0e00e4cc1fa432b4c78a",
+          "b5e7e005bd722fb4ec11af5dccc5ab6db3c780d868f9f132bf4309e94872a425",
+          "eefe0681d913cd011d17b17bae8250e702f7962505a0c6e8c6958cda2e398214",
+          "62b81778e2012005da82d60aa0ba394555ae86f2522cbb4f2db19b18fc1f2e02"
+        ]
+      },
+      {
+        "case": "novel-combat-nohud-462",
+        "original_ms": 3052.25,
+        "candidate_ms": 2251.33,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "5e93be58991247e91ac7a398ca1fb119f44c696968b368c938494b285f9a07ac",
+          "369d2a3131e768b4d923b60b2dd864ff95cefc3bb8a2081b02db265b7a2292bb",
+          "95b59caf09e7ed2706e42991fbe159baadf68a8d2985f7894cfa6ecff952d4a0",
+          "74ac28ba96695723ae2e992eceac25e15e02de856596f96c26e2c888819e72d9",
+          "039f072fc957e2d520d4fed131783b49c2318dc0e32b98fd02e23f9be5d07a2c",
+          "c743bb96cb04d9ac9ac9d7d7471a9d94d275719e09a74ae5051c18083325e2b2"
+        ],
+        "candidate_frames": [
+          "5e93be58991247e91ac7a398ca1fb119f44c696968b368c938494b285f9a07ac",
+          "369d2a3131e768b4d923b60b2dd864ff95cefc3bb8a2081b02db265b7a2292bb",
+          "95b59caf09e7ed2706e42991fbe159baadf68a8d2985f7894cfa6ecff952d4a0",
+          "74ac28ba96695723ae2e992eceac25e15e02de856596f96c26e2c888819e72d9",
+          "039f072fc957e2d520d4fed131783b49c2318dc0e32b98fd02e23f9be5d07a2c",
+          "c743bb96cb04d9ac9ac9d7d7471a9d94d275719e09a74ae5051c18083325e2b2"
+        ]
+      },
+      {
+        "case": "novel-combat-nohud-49",
+        "original_ms": 3122.35,
+        "candidate_ms": 2130.72,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "20236c4f4d7baa09497c8ae5399ca42db1fe5045ae46e4d3f7bed20304f6d7d1",
+          "11db2273d0b8b8885a3069206a43cf54a578d093f5204a8ec3f54bade1967b14",
+          "50cbd10aa9b2b593e2148aa10879e0f4168479e41d34c153c25164ba21797466",
+          "f0bccc54d83267bbdd46dccbed93e16d37646582ca06e760c68c1b654118ec03",
+          "8b004f888a50f77e3912e760ac0c8ff585ab977494292ec8c2c10e32bc2208bc",
+          "5a0562e86b4c3e21c74e033557ec2d782d737d43dd4d74d60a32305ea44d6a7d"
+        ],
+        "candidate_frames": [
+          "20236c4f4d7baa09497c8ae5399ca42db1fe5045ae46e4d3f7bed20304f6d7d1",
+          "11db2273d0b8b8885a3069206a43cf54a578d093f5204a8ec3f54bade1967b14",
+          "50cbd10aa9b2b593e2148aa10879e0f4168479e41d34c153c25164ba21797466",
+          "9574e0e84ca31d05652213e8ae8653ffeed34f315b180c5571fb5d1aa4a3529a",
+          "f0bccc54d83267bbdd46dccbed93e16d37646582ca06e760c68c1b654118ec03",
+          "266cd3b9ed694454535b4fdaa7a8d03a3f1b6069b8c09fd1d6f20056d60d21b1"
+        ]
+      },
+      {
+        "case": "novel-game-hud-127",
+        "original_ms": 3085.03,
+        "candidate_ms": 2173.46,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "a59f4243166536d7f3fe0fd590a0545f18720c2359e90ce7cf5578e1882d4599",
+          "701ed0377d44a0b4cc33d035ef6d8cf41730fc2a1b624f4dd5d2387736110e0e",
+          "59f6c0d2ff96385315333f9b897f96349e9608963708d691f1632867882ae950",
+          "8e92971851e8de2c1f10b637556851be58d6c2f0ecce779bb14ab26b2c7bc8e1",
+          "579f81262e657e416271013040340e47a8cf8d60241b14d05971e787eee4d11c",
+          "0883c6382f5fe5df1dfb1fa610750be86e7555a7ef50ebb6c19ca7976501a8b4"
+        ],
+        "candidate_frames": [
+          "a59f4243166536d7f3fe0fd590a0545f18720c2359e90ce7cf5578e1882d4599",
+          "701ed0377d44a0b4cc33d035ef6d8cf41730fc2a1b624f4dd5d2387736110e0e",
+          "59f6c0d2ff96385315333f9b897f96349e9608963708d691f1632867882ae950",
+          "579f81262e657e416271013040340e47a8cf8d60241b14d05971e787eee4d11c",
+          "0883c6382f5fe5df1dfb1fa610750be86e7555a7ef50ebb6c19ca7976501a8b4",
+          "51baf2e0810c10fe2ac4750a4244132be31241fdf2ecc88b9b7b03aaeafb4b7e"
+        ]
+      },
+      {
+        "case": "novel-game-hud-175",
+        "original_ms": 3078.18,
+        "candidate_ms": 2209.63,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "2faf1b460c5aca72105d575f46a2675d642f22192b8be6b9512a3ac36759878c",
+          "a8aae2b7d4225adc43c2ecb74e9a3cc46e57f600e7b3bd49139de41739f3192c",
+          "580dbd940eb7860b85b093c8cd5cdfa41d98c23907e9e84e5ca93a62e508c817",
+          "fb41e32b966ebb7650179fadb4a8e37849c5feda4adfa740b61458757d3b2705",
+          "39596548a01883b819fc7c542207ba72a6c45b06450ada13ad0fd481378ce4f4",
+          "17b2d4979a515934d6cff5ec865f757b3e6a074e04a7c8b5f66b967c748dff6b"
+        ],
+        "candidate_frames": [
+          "2faf1b460c5aca72105d575f46a2675d642f22192b8be6b9512a3ac36759878c",
+          "23efc64960232f8db51f70620f2d7748c061f5fff946968e88dd67309f95197c",
+          "580dbd940eb7860b85b093c8cd5cdfa41d98c23907e9e84e5ca93a62e508c817",
+          "fb41e32b966ebb7650179fadb4a8e37849c5feda4adfa740b61458757d3b2705",
+          "9b56ab6f7ca568e68b2801dc43163712e557d9827e39f057ef6bb6b85696f5a0",
+          "17b2d4979a515934d6cff5ec865f757b3e6a074e04a7c8b5f66b967c748dff6b"
+        ]
+      },
+      {
+        "case": "novel-game-hud-19",
+        "original_ms": 3051.87,
+        "candidate_ms": 2123.78,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "49ac81d87b221b15a6cfa099613dfccd37b9e1a33043382b45886f92cdc01c60",
+          "8224f494eee1c7fc572a9ba48e6aae5a17f2b77f0e62bc2c740bf72caeca01df",
+          "f7155d5fde9a7df114c8aa2997f6893331f59980d2b86c5318168e197abb7ac8",
+          "d692fa004d336813a5f9ff3b78c771d4be62c232d2c80f3621f1bedf42caf2fa",
+          "a8511a064c64da45d36759d94c745c2f8cdf147048b3a63aa1a6662bcd95d861",
+          "eae6c5249cd9541f46b013880a128241eb978d9db77edd48d059f9a92b89b794"
+        ],
+        "candidate_frames": [
+          "49ac81d87b221b15a6cfa099613dfccd37b9e1a33043382b45886f92cdc01c60",
+          "8224f494eee1c7fc572a9ba48e6aae5a17f2b77f0e62bc2c740bf72caeca01df",
+          "f7155d5fde9a7df114c8aa2997f6893331f59980d2b86c5318168e197abb7ac8",
+          "a8511a064c64da45d36759d94c745c2f8cdf147048b3a63aa1a6662bcd95d861",
+          "eae6c5249cd9541f46b013880a128241eb978d9db77edd48d059f9a92b89b794",
+          "eba0ef935478186a6d92995d4736ed4702ba34905affbfec8523903a8f6a99e0"
+        ]
+      },
+      {
+        "case": "novel-game-hud-65",
+        "original_ms": 3100.5,
+        "candidate_ms": 2183.79,
+        "original_response": "{\"scene\":\"settled\"}",
+        "candidate_response": "{\"scene\":\"settled\"}",
+        "original_frames": [
+          "2a7dbfb9936f5bd61928e8709ab5902044454cbfa3d58141c0ed23544f768f33",
+          "85f924d12f451e38069977ca9203ee8ce2f6f1525067c5d56226610762dd0593",
+          "e2c254090650d6f15ad6dce69242e83bc4ce03cc905a011679de410961c76989",
+          "a1d1f0f1fad4c0ce038c94dcbcc6652e26d205c35bdac73a713c936c3da7f3c1",
+          "b66eebd76ab629dd3301dee2f883ffb582b64638ff4786f621175cfb00938ed0",
+          "10baf8b2d497b848812ad7460811f5553f4149018623b16582a9ac46f0497b9c"
+        ],
+        "candidate_frames": [
+          "2a7dbfb9936f5bd61928e8709ab5902044454cbfa3d58141c0ed23544f768f33",
+          "85f924d12f451e38069977ca9203ee8ce2f6f1525067c5d56226610762dd0593",
+          "e2c254090650d6f15ad6dce69242e83bc4ce03cc905a011679de410961c76989",
+          "a1d1f0f1fad4c0ce038c94dcbcc6652e26d205c35bdac73a713c936c3da7f3c1",
+          "b66eebd76ab629dd3301dee2f883ffb582b64638ff4786f621175cfb00938ed0",
+          "10baf8b2d497b848812ad7460811f5553f4149018623b16582a9ac46f0497b9c"
+        ]
+      }
+    ],
+    "pairs_with_identical_frames": 2,
+    "candidate_faster": 8,
+    "reduction_at_median_percent": 29.89
+  },
+  "fixed_six_original_vs_candidate": {
+    "versions": [
+      "base",
+      "staged"
+    ],
+    "pairs": 8,
+    "candidate_faster": 8,
+    "identical_text": 6,
+    "paired_saving_ms": {
+      "n": 8,
+      "p50": 2868.69,
+      "p95_nearest_rank": 4743.52
+    },
+    "base": {
+      "latency_ms": {
+        "n": 8,
+        "p50": 8584.39,
+        "p95_nearest_rank": 9693.33
+      },
+      "answer_characters": {
+        "n": 8,
+        "p50": 264.0,
+        "p95_nearest_rank": 300
+      },
+      "device_gpu_percent": {
+        "n": 135,
+        "p50": 100,
+        "p95_nearest_rank": 100
+      },
+      "render_frame_service_ms": {
+        "n": 3931,
+        "p50": 15.71,
+        "p95_nearest_rank": 19.91
+      }
+    },
+    "staged": {
+      "latency_ms": {
+        "n": 8,
+        "p50": 5671.25,
+        "p95_nearest_rank": 6808.99
+      },
+      "answer_characters": {
+        "n": 8,
+        "p50": 264.0,
+        "p95_nearest_rank": 300
+      },
+      "device_gpu_percent": {
+        "n": 89,
+        "p50": 100,
+        "p95_nearest_rank": 100
+      },
+      "render_frame_service_ms": {
+        "n": 2532,
+        "p50": 16.09,
+        "p95_nearest_rank": 22.38
+      }
+    },
+    "reduction_at_median_percent": 33.94,
+    "strict_product_observations": {
+      "base": 0,
+      "staged": 0
+    },
+    "complete_with_text_and_frame_references": {
+      "base": 2,
+      "staged": 2
+    },
+    "paired_complete": {
+      "base": {
+        "n": 2,
+        "p50": 7253.05,
+        "p95_nearest_rank": 7798.54
+      },
+      "staged": {
+        "n": 2,
+        "p50": 5671.25,
+        "p95_nearest_rank": 5685.11
+      },
+      "same_json_values": 2,
+      "cases": [
+        "battle-novel-combat-nohud-167",
+        "battle-novel-combat-nohud-462"
+      ]
+    }
+  },
+  "new_visual_questions": {
+    "baseline": 8,
+    "staged": 8,
+    "same_answer_text": 8
+  },
+  "original_visual_questions": {
+    "base": 8,
+    "baseline": 8,
+    "same_answer_text": 8
+  },
+  "rows": {
+    "saved_and_fresh": [
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-19",
+        "phase": "fresh-long",
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗中的动态攻击（如使用武器、释放技能）转为静态的远景场景，其中角色（男性）的头部特写出现在最后，暗示了战斗的结束或角色状态的变化。场景中的环境（如岩石、地面）和背景（如天空、树木）保持不变，但视角和构图发生了变化，从中景变为近景。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "expected": "B",
+        "ms": 5959.43
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-19",
+        "phase": "fresh-long",
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗中的动态攻击（如使用武器、释放技能）转为静态的远景场景，其中角色（男性）的头部特写出现在最后，暗示了战斗的结束或角色状态的变化。场景中的环境（如岩石、地面）和背景（如天空、树木）保持不变，但视角和构图发生了变化，从中景变为近景。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "expected": "B",
+        "ms": 6143.3
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-19",
+        "phase": "saved-question",
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "question": "看六张按时间排列的游戏截图。第6帧是什么景别？A 远景中的明亮沙滩，B 深色头发角色的面部近景。只回答 A 或 B。",
+        "answer": "B",
+        "expected": "B",
+        "ms": 1205.39
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-19",
+        "phase": "saved-question",
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "question": "看六张按时间排列的游戏截图。第6帧是什么景别？A 远景中的明亮沙滩，B 深色头发角色的面部近景。只回答 A 或 B。",
+        "answer": "B",
+        "expected": "B",
+        "ms": 2136.94
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-19",
+        "phase": "saved-detail",
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：- 第一帧中，一个身穿浅色长袍的角色正与另一个深色服装的角色对峙，背景是幽暗的洞穴或地下空间；- 最后一帧则聚焦于该角色的侧脸特写（可见其黑发、部分衣领及面部表情），同时画面边缘出现类似“能量爆炸”的动态光效和粒子效果。因此，第一帧为角色与敌人之间的紧张对峙场景，而最后一帧是角色视角的局部特写镜头，环境从开阔空间变为近景细节。",
+        "expected": "B",
+        "ms": 3809.52
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-19",
+        "phase": "saved-detail",
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：- 第一帧中，一个身穿浅色长袍的角色正与另一个深色服装的角色对峙，背景是幽暗的洞穴或地下空间；- 最后一帧则聚焦于该角色的侧脸特写（可见其黑发、部分衣领及面部表情），同时画面边缘出现类似“能量爆炸”的动态光效和粒子效果。因此，第一帧为角色与敌人之间的紧张对峙场景，而最后一帧是角色视角的局部特写镜头，环境从开阔空间变为近景细节。",
+        "expected": "B",
+        "ms": 3080.91
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-65",
+        "phase": "fresh-long",
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Chixia在战斗过程中不断被击退，屏幕上的红色数字'5'和'27'表示伤害值，角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到",
+        "expected": "A",
+        "ms": 4621.05
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-65",
+        "phase": "fresh-long",
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Chixia在战斗过程中不断被击退，屏幕上的红色数字'5'和'27'表示伤害值，角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到",
+        "expected": "A",
+        "ms": 4668.97
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-65",
+        "phase": "saved-question",
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "question": "看六张按时间排列的游戏截图。蓝色亮光出现在哪里？A 室外战场中央，B 表格窗口的标题栏。只回答 A 或 B。",
+        "answer": "A 室外战场中央",
+        "expected": "A",
+        "ms": 2181.0
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-65",
+        "phase": "saved-question",
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "question": "看六张按时间排列的游戏截图。蓝色亮光出现在哪里？A 室外战场中央，B 表格窗口的标题栏。只回答 A 或 B。",
+        "answer": "A 室外战场中央",
+        "expected": "A",
+        "ms": 1417.24
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-65",
+        "phase": "saved-detail",
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色“Chixia”（一个拥有蓝色光触感的武器和角状装饰的角色）在画面中不断移动并逐渐被击败。镜头视角也相应地变化：第一帧为远景对峙，第二、三帧为近景特写展示战斗细节，第四帧出现角色倒地状态，第五帧则显示角色被击倒的画面。环境背景从开阔的野外场景变为更暗色调和树木较多的区域，暗示战斗过程持续进行。",
+        "expected": "A",
+        "ms": 3708.7
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-65",
+        "phase": "saved-detail",
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色“Chixia”（一个拥有蓝色光触感的武器和角状装饰的角色）在画面中不断移动并逐渐被击败。镜头视角也相应地变化：第一帧为远景对峙，第二、三帧为近景特写展示战斗细节，第四帧出现角色倒地状态，第五帧则显示角色被击倒的画面。环境背景从开阔的野外场景变为更暗色调和树木较多的区域，暗示战斗过程持续进行。",
+        "expected": "A",
+        "ms": 4501.59
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-127",
+        "phase": "fresh-long",
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色从左上角开始，先是展示一个带有金色光环的圆形装置，随后角色（男性角色）出现在画面中，他身穿深色外套，背景是夜晚的树林，他举起右手，似乎正在与某个物体互动。接着是战斗场景，角色在战斗中被击中，屏幕上有伤害数值，最后角色继续战斗，屏幕上有伤害数值。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "expected": "A",
+        "ms": 6461.39
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-127",
+        "phase": "fresh-long",
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色从左上角开始，先是展示一个带有金色光环的圆形装置，随后角色（男性角色）出现在画面中，他身穿深色外套，背景是夜晚的树林，他举起右手，似乎正在与某个物体互动。接着是战斗场景，角色在战斗中被击中，屏幕上有伤害数值，最后角色继续战斗，屏幕上有伤害数值。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "expected": "A",
+        "ms": 6260.66
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-127",
+        "phase": "saved-question",
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "question": "看六张按时间排列的游戏截图。哪一项描述顺序正确？A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场，B 先是有界面图标的暗色战场，最后才出现亮金圆环。只回答 A 或 B。",
+        "answer": "A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场",
+        "expected": "A",
+        "ms": 1626.86
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-127",
+        "phase": "saved-question",
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "question": "看六张按时间排列的游戏截图。哪一项描述顺序正确？A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场，B 先是有界面图标的暗色战场，最后才出现亮金圆环。只回答 A 或 B。",
+        "answer": "A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场",
+        "expected": "A",
+        "ms": 2348.37
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-127",
+        "phase": "saved-detail",
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：首先，第一帧中角色正被一个金色光环包围并受到攻击（可见其手臂与武器），而最后一帧则显示该角色在战斗场景中站立或移动，周围有“Ullterance of Marvels 1”提示文字和伤害数值“82”，表明场景从受击状态变为正常战斗环境。镜头方面，第一帧为特写视角聚焦于攻击瞬间，最后一帧为较广的远景视角展示角色与环境互动。",
+        "expected": "A",
+        "ms": 3709.63
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-127",
+        "phase": "saved-detail",
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：首先，第一帧中角色正被一个金色光环包围并受到攻击（可见其手臂与武器），而最后一帧则显示该角色在战斗场景中站立或移动，周围有“Ullterance of Marvels 1”提示文字和伤害数值“82”，表明场景从受击状态变为正常战斗环境。镜头方面，第一帧为特写视角聚焦于攻击瞬间，最后一帧为较广的远景视角展示角色与环境互动。",
+        "expected": "A",
+        "ms": 2932.3
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-175",
+        "phase": "fresh-long",
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角开始，先是使用技能后出现伤害值，随后角色被击中，最后角色被击中后出现伤害值。场景从左上角开始，先是角色被击中，随后角色被击中，最后角色被击中。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}\n```",
+        "expected": "B",
+        "ms": 5105.97
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-175",
+        "phase": "fresh-long",
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角开始，先是使用技能后出现伤害值，随后角色被击中，最后角色被击中后出现伤害值。场景从左上角开始，先是角色被击中，随后角色被击中，最后角色被击中。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}\n```",
+        "expected": "B",
+        "ms": 5142.49
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-175",
+        "phase": "saved-question",
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "question": "看六张按时间排列的游戏截图。最后两帧能看到哪种颜色的发光攻击特效？A 橙红色，B 紫色。只回答 A 或 B。",
+        "answer": "B 紫色。",
+        "expected": "B",
+        "ms": 2142.68
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-175",
+        "phase": "saved-question",
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "question": "看六张按时间排列的游戏截图。最后两帧能看到哪种颜色的发光攻击特效？A 橙红色，B 紫色。只回答 A 或 B。",
+        "answer": "B 紫色。",
+        "expected": "B",
+        "ms": 1568.25
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-game-hud-175",
+        "phase": "saved-detail",
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色“乌尔坦”（Urtan）的武器和攻击特效由蓝色光效逐渐变为紫色光效；环境背景中枯死的树木也相应地由绿色变灰暗。",
+        "expected": "B",
+        "ms": 2591.45
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-game-hud-175",
+        "phase": "saved-detail",
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色“乌尔坦”（Urtan）的武器和攻击特效由蓝色光效逐渐变为紫色光效；环境背景中枯死的树木也相应地由绿色变灰暗。",
+        "expected": "B",
+        "ms": 3353.2
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-49",
+        "phase": "fresh-long",
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从左上角的黑色画面中逐渐出现，从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，",
+        "expected": "A",
+        "ms": 5257.95
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-49",
+        "phase": "fresh-long",
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从左上角的黑色画面中逐渐出现，从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，",
+        "expected": "A",
+        "ms": 5185.93
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-49",
+        "phase": "saved-question",
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "question": "看六张按时间排列的游戏截图。是怎样的明暗变化？A 开头很黑，随后变亮并显出绿色草地和界面，B 开头明亮，到最后完全变黑。只回答 A 或 B。",
+        "answer": "A 开头很黑，随后变亮并显出绿色草地和界面",
+        "expected": "A",
+        "ms": 1637.82
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-49",
+        "phase": "saved-question",
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "question": "看六张按时间排列的游戏截图。是怎样的明暗变化？A 开头很黑，随后变亮并显出绿色草地和界面，B 开头明亮，到最后完全变黑。只回答 A 或 B。",
+        "answer": "A 开头很黑，随后变亮并显出绿色草地和界面",
+        "expected": "A",
+        "ms": 2261.45
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-49",
+        "phase": "saved-detail",
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境均保持不变：角色始终位于画面中央偏左的草地上（绿色草地、紫色小花），且“Sombre Corruption”等文字信息在每一帧中位置一致。",
+        "expected": "A",
+        "ms": 2789.1
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-49",
+        "phase": "saved-detail",
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境均保持不变：角色始终位于画面中央偏左的草地上（绿色草地、紫色小花），且“Sombre Corruption”等文字信息在每一帧中位置一致。",
+        "expected": "A",
+        "ms": 2074.25
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-167",
+        "phase": "fresh-long",
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在绿色草地中持续进行战斗，画面中可见角色与敌人之间的激烈互动。角色使用武器攻击敌人，产生爆炸效果，背景中还有建筑结构和武器碎片。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "expected": "B",
+        "ms": 5614.68
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-167",
+        "phase": "fresh-long",
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在绿色草地中持续进行战斗，画面中可见角色与敌人之间的激烈互动。角色使用武器攻击敌人，产生爆炸效果，背景中还有建筑结构和武器碎片。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "expected": "B",
+        "ms": 5547.4
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-167",
+        "phase": "saved-question",
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "question": "看六张按时间排列的游戏截图。场地主要颜色和短时特效分别是什么？A 红色地面和紫色数字菜单，B 绿色草地和明亮的橙黄色闪光。只回答 A 或 B。",
+        "answer": "B 绿色草地和明亮的橙黄色闪光。",
+        "expected": "B",
+        "ms": 1979.2
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-167",
+        "phase": "saved-question",
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "question": "看六张按时间排列的游戏截图。场地主要颜色和短时特效分别是什么？A 红色地面和紫色数字菜单，B 绿色草地和明亮的橙黄色闪光。只回答 A 或 B。",
+        "answer": "B 绿色草地和明亮的橙黄色闪光。",
+        "expected": "B",
+        "ms": 1462.11
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-167",
+        "phase": "saved-detail",
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "角色从左上角出现并持续移动，镜头视角保持固定于地面场景；环境可见的紫色花朵、石墙和远处建筑逐渐向画面右侧延伸。",
+        "expected": "B",
+        "ms": 2211.45
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-167",
+        "phase": "saved-detail",
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "角色从左上角出现并持续移动，镜头视角保持固定于地面场景；环境可见的紫色花朵、石墙和远处建筑逐渐向画面右侧延伸。",
+        "expected": "B",
+        "ms": 2980.59
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-329",
+        "phase": "fresh-long",
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在战斗过程中不断进行技能释放，从左上角的青色光效技能到右下角的爆炸特效，技能效果明显变化。角色与敌人之间的互动也随着技能的变化而改变，从被击倒到被击倒，从被击倒到被击倒，从被击倒到被击倒。场景中的环境也随着战斗的进行而发生变化，从红色地面到爆炸后的地面，从被击倒到被击倒，从被击倒到被击倒。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",",
+        "expected": "A",
+        "ms": 7059.95
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-329",
+        "phase": "fresh-long",
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在战斗过程中不断进行技能释放，从左上角的青色光效技能到右下角的爆炸特效，技能效果明显变化。角色与敌人之间的互动也随着技能的变化而改变，从被击倒到被击倒，从被击倒到被击倒，从被击倒到被击倒。场景中的环境也随着战斗的进行而发生变化，从红色地面到爆炸后的地面，从被击倒到被击倒，从被击倒到被击倒。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",",
+        "expected": "A",
+        "ms": 7095.75
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-329",
+        "phase": "saved-question",
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "question": "看六张按时间排列的游戏截图。画面中的战斗特效有什么颜色？A 青绿色与橙黄色，B 只有暗灰色而没有发光效果。只回答 A 或 B。",
+        "answer": "A 青绿色与橙黄色",
+        "expected": "A",
+        "ms": 1307.49
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-329",
+        "phase": "saved-question",
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "question": "看六张按时间排列的游戏截图。画面中的战斗特效有什么颜色？A 青绿色与橙黄色，B 只有暗灰色而没有发光效果。只回答 A 或 B。",
+        "answer": "A 青绿色与橙黄色",
+        "expected": "A",
+        "ms": 2088.6
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-329",
+        "phase": "saved-detail",
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "角色从初始的发光青色龙形生物（可能是“伊布”）变为被火焰摧毁并碎裂成碎片，镜头则从远景特写转为近景爆炸场景。环境背景中可见红色地面、岩石废墟和模糊的建筑轮廓，但第一帧中的角色是完整的实体，而最后一帧显示的是破碎的粒子与能量冲击波。",
+        "expected": "A",
+        "ms": 3227.38
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-329",
+        "phase": "saved-detail",
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "角色从初始的发光青色龙形生物（可能是“伊布”）变为被火焰摧毁并碎裂成碎片，镜头则从远景特写转为近景爆炸场景。环境背景中可见红色地面、岩石废墟和模糊的建筑轮廓，但第一帧中的角色是完整的实体，而最后一帧显示的是破碎的粒子与能量冲击波。",
+        "expected": "A",
+        "ms": 2621.69
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-462",
+        "phase": "fresh-long",
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色在战斗中的激烈互动。从左上角的草地场景到右下角的开阔场地，角色们正在进行着各种技能释放和攻击。火焰特效、蓝色光效、紫色光效以及角色们的肢体动作变化，显示出战斗的激烈程度和角色之间的互动。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "expected": "B",
+        "ms": 5871.82
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-462",
+        "phase": "fresh-long",
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "question": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "answer": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色在战斗中的激烈互动。从左上角的草地场景到右下角的开阔场地，角色们正在进行着各种技能释放和攻击。火焰特效、蓝色光效、紫色光效以及角色们的肢体动作变化，显示出战斗的激烈程度和角色之间的互动。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "expected": "B",
+        "ms": 5757.38
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-462",
+        "phase": "saved-question",
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "question": "看六张按时间排列的游戏截图。第2帧发光最明显的部分是什么颜色？A 天蓝色，B 火焰般的橙黄色。只回答 A 或 B。",
+        "answer": "B 火焰般的橙黄色。",
+        "expected": "B",
+        "ms": 2037.97
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-462",
+        "phase": "saved-question",
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "question": "看六张按时间排列的游戏截图。第2帧发光最明显的部分是什么颜色？A 天蓝色，B 火焰般的橙黄色。只回答 A 或 B。",
+        "answer": "B 火焰般的橙黄色。",
+        "expected": "B",
+        "ms": 1514.56
+      },
+      {
+        "mode": "staged",
+        "case": "battle-novel-combat-nohud-462",
+        "phase": "saved-detail",
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：首先，第一帧中角色处于草地边缘的开阔区域，背景是模糊的建筑轮廓；而最后一帧则显示在一条道路上，周围有玩家操控的角色（如蓝色武器）与敌人进行激烈战斗。同时，第二、三帧中出现大量火焰特效，说明场景可能经历了激烈的火场或爆炸事件。镜头方面，第一帧为固定视角观察角色与环境，而后续几帧中镜头角度有所变化，以适应不同战斗状态下的视觉呈现。",
+        "expected": "B",
+        "ms": 3744.74
+      },
+      {
+        "mode": "baseline",
+        "case": "battle-novel-combat-nohud-462",
+        "phase": "saved-detail",
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "question": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "answer": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：首先，第一帧中角色处于草地边缘的开阔区域，背景是模糊的建筑轮廓；而最后一帧则显示在一条道路上，周围有玩家操控的角色（如蓝色武器）与敌人进行激烈战斗。同时，第二、三帧中出现大量火焰特效，说明场景可能经历了激烈的火场或爆炸事件。镜头方面，第一帧为固定视角观察角色与环境，而后续几帧中镜头角度有所变化，以适应不同战斗状态下的视觉呈现。",
+        "expected": "B",
+        "ms": 4524.22
+      }
+    ],
+    "fixed_six_long": [
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-game-hud-19",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗中的动态攻击（如使用武器、释放技能）转为静态的远景场景，其中角色（男性）的头部特写出现在最后，暗示了战斗的结束或角色状态的变化。场景中的环境（如岩石、地面）和背景（如天空、树木）保持不变，但视角和构图发生了变化，从中景变为近景。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "ms": 8778.41
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-game-hud-19",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗中的动态攻击（如使用武器、释放技能）转为静态的远景场景，其中角色（男性）的头部特写出现在最后，暗示了战斗的结束或角色状态的变化。场景中的环境（如岩石、地面）和背景（如天空、树木）保持不变，但视角和构图发生了变化，从中景变为近景。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "ms": 5903.18
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-game-hud-65",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Chixia在战斗过程中不断被击退，屏幕上的红色数字'5'和'27'表示伤害值，角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到",
+        "ms": 4716.43
+      },
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-game-hud-65",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Chixia在战斗过程中不断被击退，屏幕上的红色数字'5'和'27'表示伤害值，角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到",
+        "ms": 9459.95
+      },
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-game-hud-127",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色从左上角开始，先是展示一个带有金色光环的圆形装置，随后角色（男性角色）出现在画面中，他身穿深色外套，背景是夜晚的树林，他举起右手，似乎正在与某个物体互动。接着是战斗场景，角色在战斗中被击中，屏幕上有伤害数值，最后角色继续战斗，屏幕上有伤害数值。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "ms": 8390.37
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-game-hud-127",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色从左上角开始，先是展示一个带有金色光环的圆形装置，随后角色（男性角色）出现在画面中，他身穿深色外套，背景是夜晚的树林，他举起右手，似乎正在与某个物体互动。接着是战斗场景，角色在战斗中被击中，屏幕上有伤害数值，最后角色继续战斗，屏幕上有伤害数值。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "ms": 6299.98
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-game-hud-175",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角开始，先是使用技能后出现伤害值，随后角色被击中，最后角色被击中后出现伤害值。场景从左上角开始，先是角色被击中，随后角色被击中，最后角色被击中。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}\n```",
+        "ms": 5023.0
+      },
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-game-hud-175",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "answer": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角开始，先是使用技能后出现伤害值，随后角色被击中，最后角色被击中后出现伤害值。场景从左上角开始，先是角色被击中，随后角色被击中，最后角色被击中。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}\n```",
+        "ms": 7885.16
+      },
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-49",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "answer": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从左上角的黑色画面中逐渐出现，从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，",
+        "ms": 9439.59
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-49",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "answer": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从左上角的黑色画面中逐渐出现，从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，",
+        "ms": 5086.9
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-167",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "answer": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在绿色草地中持续进行战斗，画面中可见角色与敌人之间的激烈互动。角色使用武器攻击敌人，产生爆炸效果，背景中还有建筑结构和武器碎片。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "ms": 5657.39
+      },
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-167",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "answer": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在绿色草地中持续进行战斗，画面中可见角色与敌人之间的激烈互动。角色使用武器攻击敌人，产生爆炸效果，背景中还有建筑结构和武器碎片。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "ms": 6707.55
+      },
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-329",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "answer": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在战斗过程中不断进行技能释放，从左上角的青色光效技能到右下角的爆炸特效，技能效果明显变化。角色与敌人之间的互动也随着技能的变化而改变，从被击倒到被击倒，从被击倒到被击倒，从被击倒到被击倒。场景中的环境也随着战斗的进行而发生变化，从红色地面到爆炸后的地面，从被击倒到被击倒，从被击倒到被击倒。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",",
+        "ms": 9693.33
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-329",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "answer": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在战斗过程中不断进行技能释放，从左上角的青色光效技能到右下角的爆炸特效，技能效果明显变化。角色与敌人之间的互动也随着技能的变化而改变，从被击倒到被击倒，从被击倒到被击倒，从被击倒到被击倒。场景中的环境也随着战斗的进行而发生变化，从红色地面到爆炸后的地面，从被击倒到被击倒，从被击倒到被击倒。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",",
+        "ms": 6808.99
+      },
+      {
+        "mode": "staged",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-462",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "answer": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色在战斗中的激烈互动。从左上角的草地场景到右下角的开阔场地，角色们正在进行着各种技能释放和攻击。火焰特效、蓝色光效、紫色光效以及角色们的肢体动作变化，显示出战斗的激烈程度和角色之间的互动。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+        "ms": 5685.11
+      },
+      {
+        "mode": "base",
+        "kind": "long",
+        "case": "battle-novel-combat-nohud-462",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "answer": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色在战斗中的激烈互动。从左上角的草地场景到右下角的开阔场地，角色们正在进行着各种技能释放和攻击。火焰特效、蓝色光效、紫色光效以及角色们的肢体动作变化，显示出战斗的激烈程度和角色之间的互动。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+        "ms": 7798.54
+      }
+    ],
+    "visual_questions": [
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-19",
+        "prompt": "看六张按时间排列的游戏截图。第6帧是什么景别？A 远景中的明亮沙滩，B 深色头发角色的面部近景。只回答 A 或 B。",
+        "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "truth": "B",
+        "answer": "B",
+        "ms": 2058.34
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-19",
+        "prompt": "看六张按时间排列的游戏截图。第6帧是什么景别？A 远景中的明亮沙滩，B 深色头发角色的面部近景。只回答 A 或 B。",
+        "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "truth": "B",
+        "answer": "B",
+        "ms": 2051.72
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-65",
+        "prompt": "看六张按时间排列的游戏截图。蓝色亮光出现在哪里？A 室外战场中央，B 表格窗口的标题栏。只回答 A 或 B。",
+        "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "truth": "A",
+        "answer": "A 室外战场中央",
+        "ms": 2025.09
+      },
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-65",
+        "prompt": "看六张按时间排列的游戏截图。蓝色亮光出现在哪里？A 室外战场中央，B 表格窗口的标题栏。只回答 A 或 B。",
+        "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "truth": "A",
+        "answer": "A 室外战场中央",
+        "ms": 2156.58
+      },
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-127",
+        "prompt": "看六张按时间排列的游戏截图。哪一项描述顺序正确？A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场，B 先是有界面图标的暗色战场，最后才出现亮金圆环。只回答 A 或 B。",
+        "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "truth": "A",
+        "answer": "A",
+        "ms": 2057.63
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-127",
+        "prompt": "看六张按时间排列的游戏截图。哪一项描述顺序正确？A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场，B 先是有界面图标的暗色战场，最后才出现亮金圆环。只回答 A 或 B。",
+        "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "truth": "A",
+        "answer": "A",
+        "ms": 2064.49
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-175",
+        "prompt": "看六张按时间排列的游戏截图。最后两帧能看到哪种颜色的发光攻击特效？A 橙红色，B 紫色。只回答 A 或 B。",
+        "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "truth": "B",
+        "answer": "B",
+        "ms": 2021.27
+      },
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-game-hud-175",
+        "prompt": "看六张按时间排列的游戏截图。最后两帧能看到哪种颜色的发光攻击特效？A 橙红色，B 紫色。只回答 A 或 B。",
+        "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "truth": "B",
+        "answer": "B",
+        "ms": 1988.44
+      },
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-49",
+        "prompt": "看六张按时间排列的游戏截图。是怎样的明暗变化？A 开头很黑，随后变亮并显出绿色草地和界面，B 开头明亮，到最后完全变黑。只回答 A 或 B。",
+        "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "truth": "A",
+        "answer": "A",
+        "ms": 2037.74
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-49",
+        "prompt": "看六张按时间排列的游戏截图。是怎样的明暗变化？A 开头很黑，随后变亮并显出绿色草地和界面，B 开头明亮，到最后完全变黑。只回答 A 或 B。",
+        "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "truth": "A",
+        "answer": "A",
+        "ms": 2022.3
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-167",
+        "prompt": "看六张按时间排列的游戏截图。场地主要颜色和短时特效分别是什么？A 红色地面和紫色数字菜单，B 绿色草地和明亮的橙黄色闪光。只回答 A 或 B。",
+        "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "truth": "B",
+        "answer": "B",
+        "ms": 1982.57
+      },
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-167",
+        "prompt": "看六张按时间排列的游戏截图。场地主要颜色和短时特效分别是什么？A 红色地面和紫色数字菜单，B 绿色草地和明亮的橙黄色闪光。只回答 A 或 B。",
+        "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "truth": "B",
+        "answer": "B",
+        "ms": 2066.89
+      },
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-329",
+        "prompt": "看六张按时间排列的游戏截图。画面中的战斗特效有什么颜色？A 青绿色与橙黄色，B 只有暗灰色而没有发光效果。只回答 A 或 B。",
+        "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "truth": "A",
+        "answer": "A",
+        "ms": 1974.53
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-329",
+        "prompt": "看六张按时间排列的游戏截图。画面中的战斗特效有什么颜色？A 青绿色与橙黄色，B 只有暗灰色而没有发光效果。只回答 A 或 B。",
+        "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "truth": "A",
+        "answer": "A",
+        "ms": 2019.55
+      },
+      {
+        "mode": "staged",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-462",
+        "prompt": "看六张按时间排列的游戏截图。第2帧发光最明显的部分是什么颜色？A 天蓝色，B 火焰般的橙黄色。只回答 A 或 B。",
+        "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "truth": "B",
+        "answer": "B",
+        "ms": 1967.53
+      },
+      {
+        "mode": "baseline",
+        "kind": "fact",
+        "case": "battle-novel-combat-nohud-462",
+        "prompt": "看六张按时间排列的游戏截图。第2帧发光最明显的部分是什么颜色？A 天蓝色，B 火焰般的橙黄色。只回答 A 或 B。",
+        "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "truth": "B",
+        "answer": "B",
+        "ms": 2005.05
+      }
+    ]
+  },
+  "screened_alternatives": {
+    "compare_resized_rgb_before_packing": {
+      "fresh-long": {
+        "versions": [
+          "baseline",
+          "rgb-recall"
+        ],
+        "pairs": 8,
+        "candidate_faster": 4,
+        "identical_text": 8,
+        "paired_saving_ms": {
+          "n": 8,
+          "p50": -16.35,
+          "p95_nearest_rank": 109.62
+        },
+        "baseline": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 5719.36,
+            "p95_nearest_rank": 6981.42
+          },
+          "answer_characters": {
+            "n": 8,
+            "p50": 264.0,
+            "p95_nearest_rank": 300
+          },
+          "device_gpu_percent": {
+            "n": 90,
+            "p50": 99.0,
+            "p95_nearest_rank": 100
+          },
+          "render_frame_service_ms": {
+            "n": 2565,
+            "p50": 16.09,
+            "p95_nearest_rank": 22.26
+          }
+        },
+        "rgb-recall": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 5686.74,
+            "p95_nearest_rank": 6899.45
+          },
+          "answer_characters": {
+            "n": 8,
+            "p50": 264.0,
+            "p95_nearest_rank": 300
+          },
+          "device_gpu_percent": {
+            "n": 90,
+            "p50": 100.0,
+            "p95_nearest_rank": 100
+          },
+          "render_frame_service_ms": {
+            "n": 2561,
+            "p50": 16.09,
+            "p95_nearest_rank": 22.1
+          }
+        },
+        "reduction_at_median_percent": 0.57
+      },
+      "saved-question": {
+        "versions": [
+          "baseline",
+          "rgb-recall"
+        ],
+        "pairs": 8,
+        "candidate_faster": 8,
+        "identical_text": 8,
+        "paired_saving_ms": {
+          "n": 8,
+          "p50": 679.2,
+          "p95_nearest_rank": 897.26
+        },
+        "baseline": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 2132.6,
+            "p95_nearest_rank": 2463.41
+          },
+          "answer_characters": {
+            "n": 8,
+            "p50": 9.5,
+            "p95_nearest_rank": 28
+          },
+          "device_gpu_percent": {
+            "n": 35,
+            "p50": 100,
+            "p95_nearest_rank": 100
+          },
+          "render_frame_service_ms": {
+            "n": 902,
+            "p50": 18.29,
+            "p95_nearest_rank": 26.87
+          }
+        },
+        "rgb-recall": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 1474.84,
+            "p95_nearest_rank": 1649.76
+          },
+          "answer_characters": {
+            "n": 8,
+            "p50": 9.5,
+            "p95_nearest_rank": 28
+          },
+          "device_gpu_percent": {
+            "n": 23,
+            "p50": 100,
+            "p95_nearest_rank": 100
+          },
+          "render_frame_service_ms": {
+            "n": 657,
+            "p50": 17.38,
+            "p95_nearest_rank": 21.29
+          }
+        },
+        "reduction_at_median_percent": 30.84
+      },
+      "saved-detail": {
+        "versions": [
+          "baseline",
+          "rgb-recall"
+        ],
+        "pairs": 8,
+        "candidate_faster": 8,
+        "identical_text": 8,
+        "paired_saving_ms": {
+          "n": 8,
+          "p50": 746.47,
+          "p95_nearest_rank": 810.3
+        },
+        "baseline": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 3492.18,
+            "p95_nearest_rank": 4441.03
+          },
+          "answer_characters": {
+            "n": 8,
+            "p50": 137.0,
+            "p95_nearest_rank": 189
+          },
+          "device_gpu_percent": {
+            "n": 58,
+            "p50": 100.0,
+            "p95_nearest_rank": 100
+          },
+          "render_frame_service_ms": {
+            "n": 1536,
+            "p50": 16.65,
+            "p95_nearest_rank": 24.93
+          }
+        },
+        "rgb-recall": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 2685.22,
+            "p95_nearest_rank": 3672.91
+          },
+          "answer_characters": {
+            "n": 8,
+            "p50": 137.0,
+            "p95_nearest_rank": 189
+          },
+          "device_gpu_percent": {
+            "n": 43,
+            "p50": 99,
+            "p95_nearest_rank": 100
+          },
+          "render_frame_service_ms": {
+            "n": 1275,
+            "p50": 16.25,
+            "p95_nearest_rank": 20.43
+          }
+        },
+        "reduction_at_median_percent": 23.11
+      }
+    },
+    "cpu_only_pixel_comparison_microbenchmark": {
+      "shape": [
+        3840,
+        1536
+      ],
+      "dtype": "FP32",
+      "trials": 100,
+      "cases": "Both MLX inputs already materialized in CPU memory. New case differs in a rejection sample. Isolated equality operation only.",
+      "measurements": {
+        "new": {
+          "hit": false,
+          "p50_ms": 0.0016250123735517263,
+          "p95_ms": 0.0026659981813281775
+        },
+        "same": {
+          "hit": true,
+          "p50_ms": 0.9956455032806844,
+          "p95_ms": 1.3445420190691948
+        }
+      }
+    },
+    "full_gpu_llama_cpp_b12441": {
+      "engine-metal-official": {
+        "n": 4,
+        "p50": 10613.85,
+        "p95_nearest_rank": 12649.19
+      },
+      "engine-metal-affine": {
+        "n": 4,
+        "p50": 11166.02,
+        "p95_nearest_rank": 11722.85
+      }
+    },
+    "llama_cpp_scope": "Four other fixed six-frame scenes; different quantization and chat template. Exploratory engine timing, excluded from like-for-like quality claims.",
+    "shorter_cpu_proposal_vocabulary": {
+      "baseline": {
+        "n": 4,
+        "p50": 4839.15,
+        "p95_nearest_rank": 5638.66
+      },
+      "compact": {
+        "n": 4,
+        "p50": 6164.57,
+        "p95_nearest_rank": 6225.21
+      }
+    },
+    "fused_gate_metal_microbenchmark": {
+      "reference": {
+        "n": 12,
+        "p50": 15.94,
+        "p95_nearest_rank": 17.45
+      },
+      "candidate": {
+        "n": 12,
+        "p50": 15.49,
+        "p95_nearest_rank": 28.47
+      },
+      "different_bf16_outputs": 1173882,
+      "elements": 3781120,
+      "maximum_absolute_error": 0.015625
+    }
+  },
+  "verification": {
+    "ruff": "All checks passed!",
+    "strict_mypy": "Success: no issues found in 234 source files",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "pytest": "723 passed, 13 skipped in 61.57s (0:01:01)",
+    "dedicated_jev": "OK",
+    "packaged_source": "Packaged source contains the visual worker modules, with contents verified.",
+    "pixel_parity": "Pixel tensors and image grids matched for four RGB images, including resize and retry.",
+    "initial_voice_regression": "7 passed, 20 deselected in 0.34s",
+    "vision_cache_parity": [
+      "Matched repeated vision features; changed text, pixels, grid and dtype exercised.",
+      "Matched cold, retained, released and rebuilt prefill outputs."
+    ]
+  }
+}

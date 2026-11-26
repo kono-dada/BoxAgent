@@ -4,11 +4,62 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import mlx.core as mx
+import numpy as np
 from mlx_vlm.utils import load
+
+
+def check_image_features(model: Any) -> None:
+    from window_summary_worker import enable_vision_prefill
+
+    enable_vision_prefill(model)
+    original_compile = mx.compile
+    encodes = 0
+
+    def count_vision_calls(fn: Callable[[mx.array], mx.array]) -> Callable[[mx.array], mx.array]:
+        compiled = original_compile(fn)
+
+        def counted(patches: mx.array) -> mx.array:
+            nonlocal encodes
+            encodes += 1
+            return compiled(patches)
+
+        return counted if fn.__name__ == "encode" else compiled
+
+    def embed(pixels: mx.array, shape: tuple[int, int], text_token: int) -> mx.array:
+        cfg = model.language_model.config
+        tokens = [cfg.vision_start_token_id, *([model.config.image_token_index] * 16),
+                  cfg.vision_end_token_id, text_token]
+        result = model.get_input_embeddings(
+            mx.array([tokens]), pixels, image_grid_thw=mx.array([[1, *shape]]),
+        ).inputs_embeds
+        mx.eval(result)
+        return result
+
+    data = np.random.default_rng(43026).normal(size=(64, 1536)).astype(np.float32)
+    changed = data.copy()
+    changed.view(np.uint32)[-1, -1] ^= np.uint32(1)
+    with patch.object(mx, "compile", side_effect=count_vision_calls):
+        original = embed(mx.array(data), (8, 8), 25)
+        other = embed(mx.array(data.copy()), (8, 8), 26)
+        assert encodes == 1
+        assert mx.array_equal(original[:, :-1], other[:, :-1]).item()
+        assert not mx.array_equal(original[:, -1], other[:, -1]).item()
+        embed(mx.array(changed), (8, 8), 25)
+        assert encodes == 2  # The last bit differs outside the fast rejection samples.
+        embed(mx.array(changed), (4, 16), 25)
+        assert encodes == 3  # Same patches, different spatial layout.
+        recovered = embed(mx.array(data), (8, 8), 25)
+        assert encodes == 4 and mx.array_equal(original, recovered).item()
+        for _ in range(2):
+            embed(mx.array(data).astype(mx.bfloat16), (8, 8), 25)
+        assert encodes == 6
+    print("Matched repeated vision features; changed text, pixels, grid and dtype exercised.")
 
 
 def main(model_path: Path) -> None:
@@ -16,6 +67,7 @@ def main(model_path: Path) -> None:
     import wuwa_mlx_prefill as prefill
 
     model, _ = load(str(model_path))
+    check_image_features(model)
     prefill.enable_language_prefill(model)
     layer = model.language_model.model.layers[0]
     mx.random.seed(43026)
