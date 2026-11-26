@@ -1,0 +1,898 @@
+{
+  "baseline_initial": "1cf6e36908bc44dbaabee0170131ce498481a323",
+  "baseline_previous": "46c6266f3eb9c49be3f34048b9e09e7bb643bd99",
+  "release_source_sha256": {
+    "scripts/window_summary_worker.py": "cb083afe603eb139a3ba540e48b6286eb5bb4158c8e4c03b284870a3e808c841",
+    "scripts/vision_inputs.py": "776062ad3bf8a40517a65919c100f5637a23038ef0109cd32dec3e90d032b639",
+    "scripts/wuwa_cpu_draft.py": "4409c6d31e257e2226a6052cb828b374b53988800c1ebda1148947645552519b",
+    "scripts/vision_decode.py": "d4e0a4593e7e15254b26f6b647cc7d7efc84a236e706875daa1b22a3294f615a",
+    "scripts/wuwa_mlx_prefill.py": "2af2a0bdc762aaa4cbbf2a3679ccd81c0bb90dc39365360f1706338a81dca8d8"
+  },
+  "hardware": "Apple M3 Pro, 18 GiB unified memory, macOS 14.7.8. All model inference ran locally.",
+  "protocol": {
+    "renderer": "1280x720, 60 Hz scheduled render loop, 1450 shader iterations. Four game recording segments and six trailer segments. No running game client. The separate IOKit diagnostic uses identical renderer settings; inference latency runs have no telemetry hook.",
+    "fixed": "One separate warmup per version; identical six chronological frames, JPEG bytes, prompt, model, sampling settings and 160-token cap. Alternating order in pairs and round-robin over all six orders for triples. Wall time covers prepared JPEG to final returned text, including all attempts. Quantiles use median and nearest-rank P95. Timings vary with contention. All-attempts includes malformed replies; matched cited subset requires a parseable observation and references on both sides. Raw answers and timestamps in the local archive.",
+    "product": "Normal local companion with 5 Hz capture feed/2 Hz sampling. Four public gameplay recordings, independent sessions with alternating variant order. Video frames selected can differ between the two sessions. No cloud and no speaker. Review timing ends at complete default text; first-frame time includes collection.",
+    "inputs": "FP32 normalized pixel tensor, token IDs, grid, and mask matched for seven image sizes/formats with original prompt, appended JSON prefix, and original prompt again. Six repeats per mode; timing omits each first repeat. Component timings are from the three largest inputs. All RGB intensities pass through exactly the original FP32 affine operations. Original processor handles unsupported types/settings.",
+    "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+    "case_hashes": "Each row contains one reply SHA-256 if both replies are byte-identical and two in baseline/candidate order otherwise."
+  },
+  "pressure_samples": {"samples": [80, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99], "median_percent": 99},
+  "input_processing": {
+    "cases": [
+      ["gameplay-00-warm.jpg", [3840, 1536]],
+      ["gameplay-01-dialog-choices.jpg", [3840, 1536]],
+      ["preprocess-0.png", [288, 1536]],
+      ["preprocess-1.png", [308, 1536]],
+      ["preprocess-2.png", [1056, 1536]],
+      ["preprocess-3.png", [3520, 1536]],
+      ["preprocess-4.png", [320, 1536]]
+    ],
+    "full_arrays_equal": true,
+    "median_ms_first_retry_fallback": {"baseline": [25.32, 24.82, 24.86], "worktree": [13.42, 4.22, 4.21]}
+  },
+  "real_long_previous": {
+    "all": {
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 6002.38, "candidate_p50_ms": 5942.6, "reduction_pct": 1.0, "speedup": 1.01, "faster_pairs": 7, "baseline_p95_ms": 7938.85, "candidate_p95_ms": 7821.81},
+      "identical_text": 10,
+      "render_service": {"baseline": {"n_frames": 3106, "p50_ms": 16.25, "p95_ms": 22.99}, "worktree": {"n_frames": 3082, "p50_ms": 16.25, "p95_ms": 22.74}},
+      "both_have_observations_and_frames": {"pairs": 5, "baseline_p50_ms": 4292.25, "candidate_p50_ms": 4497.65, "reduction_pct": -4.79, "speedup": 0.954, "faster_pairs": 3, "baseline_p95_ms": 7261.91, "candidate_p95_ms": 6919.44},
+      "both_complete_allow_fence": {"pairs": 5, "baseline_p50_ms": 4292.25, "candidate_p50_ms": 4497.65, "reduction_pct": -4.79, "speedup": 0.954, "faster_pairs": 3, "baseline_p95_ms": 7261.91, "candidate_p95_ms": 6919.44},
+      "valid_cited_counts": [5, 5],
+      "accepted_by_product_parser": [0, 0],
+      "cases": [
+        {
+          "case": "gameplay-01-dialog-choices",
+          "input_sha256": "a65778ac2e5b8977f278f5a876f53ae9e523ebe9544a5af1a4335bcc7e0deb07",
+          "ms": [3816.83, 3802.87],
+          "reply_sha256": ["3ce990f69fabbaf977e40db62228a27a02116e326f384db0271b17b9dfcac0ed"],
+          "chars": [180, 180]
+        },
+        {
+          "case": "gameplay-02-echo-sequence",
+          "input_sha256": "f7c75baf3af2f5df7ef30ad992e7f61bbc71b4d91953d146264c8d57809a9a61",
+          "ms": [4292.25, 4497.65],
+          "reply_sha256": ["8a9b81ad8445337af50a3b9b41d4c30a82439ebf32ae3830c5aa9712570f650e"],
+          "chars": [294, 294]
+        },
+        {
+          "case": "gameplay-03-camera-transition",
+          "input_sha256": "77af91f30be7576321660f733fffb16d4519758a917d4905e6b7e19e52277791",
+          "ms": [6779.87, 6614.39],
+          "reply_sha256": ["e2ac60ebc0d82effb39869e291ac4368dd6a5284c77fa0d115fd77f1a8dc21f7"],
+          "chars": [330, 330]
+        },
+        {
+          "case": "gameplay-04-field-dialogue",
+          "input_sha256": "cf54842899070823792016c20b34f9e2bd1a352a65d49eba82d5d90dc974c58a",
+          "ms": [3191.44, 3359.68],
+          "reply_sha256": ["6ebbba273795a6d6e87d779fd575d6c9c367487139b3a3d91021b73dae60381e"],
+          "chars": [187, 187]
+        },
+        {
+          "case": "trailer-01-corridor",
+          "input_sha256": "195e5ea38311515da16a6262bd5d0cd2d84ef875591c6ce15b16498366242eec",
+          "ms": [6289.0, 6171.28],
+          "reply_sha256": ["e2ac60ebc0d82effb39869e291ac4368dd6a5284c77fa0d115fd77f1a8dc21f7"],
+          "chars": [330, 330]
+        },
+        {
+          "case": "trailer-02-landscape",
+          "input_sha256": "7ebb8bf5845aace00e2d3540ac3d59b24fd3fc26e3c5413243a47f6d631b5493",
+          "ms": [3026.0, 3158.24],
+          "reply_sha256": ["3ff99a06075766e73ec3c66f4d6d82c1fb7953eb36af6ec8cf792ad42287150b"],
+          "chars": [147, 147]
+        },
+        {
+          "case": "trailer-03-combat-start",
+          "input_sha256": "17383d393e13abb587ee040a0710d40a67d992ca92a0f2c0e62c9b18f4b8290e",
+          "ms": [7261.91, 6919.44],
+          "reply_sha256": ["cfeb5580919e0484b1689a400e24f8cd18473c08590190963bd9c9fb3056a4b3"],
+          "chars": [265, 265]
+        },
+        {
+          "case": "trailer-04-rail-combat",
+          "input_sha256": "83f0dc5d7846ed2898312ec3477c6dc579f52d6fd3c2383863ec756b2c5a9331",
+          "ms": [7938.85, 7821.81],
+          "reply_sha256": ["0cc6eeebcef8fcf905d29100fc0977b901fc6c55bedab3b05a18a79bc41c7bd8"],
+          "chars": [280, 280]
+        },
+        {
+          "case": "trailer-05-combat-effects",
+          "input_sha256": "c2d141dcb0f75a5df932f5f72465f0b79b1e91105d1963f0f39e54a37a365e97",
+          "ms": [7069.99, 6855.19],
+          "reply_sha256": ["0a1ea1bba88317373339e6b452d3af2e8c932563908ff8b580c563a82be9edd1"],
+          "chars": [229, 229]
+        },
+        {
+          "case": "trailer-06-battle-transition",
+          "input_sha256": "1965cb2e393e3d02afe3e4bd60c30e04aa8163cb3cfb8a41c0ea23e0a6f0baab",
+          "ms": [5715.75, 5713.93],
+          "reply_sha256": ["c681e475cf0bb04e454edeb4863b0314ae75df9d5be450ac1a2143d1362d7dd6"],
+          "chars": [254, 254]
+        }
+      ]
+    },
+    "gameplay": {
+      "all_attempts": {"pairs": 4, "baseline_p50_ms": 4054.54, "candidate_p50_ms": 4150.26, "reduction_pct": -2.36, "speedup": 0.977, "faster_pairs": 2, "baseline_p95_ms": 6779.87, "candidate_p95_ms": 6614.39},
+      "identical_text": 4,
+      "render_service": {"baseline": {"n_frames": 1001, "p50_ms": 16.27, "p95_ms": 24.29}, "worktree": {"n_frames": 1015, "p50_ms": 16.47, "p95_ms": 24.18}},
+      "both_have_observations_and_frames": {"pairs": 3, "baseline_p50_ms": 3816.83, "candidate_p50_ms": 3802.87, "reduction_pct": 0.37, "speedup": 1.004, "faster_pairs": 1, "baseline_p95_ms": 4292.25, "candidate_p95_ms": 4497.65},
+      "both_complete_allow_fence": {"pairs": 3, "baseline_p50_ms": 3816.83, "candidate_p50_ms": 3802.87, "reduction_pct": 0.37, "speedup": 1.004, "faster_pairs": 1, "baseline_p95_ms": 4292.25, "candidate_p95_ms": 4497.65},
+      "valid_cited_counts": [3, 3],
+      "accepted_by_product_parser": [0, 0]
+    },
+    "trailer": {
+      "all_attempts": {"pairs": 6, "baseline_p50_ms": 6679.49, "candidate_p50_ms": 6513.23, "reduction_pct": 2.49, "speedup": 1.026, "faster_pairs": 5, "baseline_p95_ms": 7938.85, "candidate_p95_ms": 7821.81},
+      "identical_text": 6,
+      "render_service": {"baseline": {"n_frames": 2105, "p50_ms": 16.23, "p95_ms": 22.23}, "worktree": {"n_frames": 2067, "p50_ms": 16.17, "p95_ms": 22.05}},
+      "both_have_observations_and_frames": {"pairs": 2, "baseline_p50_ms": 7165.95, "candidate_p50_ms": 6887.31, "reduction_pct": 3.89, "speedup": 1.04, "faster_pairs": 2, "baseline_p95_ms": 7261.91, "candidate_p95_ms": 6919.44},
+      "both_complete_allow_fence": {"pairs": 2, "baseline_p50_ms": 7165.95, "candidate_p50_ms": 6887.31, "reduction_pct": 3.89, "speedup": 1.04, "faster_pairs": 2, "baseline_p95_ms": 7261.91, "candidate_p95_ms": 6919.44},
+      "valid_cited_counts": [2, 2],
+      "accepted_by_product_parser": [0, 0]
+    }
+  },
+  "real_long_initial": {
+    "all": {
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 8715.83, "candidate_p50_ms": 5942.6, "reduction_pct": 31.82, "speedup": 1.467, "faster_pairs": 10, "baseline_p95_ms": 9747.15, "candidate_p95_ms": 7821.81},
+      "identical_text": 4,
+      "both_have_observations_and_frames": null,
+      "valid_cited_counts": [0, 5],
+      "both_complete_allow_fence": {"pairs": 4, "baseline_p50_ms": 8040.61, "candidate_p50_ms": 5676.42, "reduction_pct": 29.4, "speedup": 1.416, "faster_pairs": 4, "baseline_p95_ms": 8699.83, "candidate_p95_ms": 6919.44}
+    },
+    "gameplay": {
+      "all_attempts": {"pairs": 4, "baseline_p50_ms": 8910.47, "candidate_p50_ms": 4150.26, "reduction_pct": 53.42, "speedup": 2.147, "faster_pairs": 4, "baseline_p95_ms": 9671.14, "candidate_p95_ms": 6614.39},
+      "identical_text": 1,
+      "both_have_observations_and_frames": null,
+      "valid_cited_counts": [0, 3],
+      "both_complete_allow_fence": {"pairs": 2, "baseline_p50_ms": 8040.61, "candidate_p50_ms": 4150.26, "reduction_pct": 48.38, "speedup": 1.937, "faster_pairs": 2, "baseline_p95_ms": 8335.89, "candidate_p95_ms": 4497.65}
+    }
+  },
+  "independent_real_gameplay": {
+    "all_attempts": {"pairs": 4, "baseline_p50_ms": 3915.7, "candidate_p50_ms": 4079.91, "reduction_pct": -4.19, "speedup": 0.96, "faster_pairs": 2, "baseline_p95_ms": 7025.31, "candidate_p95_ms": 6746.87},
+    "identical_text": 4,
+    "render_service": {"baseline": {"n_frames": 1010, "p50_ms": 16.42, "p95_ms": 23.84}, "worktree": {"n_frames": 1001, "p50_ms": 16.53, "p95_ms": 24.89}},
+    "both_have_observations_and_frames": {"pairs": 3, "baseline_p50_ms": 3520.32, "candidate_p50_ms": 3780.84, "reduction_pct": -7.4, "speedup": 0.931, "faster_pairs": 1, "baseline_p95_ms": 4311.08, "candidate_p95_ms": 4378.97},
+    "both_complete_allow_fence": {"pairs": 3, "baseline_p50_ms": 3520.32, "candidate_p50_ms": 3780.84, "reduction_pct": -7.4, "speedup": 0.931, "faster_pairs": 1, "baseline_p95_ms": 4311.08, "candidate_p95_ms": 4378.97},
+    "valid_cited_counts": [3, 3],
+    "accepted_by_product_parser": [0, 0],
+    "cases": [
+      {
+        "case": "gameplay-01-dialog-choices",
+        "input_sha256": "a65778ac2e5b8977f278f5a876f53ae9e523ebe9544a5af1a4335bcc7e0deb07",
+        "ms": [3520.32, 3780.84],
+        "reply_sha256": ["3ce990f69fabbaf977e40db62228a27a02116e326f384db0271b17b9dfcac0ed"],
+        "chars": [180, 180]
+      },
+      {
+        "case": "gameplay-02-echo-sequence",
+        "input_sha256": "f7c75baf3af2f5df7ef30ad992e7f61bbc71b4d91953d146264c8d57809a9a61",
+        "ms": [4311.08, 4378.97],
+        "reply_sha256": ["8a9b81ad8445337af50a3b9b41d4c30a82439ebf32ae3830c5aa9712570f650e"],
+        "chars": [294, 294]
+      },
+      {
+        "case": "gameplay-03-camera-transition",
+        "input_sha256": "77af91f30be7576321660f733fffb16d4519758a917d4905e6b7e19e52277791",
+        "ms": [7025.31, 6746.87],
+        "reply_sha256": ["e2ac60ebc0d82effb39869e291ac4368dd6a5284c77fa0d115fd77f1a8dc21f7"],
+        "chars": [330, 330]
+      },
+      {
+        "case": "gameplay-04-field-dialogue",
+        "input_sha256": "cf54842899070823792016c20b34f9e2bd1a352a65d49eba82d5d90dc974c58a",
+        "ms": [3440.25, 3249.31],
+        "reply_sha256": ["6ebbba273795a6d6e87d779fd575d6c9c367487139b3a3d91021b73dae60381e"],
+        "chars": [187, 187]
+      }
+    ]
+  },
+  "normal_companion_previous": {
+    "latest_frame_to_result": {"pairs": 4, "baseline_p50_ms": 2223.15, "candidate_p50_ms": 2161.93, "reduction_pct": 2.75, "speedup": 1.028, "faster_pairs": 2, "baseline_p95_ms": 2248.78, "candidate_p95_ms": 2344.32},
+    "first_frame_to_result": {"pairs": 4, "baseline_p50_ms": 5010.49, "candidate_p50_ms": 4971.53, "reduction_pct": 0.78, "speedup": 1.008, "faster_pairs": 1, "baseline_p95_ms": 5455.37, "candidate_p95_ms": 5545.6},
+    "same_review": 4,
+    "matched_single_frame_descriptions": {"wall_time": {"pairs": 9, "baseline_p50_ms": 672.92, "candidate_p50_ms": 687.95, "reduction_pct": -2.23, "speedup": 0.978, "faster_pairs": 2, "baseline_p95_ms": 1302.9, "candidate_p95_ms": 1373.27}, "identical_text": 9},
+    "render_service": {"original": {"n_frames": 1139, "p50_ms": 16.78, "p95_ms": 23.53}, "optimized": {"n_frames": 1132, "p50_ms": 16.68, "p95_ms": 23.72}},
+    "samples": [
+      {
+        "case": "01-dialog-choices",
+        "from_latest_ms": [2248.78, 2151.24],
+        "from_first_ms": [5053.45, 4961.25],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["fd4e74c00afd0ff5c131584a020d8b261c15e12fe309bc3fdf15871686694c7d", "fd4e74c00afd0ff5c131584a020d8b261c15e12fe309bc3fdf15871686694c7d"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [[], []]
+      },
+      {
+        "case": "02-echo-sequence",
+        "from_latest_ms": [2200.94, 2120.56],
+        "from_first_ms": [4410.96, 4530.58],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["7d3cd00d0dff20c891dae5b924150ea16fbde95fe1daf3cc6f672aa62f37f267", "093e78d2e3bf924083cd3bc39918a7d14be162dd8c52a14199e9327ce06bc87c"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"], ["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"]]
+      },
+      {
+        "case": "03-camera-transition",
+        "from_latest_ms": [2157.52, 2172.63],
+        "from_first_ms": [4967.52, 4981.82],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["6eebe6a4679f85288ee063057c8165d878187451b97cf4823f03be6c4b05beb5", "f1b120616efde1f5503e266693467cfc315e6aca092ae84d7e4baade43268b15"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [[], []]
+      },
+      {
+        "case": "04-field-dialogue",
+        "from_latest_ms": [2245.37, 2344.32],
+        "from_first_ms": [5455.37, 5545.6],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["a3957f5bd3e911e87ad2f281871ff25fc69e0276087ed1cb2f0b588d6af7b5c5", "a3957f5bd3e911e87ad2f281871ff25fc69e0276087ed1cb2f0b588d6af7b5c5"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [["角色是红发少女，背景是蓝天白云和树木。"], ["角色是红发少女，背景是蓝天白云和树木。"]]
+      }
+    ]
+  },
+  "normal_companion_initial": {
+    "latest_frame_to_result": {"pairs": 4, "baseline_p50_ms": 2970.32, "candidate_p50_ms": 2180.79, "reduction_pct": 26.58, "speedup": 1.362, "faster_pairs": 4, "baseline_p95_ms": 3150.72, "candidate_p95_ms": 2365.58},
+    "first_frame_to_result": {"pairs": 4, "baseline_p50_ms": 5774.97, "candidate_p50_ms": 4914.9, "reduction_pct": 14.89, "speedup": 1.175, "faster_pairs": 4, "baseline_p95_ms": 6351.41, "candidate_p95_ms": 5615.71},
+    "same_review": 4,
+    "matched_single_frame_descriptions": {"wall_time": {"pairs": 9, "baseline_p50_ms": 864.1, "candidate_p50_ms": 677.57, "reduction_pct": 21.59, "speedup": 1.275, "faster_pairs": 9, "baseline_p95_ms": 1932.48, "candidate_p95_ms": 1393.81}, "identical_text": 9},
+    "render_service": {"original": {"n_frames": 1321, "p50_ms": 16.45, "p95_ms": 21.69}, "optimized": {"n_frames": 1143, "p50_ms": 16.68, "p95_ms": 22.67}},
+    "samples": [
+      {
+        "case": "01-dialog-choices",
+        "from_latest_ms": [2946.44, 2155.9],
+        "from_first_ms": [5756.45, 4965.9],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["fd4e74c00afd0ff5c131584a020d8b261c15e12fe309bc3fdf15871686694c7d", "fd4e74c00afd0ff5c131584a020d8b261c15e12fe309bc3fdf15871686694c7d"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [[], []]
+      },
+      {
+        "case": "02-echo-sequence",
+        "from_latest_ms": [2948.46, 2365.58],
+        "from_first_ms": [5158.52, 4575.61],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["7d3cd00d0dff20c891dae5b924150ea16fbde95fe1daf3cc6f672aa62f37f267", "7d3cd00d0dff20c891dae5b924150ea16fbde95fe1daf3cc6f672aa62f37f267"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"], ["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"]]
+      },
+      {
+        "case": "03-camera-transition",
+        "from_latest_ms": [2992.19, 2060.76],
+        "from_first_ms": [5793.49, 4863.91],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["6eebe6a4679f85288ee063057c8165d878187451b97cf4823f03be6c4b05beb5", "7763e1232811e2e23a20b3a04e7fccd31edc13faa2fa9792fb4d6ffc2b1dde9e"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [[], []]
+      },
+      {
+        "case": "04-field-dialogue",
+        "from_latest_ms": [3150.72, 2205.68],
+        "from_first_ms": [6351.41, 5615.71],
+        "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+        "same_status": true,
+        "input_sha256": ["a3957f5bd3e911e87ad2f281871ff25fc69e0276087ed1cb2f0b588d6af7b5c5", "dc42b9be51fed4c88cc1ec4307659c37ae3dddb6a459a437fc604ebb1e555dd4"],
+        "speech_requests": [0, 0],
+        "accepted_observations": [["角色是红发少女，背景是蓝天白云和树木。"], ["角色是红发少女，背景是蓝天白云和树木。"]]
+      }
+    ]
+  },
+  "synthetic": {
+    "short": {
+      "all_attempts": {"pairs": 6, "baseline_p50_ms": 2127.33, "candidate_p50_ms": 2067.26, "reduction_pct": 2.82, "speedup": 1.029, "faster_pairs": 5, "baseline_p95_ms": 2462.19, "candidate_p95_ms": 2159.23},
+      "identical_text": 6,
+      "render_service": {"baseline": {"n_frames": 667, "p50_ms": 18.64, "p95_ms": 26.18}, "worktree": {"n_frames": 623, "p50_ms": 18.85, "p95_ms": 26.84}},
+      "cases": [
+        {
+          "case": "0-0",
+          "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+          "ms": [2462.19, 2026.61],
+          "reply_sha256": ["1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"],
+          "chars": [19, 19]
+        },
+        {
+          "case": "0-1",
+          "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+          "ms": [2093.96, 2081.51],
+          "reply_sha256": ["1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"],
+          "chars": [19, 19]
+        },
+        {
+          "case": "1-0",
+          "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+          "ms": [2073.52, 2053.0],
+          "reply_sha256": ["1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"],
+          "chars": [19, 19]
+        },
+        {
+          "case": "1-1",
+          "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+          "ms": [2160.7, 2099.39],
+          "reply_sha256": ["1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"],
+          "chars": [19, 19]
+        },
+        {
+          "case": "2-0",
+          "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+          "ms": [2091.46, 2159.23],
+          "reply_sha256": ["1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"],
+          "chars": [19, 19]
+        },
+        {
+          "case": "2-1",
+          "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+          "ms": [2210.88, 2035.84],
+          "reply_sha256": ["1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"],
+          "chars": [19, 19]
+        }
+      ]
+    },
+    "long": {
+      "all_attempts": {"pairs": 6, "baseline_p50_ms": 3662.98, "candidate_p50_ms": 3689.6, "reduction_pct": -0.73, "speedup": 0.993, "faster_pairs": 4, "baseline_p95_ms": 5615.35, "candidate_p95_ms": 5465.82},
+      "identical_text": 6,
+      "render_service": {"baseline": {"n_frames": 1317, "p50_ms": 16.73, "p95_ms": 25.18}, "worktree": {"n_frames": 1293, "p50_ms": 16.79, "p95_ms": 25.31}},
+      "both_have_observations_and_frames": {"pairs": 6, "baseline_p50_ms": 3662.98, "candidate_p50_ms": 3689.6, "reduction_pct": -0.73, "speedup": 0.993, "faster_pairs": 4, "baseline_p95_ms": 5615.35, "candidate_p95_ms": 5465.82},
+      "both_complete_allow_fence": {"pairs": 6, "baseline_p50_ms": 3662.98, "candidate_p50_ms": 3689.6, "reduction_pct": -0.73, "speedup": 0.993, "faster_pairs": 4, "baseline_p95_ms": 5615.35, "candidate_p95_ms": 5465.82},
+      "valid_cited_counts": [6, 6],
+      "accepted_by_product_parser": [1, 1],
+      "cases": [
+        {
+          "case": "0-0",
+          "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+          "ms": [3559.6, 3516.86],
+          "reply_sha256": ["c5f1ff066125ef80e0f138f6be1f81c5c4343775c9f6ef04fd90a1dca388b27c"],
+          "chars": [200, 200]
+        },
+        {
+          "case": "0-1",
+          "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+          "ms": [3287.31, 3063.6],
+          "reply_sha256": ["d9286d5343ecd9044584668a3937ed22037f806666c9cd3864365b7c73e8ae81"],
+          "chars": [138, 138]
+        },
+        {
+          "case": "1-0",
+          "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+          "ms": [5615.35, 5465.82],
+          "reply_sha256": ["89ee3ff4c02a132b6c609a87eedff2a085088baf6492c22f5c911125f7959bba"],
+          "chars": [137, 137]
+        },
+        {
+          "case": "1-1",
+          "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+          "ms": [3766.37, 3862.33],
+          "reply_sha256": ["9d0798fe01899f0eb7db7d3a7a9d9558e4388d5adbbed69bff0282968b154984"],
+          "chars": [195, 195]
+        },
+        {
+          "case": "2-0",
+          "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+          "ms": [4327.79, 4288.42],
+          "reply_sha256": ["8b9d33f9ef000e4abcd9d292375b2446e30cb6f7a461cd9f8bf589f0dc56549d"],
+          "chars": [277, 277]
+        },
+        {
+          "case": "2-1",
+          "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+          "ms": [3463.54, 3484.68],
+          "reply_sha256": ["fabba09fe023e875c85da384f5934e6fe1609c9776f56d33ea1200ddd9e20d5d"],
+          "chars": [166, 166]
+        }
+      ]
+    },
+    "fact": {
+      "all_attempts": {"pairs": 12, "baseline_p50_ms": 2131.3, "candidate_p50_ms": 2083.72, "reduction_pct": 2.23, "speedup": 1.023, "faster_pairs": 9, "baseline_p95_ms": 2511.09, "candidate_p95_ms": 2471.23},
+      "identical_text": 12,
+      "render_service": {"baseline": {"n_frames": 1338, "p50_ms": 18.28, "p95_ms": 26.58}, "worktree": {"n_frames": 1301, "p50_ms": 18.41, "p95_ms": 26.94}},
+      "correct": [8, 8],
+      "cases": [
+        {
+          "case": "0-0",
+          "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+          "ms": [2290.22, 2115.01],
+          "reply_sha256": ["b50b9707d06c261598f65a5bcd913f1d8137846b2845f032b658344ea29f6fc2"],
+          "chars": [26, 26],
+          "truth": "右",
+          "predictions": ["右", "右"]
+        },
+        {
+          "case": "0-1",
+          "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+          "ms": [2071.14, 2052.43],
+          "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+          "chars": [1, 1],
+          "truth": "有",
+          "predictions": ["有", "有"]
+        },
+        {
+          "case": "0-2",
+          "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+          "ms": [2480.95, 2471.23],
+          "reply_sha256": ["b90d62546b1b20966ee66ea199f169bb4de41e8a04fe16abfcca5c98666cc5fd"],
+          "chars": [44, 44],
+          "truth": "27",
+          "predictions": ["27", "27"]
+        },
+        {
+          "case": "0-3",
+          "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+          "ms": [2147.52, 2003.79],
+          "reply_sha256": ["84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"],
+          "chars": [1, 1],
+          "truth": "黄",
+          "predictions": ["绿", "绿"]
+        },
+        {
+          "case": "1-0",
+          "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+          "ms": [2144.41, 2301.29],
+          "reply_sha256": ["b50b9707d06c261598f65a5bcd913f1d8137846b2845f032b658344ea29f6fc2"],
+          "chars": [26, 26],
+          "truth": "左",
+          "predictions": ["右", "右"]
+        },
+        {
+          "case": "1-1",
+          "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+          "ms": [1950.33, 1933.82],
+          "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+          "chars": [1, 1],
+          "truth": "无",
+          "predictions": ["有", "有"]
+        },
+        {
+          "case": "1-2",
+          "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+          "ms": [2325.71, 2296.42],
+          "reply_sha256": ["9a78186a5426fd5a6f913d4385211b3e8115c8e8dc1e3174cac268ee8c8dfc3d"],
+          "chars": [35, 35],
+          "truth": "74",
+          "predictions": ["74", "74"]
+        },
+        {
+          "case": "1-3",
+          "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+          "ms": [2033.08, 1844.14],
+          "reply_sha256": ["84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"],
+          "chars": [1, 1],
+          "truth": "绿",
+          "predictions": ["绿", "绿"]
+        },
+        {
+          "case": "2-0",
+          "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+          "ms": [2118.18, 2218.08],
+          "reply_sha256": ["b50b9707d06c261598f65a5bcd913f1d8137846b2845f032b658344ea29f6fc2"],
+          "chars": [26, 26],
+          "truth": "右",
+          "predictions": ["右", "右"]
+        },
+        {
+          "case": "2-1",
+          "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+          "ms": [1914.85, 1983.14],
+          "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+          "chars": [1, 1],
+          "truth": "有",
+          "predictions": ["有", "有"]
+        },
+        {
+          "case": "2-2",
+          "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+          "ms": [2511.09, 2470.52],
+          "reply_sha256": ["b90d62546b1b20966ee66ea199f169bb4de41e8a04fe16abfcca5c98666cc5fd"],
+          "chars": [44, 44],
+          "truth": "27",
+          "predictions": ["27", "27"]
+        },
+        {
+          "case": "2-3",
+          "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+          "ms": [1972.93, 1890.41],
+          "reply_sha256": ["84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"],
+          "chars": [1, 1],
+          "truth": "黄",
+          "predictions": ["绿", "绿"]
+        }
+      ]
+    }
+  },
+  "historical_facts": {
+    "all_attempts": {"pairs": 20, "baseline_p50_ms": 2209.78, "candidate_p50_ms": 2246.59, "reduction_pct": -1.67, "speedup": 0.984, "faster_pairs": 10, "baseline_p95_ms": 2434.17, "candidate_p95_ms": 2426.31},
+    "identical_text": 20,
+    "render_service": {"baseline": {"n_frames": 2261, "p50_ms": 18.22, "p95_ms": 26.54}, "worktree": {"n_frames": 2248, "p50_ms": 18.19, "p95_ms": 26.8}},
+    "correct": [14, 14],
+    "cases": [
+      {
+        "case": "0-0",
+        "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+        "ms": [2361.99, 2272.7],
+        "reply_sha256": ["c30561e9c3095c0123c2450b2c48bc8c923cdc828c62fa0e408e4a9bdf0fec4f"],
+        "chars": [28, 28],
+        "truth": "右",
+        "predictions": ["右", "右"]
+      },
+      {
+        "case": "0-1",
+        "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+        "ms": [2142.05, 2002.21],
+        "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+        "chars": [1, 1],
+        "truth": "有",
+        "predictions": ["有", "有"]
+      },
+      {
+        "case": "0-2",
+        "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+        "ms": [2313.68, 2377.94],
+        "reply_sha256": ["47e168128422f3b522bfaa4b7ac510a89cc86b2a2ea8d6e0c8c65fe3adbe3f48"],
+        "chars": [33, 33],
+        "truth": "27",
+        "predictions": ["27", "27"]
+      },
+      {
+        "case": "0-3",
+        "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+        "ms": [2076.72, 2048.91],
+        "reply_sha256": ["84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"],
+        "chars": [1, 1],
+        "truth": "黄",
+        "predictions": ["绿", "绿"]
+      },
+      {
+        "case": "1-0",
+        "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+        "ms": [2326.5, 2208.91],
+        "reply_sha256": ["e857b3150309fa8affeb1466b858aa2cfcdee9e84cfb885ef940bae15f859ca8"],
+        "chars": [27, 27],
+        "truth": "左",
+        "predictions": ["右", "右"]
+      },
+      {
+        "case": "1-1",
+        "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+        "ms": [2301.63, 2310.0],
+        "reply_sha256": ["97391a426c0beecf9b0b28aef4ce8fa6ab71d52d93010408f2045f9f20586d54"],
+        "chars": [37, 37],
+        "truth": "无",
+        "predictions": ["有", "有"]
+      },
+      {
+        "case": "1-2",
+        "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+        "ms": [2434.17, 2473.11],
+        "reply_sha256": ["dc4839172be6af1109813a115405ddb17fa72f0ee064b4120dd7c26e18f2ec8f"],
+        "chars": [33, 33],
+        "truth": "74",
+        "predictions": ["74", "74"]
+      },
+      {
+        "case": "1-3",
+        "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+        "ms": [1945.66, 1816.61],
+        "reply_sha256": ["84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"],
+        "chars": [1, 1],
+        "truth": "绿",
+        "predictions": ["绿", "绿"]
+      },
+      {
+        "case": "2-0",
+        "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+        "ms": [2292.62, 2426.31],
+        "reply_sha256": ["c30561e9c3095c0123c2450b2c48bc8c923cdc828c62fa0e408e4a9bdf0fec4f"],
+        "chars": [28, 28],
+        "truth": "右",
+        "predictions": ["右", "右"]
+      },
+      {
+        "case": "2-1",
+        "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+        "ms": [2181.87, 2246.74],
+        "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+        "chars": [1, 1],
+        "truth": "有",
+        "predictions": ["有", "有"]
+      },
+      {
+        "case": "2-2",
+        "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+        "ms": [2380.07, 2246.43],
+        "reply_sha256": ["47e168128422f3b522bfaa4b7ac510a89cc86b2a2ea8d6e0c8c65fe3adbe3f48"],
+        "chars": [33, 33],
+        "truth": "27",
+        "predictions": ["27", "27"]
+      },
+      {
+        "case": "2-3",
+        "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+        "ms": [1875.54, 1923.18],
+        "reply_sha256": ["84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"],
+        "chars": [1, 1],
+        "truth": "黄",
+        "predictions": ["绿", "绿"]
+      },
+      {
+        "case": "mid-0",
+        "input_sha256": "6a1220e5048fa6019873ebdcaa649f56c98ae71ffa0e1864de3813416d9a77a8",
+        "ms": [2036.69, 2057.18],
+        "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+        "chars": [1, 1],
+        "truth": "有",
+        "predictions": ["有", "有"]
+      },
+      {
+        "case": "mid-1",
+        "input_sha256": "488c0a9c81af1c308eede14d31c2f846e6323b1b37c30fcea35bd4cbfea2a06e",
+        "ms": [2237.7, 2304.89],
+        "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+        "chars": [1, 1],
+        "truth": "无",
+        "predictions": ["有", "有"]
+      },
+      {
+        "case": "mid-2",
+        "input_sha256": "1a64497cadc39894db28e7c01c22b665b842f4877f7d0bcec6ebe3cfe393894e",
+        "ms": [1924.66, 1800.5],
+        "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+        "chars": [1, 1],
+        "truth": "有",
+        "predictions": ["有", "有"]
+      },
+      {
+        "case": "mid-3",
+        "input_sha256": "2809d6a3b9afcd6a93d53ab1baa13d540b81266f8eab4e24d3b9fca15f2b8b88",
+        "ms": [2067.78, 2033.1],
+        "reply_sha256": ["90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"],
+        "chars": [1, 1],
+        "truth": "无",
+        "predictions": ["有", "有"]
+      },
+      {
+        "case": "mid-4",
+        "input_sha256": "14df48b83900886e7bf65f83a7e224b220c3595ab8ee699ac37b03247f57a550",
+        "ms": [2067.75, 1994.39],
+        "reply_sha256": ["76a50887d8f1c2e9301755428990ad81479ee21c25b43215cf524541e0503269"],
+        "chars": [2, 2],
+        "truth": "36",
+        "predictions": ["36", "36"]
+      },
+      {
+        "case": "mid-5",
+        "input_sha256": "e66631f20bca69f92f4d6190a0041d1afc1af9639fceda7f991f788058279b9a",
+        "ms": [2098.22, 2337.63],
+        "reply_sha256": ["cb6e1020cb3753bde9c839a5c07c89463cc08e98ccaaf5fe72c5a847e5e86644"],
+        "chars": [25, 25],
+        "truth": "63",
+        "predictions": ["63", "63"]
+      },
+      {
+        "case": "mid-6",
+        "input_sha256": "23d474cdf7c13cf0890fe507879f94f3fcab0ea59bfa6270d45bc58bc64b9622",
+        "ms": [2333.16, 2359.23],
+        "reply_sha256": ["29143b5bce3f28dcbfdfbbc4145a080808bae1114c6dd9a5f3bd41c1ed6910c5"],
+        "chars": [36, 36],
+        "truth": "63",
+        "predictions": ["63", "63"]
+      },
+      {
+        "case": "mid-7",
+        "input_sha256": "2a56d5a6cb227cc330fdb16fe16a69d7bad2411e34701b6af9aea240ae3ca4a6",
+        "ms": [2565.64, 2285.68],
+        "reply_sha256": ["4f61d417afb5e056c164226e336f892b0753fa745b882b9cb40102be74a69669"],
+        "chars": [25, 25],
+        "truth": "36",
+        "predictions": ["36", "36"]
+      }
+    ]
+  },
+  "without_renderer": {
+    "short": {"all_attempts": {"pairs": 2, "baseline_p50_ms": 678.84, "candidate_p50_ms": 590.7, "reduction_pct": 12.98, "speedup": 1.149, "faster_pairs": 2, "baseline_p95_ms": 731.36, "candidate_p95_ms": 593.57}, "identical_text": 2},
+    "long": {
+      "all_attempts": {"pairs": 2, "baseline_p50_ms": 1309.11, "candidate_p50_ms": 1208.37, "reduction_pct": 7.7, "speedup": 1.083, "faster_pairs": 1, "baseline_p95_ms": 1633.92, "candidate_p95_ms": 1351.73},
+      "identical_text": 2,
+      "both_have_observations_and_frames": {"pairs": 2, "baseline_p50_ms": 1309.11, "candidate_p50_ms": 1208.37, "reduction_pct": 7.7, "speedup": 1.083, "faster_pairs": 1, "baseline_p95_ms": 1633.92, "candidate_p95_ms": 1351.73},
+      "valid_cited_counts": [2, 2]
+    }
+  },
+  "experimental": {
+    "pattern-test": {
+      "variants": ["baseline", "pattern32"],
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 6103.05, "candidate_p50_ms": 5865.66, "reduction_pct": 3.89, "speedup": 1.04, "faster_pairs": 4, "baseline_p95_ms": 7708.28, "candidate_p95_ms": 8778.03},
+      "identical_text": 10,
+      "both_have_observations_and_frames": {"pairs": 5, "baseline_p50_ms": 4554.96, "candidate_p50_ms": 4632.5, "reduction_pct": -1.7, "speedup": 0.983, "faster_pairs": 2, "baseline_p95_ms": 7138.7, "candidate_p95_ms": 8778.03},
+      "valid_cited_counts": [5, 5],
+      "renderer": {"baseline": {"n_frames": 3114, "p50_ms": 16.2, "p95_ms": 22.56}, "pattern32": {"n_frames": 3192, "p50_ms": 16.22, "p95_ms": 22.73}}
+    },
+    "flow-test": {
+      "variants": ["baseline", "flow32"],
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 6002.63, "candidate_p50_ms": 5891.3, "reduction_pct": 1.85, "speedup": 1.019, "faster_pairs": 8, "baseline_p95_ms": 7734.51, "candidate_p95_ms": 7695.15},
+      "identical_text": 10,
+      "both_have_observations_and_frames": {"pairs": 5, "baseline_p50_ms": 4615.83, "candidate_p50_ms": 4483.13, "reduction_pct": 2.87, "speedup": 1.03, "faster_pairs": 4, "baseline_p95_ms": 7357.37, "candidate_p95_ms": 6927.8},
+      "valid_cited_counts": [5, 5],
+      "renderer": {"baseline": {"n_frames": 3169, "p50_ms": 16.32, "p95_ms": 22.49}, "flow32": {"n_frames": 2997, "p50_ms": 16.27, "p95_ms": 23.2}}
+    },
+    "shadow-test": {
+      "variants": ["baseline", "shadow2"],
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 6117.4, "candidate_p50_ms": 6254.75, "reduction_pct": -2.25, "speedup": 0.978, "faster_pairs": 4, "baseline_p95_ms": 7757.02, "candidate_p95_ms": 7668.39},
+      "identical_text": 10,
+      "both_have_observations_and_frames": {"pairs": 5, "baseline_p50_ms": 4432.05, "candidate_p50_ms": 4842.78, "reduction_pct": -9.27, "speedup": 0.915, "faster_pairs": 1, "baseline_p95_ms": 7182.98, "candidate_p95_ms": 7179.6},
+      "valid_cited_counts": [5, 5],
+      "renderer": {"baseline": {"n_frames": 3102, "p50_ms": 16.32, "p95_ms": 23.03}, "shadow2": {"n_frames": 3166, "p50_ms": 16.37, "p95_ms": 22.48}}
+    },
+    "native-game": {
+      "variants": ["baseline", "nativeproj"],
+      "all_attempts": {"pairs": 4, "baseline_p50_ms": 4266.39, "candidate_p50_ms": 3690.52, "reduction_pct": 13.5, "speedup": 1.156, "faster_pairs": 3, "baseline_p95_ms": 6772.18, "candidate_p95_ms": 6297.91},
+      "identical_text": 1,
+      "both_have_observations_and_frames": {"pairs": 3, "baseline_p50_ms": 3793.54, "candidate_p50_ms": 3518.1, "reduction_pct": 7.26, "speedup": 1.078, "faster_pairs": 2, "baseline_p95_ms": 4739.23, "candidate_p95_ms": 3862.94},
+      "valid_cited_counts": [3, 3],
+      "renderer": {"baseline": {"n_frames": 1035, "p50_ms": 16.36, "p95_ms": 23.33}, "nativeproj": {"n_frames": 953, "p50_ms": 16.54, "p95_ms": 23.9}}
+    },
+    "head-game": {
+      "variants": ["baseline", "bothproj"],
+      "all_attempts": {"pairs": 4, "baseline_p50_ms": 3951.48, "candidate_p50_ms": 3381.05, "reduction_pct": 14.44, "speedup": 1.169, "faster_pairs": 4, "baseline_p95_ms": 6995.75, "candidate_p95_ms": 6266.43},
+      "identical_text": 1,
+      "both_have_observations_and_frames": {"pairs": 3, "baseline_p50_ms": 3480.89, "candidate_p50_ms": 3185.4, "reduction_pct": 8.49, "speedup": 1.093, "faster_pairs": 3, "baseline_p95_ms": 4422.06, "candidate_p95_ms": 3576.69},
+      "valid_cited_counts": [3, 3],
+      "renderer": {"baseline": {"n_frames": 1013, "p50_ms": 16.49, "p95_ms": 23.97}, "bothproj": {"n_frames": 885, "p50_ms": 16.56, "p95_ms": 24.92}}
+    },
+    "exact-kernel": {
+      "variants": ["worktree", "kernel8"],
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 5946.45, "candidate_p50_ms": 6093.48, "reduction_pct": -2.47, "speedup": 0.976, "faster_pairs": 4, "baseline_p95_ms": 7616.96, "candidate_p95_ms": 7442.32},
+      "identical_text": 10,
+      "both_have_observations_and_frames": {"pairs": 5, "baseline_p50_ms": 4615.65, "candidate_p50_ms": 4560.18, "reduction_pct": 1.2, "speedup": 1.012, "faster_pairs": 2, "baseline_p95_ms": 7378.1, "candidate_p95_ms": 7011.28},
+      "valid_cited_counts": [5, 5],
+      "renderer": {"worktree": {"n_frames": 3079, "p50_ms": 16.28, "p95_ms": 23.09}, "kernel8": {"n_frames": 3073, "p50_ms": 16.24, "p95_ms": 23.31}}
+    },
+    "guarded-final": {
+      "variants": ["worktree", "guardfixed"],
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 6108.05, "candidate_p50_ms": 5465.99, "reduction_pct": 10.51, "speedup": 1.117, "faster_pairs": 8, "baseline_p95_ms": 7827.76, "candidate_p95_ms": 8110.58},
+      "identical_text": 10,
+      "both_have_observations_and_frames": {"pairs": 5, "baseline_p50_ms": 4580.84, "candidate_p50_ms": 4319.83, "reduction_pct": 5.7, "speedup": 1.06, "faster_pairs": 5, "baseline_p95_ms": 7090.48, "candidate_p95_ms": 6787.2},
+      "valid_cited_counts": [5, 5],
+      "renderer": {"worktree": {"n_frames": 3123, "p50_ms": 16.29, "p95_ms": 22.27}, "guardfixed": {"n_frames": 2934, "p50_ms": 16.34, "p95_ms": 23.56}}
+    },
+    "guard-repeat": {
+      "variants": ["worktree", "guardfixed"],
+      "all_attempts": {"pairs": 10, "baseline_p50_ms": 6000.59, "candidate_p50_ms": 5555.73, "reduction_pct": 7.41, "speedup": 1.08, "faster_pairs": 7, "baseline_p95_ms": 7757.79, "candidate_p95_ms": 8086.55},
+      "identical_text": 10,
+      "both_have_observations_and_frames": {"pairs": 5, "baseline_p50_ms": 4469.58, "candidate_p50_ms": 4264.55, "reduction_pct": 4.59, "speedup": 1.048, "faster_pairs": 5, "baseline_p95_ms": 6947.08, "candidate_p95_ms": 6893.39},
+      "valid_cited_counts": [5, 5],
+      "renderer": {"worktree": {"n_frames": 3048, "p50_ms": 16.23, "p95_ms": 22.96}, "guardfixed": {"n_frames": 2933, "p50_ms": 16.33, "p95_ms": 23.83}}
+    },
+    "release-proposer": {
+      "variants": ["worktree", "clean16"],
+      "all_attempts": {"pairs": 4, "baseline_p50_ms": 4093.07, "candidate_p50_ms": 4141.31, "reduction_pct": -1.18, "speedup": 0.988, "faster_pairs": 2, "baseline_p95_ms": 6482.25, "candidate_p95_ms": 7354.11},
+      "identical_text": 4,
+      "both_have_observations_and_frames": {"pairs": 3, "baseline_p50_ms": 3851.1, "candidate_p50_ms": 3638.94, "reduction_pct": 5.51, "speedup": 1.058, "faster_pairs": 2, "baseline_p95_ms": 4335.05, "candidate_p95_ms": 4643.69},
+      "valid_cited_counts": [3, 3],
+      "renderer": {"worktree": {"n_frames": 1000, "p50_ms": 16.28, "p95_ms": 23.44}, "clean16": {"n_frames": 1046, "p50_ms": 16.32, "p95_ms": 23.34}}
+    },
+    "headfold-pilot-headfold24": {
+      "variants": ["worktree", "headfold24"],
+      "all_attempts": {"pairs": 4, "baseline_p50_ms": 4143.66, "candidate_p50_ms": 4497.26, "reduction_pct": -8.53, "speedup": 0.921, "faster_pairs": 0, "baseline_p95_ms": 6670.38, "candidate_p95_ms": 7946.12},
+      "identical_text": 4,
+      "both_have_observations_and_frames": {"pairs": 3, "baseline_p50_ms": 3744.57, "candidate_p50_ms": 4178.07, "reduction_pct": -11.58, "speedup": 0.896, "faster_pairs": 0, "baseline_p95_ms": 4542.76, "candidate_p95_ms": 4816.46},
+      "valid_cited_counts": [3, 3],
+      "renderer": {"worktree": {"n_frames": 1009, "p50_ms": 16.29, "p95_ms": 23.94}, "headfold24": {"n_frames": 1140, "p50_ms": 16.19, "p95_ms": 23.06}}
+    },
+    "headfold-pilot-headfold32": {
+      "variants": ["worktree", "headfold32"],
+      "all_attempts": {"pairs": 4, "baseline_p50_ms": 4143.66, "candidate_p50_ms": 3980.47, "reduction_pct": 3.94, "speedup": 1.041, "faster_pairs": 2, "baseline_p95_ms": 6670.38, "candidate_p95_ms": 6776.03},
+      "identical_text": 4,
+      "both_have_observations_and_frames": {"pairs": 3, "baseline_p50_ms": 3744.57, "candidate_p50_ms": 3486.03, "reduction_pct": 6.9, "speedup": 1.074, "faster_pairs": 2, "baseline_p95_ms": 4542.76, "candidate_p95_ms": 4474.9},
+      "valid_cited_counts": [3, 3],
+      "renderer": {"worktree": {"n_frames": 1009, "p50_ms": 16.29, "p95_ms": 23.94}, "headfold32": {"n_frames": 997, "p50_ms": 16.53, "p95_ms": 24.54}}
+    },
+    "kernel_projection_matched": {
+      "head_8": {"max_differing_BF16_values_over_tested_shapes": 0, "original_ms": 17.705, "activation_group_sums_ms": 16.062},
+      "head_16": {"max_differing_BF16_values_over_tested_shapes": 0, "original_ms": 83.377, "activation_group_sums_ms": 33.156},
+      "gate_8": {"max_differing_BF16_values_over_tested_shapes": 0, "original_ms": 0.182, "activation_group_sums_ms": 0.182},
+      "gate_16": {"max_differing_BF16_values_over_tested_shapes": 0, "original_ms": 0.35, "activation_group_sums_ms": 0.256},
+      "down_8": {"max_differing_BF16_values_over_tested_shapes": 0, "original_ms": 1.246, "activation_group_sums_ms": 2.228},
+      "down_16": {"max_differing_BF16_values_over_tested_shapes": 0, "original_ms": 1.594, "activation_group_sums_ms": 2.283}
+    }
+  },
+  "verification": {
+    "ruff": "All checks passed!",
+    "mypy": "Success: no issues found in 224 source files",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "pytest": "======================= 693 passed, 13 skipped in 51.96s =======================",
+    "jev": "Ran 12 tests in 0.006s OK",
+    "packaged": "Packaged source contains all four visual worker modules, with contents verified.",
+    "original-audio": "7 passed, 20 deselected in 0.16s",
+    "pixel-parity": "Pixel tensors and image grids matched for four RGB images, including resize and retry."
+  },
+  "raw": "Local profile_output/validation.tar.gz includes raw timed replies, renderer frames, pixel comparisons, the relevant harnesses and check logs.",
+  "model": {
+    "source": {
+      "version": 1,
+      "runtime": "llama.cpp b12441",
+      "source_sha256": {"model.safetensors": "f5a0d9dd3efa73510542a8023d610ff26be2b4b020d181cfc4bedaa1fcc5dd9e", "config.json": "ba7770da23eae5ebd6827571f086e331956b33f4442a9e876fb4aa10969a6772"}
+    },
+    "mlx": "0.32.2",
+    "mlx_vlm": "0.7.0"
+  },
+  "experimental_scope": "Exploratory workers other than worktree are local trials. Wider verification sometimes shortened repetition in incomplete replies. Guarded wide blocks increased renderer P95 in two independent orders. Native projections altered visible quoted text on the Echo clip. None of these verification changes are included in the release.",
+  "memory": {
+    "protocol": "Fixed high-load route, own MLX allocation counters. Each triplet reports active bytes before request, peak after reset, active bytes after return. Separate warmup followed by two real inputs for each of short and long reviews. Host-side and external renderer allocations are excluded.",
+    "samples": {
+      "mem-old": [[625126600, 1658811606, 631549204], [631549204, 1727725440, 631549204], [631549204, 1727431508, 631549204], [631549204, 1658844380, 631581978], [631581978, 1658877154, 631581978], [631581978, 1658877154, 631581978]],
+      "mem-new": [[625126600, 1658811606, 631549204], [631549204, 1727807360, 631549204], [631549204, 1727431508, 631549204], [631549204, 1658844380, 631581978], [631581978, 1658877154, 631581978], [631581978, 1658877154, 631581978]]
+    }
+  },
+  "raw_archive_sha256": "3e561eb75227ac8a60554a1df6855381e8b3202fdb49f9fec0d7dcac3ae38749",
+  "upstream_integration": {
+    "upstream_main": "d3568d649f3752aa1bad951b6ec669e5eae3adb1",
+    "vision_commit": "49ed85d28340036ddb3f1228a9f1c86c2c3c5116",
+    "protocol": "After incorporating upstream PR #21, verified all five worker file digests against the timed candidate. Replayed the four normal companion cases again, pairing older release 46c6266 with the integrated tree. These independent samples use the same renderer as the earlier production runs.",
+    "normal_companion": {
+      "latest_frame_to_result": {"pairs": 4, "baseline_p50_ms": 2306.22, "candidate_p50_ms": 2263.86, "reduction_pct": 1.84, "speedup": 1.019, "faster_pairs": 3, "baseline_p95_ms": 2379.13, "candidate_p95_ms": 2331.21},
+      "first_frame_to_result": {"pairs": 4, "baseline_p50_ms": 5049.3, "candidate_p50_ms": 5095.0, "reduction_pct": -0.91, "speedup": 0.991, "faster_pairs": 2, "baseline_p95_ms": 5587.24, "candidate_p95_ms": 5488.27},
+      "same_review": 4,
+      "matched_single_frame_descriptions": {"wall_time": {"pairs": 10, "baseline_p50_ms": 672.68, "candidate_p50_ms": 683.6, "reduction_pct": -1.62, "speedup": 0.984, "faster_pairs": 5, "baseline_p95_ms": 1322.85, "candidate_p95_ms": 1411.39}, "identical_text": 10},
+      "render_service": {"original": {"n_frames": 1159, "p50_ms": 16.59, "p95_ms": 23.85}, "optimized": {"n_frames": 1177, "p50_ms": 16.64, "p95_ms": 22.94}},
+      "samples": [
+        {
+          "case": "01-dialog-choices",
+          "from_latest_ms": [2210.76, 2331.21],
+          "from_first_ms": [5015.47, 5141.22],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["54c5f097b8d34e9a496dbf5f8f10fa710bc274adb374988f3be176d123ee2814", "fd4e74c00afd0ff5c131584a020d8b261c15e12fe309bc3fdf15871686694c7d"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [[], []]
+        },
+        {
+          "case": "02-echo-sequence",
+          "from_latest_ms": [2329.41, 2245.26],
+          "from_first_ms": [4534.4, 5048.78],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["7d3cd00d0dff20c891dae5b924150ea16fbde95fe1daf3cc6f672aa62f37f267", "bae948f7a199bf8f6631a921fe6bee52650ae71ba402361159386e49120f66af"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"], ["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"]]
+        },
+        {
+          "case": "03-camera-transition",
+          "from_latest_ms": [2283.03, 2228.38],
+          "from_first_ms": [5083.12, 5035.78],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["6eebe6a4679f85288ee063057c8165d878187451b97cf4823f03be6c4b05beb5", "6eebe6a4679f85288ee063057c8165d878187451b97cf4823f03be6c4b05beb5"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [[], []]
+        },
+        {
+          "case": "04-field-dialogue",
+          "from_latest_ms": [2379.13, 2282.47],
+          "from_first_ms": [5587.24, 5488.27],
+          "reviews": ["{\"scene\":\"settled\"}", "{\"scene\":\"settled\"}"],
+          "same_status": true,
+          "input_sha256": ["a3957f5bd3e911e87ad2f281871ff25fc69e0276087ed1cb2f0b588d6af7b5c5", "a3957f5bd3e911e87ad2f281871ff25fc69e0276087ed1cb2f0b588d6af7b5c5"],
+          "speech_requests": [0, 0],
+          "accepted_observations": [["角色是红发少女，背景是蓝天白云和树木。"], ["角色是红发少女，背景是蓝天白云和树木。"]]
+        }
+      ]
+    },
+    "checks": {
+      "ruff": "All checks passed!",
+      "mypy": "Success: no issues found in 234 source files",
+      "pyright": "0 errors, 0 warnings, 0 informations",
+      "pytest": "======================= 719 passed, 13 skipped in 52.42s =======================",
+      "original-audio": "7 passed, 20 deselected in 0.14s",
+      "jev": "Ran 12 tests in 0.006s OK",
+      "pixel-parity": "Pixel tensors and image grids matched for four RGB images, including resize and retry.",
+      "packaged": "Packaged source contains all four visual worker modules, with contents verified."
+    },
+    "local_raw": "profile_output/integration.tar.gz",
+    "raw_archive_sha256": "2fd5da87a3c637b0336d6868b8a669b4ba077e0d3625a5c472faa31d8fd6835e"
+  }
+}

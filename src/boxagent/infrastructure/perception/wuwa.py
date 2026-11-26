@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import replace
 from io import BytesIO
 from typing import NotRequired, TypedDict
 
@@ -20,12 +21,13 @@ from boxagent.domain.proactivity.game_highlight import (
 from boxagent.infrastructure.perception.deepseek_quest import DeepSeekQuestVision, visual_answer
 from boxagent.infrastructure.perception.game_stream import GameWindowStream
 from boxagent.infrastructure.perception.qwen_mlx import WindowSummary, clean_summary
-from boxagent.infrastructure.perception.wuwa_quest import quest_region, read_quest
+from boxagent.infrastructure.perception.wuwa_quest import encode_quest_region
 
 WUWA_BUNDLE = "com.kurogame.mingchao"
 TILE_WIDTH = 512
 TILE_HEIGHT = 320
 logger = logging.getLogger(__name__)
+type ReviewInput = tuple[tuple[bytes, str], ...]
 
 COMPANION_PROMPT = (
     "你是正在和玩家一起玩《鸣潮》的游戏搭子。这些是同一窗口最近的截图，按时间从早到晚排列。"
@@ -90,37 +92,45 @@ def visible_game_window(windows: Iterable[WindowDescription], games: Mapping[int
     return None
 
 
+def _review_labels(frames: tuple[GameFrame, ...]) -> tuple[str, ...]:
+    return tuple(
+        f"Frame {i}   {frame.captured_at - frames[-1].captured_at:.1f}s"
+        for i, frame in enumerate(frames, 1)
+    )
+
+
 def game_contact_sheet(frames: tuple[GameFrame, ...]) -> bytes:
     columns = 2
     rows = (len(frames) + columns - 1) // columns
     sheet = Image.new("RGB", (columns * TILE_WIDTH, rows * TILE_HEIGHT), (16, 16, 16))
     draw = ImageDraw.Draw(sheet)
-    for index, frame in enumerate(frames):
+    for index, (frame, label) in enumerate(zip(frames, _review_labels(frames), strict=True)):
         with Image.open(BytesIO(frame.image)) as image:
             image.thumbnail((TILE_WIDTH - 8, TILE_HEIGHT - 27))
             x = (index % columns) * TILE_WIDTH
             y = (index // columns) * TILE_HEIGHT
             sheet.paste(image, (x + (TILE_WIDTH - image.width) // 2, y + 22))
-            elapsed = frame.captured_at - frames[-1].captured_at
-            draw.text((x + 8, y + 4), f"Frame {index + 1}   {elapsed:.1f}s", fill="white")
+            draw.text((x + 8, y + 4), label, fill="white")
     with BytesIO() as encoded:
         sheet.save(encoded, "JPEG", quality=88)
         return encoded.getvalue()
 
 
 class WuwaVision:
-    def __init__(self, local_model: WindowSummary, *, defer_quest: bool = False,
+    def __init__(self, local_model: WindowSummary, *,
                  cloud_scene: DeepSeekQuestVision | None = None,
                  recent_comment: Callable[[], str] = lambda: "",
                  resumed_quest: Callable[[str], TrackedQuest | None] = lambda _launch: None,
                  capture_stream: GameWindowStream | None = None) -> None:
         self.local_model = local_model
-        self.defer_quest = defer_quest
         self.cloud_scene = cloud_scene
         self.recent_comment = recent_comment
         self.resumed_quest = resumed_quest
         self.capture_stream = capture_stream
-        self.quest_error_reported = False
+        self.warmup_task: asyncio.Task[None] | None = None
+        self.last_capture: tuple[bytes, GameCapture] | None = None
+        self.last_scene: tuple[bytes, str] | None = None
+        self.last_review: tuple[ReviewInput, str] | None = None
         self.window_pid: int | None = None
 
     def visible_window(self) -> int | None:
@@ -166,12 +176,38 @@ class WuwaVision:
     async def capture(self, window: int) -> GameCapture:
         if self.capture_stream is None:
             raise RuntimeError("Native game capture is not configured")
+        if self.cloud_scene is None and self.warmup_task is None:
+            self.warmup_task = asyncio.create_task(self._warmup(), name="wuwa-vision-warmup")
         frame = await self.capture_stream.frame(window)
-        return await asyncio.to_thread(self._inspect, frame.image, frame.captured_at)
+        if self.last_capture is not None and self.last_capture[0] == frame.image:
+            return replace(self.last_capture[1], captured_at=frame.captured_at)
+        prepared = await asyncio.to_thread(self._inspect, frame.image, frame.captured_at)
+        self.last_capture = (frame.image, prepared)
+        return prepared
+
+    def ready_for_inference(self) -> bool:
+        return self.warmup_task is None or self.warmup_task.done()
+
+    async def _warmup(self) -> None:
+        try:
+            # Pay for the first MLX forward pass before presenting time-sensitive evidence.
+            with BytesIO() as image:
+                Image.new("RGB", (TILE_WIDTH, TILE_WIDTH * 9 // 16)).save(image, "JPEG")
+                await self.local_model.analyze_image(image.getvalue(), SCENE_PROMPT, max_tokens=1)
+        except (OSError, RuntimeError, ValueError, TimeoutError):
+            logger.warning("Wuthering Waves vision warmup unavailable", exc_info=True)
 
     async def pause_capture(self) -> None:
+        self.last_capture = None
+        self.last_scene = None
+        self.last_review = None
         if self.capture_stream is not None:
             await self.capture_stream.close()
+        task = self.warmup_task
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self.warmup_task = None
 
     def _inspect(self, data: bytes, captured_at: float) -> GameCapture:
         with Image.open(BytesIO(data)) as source:
@@ -179,17 +215,9 @@ class WuwaVision:
             width, height = source.size
             scene = source.crop((width * .2, height * .12, width * .8, height * .85))
             signature = scene.resize((24, 16), Image.Resampling.BOX).convert("RGB").tobytes()
-        if self.defer_quest:
-            return GameCapture(self._thumbnail(data), captured_at=captured_at,
-                               quest_image=quest_region(data), scene_signature=signature)
-        try:
-            quest = read_quest(data)
-        except (OSError, RuntimeError, ValueError):
-            if not self.quest_error_reported:
-                logger.warning("Could not read the 《鸣潮》quest tracker", exc_info=True)
-                self.quest_error_reported = True
-            quest = None
-        return GameCapture(self._thumbnail(data), quest, captured_at, scene_signature=signature)
+            quest_image = encode_quest_region(source)
+        return GameCapture(self._thumbnail(data), captured_at=captured_at,
+                           quest_image=quest_image, scene_signature=signature)
 
     async def still_relevant(self, review: HighlightReview, frame: GameFrame) -> bool:
         if self.cloud_scene is None:
@@ -233,16 +261,26 @@ class WuwaVision:
                 COMPANION_PROMPT + context, tuple(frame.image for frame in frames)
             )
             return HighlightReview.parse(visual_answer(response), frames)
-        sheet = await asyncio.to_thread(game_contact_sheet, frames)
-        raw = await self.local_model.analyze_image(sheet, REVIEW_PROMPT)
+        clip = tuple(zip((frame.image for frame in frames), _review_labels(frames), strict=True))
+        if self.last_review is not None and self.last_review[0] == clip:
+            raw = self.last_review[1]
+        else:
+            sheet = await asyncio.to_thread(game_contact_sheet, frames)
+            raw = await self.local_model.analyze_image(sheet, REVIEW_PROMPT, structured_review=True)
+            self.last_review = (clip, raw)
         return HighlightReview.parse(raw, frames)
 
     async def describe(self, frame: GameFrame) -> GameObservation | None:
-        text = clean_summary(await self.local_model.analyze_image(frame.image, SCENE_PROMPT))
+        if self.last_scene is not None and self.last_scene[0] == frame.image:
+            text = self.last_scene[1]
+        else:
+            text = clean_summary(await self.local_model.analyze_image(frame.image, SCENE_PROMPT))
+            self.last_scene = (frame.image, text)
         if not text or len(text) > 80 or text.strip("。！!「」") == "看不清":
             return None
         return GameObservation(text, frame.captured_at, frame.captured_at)
 
     async def close(self) -> None:
         await self.pause_capture()
+        self.warmup_task = None
         await self.local_model.stop()

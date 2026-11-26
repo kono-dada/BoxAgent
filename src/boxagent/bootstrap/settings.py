@@ -55,6 +55,7 @@ class Settings:
     game_companion_enabled: bool = False
     wuwa_cloud_vision_enabled: bool = False
     wuwa_scene_vision_enabled: bool = False
+    vision_bundle: Path | None = None
 
     @property
     def runs_dir(self) -> Path:
@@ -189,6 +190,7 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
     qwen_workspace_id = read_optional_setting("BOXAGENT_DASHSCOPE_WORKSPACE_ID").strip()
     qwen_region = (read_optional_setting("BOXAGENT_DASHSCOPE_REGION") or "cn-beijing").strip()
     typesafe_api_key = read_optional_secret("TYPESAFE_API_KEY")
+    vision_bundle = read_optional_setting("BOXAGENT_WUWA_COREML_BUNDLE").strip()
     decision = resolve_decision_model(
         provider=read_optional_setting("BOXAGENT_DECISION_PROVIDER"),
         dashscope_key=qwen_api_key, workspace_id=qwen_workspace_id,
@@ -287,4 +289,7 @@ def load_settings(*, log_dir: str | Path | None = None) -> Settings:
         .strip()
         .lower()
         not in {"0", "false", "no", "off"},
+        vision_bundle=(
+            (ROOT / Path(vision_bundle).expanduser()).resolve() if vision_bundle else None
+        ),
     )

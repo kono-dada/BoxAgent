@@ -1,19 +1,332 @@
 """验证过时上下文丢弃、临时图片清理和独立生命周期。"""
 
 import asyncio
+import json
+import runpy
 import time
 import unittest
+from collections.abc import Callable
+from concurrent.futures import Future
+from io import StringIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from PIL import Image
 
 from boxagent.application.assistant import BoxAgentApplication
-from boxagent.infrastructure.perception.qwen_mlx import WindowSummary, foreground_game
+from boxagent.infrastructure.perception.qwen_mlx import (
+    WindowSummary,
+    focused_window,
+    foreground_game,
+)
 
 
 class ContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_worker_launch_forwards_the_optional_vision_bundle(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "python"
+            executable.touch()
+            bundle = root / "wuwa-coreml"
+            for configured_bundle in (None, bundle):
+                flags = ("--review-coreml-bundle", str(bundle)) if configured_bundle else ()
+                observer = WindowSummary(
+                    lambda *_args, **_kwargs: None,
+                    workspace=root, model=root, python=executable,
+                    vision_bundle=configured_bundle,
+                )
+                observer.reply = AsyncMock(return_value={"ready": True})
+                try:
+                    with patch(
+                        "boxagent.infrastructure.perception.qwen_mlx.asyncio.create_subprocess_exec",
+                        return_value=SimpleNamespace(returncode=0),
+                    ) as launch:
+                        await observer._ensure_model()
+                    observer.reply.assert_awaited_once_with(120)
+                    self.assertEqual(launch.call_args.args[7:], flags)
+                finally:
+                    await observer.stop()
+
+    def test_worker_uses_shared_acceleration_for_plain_and_structured_input(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
+        serve = runpy.run_path(str(script))["serve_mlx"]
+        common = {"image": "clip.jpg", "analysis_prompt": "描述画面"}
+        review = '{"observation":"最右侧的角色跳起。","observed_frames":[5,6],"scene":"fighting"}'
+        moment = review.replace("fighting", "moment")
+        answers = [
+            "可见两个目标。", review, review[:-1], moment, "?", 'unclear"}',
+            "未能复盘", "bad", "第一轮原文",
+        ]
+        generate = Mock(side_effect=(
+            [SimpleNamespace(text=answer) for answer in answers] + [RuntimeError("retry failed")]
+        ))
+        draft = object()
+        startup: Future[object] = Future()
+        startup.set_result(draft)
+        requests = [common] + [{**common, "structured_review": True}] * 6
+        messages = StringIO("\n".join(map(json.dumps, requests)) + "\n")
+        output = StringIO()
+        with (
+            patch("sys.stdin", messages), patch("sys.stdout", output),
+            patch.dict(serve.__globals__, {"summarize_image": generate}),
+            patch.dict("sys.modules", {"wuwa_cpu_draft": SimpleNamespace(
+                ReviewCheckpoint=lambda: SimpleNamespace(deferred_first_reply=False),
+            )}),
+        ):
+            serve(object(), object(), {"model_type": "qwen3_5"}, draft_startup=startup)
+        self.assertEqual([json.loads(line) for line in output.getvalue().splitlines()], [
+            {"ready": True}, {"summary": "可见两个目标。"},
+            {"summary": review}, {"summary": review}, {"summary": moment},
+            {"summary": '{"scene":"unclear"}'}, {"summary": "未能复盘"}, {"summary": "第一轮原文"},
+        ])
+        self.assertTrue(all(call.kwargs["cpu_draft"] is draft for call in generate.call_args_list))
+        checkpoints = [call.kwargs["checkpoint"] for call in generate.call_args_list]
+        self.assertIsNone(checkpoints[0])
+        self.assertEqual(len({id(checkpoint) for checkpoint in checkpoints[1:]}), 6)
+        for primary, retry in zip(checkpoints[4::2], checkpoints[5::2], strict=True):
+            self.assertIs(primary, retry)
+        self.assertEqual(
+            [call.kwargs.get("prefix", "") for call in generate.call_args_list],
+            ["", "", "", "", "", '{"scene":"', "", '{"scene":"', "", '{"scene":"'],
+        )
+
+    def test_fenced_review_prioritizes_the_retry_and_preserves_the_full_fallback(self) -> None:
+        worker = runpy.run_path(str(Path(__file__).resolve().parents[1]
+                                    / "scripts/window_summary_worker.py"))
+        summarize = worker["summarize_request"]
+        req = {"image": "clip.jpg", "analysis_prompt": "复盘", "structured_review": True}
+        primary = '{"scene":"settled","observation":"角色停下。","observed_frames":[1,6]}'
+        fenced = f"```json\r\n{primary}\r\n```"
+        valid_retry = 'fighting","observation":"角色跳起。","observed_frames":[3,6]}'
+        for retry, full, expected in (
+            (valid_retry, fenced, '{"scene":"' + valid_retry),
+            ("无效", fenced, primary),
+            (OSError("retry unavailable"), fenced, primary),
+            ("无效", "完整的第一轮原文", "完整的第一轮原文"),
+        ):
+            state = SimpleNamespace(deferred_first_reply=True)
+            results = [SimpleNamespace(text="```"),
+                       retry if isinstance(retry, OSError) else SimpleNamespace(text=retry),
+                       SimpleNamespace(text=full)]
+            generate = Mock(side_effect=results)
+            with (
+                patch.dict(summarize.__globals__, {"summarize_image": generate}),
+                patch.dict("sys.modules", {"wuwa_cpu_draft": SimpleNamespace(
+                    ReviewCheckpoint=Mock(return_value=state),
+                )}),
+            ):
+                answer = summarize(req, None, None, {"model_type": "qwen3_5"}, object(), None)
+            self.assertEqual(answer, expected)
+            self.assertEqual(generate.call_count, 2 if retry == valid_retry else 3)
+            self.assertEqual(generate.call_args_list[1].kwargs["prefix"], '{"scene":"')
+
+        for invalid in (
+            f"解释\n{fenced}", f"{fenced}\n其他内容", f"{fenced}\n{fenced}",
+            '```json\n{"scene":"unknown"}\n```',
+            '```json\n{"scene":"settled","observation":"未写完\n```',
+        ):
+            self.assertIsNone(worker["fenced_review"](invalid))
+
+    def test_vision_route_survives_a_frame_gap_and_is_shared_by_format_retries(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/wuwa_cpu_draft.py"
+        modules = {"mlx": SimpleNamespace(core=Mock()), "mlx.core": Mock(), "numpy": Mock()}
+        with patch.dict("sys.modules", modules):
+            worker = runpy.run_path(str(script))
+        choose, checkpoint = worker["WuwaCpuDraft"].under_gpu_pressure, worker["ReviewCheckpoint"]
+        load = Mock(side_effect=[100, 75, 99, 40, 39, 35, 100, -1])
+        draft = SimpleNamespace(previous_gpu_pressure=None, gpu_load=load)
+        wait = Mock()
+        with patch.dict(choose.__globals__, {"sleep": wait}):
+            review = checkpoint()
+            self.assertTrue(choose(draft, review))
+            self.assertTrue(choose(draft, review))
+            self.assertEqual(load.call_count, 1)
+            self.assertTrue(choose(draft, checkpoint()))
+            self.assertFalse(choose(draft, checkpoint()))
+            self.assertFalse(choose(draft))
+            self.assertTrue(choose(draft))
+            self.assertTrue(choose(draft))
+        self.assertEqual(wait.call_count, 2)
+
+        idle = SimpleNamespace(previous_gpu_pressure=False, gpu_load=Mock(side_effect=[35, 95, 40]))
+        review = checkpoint()
+        with patch.dict(choose.__globals__, {"sleep": wait}):
+            self.assertFalse(choose(idle, review))
+            self.assertTrue(choose(idle, review))
+            self.assertFalse(choose(idle, review))
+        self.assertEqual(wait.call_count, 2)
+
+    def test_repeated_draft_must_match_every_token_on_an_independent_cache(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/wuwa_cpu_draft.py"
+        arrays = SimpleNamespace(array=lambda values, dtype: values, int32=int,
+                                 all=lambda value: SimpleNamespace(item=lambda: value))
+        modules = {"mlx": SimpleNamespace(core=arrays), "mlx.core": arrays, "numpy": Mock()}
+        with patch.dict("sys.modules", modules):
+            worker = runpy.run_path(str(script))
+        propose, verify = worker["repeated_tail"], worker["matches_target_tail"]
+        self.assertEqual(propose(list(range(40)), 30), [])
+        self.assertEqual(propose([1, 2, 3] * 12, 5), [1, 2, 3, 1, 2])
+        self.assertEqual(propose([7] * 30, 70), [7] * 70)
+
+        active = SimpleNamespace(state=[13])
+        for mismatch in (False, True):
+            shadow = SimpleNamespace(state=[])
+            target = Mock()
+            target.make_cache.return_value = [shadow]
+
+            def forward(
+                ids: list[list[int]], cache: list[SimpleNamespace], fail: bool = mismatch,
+                expected_cache: SimpleNamespace = shadow,
+            ) -> SimpleNamespace:
+                self.assertIs(cache[0], expected_cache)
+                self.assertIsNot(cache[0].state, active.state)
+                cache[0].state[0] += len(ids[0])
+                result = [7] * len(ids[0])
+                if fail and cache[0].state[0] == 83:
+                    result[-1] = 8
+                return SimpleNamespace(logits=[result])
+
+            target.side_effect = forward
+            with patch.dict(verify.__globals__, {"greedy_tokens": lambda scores: scores,
+                                                 "clear_winners": lambda *args: True}):
+                self.assertEqual(verify(target, [active], 7, [7] * 70, None, [], None, 64),
+                                 not mismatch)
+            self.assertEqual(active.state, [13])
+
+    def test_review_opening_preserves_eos_and_restores_tokenizer(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
+        worker = runpy.run_path(str(script))
+        first = worker["generate_review_opening"]
+        core = SimpleNamespace()
+        with patch.dict("sys.modules", {"mlx": SimpleNamespace(core=core), "mlx.core": core,
+                                        "numpy": SimpleNamespace()}):
+            draft_module = runpy.run_path(str(script.with_name("wuwa_cpu_draft.py")))
+            checkpoint = draft_module["ReviewCheckpoint"]
+        pieces = {1: " ", 2: "`", 3: "``", 4: "{", 5: "}", 6: "```", 7: ""}
+        eos = Mock(side_effect=lambda token: token == 7)
+        tokenizer = SimpleNamespace(
+            stopping_criteria=eos, decode=lambda ids: "".join(pieces[token] for token in ids),
+        )
+        model = SimpleNamespace(config=SimpleNamespace(eos_token_id=7))
+        processor = SimpleNamespace(tokenizer=tokenizer)
+        for ids, kept, deferred in (
+            ([1, 2, 3, 4], [1, 2], True),
+            ([4, 6, 5, 7], [4, 6, 5], False),
+            ([7, 6], [], False),
+        ):
+            state = checkpoint()
+
+            def generate(
+                target: object, adapter: object, prompt: str, *,
+                stopping_criteria: Callable[[int], bool], input_tokens: list[int] = ids,
+            ) -> list[int]:
+                tokenizer.stopping_criteria = stopping_criteria
+                result: list[int] = []
+                for token in input_tokens:
+                    if stopping_criteria(token):
+                        break
+                    result.append(token)
+                return result
+
+            self.assertEqual(first(generate, state, model, processor, "prompt"), kept)
+            self.assertEqual(state.deferred_first_reply, deferred)
+            self.assertIs(tokenizer.stopping_criteria, eos)
+
+        with self.assertRaises(RuntimeError):
+            first(Mock(side_effect=RuntimeError("decode failed")), state, model, processor,
+                  "prompt")
+        self.assertIs(tokenizer.stopping_criteria, eos)
+
+    def test_review_feature_scope_ends_after_each_request(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/window_summary_worker.py"
+        worker = runpy.run_path(str(script))
+        summarize = worker["summarize_request"]
+        scope = worker["_review_image"]
+        seen: list[object] = []
+
+        def decode(*args: object, **kwargs: object) -> SimpleNamespace:
+            seen.append(kwargs["review_image"])
+            return SimpleNamespace(text='fighting"}' if "prefix" in kwargs else "?")
+
+        with patch.dict(summarize.__globals__, {"summarize_image": decode}):
+            for _ in range(2):
+                result = summarize({"image": "clip.jpg", "analysis_prompt": "描述画面",
+                                    "structured_review": True}, None, None,
+                                   {"model_type": "qwen3_5"}, None, None)
+                self.assertEqual(result, '{"scene":"fighting"}')
+                self.assertIsNone(scope.get())
+        self.assertIsNotNone(seen[0])
+        self.assertIs(seen[0], seen[1])
+        self.assertIs(seen[2], seen[3])
+        self.assertIsNot(seen[0], seen[2])
+        def fail(*args: object, **kwargs: object) -> None:
+            self.assertIs(scope.get(), seen[0])
+            raise OSError("decode failed")
+
+        with (
+            patch.dict("sys.modules", {
+                "mlx_vlm.generate.dispatch": SimpleNamespace(generate=fail),
+                "mlx_vlm.prompt_utils": SimpleNamespace(apply_chat_template=Mock(return_value="p")),
+            }),
+            self.assertRaises(OSError),
+        ):
+            worker["summarize_image"](None, None, {}, "clip.jpg", review_image=seen[0])
+        self.assertIsNone(scope.get())
+
+    def test_review_pixels_are_scoped_to_one_image(self) -> None:
+        script = Path(__file__).resolve().parents[1] / "scripts/vision_inputs.py"
+        module = runpy.run_path(str(script))
+        adapter = module["QwenImageInputs"]
+        scope = module["for_review"]
+        original = Mock(return_value={"pixel_values": "custom"})
+        processor = SimpleNamespace(image_processor=adapter(original, None))
+        red = Image.new("RGB", (2, 2), "red")
+        blue = Image.new("RGB", (2, 2), "blue")
+        pack = Mock(side_effect=lambda img: {"pixel_values": img.getpixel((0, 0))})
+        core = SimpleNamespace(array=Mock(side_effect=lambda value: value))
+        with (
+            patch.dict("sys.modules", {"mlx": SimpleNamespace(core=core), "mlx.core": core}),
+            patch.object(adapter, "_pack", pack),
+        ):
+            first = scope(processor).image_processor
+            self.assertIs(first([red]), first([red]))
+            self.assertEqual(first([red], min_pixels=100), {"pixel_values": "custom"})
+            original.assert_called_once_with(images=[red], min_pixels=100)
+            second = scope(processor).image_processor
+            self.assertEqual(second([blue])["pixel_values"], (0, 0, 255))
+            self.assertEqual(first([red])["pixel_values"], (255, 0, 0))
+            shared = processor.image_processor
+            self.assertIsNot(shared([red]), shared([blue]))
+        self.assertEqual(pack.call_count, 4)
+        self.assertEqual(core.array.call_count, 2)
+        other = SimpleNamespace(image_processor=object())
+        self.assertIs(scope(other), other)
+
+    def test_focused_window_accepts_an_unlisted_fullscreen_game(self) -> None:
+        front = SimpleNamespace(
+            bundleIdentifier=lambda: "example.unlisted.game",
+            processIdentifier=lambda: 42,
+            localizedName=lambda: "Unlisted Game",
+        )
+        appkit = SimpleNamespace(NSWorkspace=Mock())
+        appkit.NSWorkspace.sharedWorkspace.return_value.frontmostApplication.return_value = front
+        quartz = SimpleNamespace(CGShieldingWindowLevel=lambda: 2147483628)
+        fullscreen = {"id": 12, "app": "Unlisted Game", "layer": 2147483628}
+        with (
+            patch.dict("sys.modules", {"AppKit": appkit, "Quartz": quartz}),
+            patch("boxagent.infrastructure.perception.qwen_mlx.sys.platform", "darwin"),
+            patch("boxagent.infrastructure.perception.qwen_mlx.os.getpid", return_value=1),
+            patch(
+                "boxagent.infrastructure.perception.qwen_mlx._mac_window",
+                side_effect=[None, fullscreen],
+            ) as window,
+        ):
+            self.assertEqual(focused_window(), fullscreen)
+            self.assertEqual([call.args[-1] for call in window.call_args_list],
+                             [{0}, {2147483628}])
+
     def test_foreground_dock_recognizes_only_the_real_lol_shield_window(self) -> None:
         bundle = Mock(return_value="com.riotgames.LeagueofLegends.GameClient")
         front = SimpleNamespace(

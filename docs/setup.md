@@ -128,6 +128,25 @@ macOS 源码入口会准备 `.runtime/desktop/BoxAgent.app`，再通过 LaunchSe
 
 用 `BOXAGENT_PERCEPTION_PYTHON` 与 `BOXAGENT_PERCEPTION_MODEL` 覆盖本机路径。不要把宿主的语音和 macOS 系统依赖装进视觉环境。
 
+#### 可选的 Apple Silicon 视觉加速包
+
+桌面观察、游戏画面和原图问答共用一个 worker。视觉编码和语言预填充使用原有 Qwen 权重。GPU 利用率达到 90% 或读数不可用时，CPU 可以生成候选词，每个输出词都由当前画面的 Metal 目标模型校验。低负载时可使用兼容的 Metal MTP 预测头。缺少候选模型时，worker 使用常规 MLX 解码。
+
+在 Apple Silicon 上，下面的命令从本地 Qwen3.5-0.8B MLX 权重生成 CPU 起草模型。需要 Xcode 命令行工具、llama.cpp b12441 源码、匹配的 macOS ARM64 动态库，以及同型号的 GGUF 文件提供模型和分词器元数据。
+
+```bash
+vision_python=.runtime/vision-venv/bin/python
+vision_model=.runtime/models/qwen3.5-0.8b-mlx
+vision_bundle=.runtime/vision-acceleration
+PYTHONPATH="$LLAMA_SOURCE/gguf-py" "$vision_python" scripts/build_wuwa_cpu_draft.py \
+  "$vision_model" "$vision_bundle/text/cpu-draft" \
+  --llama-source "$LLAMA_SOURCE" --llama-libs "$LLAMA_LIBS" --gguf-template "$QWEN_GGUF_TEMPLATE"
+```
+
+如需 MTP，将本地 Qwen3.5-0.8B MLX 预测头的 `config.json` 和 `model.safetensors` 放入同一包的 `text/mtp/`。在 `.env.local` 设置 `BOXAGENT_WUWA_COREML_BUNDLE=.runtime/vision-acceleration` 后重启。已有加速包可以沿用该环境变量和原路径。
+
+M3 Pro 上已有的 CPU 加速包仍可使用完整词表校验。要启用新的候选词校验，可用本版脚本把 CPU 包构建到新的 `vision_bundle` 目录，切换上述环境变量后重启。
+
 ### 《鸣潮》陪玩预览
 
 在 macOS 源码版中设置 `BOXAGENT_GAME_COMPANION=1` 后启动桌宠。点击小窗的「鸣潮」，再把游戏放到前台。预览使用上面的本地视觉环境和屏幕录制权限。切走游戏后暂停采集。

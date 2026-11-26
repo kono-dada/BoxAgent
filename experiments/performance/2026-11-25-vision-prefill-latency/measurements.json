@@ -1,0 +1,887 @@
+{
+  "date": "2026-11-25",
+  "machine": "Apple M3 Pro, 18 GiB, macOS 14.7.8; local Qwen3.5-0.8B MLX affine 4-bit, mlx 0.32.2, mlx-vlm 0.7.0.",
+  "conditions": {"capture_pipe_hz": 5, "application_sampling_hz": 2, "render_width": 1280, "render_height": 720, "render_target_hz": 60, "fragment_shader_iterations": 1450},
+  "media": {
+    "trailer": {
+      "url": "https://store.steampowered.com/app/3513350/Wuthering_Waves/",
+      "title": "Version 3.8 Official Trailer | Lilies in a Dying Dream",
+      "warmup_start_seconds": 58.0,
+      "measured_start_seconds": [18.6, 44.6, 68.4, 74.2, 87.2, 96.6],
+      "replay_dimensions": [1280, 590]
+    },
+    "gameplay": {
+      "url": "https://archive.org/details/absorb-echoes-uterance-of-marvel-1-wuthering-waves",
+      "title": "Absorb Echoes - Uterance of Marvel 1 - Wuthering Waves",
+      "creator": "ngasmawi",
+      "warmup_start_seconds": 145.0,
+      "measured_start_seconds": [17.6, 30.6, 110.6, 175.6],
+      "replay_dimensions": [864, 480]
+    }
+  },
+  "baseline_original": "1cf6e36908bc44dbaabee0170131ce498481a323",
+  "baseline_previous": "e1d1c9d3649be8b9b7b213b2820435b014663b37",
+  "worker_sha256": {
+    "window_summary_worker.py": "3b2104d6d9476ccb65110916e93828b5312a91f56a7f4e2c901285db7ed070a0",
+    "wuwa_cpu_draft.py": "4b6beae0ac1839bf7404ddde447ac3c8a8aff03264db9ede6234207851f57a84",
+    "wuwa_mlx_prefill.py": "4abd2a568acc35874358f01022771041c7a859689389936489fb330db4c8d4c3"
+  },
+  "protocol": "Each product comparison warmed both workers on a separate clip, alternated A/B and B/A, and replayed six official trailer and four recorded gameplay segments at 5 Hz through the normal 2 Hz scheduler. Timings end at the first complete review. The scheduler selects six frames per review and can select different pictures on the same clip. Fixed input comparisons used identical images, prompts and token limits. Short status and long observations are reported separately. P95 uses nearest rank. No cloud inference or physical audio playback is included.",
+  "previous_vs_release_product": {
+    "latest_frame_to_full_ms": {
+      "n": 10,
+      "baseline_p50_ms": 2641.56,
+      "release_p50_ms": 2382.27,
+      "reduction_pct": 9.82,
+      "speedup": 1.109,
+      "faster_pairs": 10,
+      "baseline_p95_ms": 2755.12,
+      "release_p95_ms": 2482.46
+    },
+    "first_frame_to_full_ms": {
+      "n": 10,
+      "baseline_p50_ms": 5459.49,
+      "release_p50_ms": 5210.64,
+      "reduction_pct": 4.56,
+      "speedup": 1.048,
+      "faster_pairs": 10,
+      "baseline_p95_ms": 5963.04,
+      "release_p95_ms": 5884.78
+    },
+    "render_frame_service_p95_ms": {"original": {"ms": 26.51, "frames": 1287}, "optimized": {"ms": 27.18, "frames": 1100}},
+    "pairs_with_identical_review": 10,
+    "pairs_with_identical_scene_observations": 10,
+    "pairs_with_identical_frame_sha256": 4,
+    "accepted_observations": {"original": 2, "optimized": 2},
+    "speech_requests": {"original": 0, "optimized": 0},
+    "sample_order": "baseline, release",
+    "samples": [
+      {
+        "clip": "01-dialog-choices",
+        "latest_frame_ms": [2515.66, 2450.17],
+        "first_frame_ms": [5325.66, 5257.3],
+        "six_frame_digests": ["9eca35f6da1bd6acb3986ca6c37a56e7a5374273159cd75bab740f6da193f16c", "35737fd9eaedd9b794dc7d48010da9575950dd89bab0b1c6fb07c6529ea0a98d"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "02-echo-sequence",
+        "latest_frame_ms": [2481.21, 2477.92],
+        "first_frame_ms": [5889.79, 5884.78],
+        "six_frame_digests": ["551ebc4d93f128e5de75f6a2232b5939fe3573b49e62e6964ab7078d977ce421", "7fc5dcc8177947d367fb8fb7d8d5b35526f4ca45263f74ebe3646ed7307d8bd2"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"], ["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"]]
+      },
+      {
+        "clip": "03-camera-transition",
+        "latest_frame_ms": [2702.46, 2482.46],
+        "first_frame_ms": [5512.47, 5292.47],
+        "six_frame_digests": ["a0333abbc3f3abbc1d883f897fd43e8948835db637dc664bf73e13c11ea34b57", "a0333abbc3f3abbc1d883f897fd43e8948835db637dc664bf73e13c11ea34b57"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "04-field-dialogue",
+        "latest_frame_ms": [2754.33, 2306.77],
+        "first_frame_ms": [5963.04, 5516.79],
+        "six_frame_digests": ["b7d672a67c99b225149d95065480cdfee032ee2c5c5eac37784b2082759d12ba", "b7d672a67c99b225149d95065480cdfee032ee2c5c5eac37784b2082759d12ba"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [["角色是红发少女，背景是蓝天白云和树木。"], ["角色是红发少女，背景是蓝天白云和树木。"]]
+      },
+      {
+        "clip": "01-corridor",
+        "latest_frame_ms": [2636.82, 2305.47],
+        "first_frame_ms": [5446.82, 5115.34],
+        "six_frame_digests": ["b63bd9207ad7a089b79357b9f237b2253023f295f658a824f462129e54d8f7e8", "e13269e79789d54c418702c4981c6a64bb25f2bad2aacc0f2dc3e0e8c956e7b1"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "02-landscape",
+        "latest_frame_ms": [2646.29, 2373.97],
+        "first_frame_ms": [5456.33, 5181.07],
+        "six_frame_digests": ["2e92c795991cca86b6586620deed54a1662bdf9d903bc1052923f84f67108eac", "7e55206c78816ad13b4dc8d23a8e4f88ca1f9f2840000eae074170fae847bf8d"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "03-combat-start",
+        "latest_frame_ms": [2652.63, 2410.68],
+        "first_frame_ms": [5462.64, 5220.68],
+        "six_frame_digests": ["f7dcd4d665fa9258033b5010440e202c0d21939648ce83d7aa7c8d31d57917c5", "f7dcd4d665fa9258033b5010440e202c0d21939648ce83d7aa7c8d31d57917c5"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "04-rail-combat",
+        "latest_frame_ms": [2541.67, 2390.58],
+        "first_frame_ms": [5345.74, 5200.59],
+        "six_frame_digests": ["a7c1fc89704b80c930cacbfc4cfc138cc4e6f306d68d68415212df982ac65344", "e7bbfe9243dbbc2f4c19dfd3a0f65bae5e95142f92d38e576181dfb4d2cf558d"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "05-combat-effects",
+        "latest_frame_ms": [2755.12, 2321.7],
+        "first_frame_ms": [5565.15, 5130.56],
+        "six_frame_digests": ["568ab43575a76b98842c4a480aee5d1d17ecd8e64899157d369bc93dbbb76b0c", "3c26540aa6d095517fa6b0ca42afeb4eac9f7527bfe73f71a0c9524537c49995"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "06-battle-transition",
+        "latest_frame_ms": [2557.99, 2265.98],
+        "first_frame_ms": [5367.99, 5072.62],
+        "six_frame_digests": ["f866ca59ededde63eb72fbda43c1a4b129e3195119aee552da60a55fab764883", "f866ca59ededde63eb72fbda43c1a4b129e3195119aee552da60a55fab764883"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      }
+    ]
+  },
+  "initial_vs_release_product": {
+    "latest_frame_to_full_ms": {
+      "n": 10,
+      "baseline_p50_ms": 3387.93,
+      "release_p50_ms": 2442.12,
+      "reduction_pct": 27.92,
+      "speedup": 1.387,
+      "faster_pairs": 10,
+      "baseline_p95_ms": 3483.62,
+      "release_p95_ms": 2517.26
+    },
+    "first_frame_to_full_ms": {
+      "n": 10,
+      "baseline_p50_ms": 5664.03,
+      "release_p50_ms": 5248.37,
+      "reduction_pct": 7.34,
+      "speedup": 1.079,
+      "faster_pairs": 9,
+      "baseline_p95_ms": 6288.22,
+      "release_p95_ms": 5670.38
+    },
+    "render_frame_service_p95_ms": {"original": {"ms": 25.12, "frames": 1640}, "optimized": {"ms": 27.07, "frames": 1110}},
+    "pairs_with_identical_review": 10,
+    "pairs_with_identical_scene_observations": 9,
+    "pairs_with_identical_frame_sha256": 4,
+    "accepted_observations": {"original": 1, "optimized": 2},
+    "speech_requests": {"original": 0, "optimized": 0},
+    "sample_order": "baseline, release",
+    "samples": [
+      {
+        "clip": "01-dialog-choices",
+        "latest_frame_ms": [3080.3, 2467.98],
+        "first_frame_ms": [5483.88, 5277.99],
+        "six_frame_digests": ["a71374518bfa30ac2b8b125e2dc4d3fb4a8d412624ef606162254fb3a98ebe02", "9eca35f6da1bd6acb3986ca6c37a56e7a5374273159cd75bab740f6da193f16c"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "02-echo-sequence",
+        "latest_frame_ms": [3200.91, 2436.64],
+        "first_frame_ms": [5602.0, 5241.79],
+        "six_frame_digests": ["a8ed9b556a3f49dced4b97edf76e333a5a3dcbaebd5879f644192ba8db5e4705", "5f22108a477db32e598d33ca36bd9246deffa5ab935f7cabd6d484dd05ef8af8"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"], ["画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。"]]
+      },
+      {
+        "clip": "03-camera-transition",
+        "latest_frame_ms": [3483.62, 2091.73],
+        "first_frame_ms": [5687.55, 4896.07],
+        "six_frame_digests": ["3d3074da9e337d11d1a72d84f59331001b0d971183b51c5a644f606d1bdf21f2", "a0333abbc3f3abbc1d883f897fd43e8948835db637dc664bf73e13c11ea34b57"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "04-field-dialogue",
+        "latest_frame_ms": [3362.82, 2469.56],
+        "first_frame_ms": [5572.83, 5670.38],
+        "six_frame_digests": ["2955977f97a8e07ae248c5086499809f875e7426a9027c1671cd7d14d388d6ca", "b7d672a67c99b225149d95065480cdfee032ee2c5c5eac37784b2082759d12ba"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], ["角色是红发少女，背景是蓝天白云和树木。"]]
+      },
+      {
+        "clip": "01-corridor",
+        "latest_frame_ms": [3119.06, 2381.94],
+        "first_frame_ms": [5929.09, 5190.95],
+        "six_frame_digests": ["e13269e79789d54c418702c4981c6a64bb25f2bad2aacc0f2dc3e0e8c956e7b1", "e13269e79789d54c418702c4981c6a64bb25f2bad2aacc0f2dc3e0e8c956e7b1"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "02-landscape",
+        "latest_frame_ms": [3438.98, 2517.26],
+        "first_frame_ms": [5640.52, 5327.33],
+        "six_frame_digests": ["fed5c4c519ca3c8e8ffb2f54ea7ad2c8ff55f5d333d2f605e1c465fa7a87cceb", "7e55206c78816ad13b4dc8d23a8e4f88ca1f9f2840000eae074170fae847bf8d"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "03-combat-start",
+        "latest_frame_ms": [3413.04, 2447.6],
+        "first_frame_ms": [5622.62, 5255.69],
+        "six_frame_digests": ["8f0ae9081caad70813112da42c77a2ecefd1ba3a3dd36774bd6c19bb43e73330", "f7dcd4d665fa9258033b5010440e202c0d21939648ce83d7aa7c8d31d57917c5"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "04-rail-combat",
+        "latest_frame_ms": [3467.29, 2321.42],
+        "first_frame_ms": [6268.1, 5131.43],
+        "six_frame_digests": ["c51feb9fe7b3c6f1a5b18e6a26d7e1eff8459a42d3c3d8bd085419b7886e2ec0", "c51feb9fe7b3c6f1a5b18e6a26d7e1eff8459a42d3c3d8bd085419b7886e2ec0"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "05-combat-effects",
+        "latest_frame_ms": [3299.71, 2389.73],
+        "first_frame_ms": [6103.59, 5196.2],
+        "six_frame_digests": ["3c26540aa6d095517fa6b0ca42afeb4eac9f7527bfe73f71a0c9524537c49995", "3c26540aa6d095517fa6b0ca42afeb4eac9f7527bfe73f71a0c9524537c49995"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      },
+      {
+        "clip": "06-battle-transition",
+        "latest_frame_ms": [3481.11, 2454.57],
+        "first_frame_ms": [6288.22, 5254.95],
+        "six_frame_digests": ["f866ca59ededde63eb72fbda43c1a4b129e3195119aee552da60a55fab764883", "f866ca59ededde63eb72fbda43c1a4b129e3195119aee552da60a55fab764883"],
+        "review": "{\"scene\":\"settled\"}",
+        "identical": true,
+        "observations": [[], []]
+      }
+    ]
+  },
+  "fixed_short_vs_previous": {
+    "all": {
+      "n": 6,
+      "baseline_p50_ms": 2523.36,
+      "release_p50_ms": 2357.36,
+      "reduction_pct": 6.58,
+      "speedup": 1.07,
+      "faster_pairs": 6,
+      "baseline_p95_ms": 2749.74,
+      "release_p95_ms": 2374.01
+    },
+    "identical": 6,
+    "samples": [
+      {"case": "0-0", "baseline_ms": 2749.74, "release_ms": 2374.01, "identical": true, "baseline_text": "{\"scene\":\"settled\"}"},
+      {"case": "0-1", "baseline_ms": 2548.82, "release_ms": 2261.25, "identical": true, "baseline_text": "{\"scene\":\"settled\"}"},
+      {"case": "1-0", "baseline_ms": 2477.82, "release_ms": 2279.39, "identical": true, "baseline_text": "{\"scene\":\"settled\"}"},
+      {"case": "1-1", "baseline_ms": 2497.91, "release_ms": 2367.0, "identical": true, "baseline_text": "{\"scene\":\"settled\"}"},
+      {"case": "2-0", "baseline_ms": 2402.68, "release_ms": 2369.43, "identical": true, "baseline_text": "{\"scene\":\"settled\"}"},
+      {"case": "2-1", "baseline_ms": 2592.0, "release_ms": 2347.71, "identical": true, "baseline_text": "{\"scene\":\"settled\"}"}
+    ]
+  },
+  "fixed_long_vs_previous": {
+    "all": {
+      "n": 6,
+      "baseline_p50_ms": 4247.6,
+      "release_p50_ms": 4181.24,
+      "reduction_pct": 1.56,
+      "speedup": 1.016,
+      "faster_pairs": 4,
+      "baseline_p95_ms": 8457.08,
+      "release_p95_ms": 6460.22
+    },
+    "identical": 6,
+    "samples": [
+      {
+        "case": "0-0",
+        "baseline_ms": 4071.28,
+        "release_ms": 4048.03,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在从第1帧的右侧移动到第6帧的左侧，红色目标在从第1帧的右侧移动到第6帧的右侧，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 108,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 108,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "0-1",
+        "baseline_ms": 3654.71,
+        "release_ms": 3324.4,
+        "identical": true,
+        "baseline_text": "{\n\"scene\": \"unclear\",\n\"observation\": \"蓝色圆形从第1帧右上角移动到第6帧右下角，红色目标在最后一帧左上角出现，第1帧右上角是黄色圆形，第6帧右上角是绿色圆形。\",\n\"observed_frames\": [\n  \"1\",\n  \"6\"\n]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 74,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": true,
+        "release_text_tokens_without_eos": 74,
+        "release_accepted_by_product_parser": true
+      },
+      {
+        "case": "1-0",
+        "baseline_ms": 8457.08,
+        "release_ms": 6460.22,
+        "identical": true,
+        "baseline_text": "{\"scene\":\"unclear\",\"observation\":\"蓝色圆形从第1帧右上角移动到第5帧左下角，红色目标在最后一帧左上角消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\"observed_frames\":[\"1\",\"5\",\"6\",\"74\"]}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 61,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 61,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "1-1",
+        "baseline_ms": 4423.92,
+        "release_ms": 4314.45,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear\",\n  \"observation\": \"蓝色圆形在从第1帧到第6帧中从左向右移动，红色目标在从第1帧到第6帧中始终可见，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 107,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 107,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "2-0",
+        "baseline_ms": 4837.64,
+        "release_ms": 4896.13,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在早期（Frame 1）向左移动，红色目标在早期（Frame 1）可见，黄色圆形在早期（Frame 1）可见。蓝色圆形在较晚帧（Frame 6）向右移动，红色目标在较晚帧（Frame 6）可见，黄色圆形在较晚帧（Frame 6）可见。最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 150,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 150,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "2-1",
+        "baseline_ms": 3579.84,
+        "release_ms": 3775.22,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形从第1帧右上角移动到第3帧中间，红色目标在红色目标出现后逐渐消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"3\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 84,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 84,
+        "release_accepted_by_product_parser": false
+      }
+    ],
+    "both_complete_observations": {
+      "n": 6,
+      "baseline_p50_ms": 4247.6,
+      "release_p50_ms": 4181.24,
+      "reduction_pct": 1.56,
+      "speedup": 1.016,
+      "faster_pairs": 4,
+      "baseline_p95_ms": 8457.08,
+      "release_p95_ms": 6460.22
+    },
+    "baseline_parser_observations": 1,
+    "release_parser_observations": 1
+  },
+  "fixed_facts_vs_previous": {
+    "all": {
+      "n": 12,
+      "baseline_p50_ms": 2322.08,
+      "release_p50_ms": 2370.22,
+      "reduction_pct": -2.07,
+      "speedup": 0.98,
+      "faster_pairs": 7,
+      "baseline_p95_ms": 2735.08,
+      "release_p95_ms": 3105.44
+    },
+    "identical": 12,
+    "samples": [
+      {
+        "case": "0-0",
+        "baseline_ms": 2599.77,
+        "release_ms": 2421.07,
+        "identical": true,
+        "baseline_text": "蓝色的圆形从第一帧到最后一帧往屏幕**右**边移动。",
+        "expected": "右",
+        "baseline_prediction": "右",
+        "release_prediction": "右"
+      },
+      {
+        "case": "0-1",
+        "baseline_ms": 2202.14,
+        "release_ms": 2329.13,
+        "identical": true,
+        "baseline_text": "有",
+        "expected": "有",
+        "baseline_prediction": "有",
+        "release_prediction": "有"
+      },
+      {
+        "case": "0-2",
+        "baseline_ms": 2735.08,
+        "release_ms": 3105.44,
+        "identical": true,
+        "baseline_text": "根据图片中的时间戳，最后一帧是Frame 6，0.0s。最后一帧左上角的两位数字是27。",
+        "expected": "27",
+        "baseline_prediction": "27",
+        "release_prediction": "27"
+      },
+      {
+        "case": "0-3",
+        "baseline_ms": 2261.06,
+        "release_ms": 2236.85,
+        "identical": true,
+        "baseline_text": "绿",
+        "expected": "黄",
+        "baseline_prediction": "绿",
+        "release_prediction": "绿"
+      },
+      {
+        "case": "1-0",
+        "baseline_ms": 2503.36,
+        "release_ms": 2411.31,
+        "identical": true,
+        "baseline_text": "蓝色的圆形从第一帧到最后一帧往屏幕**右**边移动。",
+        "expected": "左",
+        "baseline_prediction": "右",
+        "release_prediction": "右"
+      },
+      {
+        "case": "1-1",
+        "baseline_ms": 2125.39,
+        "release_ms": 2128.35,
+        "identical": true,
+        "baseline_text": "有",
+        "expected": "无",
+        "baseline_prediction": "有",
+        "release_prediction": "有"
+      },
+      {
+        "case": "1-2",
+        "baseline_ms": 2722.91,
+        "release_ms": 2540.75,
+        "identical": true,
+        "baseline_text": "根据图片中的时间戳，最后一帧是Frame 6，左上角的两位数字是74。",
+        "expected": "74",
+        "baseline_prediction": "74",
+        "release_prediction": "74"
+      },
+      {
+        "case": "1-3",
+        "baseline_ms": 2132.74,
+        "release_ms": 2078.0,
+        "identical": true,
+        "baseline_text": "绿",
+        "expected": "绿",
+        "baseline_prediction": "绿",
+        "release_prediction": "绿"
+      },
+      {
+        "case": "2-0",
+        "baseline_ms": 2383.1,
+        "release_ms": 2488.65,
+        "identical": true,
+        "baseline_text": "蓝色的圆形从第一帧到最后一帧往屏幕**右**边移动。",
+        "expected": "右",
+        "baseline_prediction": "右",
+        "release_prediction": "右"
+      },
+      {
+        "case": "2-1",
+        "baseline_ms": 2127.2,
+        "release_ms": 2128.99,
+        "identical": true,
+        "baseline_text": "有",
+        "expected": "有",
+        "baseline_prediction": "有",
+        "release_prediction": "有"
+      },
+      {
+        "case": "2-2",
+        "baseline_ms": 2669.89,
+        "release_ms": 2585.43,
+        "identical": true,
+        "baseline_text": "根据图片中的时间戳，最后一帧是Frame 6，0.0s。最后一帧左上角的两位数字是27。",
+        "expected": "27",
+        "baseline_prediction": "27",
+        "release_prediction": "27"
+      },
+      {
+        "case": "2-3",
+        "baseline_ms": 2120.41,
+        "release_ms": 2018.56,
+        "identical": true,
+        "baseline_text": "绿",
+        "expected": "黄",
+        "baseline_prediction": "绿",
+        "release_prediction": "绿"
+      }
+    ],
+    "correct": {"baseline": 8, "release": 8}
+  },
+  "fixed_single_vs_previous": {
+    "all": {
+      "n": 10,
+      "baseline_p50_ms": 731.53,
+      "release_p50_ms": 694.35,
+      "reduction_pct": 5.08,
+      "speedup": 1.054,
+      "faster_pairs": 7,
+      "baseline_p95_ms": 1560.49,
+      "release_p95_ms": 1537.23
+    },
+    "identical": 10,
+    "samples": [
+      {
+        "case": "01-corridor_00",
+        "baseline_ms": 759.05,
+        "release_ms": 656.06,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "026d6553b07bb2e2810e3b18ac37c11e774b83364b819a45345bbc92a6847e48"
+      },
+      {
+        "case": "02-landscape_00",
+        "baseline_ms": 689.84,
+        "release_ms": 630.5,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "ae5bcc5f8ed783c87b017ff1404ecc2973f722eae80f4cffe47381ccd99d34d2"
+      },
+      {
+        "case": "03-combat-start_00",
+        "baseline_ms": 704.02,
+        "release_ms": 666.36,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "96c26a758aa2665d55ec319d0f1f8fb2c44dddfaf3f14ca1c70cb144e7ed4659"
+      },
+      {
+        "case": "04-rail-combat_00",
+        "baseline_ms": 604.71,
+        "release_ms": 697.84,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "82de19de8b0543e9a9375daa44b47669d43c89eb1a8a96c0f53a99bc47d18627"
+      },
+      {
+        "case": "05-combat-effects_00",
+        "baseline_ms": 652.8,
+        "release_ms": 685.62,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "ff3637c8515c0dd1a962f211004b441176f9f9537390ef1808a1b3c136a995aa"
+      },
+      {
+        "case": "06-battle-transition_00",
+        "baseline_ms": 701.23,
+        "release_ms": 690.85,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "7f1999343095d73c6e59121b0922730399be15ade5e77d8ee9016cdb65f77217"
+      },
+      {
+        "case": "01-dialog-choices_00",
+        "baseline_ms": 804.93,
+        "release_ms": 716.08,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "b722c4691db1aa0a1db3df8f274b7645042f83776226327d1b0e71f78659508a"
+      },
+      {
+        "case": "02-echo-sequence_00",
+        "baseline_ms": 1560.49,
+        "release_ms": 1537.23,
+        "identical": true,
+        "baseline_text": "画面中可见一个金色羽翼的奇幻角色，背景是温暖的橙黄色天空，角色周围有发光粒子，整体氛围充满奇幻色彩。",
+        "image_sha256": "a5460ea2bb0cc16cebebc32439ab9c8d7da5b28d8102c47df4b49221e37d419c"
+      },
+      {
+        "case": "03-camera-transition_00",
+        "baseline_ms": 944.35,
+        "release_ms": 959.15,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "edf84b1668f51199a129a202571986964713c04606e4d3c94aee2a4b723ebdd4"
+      },
+      {
+        "case": "04-field-dialogue_00",
+        "baseline_ms": 812.36,
+        "release_ms": 750.33,
+        "identical": true,
+        "baseline_text": "看不清",
+        "image_sha256": "24bee31992184c13d3d1355c94a26130b7989a12a1d5c3b947f09bad32194b6b"
+      }
+    ]
+  },
+  "fixed_long_vs_initial": {
+    "all": {
+      "n": 6,
+      "baseline_p50_ms": 8668.61,
+      "release_p50_ms": 4318.52,
+      "reduction_pct": 50.18,
+      "speedup": 2.007,
+      "faster_pairs": 6,
+      "baseline_p95_ms": 11497.91,
+      "release_p95_ms": 6444.93
+    },
+    "identical": 5,
+    "samples": [
+      {
+        "case": "0-0",
+        "baseline_ms": 8536.01,
+        "release_ms": 4332.2,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在从第1帧的右侧移动到第6帧的左侧，红色目标在从第1帧的右侧移动到第6帧的右侧，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 108,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 108,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "0-1",
+        "baseline_ms": 6776.05,
+        "release_ms": 3649.61,
+        "identical": true,
+        "baseline_text": "{\n\"scene\": \"unclear\",\n\"observation\": \"蓝色圆形从第1帧右上角移动到第6帧右下角，红色目标在最后一帧左上角出现，第1帧右上角是黄色圆形，第6帧右上角是绿色圆形。\",\n\"observed_frames\": [\n  \"1\",\n  \"6\"\n]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 74,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 74,
+        "release_accepted_by_product_parser": true
+      },
+      {
+        "case": "1-0",
+        "baseline_ms": 11497.91,
+        "release_ms": 6444.93,
+        "identical": false,
+        "baseline_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形从第1帧右上角移动到第5帧左下角，红色目标在最后一帧左上角可见，第1帧右上角黄色圆形消失，第5帧左下角蓝色圆形消失，第1帧右上角黄色圆形消失，第5帧左下角蓝色圆形消失，第1帧右上角黄色圆形消失，第5帧左下角蓝色圆形消失，第1帧右上角黄色圆形消失，第5帧左下角蓝色圆形消失，第1帧右上角黄色圆形消失，第5帧左下角蓝色圆形消失，第1帧右上角黄色圆形消失，第5帧左下角蓝色圆形消失，第1帧右上角黄色圆形消失，第5帧左下角蓝色圆形消失，第1帧右上角黄色圆形消失，第5帧",
+        "release_text": "{\"scene\":\"unclear\",\"observation\":\"蓝色圆形从第1帧右上角移动到第5帧左下角，红色目标在最后一帧左上角消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\"observed_frames\":[\"1\",\"5\",\"6\",\"74\"]}",
+        "baseline_observation_and_frames": false,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 160,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 61,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "1-1",
+        "baseline_ms": 8801.21,
+        "release_ms": 4304.84,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear\",\n  \"observation\": \"蓝色圆形在从第1帧到第6帧中从左向右移动，红色目标在从第1帧到第6帧中始终可见，最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 107,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 107,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "2-0",
+        "baseline_ms": 11173.99,
+        "release_ms": 4861.11,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形在早期（Frame 1）向左移动，红色目标在早期（Frame 1）可见，黄色圆形在早期（Frame 1）可见。蓝色圆形在较晚帧（Frame 6）向右移动，红色目标在较晚帧（Frame 6）可见，黄色圆形在较晚帧（Frame 6）可见。最后一帧左上角的数字是27，最早一帧右上角的颜色是绿色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 150,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 150,
+        "release_accepted_by_product_parser": false
+      },
+      {
+        "case": "2-1",
+        "baseline_ms": 7459.65,
+        "release_ms": 3907.48,
+        "identical": true,
+        "baseline_text": "{\n  \"scene\": \" unclear \",\n  \"observation\": \"蓝色圆形从第1帧右上角移动到第3帧中间，红色目标在红色目标出现后逐渐消失，最后一帧左上角的数字是74，最早一帧右上角的颜色是黄色。\",\n  \"observed_frames\": [\n    \"1\",\n    \"3\",\n    \"6\"\n  ]\n}",
+        "baseline_observation_and_frames": true,
+        "release_observation_and_frames": true,
+        "baseline_text_tokens_without_eos": 84,
+        "prompt_sha256": "cc1e5983b0ab4816181b1f87c906d9d7d9edf475dd340f3fc5880ccf0122f472",
+        "baseline_accepted_by_product_parser": false,
+        "release_text_tokens_without_eos": 84,
+        "release_accepted_by_product_parser": false
+      }
+    ],
+    "both_complete_observations": {
+      "n": 5,
+      "baseline_p50_ms": 8536.01,
+      "release_p50_ms": 4304.84,
+      "reduction_pct": 49.57,
+      "speedup": 1.983,
+      "faster_pairs": 5,
+      "baseline_p95_ms": 11173.99,
+      "release_p95_ms": 4861.11
+    },
+    "baseline_parser_observations": 0,
+    "release_parser_observations": 1
+  },
+  "retry_isolation": {
+    "condition": "One fixed retry-triggering six-frame long prompt, repeated four times in alternating order. Both complete attempts retain their original 160-token limit.",
+    "n": 4,
+    "baseline_p50_ms": 7779.19,
+    "release_p50_ms": 5657.93,
+    "reduction_pct": 27.27,
+    "speedup": 1.375,
+    "faster_pairs": 4,
+    "baseline_p95_ms": 8268.53,
+    "release_p95_ms": 6216.55,
+    "all_text_identical": true,
+    "timings_ms": {"time-stock": [8268.53, 7679.79, 7662.3, 7878.6], "time-memo": [6216.55, 5701.41, 5614.46, 5528.27]}
+  },
+  "projection_numerics": {
+    "mlp": [
+      {"tokens": 1, "layer": 0, "element_count": 1024, "different": 0},
+      {"tokens": 1, "layer": 11, "element_count": 1024, "different": 0},
+      {"tokens": 1, "layer": 23, "element_count": 1024, "different": 0},
+      {"tokens": 127, "layer": 0, "element_count": 130048, "different": 0},
+      {"tokens": 127, "layer": 11, "element_count": 130048, "different": 0},
+      {"tokens": 127, "layer": 23, "element_count": 130048, "different": 0},
+      {"tokens": 128, "layer": 0, "element_count": 131072, "different": 0},
+      {"tokens": 128, "layer": 11, "element_count": 131072, "different": 0},
+      {"tokens": 128, "layer": 23, "element_count": 131072, "different": 0},
+      {"tokens": 176, "layer": 0, "element_count": 180224, "different": 0},
+      {"tokens": 176, "layer": 11, "element_count": 180224, "different": 0},
+      {"tokens": 176, "layer": 23, "element_count": 180224, "different": 0},
+      {"tokens": 1076, "layer": 0, "element_count": 1101824, "different": 0},
+      {"tokens": 1076, "layer": 11, "element_count": 1101824, "different": 0},
+      {"tokens": 1076, "layer": 23, "element_count": 1101824, "different": 0},
+      {"tokens": 1146, "layer": 0, "element_count": 1173504, "different": 0},
+      {"tokens": 1146, "layer": 11, "element_count": 1173504, "different": 0},
+      {"tokens": 1146, "layer": 23, "element_count": 1173504, "different": 0}
+    ],
+    "checkpoint_scope": "exact prefix, mutable cache snapshot, added image/video, re-tokenized and non-extension guards passed"
+  },
+  "limitations": "Single M3 Pro, synthetic Metal competition and prerecorded Wuthering Waves. Real game frame rate, physical audio latency, other hardware and general population quality are unmeasured. Tests compare against the baseline model and preserve its mistakes.",
+  "pressure_probe": {
+    "probe": "IOAccelerator PerformanceStatistics Device Utilization %, sampled during an independent renderer-only run",
+    "samples": [97, 98, 98, 97, 97, 97, 100, 100, 99, 97, 97, 97, 98, 97, 98, 98, 98, 97, 97, 100],
+    "interval_s": 0.3,
+    "median": 97.5
+  },
+  "fixed_sheet_hashes": {
+    "0-0": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+    "0-1": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+    "0-2": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+    "0-3": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+    "1-0": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+    "1-1": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+    "1-2": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+    "1-3": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+    "2-0": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+    "2-1": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+    "2-2": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+    "2-3": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a"
+  },
+  "fixed_sheet_source_check": "All 12 questions used six original frames. The original and release contact sheet produced identical JPEG bytes for each case.",
+  "idle_vs_previous": {
+    "short": {
+      "n": 3,
+      "baseline_p50_ms": 637.05,
+      "release_p50_ms": 622.63,
+      "reduction_pct": 2.26,
+      "speedup": 1.023,
+      "faster_pairs": 3,
+      "baseline_p95_ms": 815.78,
+      "release_p95_ms": 627.23,
+      "identical": 3
+    },
+    "long": {
+      "n": 3,
+      "baseline_p50_ms": 1706.03,
+      "release_p50_ms": 1525.9,
+      "reduction_pct": 10.56,
+      "speedup": 1.118,
+      "faster_pairs": 1,
+      "baseline_p95_ms": 3049.66,
+      "release_p95_ms": 3201.42,
+      "identical": 3
+    }
+  },
+  "additional_trials": {
+    "thread-check": {
+      "thread4": {"long": {"n": 3, "baseline_p50_ms": 4120.16, "release_p50_ms": 4257.37, "faster_pairs": 0, "identical": 3}},
+      "thread8": {"long": {"n": 3, "baseline_p50_ms": 4120.16, "release_p50_ms": 4118.97, "faster_pairs": 2, "identical": 3}},
+      "render_service_p95_ms": {"release-worker": {"ms": 24.28, "frames": 781}, "thread4": {"ms": 24.26, "frames": 792}, "thread8": {"ms": 24.22, "frames": 769}}
+    },
+    "ngram-check": {
+      "ngram": {"long": {"n": 6, "baseline_p50_ms": 4300.81, "release_p50_ms": 4025.86, "faster_pairs": 4, "identical": 6}},
+      "render_service_p95_ms": {"release-worker": {"ms": 24.51, "frames": 1470}, "ngram": {"ms": 24.82, "frames": 1421}}
+    },
+    "head-confirm": {
+      "ngram-trace": {"long": {"n": 6, "baseline_p50_ms": 4141.36, "release_p50_ms": 4232.66, "faster_pairs": 3, "identical": 6}},
+      "head2": {"long": {"n": 6, "baseline_p50_ms": 4141.36, "release_p50_ms": 4218.7, "faster_pairs": 2, "identical": 6}},
+      "render_service_p95_ms": {"release-worker": {"ms": 24.5, "frames": 1446}, "ngram-trace": {"ms": 24.73, "frames": 1463}, "head2": {"ms": 24.58, "frames": 1462}}
+    },
+    "row-long": {
+      "row2": {"long": {"n": 4, "baseline_p50_ms": 4459.29, "release_p50_ms": 4291.3, "faster_pairs": 2, "identical": 4}},
+      "row4": {"long": {"n": 4, "baseline_p50_ms": 4459.29, "release_p50_ms": 5038.35, "faster_pairs": 0, "identical": 4}},
+      "render_service_p95_ms": {"release-worker": {"ms": 24.72, "frames": 1023}, "row2": {"ms": 24.54, "frames": 1034}, "row4": {"ms": 23.49, "frames": 1219}}
+    },
+    "queue-check": {
+      "fine": {
+        "long": {"n": 3, "baseline_p50_ms": 4068.75, "release_p50_ms": 4004.11, "faster_pairs": 2, "identical": 3},
+        "short": {"n": 3, "baseline_p50_ms": 2317.79, "release_p50_ms": 2295.21, "faster_pairs": 2, "identical": 3}
+      },
+      "coarse": {
+        "long": {"n": 3, "baseline_p50_ms": 4068.75, "release_p50_ms": 4130.12, "faster_pairs": 0, "identical": 3},
+        "short": {"n": 3, "baseline_p50_ms": 2317.79, "release_p50_ms": 2318.32, "faster_pairs": 2, "identical": 3}
+      },
+      "render_service_p95_ms": {"release-worker": {"ms": 25.42, "frames": 1143}, "fine": {"ms": 26.41, "frames": 1097}, "coarse": {"ms": 25.19, "frames": 1138}}
+    },
+    "long_prompt_lookup_attempts_including_warmup": 0,
+    "verifier_operator_ms": [
+      {"t": 8, "module": "head", "ms": {"stock": 28.811, "1": 22.739, "2": 21.561, "4": 27.086}},
+      {"t": 8, "module": "down", "ms": {"stock": 1.431, "1": 1.348, "2": 1.227, "4": 0.758}},
+      {"t": 8, "module": "gate_up", "ms": {"stock": 1.493, "1": 1.743, "2": 1.5, "4": 1.521}},
+      {"t": 12, "module": "head", "ms": {"stock": 73.036, "1": 31.941, "2": 25.202, "4": 30.064}},
+      {"t": 12, "module": "down", "ms": {"stock": 0.674, "1": 1.629, "2": 1.494, "4": 1.373}},
+      {"t": 12, "module": "gate_up", "ms": {"stock": 2.795, "1": 1.494, "2": 1.714, "4": 3.144}}
+    ]
+  },
+  "verification_build": "The shipping MLP eligibility guard checks the tested shape and BF16 weights. Packing allocation failures retain the stock MLX path.",
+  "engineering_gates": {
+    "ruff": "passed",
+    "strict_mypy": "0 diagnostics in 224 source files",
+    "pyright": "0 errors, 0 warnings",
+    "pytest": {"passed": 691, "skipped": 13, "elapsed_s": 59.73},
+    "separate_jev_runtime": {"passed": 12},
+    "remaining_platform_only": "Windows",
+    "upstream_original_voice_contract": {"passed": 4, "physical_audio_playback": false}
+  },
+  "rejected_experiments": {
+    "sequence-gate": "Neural Engine phrase prefix with original Metal image encoder and last 64 image tokens on Metal. All 12 factual answers matched but long case 2-1 omitted the requested score and first-frame color.",
+    "memory-mlp": "Q4 prefill projections and a bounded Metal allocator prototype.",
+    "wide-check": "Exact verifier blocks of 12 or 20 tokens were slower on normal long answers.",
+    "tail": "Unchecked CPU continuation changed the icon position in a long observation."
+  },
+  "raw_records": "Local profile_output/paired-runs.tar.gz contains the paired response logs, render traces, test logs and measurement harnesses."
+}

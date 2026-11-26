@@ -1,0 +1,3795 @@
+{
+  "hardware": "MacBook Pro, Apple M3 Pro, 18 GiB unified memory, macOS 14.7.8",
+  "runtime": {
+    "python": "3.12.9",
+    "macos": "14.7.8",
+    "machine": "arm64",
+    "packages": {
+      "mlx": "0.32.2",
+      "mlx-metal": "0.32.2",
+      "mlx-vlm": "0.7.0",
+      "safetensors": "0.8.0",
+      "transformers": "5.17.0",
+      "numpy": "2.5.3",
+      "Pillow": "12.3.0"
+    }
+  },
+  "original_revision": "1cf6e36908bc44dbaabee0170131ce498481a323",
+  "previous_release": "a5950327760f71cb019f1c0d4fbc9896564caa1d",
+  "weights": {
+    "target_safetensors": "f5a0d9dd3efa73510542a8023d610ff26be2b4b020d181cfc4bedaa1fcc5dd9e",
+    "cpu_gguf": "b53d7f088ef75f3d8b9de15a1ee07dbd7607bb3e08de3943ea8daf9314dc3312",
+    "cpu_runtime": "llama.cpp b12441; derived Q4_1 copy of the same target weights"
+  },
+  "sources": [
+    {
+      "key": "game-hud",
+      "url": "https://archive.org/details/defeat-utterance-of-marvels-1-wuthering-waves",
+      "file": ")Defeat  -Utterance of Marvels 1-Wuthering Waves.mp4",
+      "sha1": "52536e816d7b60b53f503fd4ceead13c6f7be35c",
+      "bytes": 24308988
+    },
+    {
+      "key": "combat-nohud",
+      "url": "https://archive.org/details/wuthering-waves-2025-05-02-08-13-23",
+      "file": "10 min combat no HUD 2025-05-08 17-25-04.ia.mp4",
+      "sha1": "324b52985b26c06d2a5ea54222922dd1755d1f59",
+      "bytes": 59096590
+    }
+  ],
+  "protocol": {
+    "fresh_game": "Eight distinct six-second windows across two Wuthering Waves gameplay recordings, six production frames, 1024x960 JPEG fixed by SHA-256. The high-detail prompt uses the same 160-token limit and includes format recovery.",
+    "recall": "Another eight clips, two new questions on each image. One worker resident per run in A/B/B/A order. One excluded warm-up per worker. Each version sees the same inputs, questions and output limits.",
+    "render": "1280x720 offscreen Metal rendering, 60Hz target, 1450 shader iterations. GPU device utilization sampled every 0.5s. Render times are simulator service times. NSProcessInfo thermal state 0 is nominal. Darwin memory-pressure level 1 is normal.",
+    "statistics": "Wall clock through the whole final answer. p50 is the median, p95 nearest rank. Repeated measurements on the same eight windows are paired but are not additional independent clips.",
+    "native": "Production capture, selection, parsing, voice eligibility; recorded frame provider and test speech transport. No live game client or speaker measurements.",
+    "close_pairs": "One worker resident. Four groups of two six-frame clips each, one excluded warm-up per launch. Versions alternate in adjacent launches, reversing order on the second pass. The screen label steady-original-submit matches all six shipped vision Python modules byte for byte.",
+    "continuous_workers": "Continuous fresh gameplay was measured both with separately initialized workers resident in the same run (alternating each image and reversing order in another run), and with only one instance resident at a time (original/previous/current/current/previous/original startup order, eight windows each). All requests are sequential.",
+    "idle_renderer": "Separate 15-second Metal run at identical resolution, shader settings and frame-rate target, without an inference worker. First second excluded.",
+    "comparison": "Original and previous release are independently timed. Only paired intervals with identical fixed input bytes and prompts are compared for long-answer speed. Product-selected inputs and audio requests are reported separately."
+  },
+  "checks": {
+    "ruff": "All checks passed!",
+    "mypy": "Success: no issues found in 234 source files",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "pytest": "======================= 723 passed, 13 skipped in 51.91s =======================",
+    "input": "Pixel tensors and image grids matched for four RGB images, including resize and retry.",
+    "jev": "OK",
+    "packaged": "Packaged source contains the visual worker modules, with contents verified.",
+    "original-voice": "7 passed, 20 deselected in 0.21s"
+  },
+  "tests": {
+    "recall": {
+      "fresh-long": {
+        "by_mode": {
+          "candidate": {
+            "latency_ms": {
+              "n": 16,
+              "p50": 6214.79,
+              "p95": 9636.14
+            },
+            "characters": {
+              "n": 16,
+              "p50": 264.0,
+              "p95": 300
+            },
+            "gpu_percent": {
+              "n": 216,
+              "p50": 100.0,
+              "p95": 100
+            },
+            "thermal_state": {
+              "n": 216,
+              "p50": 0.0,
+              "p95": 0
+            },
+            "macOS_memory_pressure": {
+              "n": 216,
+              "p50": 1.0,
+              "p95": 1
+            },
+            "renderer_service_ms": {
+              "n": 6084,
+              "p50": 16.5,
+              "p95": 22.69
+            },
+            "complete": 4,
+            "product_observation": 0
+          },
+          "baseline": {
+            "latency_ms": {
+              "n": 16,
+              "p50": 5479.51,
+              "p95": 9887.41
+            },
+            "characters": {
+              "n": 16,
+              "p50": 264.0,
+              "p95": 300
+            },
+            "gpu_percent": {
+              "n": 185,
+              "p50": 99,
+              "p95": 100
+            },
+            "thermal_state": {
+              "n": 185,
+              "p50": 0,
+              "p95": 0
+            },
+            "macOS_memory_pressure": {
+              "n": 185,
+              "p50": 1,
+              "p95": 1
+            },
+            "renderer_service_ms": {
+              "n": 5324,
+              "p50": 16.02,
+              "p95": 22.52
+            },
+            "complete": 4,
+            "product_observation": 0
+          }
+        },
+        "median_speedup": 0.882,
+        "median_latency_reduction_percent": -13.42,
+        "paired_median_saving_ms": {
+          "n": 16,
+          "p50": -282.82,
+          "p95": 1233.06
+        },
+        "faster": 5,
+        "pairs": 16,
+        "unique_images": 8,
+        "same_text": 16,
+        "both_complete": {
+          "n": 4,
+          "reference_ms": {
+            "n": 4,
+            "p50": 5811.52,
+            "p95": 7129.4
+          },
+          "candidate_ms": {
+            "n": 4,
+            "p50": 6063.48,
+            "p95": 8677.76
+          }
+        },
+        "measurements": [
+          {
+            "case": "battle-novel-game-hud-19",
+            "reference_ms": 5556.3,
+            "candidate_ms": 5913.91,
+            "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-65",
+            "reference_ms": 4405.6,
+            "candidate_ms": 4613.64,
+            "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-127",
+            "reference_ms": 6152.22,
+            "candidate_ms": 6180.4,
+            "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-175",
+            "reference_ms": 4918.29,
+            "candidate_ms": 4651.78,
+            "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-49",
+            "reference_ms": 4906.19,
+            "candidate_ms": 4960.5,
+            "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-167",
+            "reference_ms": 5402.73,
+            "candidate_ms": 5238.07,
+            "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+            "same_text": true,
+            "both_complete": true,
+            "same_complete": true
+          },
+          {
+            "case": "battle-novel-combat-nohud-329",
+            "reference_ms": 7482.24,
+            "candidate_ms": 6249.18,
+            "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-462",
+            "reference_ms": 6220.31,
+            "candidate_ms": 5485.99,
+            "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+            "same_text": true,
+            "both_complete": true,
+            "same_complete": true
+          },
+          {
+            "case": "battle-novel-game-hud-19",
+            "reference_ms": 5976.83,
+            "candidate_ms": 8769.39,
+            "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-65",
+            "reference_ms": 4542.67,
+            "candidate_ms": 8804.43,
+            "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-127",
+            "reference_ms": 6440.12,
+            "candidate_ms": 7637.24,
+            "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-175",
+            "reference_ms": 5186.28,
+            "candidate_ms": 9439.57,
+            "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-49",
+            "reference_ms": 4870.15,
+            "candidate_ms": 6044.24,
+            "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-167",
+            "reference_ms": 5367.73,
+            "candidate_ms": 6640.96,
+            "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+            "same_text": true,
+            "both_complete": true,
+            "same_complete": true
+          },
+          {
+            "case": "battle-novel-combat-nohud-329",
+            "reference_ms": 9887.41,
+            "candidate_ms": 9636.14,
+            "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-462",
+            "reference_ms": 7129.4,
+            "candidate_ms": 8677.76,
+            "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+            "same_text": true,
+            "both_complete": true,
+            "same_complete": true
+          }
+        ]
+      },
+      "saved-question": {
+        "by_mode": {
+          "candidate": {
+            "latency_ms": {
+              "n": 16,
+              "p50": 964.67,
+              "p95": 1650.94
+            },
+            "characters": {
+              "n": 16,
+              "p50": 9.5,
+              "p95": 28
+            },
+            "gpu_percent": {
+              "n": 32,
+              "p50": 100.0,
+              "p95": 100
+            },
+            "thermal_state": {
+              "n": 32,
+              "p50": 0.0,
+              "p95": 0
+            },
+            "macOS_memory_pressure": {
+              "n": 32,
+              "p50": 1.0,
+              "p95": 1
+            },
+            "renderer_service_ms": {
+              "n": 935,
+              "p50": 16.78,
+              "p95": 19.51
+            },
+            "complete": 0,
+            "product_observation": 0
+          },
+          "baseline": {
+            "latency_ms": {
+              "n": 16,
+              "p50": 1486.8,
+              "p95": 1888.68
+            },
+            "characters": {
+              "n": 16,
+              "p50": 9.5,
+              "p95": 28
+            },
+            "gpu_percent": {
+              "n": 49,
+              "p50": 100,
+              "p95": 100
+            },
+            "thermal_state": {
+              "n": 49,
+              "p50": 0,
+              "p95": 0
+            },
+            "macOS_memory_pressure": {
+              "n": 49,
+              "p50": 1,
+              "p95": 1
+            },
+            "renderer_service_ms": {
+              "n": 1326,
+              "p50": 17.66,
+              "p95": 21.67
+            },
+            "complete": 0,
+            "product_observation": 0
+          }
+        },
+        "median_speedup": 1.541,
+        "median_latency_reduction_percent": 35.12,
+        "paired_median_saving_ms": {
+          "n": 16,
+          "p50": 581.06,
+          "p95": 710.76
+        },
+        "faster": 15,
+        "pairs": 16,
+        "unique_images": 8,
+        "same_text": 16,
+        "both_complete": {
+          "n": 0,
+          "reference_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          },
+          "candidate_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          }
+        },
+        "measurements": [
+          {
+            "case": "battle-novel-game-hud-19",
+            "reference_ms": 1289.89,
+            "candidate_ms": 707.74,
+            "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-65",
+            "reference_ms": 1376.17,
+            "candidate_ms": 792.24,
+            "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-127",
+            "reference_ms": 1657.09,
+            "candidate_ms": 993.87,
+            "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-175",
+            "reference_ms": 1458.44,
+            "candidate_ms": 875.84,
+            "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-49",
+            "reference_ms": 1553.13,
+            "candidate_ms": 973.17,
+            "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-167",
+            "reference_ms": 1442.27,
+            "candidate_ms": 818.84,
+            "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-329",
+            "reference_ms": 1462.15,
+            "candidate_ms": 831.96,
+            "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-462",
+            "reference_ms": 1488.23,
+            "candidate_ms": 777.47,
+            "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-19",
+            "reference_ms": 1396.44,
+            "candidate_ms": 901.77,
+            "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-65",
+            "reference_ms": 1510.7,
+            "candidate_ms": 1285.93,
+            "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-127",
+            "reference_ms": 1888.68,
+            "candidate_ms": 1212.63,
+            "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-175",
+            "reference_ms": 1453.9,
+            "candidate_ms": 1650.94,
+            "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-49",
+            "reference_ms": 1591.25,
+            "candidate_ms": 1104.05,
+            "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-167",
+            "reference_ms": 1485.37,
+            "candidate_ms": 956.18,
+            "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-329",
+            "reference_ms": 1506.5,
+            "candidate_ms": 1175.12,
+            "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-462",
+            "reference_ms": 1496.16,
+            "candidate_ms": 1196.54,
+            "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          }
+        ]
+      },
+      "saved-detail": {
+        "by_mode": {
+          "candidate": {
+            "latency_ms": {
+              "n": 16,
+              "p50": 2503.79,
+              "p95": 5029.24
+            },
+            "characters": {
+              "n": 16,
+              "p50": 137.0,
+              "p95": 189
+            },
+            "gpu_percent": {
+              "n": 86,
+              "p50": 100.0,
+              "p95": 100
+            },
+            "thermal_state": {
+              "n": 86,
+              "p50": 0.0,
+              "p95": 0
+            },
+            "macOS_memory_pressure": {
+              "n": 86,
+              "p50": 1.0,
+              "p95": 1
+            },
+            "renderer_service_ms": {
+              "n": 2420,
+              "p50": 16.4,
+              "p95": 19.5
+            },
+            "complete": 0,
+            "product_observation": 0
+          },
+          "baseline": {
+            "latency_ms": {
+              "n": 16,
+              "p50": 2887.68,
+              "p95": 3994.34
+            },
+            "characters": {
+              "n": 16,
+              "p50": 137.0,
+              "p95": 189
+            },
+            "gpu_percent": {
+              "n": 92,
+              "p50": 99.0,
+              "p95": 100
+            },
+            "thermal_state": {
+              "n": 92,
+              "p50": 0.0,
+              "p95": 0
+            },
+            "macOS_memory_pressure": {
+              "n": 92,
+              "p50": 1.0,
+              "p95": 1
+            },
+            "renderer_service_ms": {
+              "n": 2616,
+              "p50": 16.43,
+              "p95": 20.37
+            },
+            "complete": 0,
+            "product_observation": 0
+          }
+        },
+        "median_speedup": 1.153,
+        "median_latency_reduction_percent": 13.29,
+        "paired_median_saving_ms": {
+          "n": 16,
+          "p50": 713.62,
+          "p95": 1207.07
+        },
+        "faster": 10,
+        "pairs": 16,
+        "unique_images": 8,
+        "same_text": 16,
+        "both_complete": {
+          "n": 0,
+          "reference_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          },
+          "candidate_ms": {
+            "n": 0,
+            "p50": null,
+            "p95": null
+          }
+        },
+        "measurements": [
+          {
+            "case": "battle-novel-game-hud-19",
+            "reference_ms": 3141.25,
+            "candidate_ms": 2220.31,
+            "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-65",
+            "reference_ms": 3944.92,
+            "candidate_ms": 2894.61,
+            "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-127",
+            "reference_ms": 2813.81,
+            "candidate_ms": 2082.77,
+            "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-175",
+            "reference_ms": 2790.78,
+            "candidate_ms": 1832.18,
+            "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-49",
+            "reference_ms": 1980.62,
+            "candidate_ms": 1238.65,
+            "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-167",
+            "reference_ms": 2263.51,
+            "candidate_ms": 1567.31,
+            "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-329",
+            "reference_ms": 2739.62,
+            "candidate_ms": 1757.88,
+            "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-462",
+            "reference_ms": 3994.34,
+            "candidate_ms": 2787.27,
+            "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-19",
+            "reference_ms": 3064.8,
+            "candidate_ms": 5029.24,
+            "image_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-65",
+            "reference_ms": 3743.35,
+            "candidate_ms": 3749.46,
+            "image_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-127",
+            "reference_ms": 2961.54,
+            "candidate_ms": 3558.71,
+            "image_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-game-hud-175",
+            "reference_ms": 2539.47,
+            "candidate_ms": 3883.78,
+            "image_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-49",
+            "reference_ms": 2028.99,
+            "candidate_ms": 1793.39,
+            "image_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-167",
+            "reference_ms": 2517.8,
+            "candidate_ms": 1770.62,
+            "image_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-329",
+            "reference_ms": 3039.42,
+            "candidate_ms": 3061.47,
+            "image_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          },
+          {
+            "case": "battle-novel-combat-nohud-462",
+            "reference_ms": 3811.97,
+            "candidate_ms": 4048.24,
+            "image_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+            "same_text": true,
+            "both_complete": false,
+            "same_complete": false
+          }
+        ]
+      }
+    },
+    "fresh_gameplay_long": {
+      "by_mode": {
+        "baseline": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 5674.14,
+            "p95": 9019.71
+          },
+          "characters": {
+            "n": 16,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 188,
+            "p50": 100.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 188,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 188,
+            "p50": 1.0,
+            "p95": 2
+          },
+          "renderer_service_ms": {
+            "n": 5204,
+            "p50": 16.96,
+            "p95": 23.74
+          },
+          "complete": 10,
+          "product_observation": 0
+        },
+        "candidate": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 5715.01,
+            "p95": 10196.29
+          },
+          "characters": {
+            "n": 16,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 194,
+            "p50": 100.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 194,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 194,
+            "p50": 1.0,
+            "p95": 2
+          },
+          "renderer_service_ms": {
+            "n": 5338,
+            "p50": 17.11,
+            "p95": 23.84
+          },
+          "complete": 10,
+          "product_observation": 0
+        }
+      },
+      "median_speedup": 0.993,
+      "median_latency_reduction_percent": -0.72,
+      "paired_median_saving_ms": {
+        "n": 16,
+        "p50": -51.01,
+        "p95": 682.69
+      },
+      "faster": 8,
+      "pairs": 16,
+      "unique_images": 8,
+      "same_text": 16,
+      "both_complete": {
+        "n": 10,
+        "reference_ms": {
+          "n": 10,
+          "p50": 4744.03,
+          "p95": 6029.45
+        },
+        "candidate_ms": {
+          "n": 10,
+          "p50": 4921.72,
+          "p95": 6076.07
+        }
+      },
+      "measurements": [
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 5519.03,
+          "candidate_ms": 4991.69,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 7830.98,
+          "candidate_ms": 9144.8,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 5508.91,
+          "candidate_ms": 5924.2,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 8772.85,
+          "candidate_ms": 10196.29,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 4484.39,
+          "candidate_ms": 4475.24,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 6029.45,
+          "candidate_ms": 5505.83,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 9019.71,
+          "candidate_ms": 8539.14,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 5829.24,
+          "candidate_ms": 6076.07,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 4153.53,
+          "candidate_ms": 5043.19,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 6633.75,
+          "candidate_ms": 5951.06,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 4559.03,
+          "candidate_ms": 4208.29,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 7206.38,
+          "candidate_ms": 7409.62,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 3997.65,
+          "candidate_ms": 3727.19,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 4441.03,
+          "candidate_ms": 4552.21,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 6204.91,
+          "candidate_ms": 7687.93,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 4929.03,
+          "candidate_ms": 4851.74,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        }
+      ]
+    },
+    "fresh_gameplay_short": {
+      "by_mode": {
+        "baseline": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 2271.52,
+            "p95": 2686.23
+          },
+          "characters": {
+            "n": 8,
+            "p50": 19.0,
+            "p95": 19
+          },
+          "gpu_percent": {
+            "n": 39,
+            "p50": 100,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 39,
+            "p50": 0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 39,
+            "p50": 2,
+            "p95": 2
+          },
+          "renderer_service_ms": {
+            "n": 920,
+            "p50": 19.47,
+            "p95": 27.21
+          },
+          "complete": 0,
+          "product_observation": 0
+        },
+        "candidate": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 2278.55,
+            "p95": 2822.13
+          },
+          "characters": {
+            "n": 8,
+            "p50": 19.0,
+            "p95": 19
+          },
+          "gpu_percent": {
+            "n": 36,
+            "p50": 100.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 36,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 36,
+            "p50": 1.0,
+            "p95": 2
+          },
+          "renderer_service_ms": {
+            "n": 912,
+            "p50": 19.51,
+            "p95": 26.41
+          },
+          "complete": 0,
+          "product_observation": 0
+        }
+      },
+      "median_speedup": 0.997,
+      "median_latency_reduction_percent": -0.31,
+      "paired_median_saving_ms": {
+        "n": 8,
+        "p50": 52.16,
+        "p95": 346.25
+      },
+      "faster": 5,
+      "pairs": 8,
+      "unique_images": 8,
+      "same_text": 8,
+      "both_complete": {
+        "n": 0,
+        "reference_ms": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        },
+        "candidate_ms": {
+          "n": 0,
+          "p50": null,
+          "p95": null
+        }
+      },
+      "measurements": [
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 2162.98,
+          "candidate_ms": 2172.83,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 2266.36,
+          "candidate_ms": 2133.03,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 2276.67,
+          "candidate_ms": 2217.11,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 2095.15,
+          "candidate_ms": 2454.89,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 2011.82,
+          "candidate_ms": 1807.87,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 2686.23,
+          "candidate_ms": 2339.98,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 2674.68,
+          "candidate_ms": 2629.92,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 2662.13,
+          "candidate_ms": 2822.13,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        }
+      ]
+    },
+    "from_original": {
+      "by_mode": {
+        "base": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 11694.96,
+            "p95": 14149.02
+          },
+          "characters": {
+            "n": 8,
+            "p50": 273.0,
+            "p95": 339
+          },
+          "gpu_percent": {
+            "n": 182,
+            "p50": 100.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 182,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 182,
+            "p50": 1.0,
+            "p95": 1
+          },
+          "renderer_service_ms": {
+            "n": 5286,
+            "p50": 16.38,
+            "p95": 20.67
+          },
+          "complete": 2,
+          "product_observation": 0
+        },
+        "candidate": {
+          "latency_ms": {
+            "n": 8,
+            "p50": 5760.06,
+            "p95": 8293.98
+          },
+          "characters": {
+            "n": 8,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 90,
+            "p50": 100.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 90,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 90,
+            "p50": 1.0,
+            "p95": 1
+          },
+          "renderer_service_ms": {
+            "n": 2460,
+            "p50": 16.66,
+            "p95": 24.33
+          },
+          "complete": 5,
+          "product_observation": 0
+        }
+      },
+      "median_speedup": 2.03,
+      "median_latency_reduction_percent": 50.75,
+      "paired_median_saving_ms": {
+        "n": 8,
+        "p50": 5207.92,
+        "p95": 9228.43
+      },
+      "faster": 8,
+      "pairs": 8,
+      "unique_images": 8,
+      "same_text": 3,
+      "both_complete": {
+        "n": 2,
+        "reference_ms": {
+          "n": 2,
+          "p50": 10724.9,
+          "p95": 12286.16
+        },
+        "candidate_ms": {
+          "n": 2,
+          "p50": 5516.98,
+          "p95": 7045.72
+        }
+      },
+      "measurements": [
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 11103.76,
+          "candidate_ms": 3726.52,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 9708.11,
+          "candidate_ms": 6893.29,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 14149.02,
+          "candidate_ms": 5203.28,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 10576.0,
+          "candidate_ms": 6316.84,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 12656.82,
+          "candidate_ms": 3428.39,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 9163.64,
+          "candidate_ms": 3988.23,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": false,
+          "both_complete": true,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 12963.81,
+          "candidate_ms": 8293.98,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 12286.16,
+          "candidate_ms": 7045.72,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": false,
+          "both_complete": true,
+          "same_complete": true
+        }
+      ]
+    },
+    "game_companion_entry": {
+      "by_mode": {
+        "original": {
+          "last_frame_to_completion_ms": {
+            "n": 8,
+            "p50": 3793.12,
+            "p95": 4439.72
+          },
+          "start_to_completion_ms": {
+            "n": 8,
+            "p50": 6715.76,
+            "p95": 7244.73
+          },
+          "six_frames": 8,
+          "speech_requests": 0,
+          "accepted_observations": 0,
+          "timeouts": 0
+        },
+        "optimized": {
+          "last_frame_to_completion_ms": {
+            "n": 8,
+            "p50": 2458.3,
+            "p95": 3012.33
+          },
+          "start_to_completion_ms": {
+            "n": 8,
+            "p50": 5136.32,
+            "p95": 5812.47
+          },
+          "six_frames": 8,
+          "speech_requests": 0,
+          "accepted_observations": 0,
+          "timeouts": 0
+        }
+      },
+      "same_selected_frames": 3,
+      "same_text": 8
+    },
+    "factual_gameplay": {
+      "baseline": {
+        "n": 8,
+        "correct": 8,
+        "same_answer_as_initial": 8
+      },
+      "candidate": {
+        "n": 8,
+        "correct": 8,
+        "same_answer_as_initial": 8
+      },
+      "original": {
+        "n": 8,
+        "correct": 8
+      }
+    },
+    "synthetic": {
+      "baseline": {
+        "n": 20,
+        "correct": 14,
+        "same_answer_as_initial": 20
+      },
+      "candidate": {
+        "n": 20,
+        "correct": 14,
+        "same_answer_as_initial": 20
+      },
+      "original": {
+        "n": 20,
+        "correct": 14
+      }
+    },
+    "generic": {
+      "baseline": [
+        {
+          "mode": "baseline",
+          "load": "idle",
+          "kind": "editor",
+          "case": "editor-1",
+          "expected": "14:30",
+          "answer": "画面显示的开会时间是14:30。",
+          "visible_value_correct": true,
+          "ms": 541.94,
+          "start": 184776.397136208,
+          "end": 184776.939080833,
+          "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+        },
+        {
+          "mode": "baseline",
+          "load": "idle",
+          "kind": "hud",
+          "case": "hud-2",
+          "expected": "24",
+          "answer": "画面右上方的分数是24。",
+          "visible_value_correct": true,
+          "ms": 423.8,
+          "start": 184776.944410625,
+          "end": 184777.368206458,
+          "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+        },
+        {
+          "mode": "baseline",
+          "load": "idle",
+          "kind": "editor",
+          "case": "editor-3",
+          "expected": "16:45",
+          "answer": "画面显示的开会时间是16:45。",
+          "visible_value_correct": true,
+          "ms": 457.7,
+          "start": 184777.376687333,
+          "end": 184777.834391416,
+          "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+        },
+        {
+          "mode": "baseline",
+          "load": "idle",
+          "kind": "hud",
+          "case": "hud-4",
+          "expected": "57",
+          "answer": "画面右上方的分数是57。",
+          "visible_value_correct": true,
+          "ms": 377.51,
+          "start": 184777.839140458,
+          "end": 184778.216647541,
+          "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+        },
+        {
+          "mode": "baseline",
+          "load": "render",
+          "kind": "editor",
+          "case": "editor-1",
+          "expected": "14:30",
+          "answer": "画面显示的开会时间是14:30。",
+          "visible_value_correct": true,
+          "ms": 1407.82,
+          "start": 184780.523763041,
+          "end": 184781.931585125,
+          "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+        },
+        {
+          "mode": "baseline",
+          "load": "render",
+          "kind": "hud",
+          "case": "hud-2",
+          "expected": "24",
+          "answer": "画面右上方的分数是24。",
+          "visible_value_correct": true,
+          "ms": 1419.6,
+          "start": 184781.936908208,
+          "end": 184783.356503791,
+          "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+        },
+        {
+          "mode": "baseline",
+          "load": "render",
+          "kind": "editor",
+          "case": "editor-3",
+          "expected": "16:45",
+          "answer": "画面显示的开会时间是16:45。",
+          "visible_value_correct": true,
+          "ms": 1667.87,
+          "start": 184783.364301708,
+          "end": 184785.03217625,
+          "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+        },
+        {
+          "mode": "baseline",
+          "load": "render",
+          "kind": "hud",
+          "case": "hud-4",
+          "expected": "57",
+          "answer": "画面右上方的分数是57。",
+          "visible_value_correct": true,
+          "ms": 1384.41,
+          "start": 184785.037679125,
+          "end": 184786.422087958,
+          "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+        }
+      ],
+      "candidate": [
+        {
+          "mode": "candidate",
+          "load": "idle",
+          "kind": "editor",
+          "case": "editor-1",
+          "expected": "14:30",
+          "answer": "画面显示的开会时间是14:30。",
+          "visible_value_correct": true,
+          "ms": 552.61,
+          "start": 184796.521632458,
+          "end": 184797.074246416,
+          "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+        },
+        {
+          "mode": "candidate",
+          "load": "idle",
+          "kind": "hud",
+          "case": "hud-2",
+          "expected": "24",
+          "answer": "画面右上方的分数是24。",
+          "visible_value_correct": true,
+          "ms": 422.48,
+          "start": 184797.079024166,
+          "end": 184797.501508708,
+          "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+        },
+        {
+          "mode": "candidate",
+          "load": "idle",
+          "kind": "editor",
+          "case": "editor-3",
+          "expected": "16:45",
+          "answer": "画面显示的开会时间是16:45。",
+          "visible_value_correct": true,
+          "ms": 410.0,
+          "start": 184797.509198833,
+          "end": 184797.919201166,
+          "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+        },
+        {
+          "mode": "candidate",
+          "load": "idle",
+          "kind": "hud",
+          "case": "hud-4",
+          "expected": "57",
+          "answer": "画面右上方的分数是57。",
+          "visible_value_correct": true,
+          "ms": 386.28,
+          "start": 184797.925333291,
+          "end": 184798.311610916,
+          "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+        },
+        {
+          "mode": "candidate",
+          "load": "render",
+          "kind": "editor",
+          "case": "editor-1",
+          "expected": "14:30",
+          "answer": "画面显示的开会时间是14:30。",
+          "visible_value_correct": true,
+          "ms": 1579.8,
+          "start": 184800.775829208,
+          "end": 184802.355627708,
+          "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+        },
+        {
+          "mode": "candidate",
+          "load": "render",
+          "kind": "hud",
+          "case": "hud-2",
+          "expected": "24",
+          "answer": "画面右上方的分数是24。",
+          "visible_value_correct": true,
+          "ms": 1656.27,
+          "start": 184802.36113225,
+          "end": 184804.017398708,
+          "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+        },
+        {
+          "mode": "candidate",
+          "load": "render",
+          "kind": "editor",
+          "case": "editor-3",
+          "expected": "16:45",
+          "answer": "画面显示的开会时间是16:45。",
+          "visible_value_correct": true,
+          "ms": 1715.05,
+          "start": 184804.025912666,
+          "end": 184805.740962583,
+          "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+        },
+        {
+          "mode": "candidate",
+          "load": "render",
+          "kind": "hud",
+          "case": "hud-4",
+          "expected": "57",
+          "answer": "画面右上方的分数是57。",
+          "visible_value_correct": true,
+          "ms": 1777.59,
+          "start": 184805.746523375,
+          "end": 184807.524113875,
+          "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+        }
+      ]
+    },
+    "fresh_gameplay_solo": {
+      "by_mode": {
+        "baseline": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 5089.81,
+            "p95": 8062.78
+          },
+          "characters": {
+            "n": 16,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 158,
+            "p50": 100.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 158,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 158,
+            "p50": 1.0,
+            "p95": 1
+          },
+          "renderer_service_ms": {
+            "n": 4427,
+            "p50": 16.44,
+            "p95": 24.41
+          },
+          "complete": 10,
+          "product_observation": 0
+        },
+        "candidate": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 4641.79,
+            "p95": 7161.04
+          },
+          "characters": {
+            "n": 16,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 151,
+            "p50": 100,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 151,
+            "p50": 0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 151,
+            "p50": 1,
+            "p95": 1
+          },
+          "renderer_service_ms": {
+            "n": 4225,
+            "p50": 16.36,
+            "p95": 24.99
+          },
+          "complete": 10,
+          "product_observation": 0
+        }
+      },
+      "median_speedup": 1.097,
+      "median_latency_reduction_percent": 8.8,
+      "paired_median_saving_ms": {
+        "n": 16,
+        "p50": 223.18,
+        "p95": 1156.65
+      },
+      "faster": 11,
+      "pairs": 16,
+      "unique_images": 8,
+      "same_text": 16,
+      "both_complete": {
+        "n": 10,
+        "reference_ms": {
+          "n": 10,
+          "p50": 3927.78,
+          "p95": 5643.43
+        },
+        "candidate_ms": {
+          "n": 10,
+          "p50": 3615.08,
+          "p95": 5329.37
+        }
+      },
+      "measurements": [
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 3983.32,
+          "candidate_ms": 3458.16,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 5917.27,
+          "candidate_ms": 5316.55,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 4081.7,
+          "candidate_ms": 3490.12,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 6713.95,
+          "candidate_ms": 6403.99,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 3293.16,
+          "candidate_ms": 3174.46,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 4781.48,
+          "candidate_ms": 3954.98,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 8062.78,
+          "candidate_ms": 6906.13,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 5643.43,
+          "candidate_ms": 5231.36,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 3546.05,
+          "candidate_ms": 3633.41,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 5398.15,
+          "candidate_ms": 5429.7,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 3872.25,
+          "candidate_ms": 3596.75,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 6196.1,
+          "candidate_ms": 6174.31,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 3060.81,
+          "candidate_ms": 3513.37,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 3840.29,
+          "candidate_ms": 4052.22,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 6726.9,
+          "candidate_ms": 7161.04,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 5500.24,
+          "candidate_ms": 5329.37,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        }
+      ]
+    },
+    "fresh_gameplay_solo_from_original": {
+      "by_mode": {
+        "base": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 11052.6,
+            "p95": 13070.31
+          },
+          "characters": {
+            "n": 16,
+            "p50": 273.0,
+            "p95": 339
+          },
+          "gpu_percent": {
+            "n": 334,
+            "p50": 100.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 334,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 334,
+            "p50": 1.0,
+            "p95": 1
+          },
+          "renderer_service_ms": {
+            "n": 9636,
+            "p50": 16.27,
+            "p95": 21.32
+          },
+          "complete": 4,
+          "product_observation": 0
+        },
+        "candidate": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 4641.79,
+            "p95": 7161.04
+          },
+          "characters": {
+            "n": 16,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 151,
+            "p50": 100,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 151,
+            "p50": 0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 151,
+            "p50": 1,
+            "p95": 1
+          },
+          "renderer_service_ms": {
+            "n": 4225,
+            "p50": 16.36,
+            "p95": 24.99
+          },
+          "complete": 10,
+          "product_observation": 0
+        }
+      },
+      "median_speedup": 2.381,
+      "median_latency_reduction_percent": 58.0,
+      "paired_median_saving_ms": {
+        "n": 16,
+        "p50": 5792.71,
+        "p95": 9018.09
+      },
+      "faster": 16,
+      "pairs": 16,
+      "unique_images": 8,
+      "same_text": 6,
+      "both_complete": {
+        "n": 4,
+        "reference_ms": {
+          "n": 4,
+          "p50": 10599.4,
+          "p95": 13070.31
+        },
+        "candidate_ms": {
+          "n": 4,
+          "p50": 4641.79,
+          "p95": 5329.37
+        }
+      },
+      "measurements": [
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 11029.66,
+          "candidate_ms": 3458.16,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 7546.47,
+          "candidate_ms": 5316.55,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 9683.42,
+          "candidate_ms": 3490.12,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 11075.55,
+          "candidate_ms": 6403.99,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 10881.86,
+          "candidate_ms": 3174.46,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 12306.24,
+          "candidate_ms": 3954.98,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": false,
+          "both_complete": true,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 11094.44,
+          "candidate_ms": 6906.13,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 8506.25,
+          "candidate_ms": 5231.36,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": false,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 11142.02,
+          "candidate_ms": 3633.41,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 7955.15,
+          "candidate_ms": 5429.7,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 11528.64,
+          "candidate_ms": 3596.75,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 11566.43,
+          "candidate_ms": 6174.31,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 10105.99,
+          "candidate_ms": 3513.37,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": false,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 13070.31,
+          "candidate_ms": 4052.22,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": false,
+          "both_complete": true,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 12517.44,
+          "candidate_ms": 7161.04,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 8892.57,
+          "candidate_ms": 5329.37,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": false,
+          "both_complete": true,
+          "same_complete": true
+        }
+      ]
+    },
+    "fresh_gameplay_close_pairs": {
+      "by_mode": {
+        "baseline": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 4489.89,
+            "p95": 6336.37
+          },
+          "characters": {
+            "n": 16,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 148,
+            "p50": 99.0,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 148,
+            "p50": 0.0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 148,
+            "p50": 1.0,
+            "p95": 2
+          },
+          "renderer_service_ms": {
+            "n": 4159,
+            "p50": 15.99,
+            "p95": 23.78
+          },
+          "complete": 10,
+          "product_observation": 0
+        },
+        "candidate": {
+          "latency_ms": {
+            "n": 16,
+            "p50": 4813.85,
+            "p95": 6321.46
+          },
+          "characters": {
+            "n": 16,
+            "p50": 223.5,
+            "p95": 306
+          },
+          "gpu_percent": {
+            "n": 151,
+            "p50": 99,
+            "p95": 100
+          },
+          "thermal_state": {
+            "n": 151,
+            "p50": 0,
+            "p95": 0
+          },
+          "macOS_memory_pressure": {
+            "n": 151,
+            "p50": 1,
+            "p95": 2
+          },
+          "renderer_service_ms": {
+            "n": 4216,
+            "p50": 16.05,
+            "p95": 23.75
+          },
+          "complete": 10,
+          "product_observation": 0
+        }
+      },
+      "median_speedup": 0.933,
+      "median_latency_reduction_percent": -7.22,
+      "paired_median_saving_ms": {
+        "n": 16,
+        "p50": 44.82,
+        "p95": 386.89
+      },
+      "faster": 11,
+      "pairs": 16,
+      "unique_images": 8,
+      "same_text": 16,
+      "both_complete": {
+        "n": 10,
+        "reference_ms": {
+          "n": 10,
+          "p50": 3795.05,
+          "p95": 5500.73
+        },
+        "candidate_ms": {
+          "n": 10,
+          "p50": 3850.33,
+          "p95": 5146.29
+        }
+      },
+      "measurements": [
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 3907.01,
+          "candidate_ms": 4559.87,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 3387.01,
+          "candidate_ms": 4030.0,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 5309.2,
+          "candidate_ms": 6321.46,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 3888.18,
+          "candidate_ms": 4025.7,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 3667.13,
+          "candidate_ms": 3617.5,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 6206.19,
+          "candidate_ms": 6166.18,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 6052.16,
+          "candidate_ms": 5954.97,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 5368.02,
+          "candidate_ms": 5146.29,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-76",
+          "reference_ms": 3407.05,
+          "candidate_ms": 3441.39,
+          "image_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-178",
+          "reference_ms": 3013.62,
+          "candidate_ms": 2985.98,
+          "image_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-82",
+          "reference_ms": 5072.77,
+          "candidate_ms": 5067.83,
+          "image_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-184",
+          "reference_ms": 3701.91,
+          "candidate_ms": 3588.7,
+          "image_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-game-hud-88",
+          "reference_ms": 3903.88,
+          "candidate_ms": 3674.96,
+          "image_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        },
+        {
+          "case": "steady-combat-nohud-190",
+          "reference_ms": 6336.37,
+          "candidate_ms": 6282.78,
+          "image_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-game-hud-94",
+          "reference_ms": 6008.95,
+          "candidate_ms": 5850.69,
+          "image_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+          "same_text": true,
+          "both_complete": false,
+          "same_complete": false
+        },
+        {
+          "case": "steady-combat-nohud-196",
+          "reference_ms": 5500.73,
+          "candidate_ms": 5113.84,
+          "image_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+          "same_text": true,
+          "both_complete": true,
+          "same_complete": true
+        }
+      ]
+    },
+    "three_requests_on_each_image": {
+      "summed_inference_ms": {
+        "baseline": {
+          "n": 16,
+          "p50": 9892.08,
+          "p95": 14433.33
+        },
+        "candidate": {
+          "n": 16,
+          "p50": 9153.88,
+          "p95": 14974.29
+        }
+      },
+      "paired_saving_ms": {
+        "n": 16,
+        "p50": 853.04,
+        "p95": 2844.99
+      },
+      "faster": 10
+    }
+  },
+  "tested_source_sha256": {
+    "scripts/wuwa_cpu_draft.py": "8af97e34c0b1679a6769ada50d022170a519ae74f8d4a6e0d03c61b3ee814593",
+    "scripts/window_summary_worker.py": "84bd8118a246b2ed78b81c127616616f8c41121b0ae5efe29d3adf5684b93690",
+    "scripts/wuwa_mlx_prefill.py": "0fd9b047505492064380cbb8f6d958b2104ad2f8faa3fa56f4bd3561492a4f71",
+    "tests/vision_prefill_cache.py": "6dbd4ce80921e374ed280afb5eed63ca15015e07e61f7f4153e2ffe437a53673"
+  },
+  "local_date": "2026-11-26",
+  "render_fixture": {
+    "source_sha256": "c296e0ce1b3ea48a6c4cd12301436f06d130159dc11770e5f438cddcc24b80b4",
+    "binary_sha256": "f6fb82daa90a200e4ed82c74c14a435d71633825375b6cd06aa8bbf97a1d438c",
+    "width": 1280,
+    "height": 720,
+    "target_hz": 60,
+    "fragment_iterations": 1450
+  },
+  "input_windows": {
+    "steady": [
+      {
+        "case": "battle-00-warm",
+        "source": "game-hud",
+        "warmup": true,
+        "sha256": "3342aa9f5ca7fd4221e04b6c7870f70a38aadd1e89ef5e50ace271b8419c34b3",
+        "frames": [
+          "004-37.80.jpg",
+          "007-38.40.jpg",
+          "009-38.80.jpg",
+          "012-39.40.jpg",
+          "014-39.80.jpg",
+          "017-40.40.jpg"
+        ]
+      },
+      {
+        "case": "steady-game-hud-76",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+        "frames": [
+          "000-70.00.jpg",
+          "005-71.00.jpg",
+          "012-72.40.jpg",
+          "018-73.60.jpg",
+          "025-75.00.jpg",
+          "030-76.00.jpg"
+        ]
+      },
+      {
+        "case": "steady-game-hud-82",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+        "frames": [
+          "030-76.00.jpg",
+          "035-77.00.jpg",
+          "042-78.40.jpg",
+          "048-79.60.jpg",
+          "055-81.00.jpg",
+          "060-82.00.jpg"
+        ]
+      },
+      {
+        "case": "steady-game-hud-88",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+        "frames": [
+          "060-82.00.jpg",
+          "065-83.00.jpg",
+          "072-84.40.jpg",
+          "078-85.60.jpg",
+          "085-87.00.jpg",
+          "090-88.00.jpg"
+        ]
+      },
+      {
+        "case": "steady-game-hud-94",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+        "frames": [
+          "090-88.00.jpg",
+          "095-89.00.jpg",
+          "102-90.40.jpg",
+          "108-91.60.jpg",
+          "115-93.00.jpg",
+          "120-94.00.jpg"
+        ]
+      },
+      {
+        "case": "steady-combat-nohud-178",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+        "frames": [
+          "000-172.00.jpg",
+          "005-173.00.jpg",
+          "012-174.40.jpg",
+          "018-175.60.jpg",
+          "025-177.00.jpg",
+          "030-178.00.jpg"
+        ]
+      },
+      {
+        "case": "steady-combat-nohud-184",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+        "frames": [
+          "030-178.00.jpg",
+          "035-179.00.jpg",
+          "042-180.40.jpg",
+          "048-181.60.jpg",
+          "055-183.00.jpg",
+          "060-184.00.jpg"
+        ]
+      },
+      {
+        "case": "steady-combat-nohud-190",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+        "frames": [
+          "060-184.00.jpg",
+          "065-185.00.jpg",
+          "072-186.40.jpg",
+          "078-187.60.jpg",
+          "085-189.00.jpg",
+          "090-190.00.jpg"
+        ]
+      },
+      {
+        "case": "steady-combat-nohud-196",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+        "frames": [
+          "090-190.00.jpg",
+          "095-191.00.jpg",
+          "102-192.40.jpg",
+          "108-193.60.jpg",
+          "115-195.00.jpg",
+          "120-196.00.jpg"
+        ]
+      }
+    ],
+    "novel-facts": [
+      {
+        "case": "battle-00-warm",
+        "source": "game-hud",
+        "warmup": true,
+        "sha256": "3342aa9f5ca7fd4221e04b6c7870f70a38aadd1e89ef5e50ace271b8419c34b3",
+        "frames": [
+          "004-37.80.jpg",
+          "007-38.40.jpg",
+          "009-38.80.jpg",
+          "012-39.40.jpg",
+          "014-39.80.jpg",
+          "017-40.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-game-hud-19",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "frames": [
+          "004-19.80.jpg",
+          "007-20.40.jpg",
+          "009-20.80.jpg",
+          "012-21.40.jpg",
+          "014-21.80.jpg",
+          "017-22.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-game-hud-65",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "frames": [
+          "004-65.80.jpg",
+          "007-66.40.jpg",
+          "009-66.80.jpg",
+          "012-67.40.jpg",
+          "014-67.80.jpg",
+          "017-68.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-game-hud-127",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "frames": [
+          "004-127.80.jpg",
+          "007-128.40.jpg",
+          "009-128.80.jpg",
+          "012-129.40.jpg",
+          "014-129.80.jpg",
+          "017-130.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-game-hud-175",
+        "source": "game-hud",
+        "warmup": false,
+        "sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "frames": [
+          "004-175.80.jpg",
+          "007-176.40.jpg",
+          "009-176.80.jpg",
+          "012-177.40.jpg",
+          "014-177.80.jpg",
+          "017-178.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-combat-nohud-49",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "frames": [
+          "004-49.80.jpg",
+          "007-50.40.jpg",
+          "009-50.80.jpg",
+          "012-51.40.jpg",
+          "014-51.80.jpg",
+          "017-52.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-combat-nohud-167",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "frames": [
+          "004-167.80.jpg",
+          "007-168.40.jpg",
+          "009-168.80.jpg",
+          "012-169.40.jpg",
+          "014-169.80.jpg",
+          "017-170.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-combat-nohud-329",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "frames": [
+          "004-329.80.jpg",
+          "007-330.40.jpg",
+          "009-330.80.jpg",
+          "012-331.40.jpg",
+          "014-331.80.jpg",
+          "017-332.40.jpg"
+        ]
+      },
+      {
+        "case": "battle-novel-combat-nohud-462",
+        "source": "combat-nohud",
+        "warmup": false,
+        "sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "frames": [
+          "004-462.80.jpg",
+          "007-463.40.jpg",
+          "009-463.80.jpg",
+          "012-464.40.jpg",
+          "014-464.80.jpg",
+          "017-465.40.jpg"
+        ]
+      }
+    ]
+  },
+  "renderer_only": {
+    "service_ms": {
+      "n": 834,
+      "p50": 15.37,
+      "p95": 16.99
+    },
+    "over_16_67_ms_percent": 7.79
+  },
+  "quality_evidence": {
+    "inputs": [
+      {
+        "case": "battle-novel-game-hud-19",
+        "kind": "facts",
+        "input_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "prompt": "看六张按时间排列的游戏截图。第6帧是什么景别？A 远景中的明亮沙滩，B 深色头发角色的面部近景。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "baseline": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ],
+          "candidate": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-65",
+        "kind": "facts",
+        "input_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "prompt": "看六张按时间排列的游戏截图。蓝色亮光出现在哪里？A 室外战场中央，B 表格窗口的标题栏。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "590abaedd917d827f8824eb217076977128a4c04cfd69562eb71b7b14b4bf7e4"
+          ],
+          "baseline": [
+            "590abaedd917d827f8824eb217076977128a4c04cfd69562eb71b7b14b4bf7e4"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-127",
+        "kind": "facts",
+        "input_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "prompt": "看六张按时间排列的游戏截图。哪一项描述顺序正确？A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场，B 先是有界面图标的暗色战场，最后才出现亮金圆环。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "baseline": [
+            "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+          ],
+          "candidate": [
+            "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-175",
+        "kind": "facts",
+        "input_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "prompt": "看六张按时间排列的游戏截图。最后两帧能看到哪种颜色的发光攻击特效？A 橙红色，B 紫色。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ],
+          "baseline": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-49",
+        "kind": "facts",
+        "input_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "prompt": "看六张按时间排列的游戏截图。是怎样的明暗变化？A 开头很黑，随后变亮并显出绿色草地和界面，B 开头明亮，到最后完全变黑。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "baseline": [
+            "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+          ],
+          "candidate": [
+            "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-167",
+        "kind": "facts",
+        "input_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "prompt": "看六张按时间排列的游戏截图。场地主要颜色和短时特效分别是什么？A 红色地面和紫色数字菜单，B 绿色草地和明亮的橙黄色闪光。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ],
+          "baseline": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-329",
+        "kind": "facts",
+        "input_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "prompt": "看六张按时间排列的游戏截图。画面中的战斗特效有什么颜色？A 青绿色与橙黄色，B 只有暗灰色而没有发光效果。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "baseline": [
+            "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+          ],
+          "candidate": [
+            "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-462",
+        "kind": "facts",
+        "input_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "prompt": "看六张按时间排列的游戏截图。第2帧发光最明显的部分是什么颜色？A 天蓝色，B 火焰般的橙黄色。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ],
+          "baseline": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ]
+        }
+      },
+      {
+        "case": "0-0",
+        "kind": "fact",
+        "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+        "prompt": "蓝色的圆形从第一帧到最后一帧往屏幕哪边移动？只回答「左」或「右」。",
+        "expected": "右",
+        "answer_sha256": {
+          "candidate": [
+            "c30561e9c3095c0123c2450b2c48bc8c923cdc828c62fa0e408e4a9bdf0fec4f"
+          ],
+          "baseline": [
+            "c30561e9c3095c0123c2450b2c48bc8c923cdc828c62fa0e408e4a9bdf0fec4f"
+          ]
+        }
+      },
+      {
+        "case": "0-1",
+        "kind": "fact",
+        "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+        "prompt": "最后一帧右侧还有红色敌人吗？只回答「有」或「无」。",
+        "expected": "有",
+        "answer_sha256": {
+          "baseline": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ],
+          "candidate": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ]
+        }
+      },
+      {
+        "case": "0-2",
+        "kind": "fact",
+        "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+        "prompt": "最后一帧左上角的两位数字是多少？只输出两个数字。",
+        "expected": "27",
+        "answer_sha256": {
+          "candidate": [
+            "47e168128422f3b522bfaa4b7ac510a89cc86b2a2ea8d6e0c8c65fe3adbe3f48"
+          ],
+          "baseline": [
+            "47e168128422f3b522bfaa4b7ac510a89cc86b2a2ea8d6e0c8c65fe3adbe3f48"
+          ]
+        }
+      },
+      {
+        "case": "0-3",
+        "kind": "fact",
+        "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+        "prompt": "第一帧右上角的图标是什么颜色？只回答「绿」或「黄」。",
+        "expected": "黄",
+        "answer_sha256": {
+          "baseline": [
+            "84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"
+          ],
+          "candidate": [
+            "84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"
+          ]
+        }
+      },
+      {
+        "case": "1-0",
+        "kind": "fact",
+        "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+        "prompt": "蓝色的圆形从第一帧到最后一帧往屏幕哪边移动？只回答「左」或「右」。",
+        "expected": "左",
+        "answer_sha256": {
+          "candidate": [
+            "e857b3150309fa8affeb1466b858aa2cfcdee9e84cfb885ef940bae15f859ca8"
+          ],
+          "baseline": [
+            "e857b3150309fa8affeb1466b858aa2cfcdee9e84cfb885ef940bae15f859ca8"
+          ]
+        }
+      },
+      {
+        "case": "1-1",
+        "kind": "fact",
+        "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+        "prompt": "最后一帧右侧还有红色敌人吗？只回答「有」或「无」。",
+        "expected": "无",
+        "answer_sha256": {
+          "baseline": [
+            "97391a426c0beecf9b0b28aef4ce8fa6ab71d52d93010408f2045f9f20586d54"
+          ],
+          "candidate": [
+            "97391a426c0beecf9b0b28aef4ce8fa6ab71d52d93010408f2045f9f20586d54"
+          ]
+        }
+      },
+      {
+        "case": "1-2",
+        "kind": "fact",
+        "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+        "prompt": "最后一帧左上角的两位数字是多少？只输出两个数字。",
+        "expected": "74",
+        "answer_sha256": {
+          "candidate": [
+            "dc4839172be6af1109813a115405ddb17fa72f0ee064b4120dd7c26e18f2ec8f"
+          ],
+          "baseline": [
+            "dc4839172be6af1109813a115405ddb17fa72f0ee064b4120dd7c26e18f2ec8f"
+          ]
+        }
+      },
+      {
+        "case": "1-3",
+        "kind": "fact",
+        "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+        "prompt": "第一帧右上角的图标是什么颜色？只回答「绿」或「黄」。",
+        "expected": "绿",
+        "answer_sha256": {
+          "baseline": [
+            "84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"
+          ],
+          "candidate": [
+            "84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"
+          ]
+        }
+      },
+      {
+        "case": "2-0",
+        "kind": "fact",
+        "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+        "prompt": "蓝色的圆形从第一帧到最后一帧往屏幕哪边移动？只回答「左」或「右」。",
+        "expected": "右",
+        "answer_sha256": {
+          "candidate": [
+            "c30561e9c3095c0123c2450b2c48bc8c923cdc828c62fa0e408e4a9bdf0fec4f"
+          ],
+          "baseline": [
+            "c30561e9c3095c0123c2450b2c48bc8c923cdc828c62fa0e408e4a9bdf0fec4f"
+          ]
+        }
+      },
+      {
+        "case": "2-1",
+        "kind": "fact",
+        "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+        "prompt": "最后一帧右侧还有红色敌人吗？只回答「有」或「无」。",
+        "expected": "有",
+        "answer_sha256": {
+          "baseline": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ],
+          "candidate": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ]
+        }
+      },
+      {
+        "case": "2-2",
+        "kind": "fact",
+        "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+        "prompt": "最后一帧左上角的两位数字是多少？只输出两个数字。",
+        "expected": "27",
+        "answer_sha256": {
+          "candidate": [
+            "47e168128422f3b522bfaa4b7ac510a89cc86b2a2ea8d6e0c8c65fe3adbe3f48"
+          ],
+          "baseline": [
+            "47e168128422f3b522bfaa4b7ac510a89cc86b2a2ea8d6e0c8c65fe3adbe3f48"
+          ]
+        }
+      },
+      {
+        "case": "2-3",
+        "kind": "fact",
+        "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+        "prompt": "第一帧右上角的图标是什么颜色？只回答「绿」或「黄」。",
+        "expected": "黄",
+        "answer_sha256": {
+          "baseline": [
+            "84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"
+          ],
+          "candidate": [
+            "84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3"
+          ]
+        }
+      },
+      {
+        "case": "mid-0",
+        "kind": "fact",
+        "input_sha256": "6a1220e5048fa6019873ebdcaa649f56c98ae71ffa0e1864de3813416d9a77a8",
+        "prompt": "第2帧中间有橙色星形标记吗？只回答「有」或「无」。",
+        "expected": "有",
+        "answer_sha256": {
+          "candidate": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ],
+          "baseline": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ]
+        }
+      },
+      {
+        "case": "mid-1",
+        "kind": "fact",
+        "input_sha256": "488c0a9c81af1c308eede14d31c2f846e6323b1b37c30fcea35bd4cbfea2a06e",
+        "prompt": "第4帧中间有橙色星形标记吗？只回答「有」或「无」。",
+        "expected": "无",
+        "answer_sha256": {
+          "baseline": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ],
+          "candidate": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ]
+        }
+      },
+      {
+        "case": "mid-2",
+        "kind": "fact",
+        "input_sha256": "1a64497cadc39894db28e7c01c22b665b842f4877f7d0bcec6ebe3cfe393894e",
+        "prompt": "第4帧中间有橙色星形标记吗？只回答「有」或「无」。",
+        "expected": "有",
+        "answer_sha256": {
+          "candidate": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ],
+          "baseline": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ]
+        }
+      },
+      {
+        "case": "mid-3",
+        "kind": "fact",
+        "input_sha256": "2809d6a3b9afcd6a93d53ab1baa13d540b81266f8eab4e24d3b9fca15f2b8b88",
+        "prompt": "最后一帧中间还有橙色星形标记吗？只回答「有」或「无」。",
+        "expected": "无",
+        "answer_sha256": {
+          "baseline": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ],
+          "candidate": [
+            "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1"
+          ]
+        }
+      },
+      {
+        "case": "mid-4",
+        "kind": "fact",
+        "input_sha256": "14df48b83900886e7bf65f83a7e224b220c3595ab8ee699ac37b03247f57a550",
+        "prompt": "第2帧中央提示框的两位数字是多少？只输出两个数字。",
+        "expected": "36",
+        "answer_sha256": {
+          "candidate": [
+            "76a50887d8f1c2e9301755428990ad81479ee21c25b43215cf524541e0503269"
+          ],
+          "baseline": [
+            "76a50887d8f1c2e9301755428990ad81479ee21c25b43215cf524541e0503269"
+          ]
+        }
+      },
+      {
+        "case": "mid-5",
+        "kind": "fact",
+        "input_sha256": "e66631f20bca69f92f4d6190a0041d1afc1af9639fceda7f991f788058279b9a",
+        "prompt": "第4帧中央提示框的两位数字是多少？只输出两个数字。",
+        "expected": "63",
+        "answer_sha256": {
+          "baseline": [
+            "cb6e1020cb3753bde9c839a5c07c89463cc08e98ccaaf5fe72c5a847e5e86644"
+          ],
+          "candidate": [
+            "cb6e1020cb3753bde9c839a5c07c89463cc08e98ccaaf5fe72c5a847e5e86644"
+          ]
+        }
+      },
+      {
+        "case": "mid-6",
+        "kind": "fact",
+        "input_sha256": "23d474cdf7c13cf0890fe507879f94f3fcab0ea59bfa6270d45bc58bc64b9622",
+        "prompt": "第2帧中央提示框的两位数字是多少？只输出两个数字。",
+        "expected": "63",
+        "answer_sha256": {
+          "candidate": [
+            "29143b5bce3f28dcbfdfbbc4145a080808bae1114c6dd9a5f3bd41c1ed6910c5"
+          ],
+          "baseline": [
+            "29143b5bce3f28dcbfdfbbc4145a080808bae1114c6dd9a5f3bd41c1ed6910c5"
+          ]
+        }
+      },
+      {
+        "case": "mid-7",
+        "kind": "fact",
+        "input_sha256": "2a56d5a6cb227cc330fdb16fe16a69d7bad2411e34701b6af9aea240ae3ca4a6",
+        "prompt": "第5帧中央提示框的两位数字是多少？只输出两个数字。",
+        "expected": "36",
+        "answer_sha256": {
+          "baseline": [
+            "4f61d417afb5e056c164226e336f892b0753fa745b882b9cb40102be74a69669"
+          ],
+          "candidate": [
+            "4f61d417afb5e056c164226e336f892b0753fa745b882b9cb40102be74a69669"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-76",
+        "kind": "long",
+        "input_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "base": [
+            "15136ed1236226f796ead3ead23139a9ef1d0fd0a2160f446c8c66d1fa441d4a"
+          ],
+          "candidate": [
+            "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79"
+          ],
+          "baseline": [
+            "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-82",
+        "kind": "long",
+        "input_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607"
+          ],
+          "base": [
+            "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607"
+          ],
+          "baseline": [
+            "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-88",
+        "kind": "long",
+        "input_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "base": [
+            "b32e757e07bfb752d26cfeb224d9ff6d09474f6b65b510441445a40610c1bbfa"
+          ],
+          "candidate": [
+            "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6"
+          ],
+          "baseline": [
+            "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-94",
+        "kind": "long",
+        "input_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620"
+          ],
+          "base": [
+            "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620"
+          ],
+          "baseline": [
+            "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-178",
+        "kind": "long",
+        "input_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "base": [
+            "7340c30d35da2cdfbfb4bb82438b175cc557db236af2669603fcb6a25c0ae241"
+          ],
+          "candidate": [
+            "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960"
+          ],
+          "baseline": [
+            "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-184",
+        "kind": "long",
+        "input_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc"
+          ],
+          "base": [
+            "bfb6f8e00dfd450ab7d3e6fe61653be0818c54db0feca62c20afe651ab0c5ba0"
+          ],
+          "baseline": [
+            "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-190",
+        "kind": "long",
+        "input_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "base": [
+            "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643"
+          ],
+          "candidate": [
+            "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643"
+          ],
+          "baseline": [
+            "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-196",
+        "kind": "long",
+        "input_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3"
+          ],
+          "base": [
+            "24e2c0934e82309c4e1700f44df63e7d6c02693e96d557ccc2af6cb1b5df1637"
+          ],
+          "baseline": [
+            "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-19",
+        "kind": "fresh-long",
+        "input_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "27f7389d10c260e2c204faf8390d7f07416043ddae17a4492a4f1550c7a0661d"
+          ],
+          "baseline": [
+            "27f7389d10c260e2c204faf8390d7f07416043ddae17a4492a4f1550c7a0661d"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-19",
+        "kind": "saved-question",
+        "input_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "prompt": "看六张按时间排列的游戏截图。第6帧是什么景别？A 远景中的明亮沙滩，B 深色头发角色的面部近景。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ],
+          "baseline": [
+            "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-19",
+        "kind": "saved-detail",
+        "input_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "2cf24c3528df0e92705e6e39c578053fc10f3c70a36632a456a57165913cd318"
+          ],
+          "baseline": [
+            "2cf24c3528df0e92705e6e39c578053fc10f3c70a36632a456a57165913cd318"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-65",
+        "kind": "fresh-long",
+        "input_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "ebf4bc3115439457cbf1d5c90ada1172195408a9720babb9d38f53bd1720eef7"
+          ],
+          "baseline": [
+            "ebf4bc3115439457cbf1d5c90ada1172195408a9720babb9d38f53bd1720eef7"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-65",
+        "kind": "saved-question",
+        "input_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "prompt": "看六张按时间排列的游戏截图。蓝色亮光出现在哪里？A 室外战场中央，B 表格窗口的标题栏。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "590abaedd917d827f8824eb217076977128a4c04cfd69562eb71b7b14b4bf7e4"
+          ],
+          "baseline": [
+            "590abaedd917d827f8824eb217076977128a4c04cfd69562eb71b7b14b4bf7e4"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-65",
+        "kind": "saved-detail",
+        "input_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "5a64bed56f34d8806d4ac27a73aef0c3d4f92f4ab6f895f889b074d5e570ec4b"
+          ],
+          "baseline": [
+            "5a64bed56f34d8806d4ac27a73aef0c3d4f92f4ab6f895f889b074d5e570ec4b"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-127",
+        "kind": "fresh-long",
+        "input_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "7267dfdf910b2bdd8826690af4d30d454313918cacedf428ebff2b383df3dc90"
+          ],
+          "baseline": [
+            "7267dfdf910b2bdd8826690af4d30d454313918cacedf428ebff2b383df3dc90"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-127",
+        "kind": "saved-question",
+        "input_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "prompt": "看六张按时间排列的游戏截图。哪一项描述顺序正确？A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场，B 先是有界面图标的暗色战场，最后才出现亮金圆环。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "38b583d62cccb63e6f8f3551fb980f9c5689ca169726da22b7ecab7e81c15719"
+          ],
+          "baseline": [
+            "38b583d62cccb63e6f8f3551fb980f9c5689ca169726da22b7ecab7e81c15719"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-127",
+        "kind": "saved-detail",
+        "input_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "875fa406847bb879a3f67019eb7a50694fec70565cf429af57e880a782a4fbb4"
+          ],
+          "baseline": [
+            "875fa406847bb879a3f67019eb7a50694fec70565cf429af57e880a782a4fbb4"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-175",
+        "kind": "fresh-long",
+        "input_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "3a5024168fef85573d69b037d7bfcf21972906759e3a50b84ce63c933592f345"
+          ],
+          "baseline": [
+            "3a5024168fef85573d69b037d7bfcf21972906759e3a50b84ce63c933592f345"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-175",
+        "kind": "saved-question",
+        "input_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "prompt": "看六张按时间排列的游戏截图。最后两帧能看到哪种颜色的发光攻击特效？A 橙红色，B 紫色。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "3a607a207b78b4f8f18f7624c15e6b0fa4dd7889a32e0749964310d1f6f59e7a"
+          ],
+          "baseline": [
+            "3a607a207b78b4f8f18f7624c15e6b0fa4dd7889a32e0749964310d1f6f59e7a"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-game-hud-175",
+        "kind": "saved-detail",
+        "input_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "aac079bca87b1a218fefc17b0827e77733dffbacb34fb10ea12d0d527a92eebe"
+          ],
+          "baseline": [
+            "aac079bca87b1a218fefc17b0827e77733dffbacb34fb10ea12d0d527a92eebe"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-49",
+        "kind": "fresh-long",
+        "input_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "9a858ec421b905c44997ab5fd6414ee0e9bdafbc7ec9c3bb46b35888977e3665"
+          ],
+          "baseline": [
+            "9a858ec421b905c44997ab5fd6414ee0e9bdafbc7ec9c3bb46b35888977e3665"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-49",
+        "kind": "saved-question",
+        "input_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "prompt": "看六张按时间排列的游戏截图。是怎样的明暗变化？A 开头很黑，随后变亮并显出绿色草地和界面，B 开头明亮，到最后完全变黑。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "2cd983dba7a69372bbf96390143203375265c118e3d02eb1179fd335be7f65ac"
+          ],
+          "baseline": [
+            "2cd983dba7a69372bbf96390143203375265c118e3d02eb1179fd335be7f65ac"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-49",
+        "kind": "saved-detail",
+        "input_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "a161cd78afc21a07d4ae97582127f9765821bd6fc6c7c5cc0cef94727f20fd71"
+          ],
+          "baseline": [
+            "a161cd78afc21a07d4ae97582127f9765821bd6fc6c7c5cc0cef94727f20fd71"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-167",
+        "kind": "fresh-long",
+        "input_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "aed78c45d8c1c1dbdcbdced12841ad5e7d302952f82a1dfbba7e5d8c27b9e70c"
+          ],
+          "baseline": [
+            "aed78c45d8c1c1dbdcbdced12841ad5e7d302952f82a1dfbba7e5d8c27b9e70c"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-167",
+        "kind": "saved-question",
+        "input_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "prompt": "看六张按时间排列的游戏截图。场地主要颜色和短时特效分别是什么？A 红色地面和紫色数字菜单，B 绿色草地和明亮的橙黄色闪光。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "85ac1cb4dc0514bbff37ca4c659627e25289826419d642122473ccce14c2e750"
+          ],
+          "baseline": [
+            "85ac1cb4dc0514bbff37ca4c659627e25289826419d642122473ccce14c2e750"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-167",
+        "kind": "saved-detail",
+        "input_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "8542126050fa109ead3904d63d3b442b04b7e10ac662549c3fbbaa704440cd50"
+          ],
+          "baseline": [
+            "8542126050fa109ead3904d63d3b442b04b7e10ac662549c3fbbaa704440cd50"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-329",
+        "kind": "fresh-long",
+        "input_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "b5e2040e1f088073b39b9bb1b700719e8fac9de371c9cc11a21ac49f3f93008e"
+          ],
+          "baseline": [
+            "b5e2040e1f088073b39b9bb1b700719e8fac9de371c9cc11a21ac49f3f93008e"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-329",
+        "kind": "saved-question",
+        "input_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "prompt": "看六张按时间排列的游戏截图。画面中的战斗特效有什么颜色？A 青绿色与橙黄色，B 只有暗灰色而没有发光效果。只回答 A 或 B。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "316c83a1dd5c2ca829c2d846830f0d4696b19f41851a68902ebacdf89c2e41f9"
+          ],
+          "baseline": [
+            "316c83a1dd5c2ca829c2d846830f0d4696b19f41851a68902ebacdf89c2e41f9"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-329",
+        "kind": "saved-detail",
+        "input_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "A",
+        "answer_sha256": {
+          "candidate": [
+            "953d6a30d77615dbdf92343531fa44dd3136cfd6923a8aaeab659be0482fd86a"
+          ],
+          "baseline": [
+            "953d6a30d77615dbdf92343531fa44dd3136cfd6923a8aaeab659be0482fd86a"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-462",
+        "kind": "fresh-long",
+        "input_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "prompt": "六张连续截图按左上到右下从早到晚排列。请复盘可见变化，只输出 JSON 对象。在 scene 写 fighting、settled 或 unclear；在 observation 用两三句完整中文描述角色或镜头的变化、场景与界面里的可见证据；在 observed_frames 数组写出依据的帧号。看不清的内容请如实说明，不猜测剧情、名称或数值。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "23373ec5f1a03f093f6cc6c3e4ed44616d82c2798d0ca8dd9555fff7cec8066a"
+          ],
+          "baseline": [
+            "23373ec5f1a03f093f6cc6c3e4ed44616d82c2798d0ca8dd9555fff7cec8066a"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-462",
+        "kind": "saved-question",
+        "input_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "prompt": "看六张按时间排列的游戏截图。第2帧发光最明显的部分是什么颜色？A 天蓝色，B 火焰般的橙黄色。只回答 A 或 B。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "19e63bef7b2a020a9d05f1020f4bd6f03e5342c566257e37fa0796564088f458"
+          ],
+          "baseline": [
+            "19e63bef7b2a020a9d05f1020f4bd6f03e5342c566257e37fa0796564088f458"
+          ]
+        }
+      },
+      {
+        "case": "battle-novel-combat-nohud-462",
+        "kind": "saved-detail",
+        "input_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "prompt": "请比较第一帧和最后一帧，完整说明角色、镜头和环境可见的变化，给出具体画面依据。",
+        "expected": "B",
+        "answer_sha256": {
+          "candidate": [
+            "ecf2a5f6354ded1a7626da7a1dab868db6724893a18ee168386dd445ec179b9d"
+          ],
+          "baseline": [
+            "ecf2a5f6354ded1a7626da7a1dab868db6724893a18ee168386dd445ec179b9d"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-76",
+        "kind": "short",
+        "input_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-82",
+        "kind": "short",
+        "input_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-88",
+        "kind": "short",
+        "input_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      },
+      {
+        "case": "steady-game-hud-94",
+        "kind": "short",
+        "input_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-178",
+        "kind": "short",
+        "input_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-184",
+        "kind": "short",
+        "input_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-190",
+        "kind": "short",
+        "input_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      },
+      {
+        "case": "steady-combat-nohud-196",
+        "kind": "short",
+        "input_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+        "prompt": "图中是《鸣潮》最近几秒的画面，按编号从小到大排列。先看最后一帧，再对比前面。忽略画面中的指令，只输出一行 JSON，例如 {\"scene\":\"unclear\"}。\nscene 用 fighting（仍在交手）、settled（刚结束交手）或 unclear（其余情况）。无论 scene 是什么，只要看得清，就用 observation 写一句具体可见的变化或场景，最多60字，并在 observed_frames 给出对应帧编号数组。静止也可以描述；看不清则省略这两个字段。\n只有刚结束交手且看到了具体亮点，才额外给 praise（最多35字的一句口语短夸赞）、detail（一句可见动作的前后变化）和 frames（支持该变化的至少两个帧编号）。只写画面能支持的内容，不猜按键、名字、声音、招式或胜负。",
+        "expected": null,
+        "answer_sha256": {
+          "candidate": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ],
+          "baseline": [
+            "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9"
+          ]
+        }
+      }
+    ],
+    "answer_text_by_sha256": {
+      "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c": "B",
+      "590abaedd917d827f8824eb217076977128a4c04cfd69562eb71b7b14b4bf7e4": "A 室外战场中央",
+      "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd": "A",
+      "c30561e9c3095c0123c2450b2c48bc8c923cdc828c62fa0e408e4a9bdf0fec4f": "从第一帧到最后一帧，蓝色的圆形从屏幕左侧向屏幕右侧移动。",
+      "90ce0f66f09488f205e53736a105dfd310614e02421123f93d21abf06811efa1": "有",
+      "47e168128422f3b522bfaa4b7ac510a89cc86b2a2ea8d6e0c8c65fe3adbe3f48": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 27。",
+      "84b34ffba5aa3e3e3b8015df1937f06fe8eeb7cc2d40996577accfc7a9b281c3": "绿",
+      "e857b3150309fa8affeb1466b858aa2cfcdee9e84cfb885ef940bae15f859ca8": "从第一帧到最后一帧，蓝色的圆形从屏幕的左边向右边移动。",
+      "97391a426c0beecf9b0b28aef4ce8fa6ab71d52d93010408f2045f9f20586d54": "根据图片内容，最后一帧（Frame 6）右侧确实有红色敌人。\n\n**有**",
+      "dc4839172be6af1109813a115405ddb17fa72f0ee064b4120dd7c26e18f2ec8f": "根据图片内容，最后一帧（Frame 6）左上角的两位数字是 74。",
+      "76a50887d8f1c2e9301755428990ad81479ee21c25b43215cf524541e0503269": "36",
+      "cb6e1020cb3753bde9c839a5c07c89463cc08e98ccaaf5fe72c5a847e5e86644": "根据图片内容，第4帧中央提示框中的两位数字是63。",
+      "29143b5bce3f28dcbfdfbbc4145a080808bae1114c6dd9a5f3bd41c1ed6910c5": "根据您提供的图片，第2帧（Frame 2）中央提示框中的数字是：\n\n63",
+      "4f61d417afb5e056c164226e336f892b0753fa745b882b9cb40102be74a69669": "根据图片内容，第5帧中央提示框中的两位数字是36。",
+      "15136ed1236226f796ead3ead23139a9ef1d0fd0a2160f446c8c66d1fa441d4a": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"场景从左上角的战斗对峙状态（Yangyang与TacetDiscord）逐渐过渡到中间偏右的远景对峙（Yangyang与TacetDiscord），最后又回到左上角的战斗状态。角色视角从近景（屏幕下方）逐渐拉远至远景（屏幕上方），角色与敌人之间的距离逐渐增加，背景中的树木和岩石也变得更加清晰，显示出战斗的持续进行。界面UI上，左上角的战斗信息（Uterrance of Marvels I）和战斗状态（Defeat ????）始终可见，而右下角的武器图标和技能图标则逐渐从近景变为远景，显示出战斗的持续进行。\",\n  \"observed_frames",
+      "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79": "{\"scene\":\"settled\",\"observation\":\"角色Yangyang在多个帧中保持战斗状态，屏幕上的文字显示‘Rover is with me’，表明角色与敌人处于同一阵营，战斗仍在继续。背景中的树木和地形也保持不变，说明战斗场景没有发生明显的环境变化。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+      "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗状态（紫色光环、攻击特效）逐渐过渡到被击退状态（绿色光环、被击退提示），场景从开阔的战场环境变为昏暗的废墟环境，界面元素如技能冷却条和角色名称“Baizhi”也反映了战斗过程的推进。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\"]\n}\n```",
+      "b32e757e07bfb752d26cfeb224d9ff6d09474f6b65b510441445a40610c1bbfa": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗准备状态（Frame 1）到战斗结束（Frame 6）的完整过程。角色从站立准备（Frame 1）开始，在战斗前（Frame 3）和战斗后（Frame 5）保持站立姿势，但角色形象有所变化，从白色长袍到白色长袍，再到白色长袍，最后变为战斗中的战斗形态。场景背景从远景（Frame 1）到远景（Frame 6）逐渐变化，从远景（Frame 1）到远景（Frame 6）逐渐变化，从远景（Frame 1）到远景（Frame 6）逐渐变化，从远景（Frame 1）",
+      "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6": "{\"scene\":\"fighting\",\"observation\":\"角色从静止对峙到激烈战斗，屏幕左上角显示“Ultrance of Marvels I Defeat???”，角色武器和攻击特效逐渐增强，战斗场景中的环境也发生了变化，从昏暗的户外到充满战斗能量的区域。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+      "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗准备状态（Frame 1）开始，通过攻击（Frame 2）和攻击（Frame 3）进行持续的战斗行为，最终在（Frame 5）完成结算。场景背景从环境（Frame 1）变为战斗（Frame 2），再到战斗（Frame 3），最后变为战斗（Frame 5）。角色从（Frame 1）到（Frame 5）的动作变化显示其从静止到动态再到结算的过程。\",\n  \"observed_frames\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"5\",\n    \"6\"\n  ]\n}\n```",
+      "7340c30d35da2cdfbfb4bb82438b175cc557db236af2669603fcb6a25c0ae241": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在绿色草地中，左侧有火焰爆炸，右侧有角色被击倒，中间有角色被击倒，底部有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被击倒，场景中有角色被",
+      "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960": "{\"scene\":\"fighting\",\"observation\":\"角色在绿色草地中奔跑，其中一名角色手持武器，另一名角色则站在远处，背景中有石柱和蘑菇，场景中有火焰和爆炸效果，角色间有战斗动作，画面中有挑战完成提示\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+      "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc": "{\"scene\":\"settled\",\"observation\":\"角色在绿色草地上进行战斗，屏幕左上角显示“Challenger Complete”，表明战斗结束。角色周围有能量球和能量球，显示能量消耗和恢复情况。界面中显示“From Metaphors”和“Attribute Overview”，其中“Energy Drink”和“Guardian's Proof”等物品显示能量球和能量球，说明角色装备了能量球。\",\"observed_frames\":[\"Frame 1\",\"Frame 2\",\"Frame 3\",\"Frame 4\",\"Frame 5\",\"Frame 6\"]}",
+      "bfb6f8e00dfd450ab7d3e6fe61653be0818c54db0feca62c20afe651ab0c5ba0": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"画面中角色在绿色草地上进行战斗，其中角色正在使用武器攻击敌人，背景中有蓝色墙壁和植物。界面显示了多个能量槽，包括‘Dreamscape Energy’、‘Energy Drink’和‘Guardian's Proof’，这些能量槽的数值显示为1700，表明战斗正在进行中。角色和场景的界面信息表明这是一个战斗场景，角色正在与敌人进行战斗。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}",
+      "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"六张连续截图展示了角色在战斗后进入战斗结束界面，其中第1、2、3、4、5张截图中的角色处于战斗结束状态，而第6张截图中的角色则处于战斗进行中状态。第1、2、3、4、5张截图中的角色处于战斗结束状态，第6张截图中的角色处于战斗进行中状态。第1、2、3、4、5张截图中的角色处于战斗结束状态，第6张截图中的角色处于战斗进行中状态。第1、2、3、4、5张截图中的角色处于战斗结束状态，第6张截图中的角色处于战斗进行中状态。第1、2",
+      "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3": "{\n  \"scene\": \"settled\",\n  \"observation\": \"画面中展示了角色与物品在连续帧中的变化。从左上角的战斗场景到右下角的装备界面，角色和物品在连续帧中保持相对稳定，没有明显的剧烈变化。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}",
+      "24e2c0934e82309c4e1700f44df63e7d6c02693e96d557ccc2af6cb1b5df1637": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"画面中展示了角色与物品在连续帧中的变化。从左上角的战斗场景到右下角的装备界面，角色和物品在连续帧中保持相对稳定，没有明显的剧烈变化。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}\n```",
+      "27f7389d10c260e2c204faf8390d7f07416043ddae17a4492a4f1550c7a0661d": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从战斗中的动态攻击（如使用武器、释放技能）转为静态的远景场景，其中角色（男性）的头部特写出现在最后，暗示了战斗的结束或角色状态的变化。场景中的环境（如岩石、地面）和背景（如天空、树木）保持不变，但视角和构图发生了变化，从中景变为近景。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+      "2cf24c3528df0e92705e6e39c578053fc10f3c70a36632a456a57165913cd318": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：- 第一帧中，一个身穿浅色长袍的角色正与另一个深色服装的角色对峙，背景是幽暗的洞穴或地下空间；- 最后一帧则聚焦于该角色的侧脸特写（可见其黑发、部分衣领及面部表情），同时画面边缘出现类似“能量爆炸”的动态光效和粒子效果。因此，第一帧为角色与敌人之间的紧张对峙场景，而最后一帧是角色视角的局部特写镜头，环境从开阔空间变为近景细节。",
+      "ebf4bc3115439457cbf1d5c90ada1172195408a9720babb9d38f53bd1720eef7": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色Chixia在战斗过程中不断被击退，屏幕上的红色数字'5'和'27'表示伤害值，角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到角色被击退的画面中可以看到",
+      "5a64bed56f34d8806d4ac27a73aef0c3d4f92f4ab6f895f889b074d5e570ec4b": "从第一帧到最后一帧，角色“Chixia”（一个拥有蓝色光触感的武器和角状装饰的角色）在画面中不断移动并逐渐被击败。镜头视角也相应地变化：第一帧为远景对峙，第二、三帧为近景特写展示战斗细节，第四帧出现角色倒地状态，第五帧则显示角色被击倒的画面。环境背景从开阔的野外场景变为更暗色调和树木较多的区域，暗示战斗过程持续进行。",
+      "7267dfdf910b2bdd8826690af4d30d454313918cacedf428ebff2b383df3dc90": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"画面中角色从左上角开始，先是展示一个带有金色光环的圆形装置，随后角色（男性角色）出现在画面中，他身穿深色外套，背景是夜晚的树林，他举起右手，似乎正在与某个物体互动。接着是战斗场景，角色在战斗中被击中，屏幕上有伤害数值，最后角色继续战斗，屏幕上有伤害数值。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}\n```",
+      "38b583d62cccb63e6f8f3551fb980f9c5689ca169726da22b7ecab7e81c15719": "A 先出现金色圆环和人物近景，后出现有界面图标的暗色战场",
+      "875fa406847bb879a3f67019eb7a50694fec70565cf429af57e880a782a4fbb4": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：首先，第一帧中角色正被一个金色光环包围并受到攻击（可见其手臂与武器），而最后一帧则显示该角色在战斗场景中站立或移动，周围有“Ullterance of Marvels 1”提示文字和伤害数值“82”，表明场景从受击状态变为正常战斗环境。镜头方面，第一帧为特写视角聚焦于攻击瞬间，最后一帧为较广的远景视角展示角色与环境互动。",
+      "3a5024168fef85573d69b037d7bfcf21972906759e3a50b84ce63c933592f345": "```json\n{\n  \"scene\": \"fictive\",\n  \"observation\": \"角色从左上角开始，先是使用技能后出现伤害值，随后角色被击中，最后角色被击中后出现伤害值。场景从左上角开始，先是角色被击中，随后角色被击中，最后角色被击中。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",\n    \"Frame 5\",\n    \"Frame 6\"\n  ]\n}\n```",
+      "3a607a207b78b4f8f18f7624c15e6b0fa4dd7889a32e0749964310d1f6f59e7a": "B 紫色。",
+      "aac079bca87b1a218fefc17b0827e77733dffbacb34fb10ea12d0d527a92eebe": "从第一帧到最后一帧，角色“乌尔坦”（Urtan）的武器和攻击特效由蓝色光效逐渐变为紫色光效；环境背景中枯死的树木也相应地由绿色变灰暗。",
+      "9a858ec421b905c44997ab5fd6414ee0e9bdafbc7ec9c3bb46b35888977e3665": "```json\n{\n  \"scene\": \"settled\",\n  \"observation\": \"角色从左上角的黑色画面中逐渐出现，从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，角色从左上角开始，",
+      "2cd983dba7a69372bbf96390143203375265c118e3d02eb1179fd335be7f65ac": "A 开头很黑，随后变亮并显出绿色草地和界面",
+      "a161cd78afc21a07d4ae97582127f9765821bd6fc6c7c5cc0cef94727f20fd71": "从第一帧到最后一帧，角色和镜头环境均保持不变：角色始终位于画面中央偏左的草地上（绿色草地、紫色小花），且“Sombre Corruption”等文字信息在每一帧中位置一致。",
+      "aed78c45d8c1c1dbdcbdced12841ad5e7d302952f82a1dfbba7e5d8c27b9e70c": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在绿色草地中持续进行战斗，画面中可见角色与敌人之间的激烈互动。角色使用武器攻击敌人，产生爆炸效果，背景中还有建筑结构和武器碎片。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+      "85ac1cb4dc0514bbff37ca4c659627e25289826419d642122473ccce14c2e750": "B 绿色草地和明亮的橙黄色闪光。",
+      "8542126050fa109ead3904d63d3b442b04b7e10ac662549c3fbbaa704440cd50": "角色从左上角出现并持续移动，镜头视角保持固定于地面场景；环境可见的紫色花朵、石墙和远处建筑逐渐向画面右侧延伸。",
+      "b5e2040e1f088073b39b9bb1b700719e8fac9de371c9cc11a21ac49f3f93008e": "```json\n{\n  \"scene\": \"fighting\",\n  \"observation\": \"角色在战斗过程中不断进行技能释放，从左上角的青色光效技能到右下角的爆炸特效，技能效果明显变化。角色与敌人之间的互动也随着技能的变化而改变，从被击倒到被击倒，从被击倒到被击倒，从被击倒到被击倒。场景中的环境也随着战斗的进行而发生变化，从红色地面到爆炸后的地面，从被击倒到被击倒，从被击倒到被击倒。\",\n  \"observed_frames\": [\n    \"Frame 1\",\n    \"Frame 2\",\n    \"Frame 3\",\n    \"Frame 4\",",
+      "316c83a1dd5c2ca829c2d846830f0d4696b19f41851a68902ebacdf89c2e41f9": "A 青绿色与橙黄色",
+      "953d6a30d77615dbdf92343531fa44dd3136cfd6923a8aaeab659be0482fd86a": "角色从初始的发光青色龙形生物（可能是“伊布”）变为被火焰摧毁并碎裂成碎片，镜头则从远景特写转为近景爆炸场景。环境背景中可见红色地面、岩石废墟和模糊的建筑轮廓，但第一帧中的角色是完整的实体，而最后一帧显示的是破碎的粒子与能量冲击波。",
+      "23373ec5f1a03f093f6cc6c3e4ed44616d82c2798d0ca8dd9555fff7cec8066a": "{\n  \"scene\": \"fighting\",\n  \"observation\": \"画面展示了角色在战斗中的激烈互动。从左上角的草地场景到右下角的开阔场地，角色们正在进行着各种技能释放和攻击。火焰特效、蓝色光效、紫色光效以及角色们的肢体动作变化，显示出战斗的激烈程度和角色之间的互动。\",\n  \"observed_frames\": [\"Frame 1\", \"Frame 2\", \"Frame 3\", \"Frame 4\", \"Frame 5\", \"Frame 6\"]\n}",
+      "19e63bef7b2a020a9d05f1020f4bd6f03e5342c566257e37fa0796564088f458": "B 火焰般的橙黄色。",
+      "ecf2a5f6354ded1a7626da7a1dab868db6724893a18ee168386dd445ec179b9d": "从第一帧到最后一帧，角色和镜头环境发生了显著变化：首先，第一帧中角色处于草地边缘的开阔区域，背景是模糊的建筑轮廓；而最后一帧则显示在一条道路上，周围有玩家操控的角色（如蓝色武器）与敌人进行激烈战斗。同时，第二、三帧中出现大量火焰特效，说明场景可能经历了激烈的火场或爆炸事件。镜头方面，第一帧为固定视角观察角色与环境，而后续几帧中镜头角度有所变化，以适应不同战斗状态下的视觉呈现。",
+      "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9": "{\"scene\":\"settled\"}"
+    }
+  },
+  "spot_check": {
+    "case": "battle-novel-game-hud-127",
+    "method": "Visual inspection of all six frames of the same contact sheet.",
+    "visible": "Frame 1 shows a gold ring and an arm, frame 2 a dark-haired character close up, and frames 4 to 6 show a dark combat view with HUD icons. The number 82 is visible in frame 6.",
+    "quality_limit": "The number alone does not establish who was hit. A free-form answer can assign the hit to the wrong character. The allowed structured scene labels exclude fictive.",
+    "candidate_outputs": {
+      "fresh-long": "7267dfdf910b2bdd8826690af4d30d454313918cacedf428ebff2b383df3dc90",
+      "saved-question": "38b583d62cccb63e6f8f3551fb980f9c5689ca169726da22b7ecab7e81c15719",
+      "saved-detail": "875fa406847bb879a3f67019eb7a50694fec70565cf429af57e880a782a4fbb4"
+    }
+  }
+}

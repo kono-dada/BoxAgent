@@ -36,6 +36,7 @@ REVIEW_FRAMES = 6
 class GameVision(Protocol):
     def visible_window(self) -> int | None: ...
     def launch_id(self) -> str: ...
+    def ready_for_inference(self) -> bool: ...
     async def capture(self, window: int) -> GameCapture: ...
     async def describe(self, frame: GameFrame) -> GameObservation | None: ...
     async def review(self, frames: tuple[GameFrame, ...]) -> HighlightReview: ...
@@ -59,6 +60,7 @@ class GameCompanion:
                  announce: Callable[[GameHighlight, Callable[[], bool]], Awaitable[bool]],
                  *, entry: GameEntry | None = None,
                  recognize_quest: Callable[[bytes], Awaitable[TrackedQuest | None]] | None = None,
+                 quest_period: float = QUEST_PERIOD,
                  cloud_scene: bool = False,
                  prepare_audio: Callable[[], Awaitable[None]] | None = None,
                  enabled: Callable[[], bool] = lambda: True,
@@ -68,6 +70,7 @@ class GameCompanion:
         self.announce = announce
         self.entry = entry
         self.recognize_quest = recognize_quest
+        self.quest_period = quest_period
         self.cloud_scene = cloud_scene
         self.prepare_audio = prepare_audio
         self.enabled = enabled
@@ -107,11 +110,7 @@ class GameCompanion:
 
     async def start(self) -> None:
         if self.task is None:
-            logger.info(
-                "wuwa.companion.start reader=%s scene=%s",
-                "cloud" if self.recognize_quest else "local",
-                "cloud" if self.cloud_scene else "local",
-            )
+            logger.info("wuwa.companion.start scene=%s", "cloud" if self.cloud_scene else "local")
             self.task = asyncio.create_task(self._run(), name="wuwa-companion")
 
     async def close(self) -> None:
@@ -210,6 +209,8 @@ class GameCompanion:
         self.frames.append(GameFrame(sampled_at, capture.image, capture.scene_signature))
         while self.frames and now - self.frames[0].captured_at > FRAME_WINDOW:
             self.frames.popleft()
+        if not self.vision.ready_for_inference():
+            return
         if self.review_task is not None and not self.review_task.done():
             return
         if self.entry is not None and self.entry.opening_pending(source.launch):
@@ -256,7 +257,7 @@ class GameCompanion:
         if (capture.quest_image is None or sampled_at < self.next_quest
                 or (self.quest_task is not None and not self.quest_task.done())):
             return
-        self.next_quest = sampled_at + QUEST_PERIOD
+        self.next_quest = sampled_at + self.quest_period
         self.quest_task = asyncio.create_task(
             self._read_quest(
                 self.recognize_quest, source, capture.quest_image, sampled_at, self.quest_generation
