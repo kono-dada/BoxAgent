@@ -6,6 +6,7 @@ import argparse
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -62,6 +63,129 @@ def check_image_features(model: Any) -> None:
     print("Matched repeated vision features; changed text, pixels, grid and dtype exercised.")
 
 
+def check_recurrent_snapshot() -> None:
+    import wuwa_mlx_prefill as prefill
+
+    cut = prefill._IMAGE_PREFIX_TOKENS
+    length = cut + 33
+    shape = (1, length, 16, 128)
+    mx.random.seed(964)
+    q, k, v = [(mx.random.normal(shape) / 16).astype(mx.bfloat16) for _ in range(3)]
+    g = mx.full((1, length, 16), 0.98, dtype=mx.float32)
+    beta = mx.full(g.shape, 0.35, dtype=mx.bfloat16)
+    state = mx.zeros((1, 16, 128, 128), dtype=mx.float32)
+    from mlx_vlm.models.qwen3_5 import gated_delta
+
+    for masked in (False, True):
+        mask = (mx.arange(length)[None] % 7) != 3 if masked else None
+        inputs = [q, k, v, g, beta, state, mx.array([cut], dtype=mx.uint32)]
+        if mask is not None:
+            inputs.append(mask)
+        _, expected = prefill._make_kernel(mx, masked=masked)(
+            inputs=inputs, grid=(32, 32, 16), threadgroup=(32, 4, 1),
+            output_shapes=[(1, cut, 16, 128), state.shape], output_dtypes=[v.dtype, state.dtype],
+        )
+        actual = prefill._prefix_recurrence(gated_delta, k, v, g, beta, state, mask)
+        assert actual is not None and mx.array_equal(actual, expected).item()
+    print("Masked and unmasked deferred states matched the original recurrence.")
+
+
+def check_image_prefix(model: Any) -> None:
+    import wuwa_mlx_prefill as prefill
+
+    prefill.enable_delta_prefill(model)
+    language = model.language_model
+    history = prefill.ImagePrefixCache()
+    pixels = mx.array(np.random.default_rng(275).normal(size=(3840, 1536)).astype(np.float32))
+    grid = mx.array([[1, 60, 64]])
+    visual_tokens = [
+        language.config.vision_start_token_id, *([model.config.image_token_index] * 960),
+        language.config.vision_end_token_id,
+    ]
+    starts: list[int] = []
+
+    def request(length: int, word: int) -> tuple[mx.array, Any]:
+        ids = mx.array([visual_tokens + [word] * (length + 1 - len(visual_tokens))])
+        return ids, model.get_input_embeddings(ids, pixels, image_grid_thw=grid)
+
+    def evaluate(ids: mx.array, features: Any, *, reuse: bool) -> list[Any]:
+        cache = language.make_cache()
+
+        def run(start: int) -> None:
+            starts.append(start)
+            language(ids[:, start:-1], inputs_embeds=features.inputs_embeds[:, start:-1],
+                     position_ids=features.position_ids, rope_deltas=features.rope_deltas,
+                     cache=cache, skip_logits=True)
+        if reuse:
+            history.prefill(features, ids, cache, 1536, language, run)
+        else:
+            run(0)
+        mx.eval([entry.state for entry in cache])
+        return cache
+
+    with patch.object(prefill, "_normal_memory_pressure", return_value=True):
+        lengths = (1055, 1064, 1035, 1052, 1088, 1146, 1279, 1303, 1408, 1536, 1025)
+        for i, length in enumerate(lengths):
+            ids, features = request(length, 40 + i)
+            expected = evaluate(ids, features, reuse=False)
+            actual = evaluate(ids, features, reuse=True)
+            assert starts[-1] == (0 if i < 2 else prefill._IMAGE_PREFIX_TOKENS)
+            matches = [mx.array_equal(a, b) for entry, other in zip(expected, actual, strict=True)
+                       for a, b in zip(entry.state, other.state, strict=True)]
+            assert mx.all(mx.stack(matches)).item(), (length, [v.item() for v in matches])
+        saved = history.saved
+        assert saved is not None
+
+        moving = prefill.ImagePrefixCache()
+        fresh_starts: list[int] = []
+
+        def fresh(start: int) -> None:
+            assert prefill._capture.get() is None and not prefill._suffix.get()
+            fresh_starts.append(start)
+
+        for _ in range(3):
+            current = SimpleNamespace(prefix_image=object())
+            moving.prefill(current, ids, language.make_cache(), 1536, language, fresh)
+            assert moving.saved is None
+        assert fresh_starts == [0, 0, 0]
+
+        def misses(marker: Any, tokens: mx.array, chunk: int) -> None:
+            history.saved = saved
+            history.previous_features = features.prefix_image
+            called: list[int] = []
+            history.prefill(marker, tokens, language.make_cache(), chunk, language, called.append)
+            assert called == [0]
+
+        misses(features, ids, 512)
+        misses(features, ids[:, :1025], 1536)
+        misses(features, mx.concatenate([ids[:, :1] + 1, ids[:, 1:]], axis=1), 1536)
+        misses(SimpleNamespace(prefix_image=object(), image_end=features.image_end,
+                               position_ids=features.position_ids), ids, 1536)
+        for axis in range(3):
+            changed = np.array(features.position_ids, copy=True)
+            changed[axis, 0, prefill._IMAGE_PREFIX_TOKENS - 1] += 1
+            misses(SimpleNamespace(prefix_image=features.prefix_image, image_end=features.image_end,
+                                   position_ids=mx.array(changed)), ids, 1536)
+        history.saved = saved
+        history.previous_features = features.prefix_image
+        called: list[int] = []
+
+        def simulate_eviction(start: int) -> None:
+            called.append(start)
+            if start:
+                raise prefill._PrefixUnavailable
+
+        history.prefill(features, ids, language.make_cache(), 1536, language, simulate_eviction)
+        assert called == [prefill._IMAGE_PREFIX_TOKENS, 0] and history.saved is None
+    history.saved = saved
+    with patch.object(prefill, "_normal_memory_pressure", return_value=False):
+        called = []
+        history.prefill(features, ids, language.make_cache(), 1536, language, called.append)
+        assert called == [0] and history.saved is None
+    print("All 48 layer-state arrays matched on full and resumed prompts. "
+          "Changed images, tokens, positions, chunking and memory pressure exercised.")
+
+
 def main(model_path: Path) -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
     import wuwa_mlx_prefill as prefill
@@ -105,6 +229,8 @@ def main(model_path: Path) -> None:
         again = evaluate()
         assert all(mx.array_equal(a, b).item() for a, b in zip(expected, again, strict=True))
     print("Matched cold, retained, released and rebuilt prefill outputs.")
+    check_recurrent_snapshot()
+    check_image_prefix(model)
 
 
 if __name__ == "__main__":

@@ -275,6 +275,8 @@ def matches_target_tail(
 
 class WuwaCpuDraft:
     def __init__(self, directory: Path, fingerprints: dict[str, str]) -> None:
+        from wuwa_mlx_prefill import ImagePrefixCache
+
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
         if (
             not isinstance(manifest, dict)
@@ -343,6 +345,9 @@ class WuwaCpuDraft:
         self.previous_gpu_pressure: bool | None = None
         self.vision_logits: Callable[[mx.array], mx.array] | None = None
         self.reported_vision = False
+        self.image_prefix: ImagePrefixCache | None = (
+            ImagePrefixCache() if self.candidate_token is not None else None
+        )
         self.recent_tokens: OrderedDict[str, tuple[int, ...]] = OrderedDict()
 
     def under_gpu_pressure(self, checkpoint: ReviewCheckpoint | None = None) -> bool:
@@ -368,6 +373,7 @@ class WuwaCpuDraft:
 
     def close(self) -> None:
         self.executor.shutdown(cancel_futures=True)
+        self.image_prefix = None
         if self.handle is not None:
             self.release(self.handle)
             self.handle = None
@@ -510,16 +516,26 @@ class WuwaCpuDraft:
                 embedded = model.get_input_embeddings(input_ids, pixel_values, mask=mask, **kwargs)
                 positions = embedded.position_ids
                 chunk_size = prefill_step_size or prefix.shape[1]
-                for start in range(0, prefix.shape[1], chunk_size):
-                    end = min(start + chunk_size, prefix.shape[1])
-                    language(
-                        prefix[:, start:end], inputs_embeds=embedded.inputs_embeds[:, start:end],
-                        cache=cache, position_ids=positions, rope_deltas=embedded.rope_deltas,
-                        skip_logits=True,
+
+                def prefill_from(offset: int) -> None:
+                    for start in range(offset, prefix.shape[1], chunk_size):
+                        end = min(start + chunk_size, prefix.shape[1])
+                        language(
+                            prefix[:, start:end],
+                            inputs_embeds=embedded.inputs_embeds[:, start:end],
+                            cache=cache, position_ids=positions, rope_deltas=embedded.rope_deltas,
+                            skip_logits=True,
+                        )
+                        if end < prefix.shape[1]:
+                            mx.eval([entry.state for entry in cache])
+                            mx.clear_cache()
+
+                if self.image_prefix is None:
+                    prefill_from(0)
+                else:
+                    self.image_prefix.prefill(
+                        embedded, input_ids, cache, chunk_size, language, prefill_from,
                     )
-                    if end < prefix.shape[1]:
-                        mx.eval([entry.state for entry in cache])
-                        mx.clear_cache()
                 if checkpoint is not None:
                     checkpoint.remember(input_ids, positions, embedded.rope_deltas, cache)
             first_position = positions[0, 0, -1].item()

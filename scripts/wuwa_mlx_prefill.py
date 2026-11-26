@@ -2,9 +2,127 @@
 
 import ctypes
 import sys
+from collections.abc import Callable
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from importlib import import_module
 from time import monotonic
 from typing import Any
+
+# The cut falls inside the 960 image tokens of a full six-frame review.
+_IMAGE_PREFIX_TOKENS = 896
+
+
+@dataclass
+class _PrefixCapture:
+    convolutions: list[Any] = field(default_factory=list)
+    recurrences: list[Any] = field(default_factory=list)
+    complete: bool = True
+
+
+@dataclass(frozen=True)
+class _SavedPrefix:
+    tokens: bytes
+    positions: bytes
+    layers: tuple[tuple[Any, ...], ...]
+
+
+_capture: ContextVar[_PrefixCapture | None] = ContextVar("visual_prefix_capture", default=None)
+_suffix: ContextVar[bool] = ContextVar("visual_prefix_suffix", default=False)
+
+
+class _PrefixUnavailable(RuntimeError):
+    """The current suffix cannot use the same projection as a complete prompt."""
+
+
+class ImagePrefixCache:
+    """Keep the image portion of one verified Qwen prefill for another question."""
+
+    def __init__(self) -> None:
+        self.saved: _SavedPrefix | None = None
+        self.previous_features: Any = None
+        self.revisited = False
+
+    def prefill(
+        self, embedded: Any, ids: Any, cache: list[Any], chunk: int, language: Any,
+        run: Callable[[int], None],
+    ) -> None:
+        import mlx.core as mx
+        import numpy as np
+
+        features = getattr(embedded, "prefix_image", None)
+        length = ids.shape[1] - 1
+        # Live capture usually supplies a new image every time. Begin saving only after
+        # the caller has actually asked another question about the same visual features.
+        if features is None or features is not self.previous_features:
+            self.saved = None
+            capture_next = self.revisited
+            self.previous_features = features
+            self.revisited = False
+            if features is None or not capture_next:
+                run(0)
+                return
+        else:
+            self.revisited = True
+        if not _normal_memory_pressure():
+            self.saved = None
+            run(0)
+            return
+        # Below 1025 input rows the pinned MLX switches its reduction for small
+        # quantized projections. Reuse only the full-prompt dispatch checked here.
+        if (
+            getattr(embedded, "image_end", 0) < _IMAGE_PREFIX_TOKENS
+            or not 1024 < length <= min(chunk, 1536) or len(cache) != 24
+        ):
+            run(0)
+            return
+        position_ids = embedded.position_ids
+        if (
+            ids.dtype not in (mx.int32, mx.int64) or position_ids.dtype not in (mx.int32, mx.int64)
+            or position_ids.shape != (3, 1, ids.shape[1])
+        ):
+            run(0)
+            return
+        # Both index arrays were read on the CPU while constructing these embeddings.
+        # A GPU slice followed by item()/tolist() drains unrelated queued vision work.
+        tokens = np.asarray(ids)[0, :_IMAGE_PREFIX_TOKENS].tobytes()
+        positions = np.asarray(position_ids)[..., :_IMAGE_PREFIX_TOKENS].tobytes()
+        saved = self.saved
+        if saved is not None and saved.tokens == tokens and saved.positions == positions:
+            for entry, state in zip(cache, saved.layers, strict=True):
+                entry.state = list(state)
+            scope = _suffix.set(True)
+            try:
+                run(_IMAGE_PREFIX_TOKENS)
+                return
+            except (RuntimeError, MemoryError):
+                cache[:] = language.make_cache()
+                self.saved = None
+            finally:
+                _suffix.reset(scope)
+            run(0)
+            return
+
+        self.saved = None
+        captured = _PrefixCapture()
+        scope = _capture.set(captured)
+        try:
+            run(0)
+        finally:
+            _capture.reset(scope)
+        if (
+            not captured.complete or len(captured.convolutions) != 18
+            or len(captured.recurrences) != 18
+        ):
+            return
+        recurrent = iter(zip(captured.convolutions, captured.recurrences, strict=True))
+        layers = tuple(
+            tuple(value[:, :, :_IMAGE_PREFIX_TOKENS, :] for value in entry.state) if i % 4 == 3
+            else next(recurrent)
+            for i, entry in enumerate(cache)
+        )
+        # MLX evaluates the extra state only when a later question actually consumes it.
+        self.saved = _SavedPrefix(tokens, positions, layers)
 
 
 def _normal_memory_pressure() -> bool:
@@ -62,27 +180,51 @@ def enable_language_prefill(model: Any) -> None:
         return entry[3]
 
     class DensePrefill(nn.QuantizedLinear):
-        def __init__(self, original: nn.QuantizedLinear) -> None:
+        def __init__(self, original: nn.QuantizedLinear, *, keep_shape: bool = False) -> None:
             nn.Module.__init__(self)
             self.group_size, self.bits = original.group_size, original.bits
             self.mode = original.mode
+            self.keep_shape = keep_shape
             for key in ("weight", "scales", "biases"):
                 self[key] = original[key]
             self.freeze()
             self.train(original.training)
 
         def __call__(self, x: mx.array) -> mx.array:
+            suffix = _suffix.get()
+            if self.keep_shape:
+                if suffix:
+                    padded = mx.pad(x, ((0, 0), (_IMAGE_PREFIX_TOKENS, 0), (0, 0)))
+                    return super().__call__(padded)[:, _IMAGE_PREFIX_TOKENS:]
+                return super().__call__(x)
             # MLX takes a different reduction path for shorter quantized projections.
             if (
-                x.ndim == 3 and x.shape[0] == 1 and 512 < x.shape[1] <= 2048
+                x.ndim == 3 and x.shape[0] == 1 and (512 < x.shape[1] <= 2048 or suffix)
                 and x.dtype == mx.bfloat16 and mx.default_device() == mx.gpu
             ):
                 dense = cached_weight(self.weight, self.scales, self.biases)
                 if dense is not None:
-                    return x @ dense.T
+                    if suffix and self.weight.shape in ((1024, 256), (1024, 448)):
+                        # A real output-channel batch keeps MLX on its full-prompt GEMM.
+                        # Splitting the reduction dimension can change BF16 rounding.
+                        rows, channels = dense.shape
+                        groups = dense.reshape(2, rows // 2, channels).transpose(0, 2, 1)
+                        return (x @ groups).transpose(1, 0, 2).reshape(1, x.shape[1], rows)
+                    result = x @ dense.T
+                    capture = _capture.get()
+                    if capture is not None and self.weight.shape == (6144, 128):
+                        conv_rows = mx.arange(_IMAGE_PREFIX_TOKENS - 3, _IMAGE_PREFIX_TOKENS)
+                        capture.convolutions.append(mx.take(result, conv_rows, axis=1))
+                    return result
+                if suffix:
+                    raise _PrefixUnavailable
+                if (capture := _capture.get()) is not None:
+                    capture.complete = False
             return super().__call__(x)
 
-    def retain_projection(owner: nn.Module, name: str, shape: tuple[int, int]) -> None:
+    def retain_projection(
+        owner: nn.Module, name: str, shape: tuple[int, int], *, keep_shape: bool = False,
+    ) -> None:
         part = getattr(owner, name, None)
         if (
             type(part) is nn.QuantizedLinear and "bias" not in part and part.biases is not None
@@ -91,7 +233,7 @@ def enable_language_prefill(model: Any) -> None:
             and part.scales.shape == part.biases.shape == (shape[0], shape[1] // 8)
             and part.scales.dtype == part.biases.dtype == mx.bfloat16
         ):
-            setattr(owner, name, DensePrefill(part))
+            setattr(owner, name, DensePrefill(part, keep_shape=keep_shape))
 
     class PackedMLP(Qwen3_5MLP):
         def __init__(self, original: Qwen3_5MLP) -> None:
@@ -110,12 +252,14 @@ def enable_language_prefill(model: Any) -> None:
                 gate[key], up[key] = mx.split(joined, 2, axis=0)
 
             def project(x: mx.array) -> mx.array:
-                if x.shape[1] >= 512 and x.dtype == mx.bfloat16:
+                if (x.shape[1] >= 512 or _suffix.get()) and x.dtype == mx.bfloat16:
                     # MLX's dense prefill GEMM takes these same unpacked affine weights.
                     # Decode still reads the original four-bit weights.
                     dense = (cached_weight(weights, scales, biases)
                              if mx.default_device() == mx.gpu else None)
                     if dense is None:
+                        if _suffix.get():
+                            raise _PrefixUnavailable
                         dense = mx.dequantize(weights, scales, biases, group_size=64, bits=4)
                     return x @ dense.T
                 return mx.quantized_matmul(
@@ -127,19 +271,22 @@ def enable_language_prefill(model: Any) -> None:
             self.train(original.training)
 
         def __call__(self, x: mx.array) -> mx.array:
-            if x.ndim != 3 or x.shape[0] != 1 or x.shape[1] < 128:
+            if x.ndim != 3 or x.shape[0] != 1 or (x.shape[1] < 128 and not _suffix.get()):
                 return super().__call__(x)
             gate, up = mx.split(self.project(x), 2, axis=-1)
             return self.down_proj(swiglu(gate, up))
 
     for layer in model.language_model.model.layers:
         if getattr(layer, "is_linear", None) is True:
+            for name in ("in_proj_a", "in_proj_b"):
+                retain_projection(layer.linear_attn, name, (16, 128), keep_shape=True)
             retain_projection(layer.linear_attn, "in_proj_qkv", (6144, 128))
             retain_projection(layer.linear_attn, "in_proj_z", (2048, 128))
             retain_projection(layer.linear_attn, "out_proj", (1024, 256))
         elif getattr(layer, "is_linear", None) is False:
+            for name in ("k_proj", "v_proj"):
+                retain_projection(layer.self_attn, name, (512, 128), keep_shape=True)
             retain_projection(layer.self_attn, "q_proj", (4096, 128))
-            # Standalone K/V use a different reduction at some odd prompt lengths.
             retain_projection(layer.self_attn, "o_proj", (1024, 256))
         retain_projection(layer.mlp, "down_proj", (1024, 448))
         mlp = layer.mlp
@@ -219,6 +366,27 @@ def _make_kernel(mx: Any, *, masked: bool) -> Any:
     )
 
 
+def _prefix_recurrence(
+    backend: Any, k: Any, v: Any, g: Any, beta: Any, state: Any, mask: Any,
+) -> Any:
+    """Describe the stock FP32 state update without scheduling it on the live stream."""
+    import mlx.core as mx
+
+    name = "_gated_delta_state_kernel" + ("_masked" if mask is not None else "")
+    kernel = getattr(backend, name, None)
+    if kernel is None:
+        return None
+    inputs = [k, v, g, beta, state, mx.array([_IMAGE_PREFIX_TOKENS], dtype=mx.int32), k.shape[1]]
+    if mask is not None:
+        inputs.append(mask)
+    return kernel(
+        inputs=inputs, template=[("StT", state.dtype), ("Dk", 128), ("Dv", 128),
+                                 ("Hk", 16), ("Hv", 16)],
+        grid=(32, 128, 16), threadgroup=(32, 4, 1),
+        output_shapes=[state.shape], output_dtypes=[state.dtype],
+    )[0]
+
+
 def enable_delta_prefill(model: Any) -> None:
     import mlx.core as mx
 
@@ -245,7 +413,7 @@ def enable_delta_prefill(model: Any) -> None:
         nonlocal report_first_use
         length = q.shape[1]
         if (
-            length < 128
+            (length < 128 and not _suffix.get())
             or q.shape != (1, length, 16, 128)
             or k.shape != q.shape
             or v.shape != q.shape
@@ -265,12 +433,14 @@ def enable_delta_prefill(model: Any) -> None:
         if mask is not None:
             inputs.append(mask)
         y, after = kernels[mask is not None](
-            inputs=inputs,
-            grid=(32, 32, 16),
-            threadgroup=(32, 4, 1),
-            output_shapes=[v.shape, state.shape],
-            output_dtypes=[v.dtype, state.dtype],
+            inputs=inputs, grid=(32, 32, 16), threadgroup=(32, 4, 1),
+            output_shapes=[v.shape, state.shape], output_dtypes=[v.dtype, state.dtype],
         )
+        capture = _capture.get()
+        if capture is not None and length >= _IMAGE_PREFIX_TOKENS:
+            middle = _prefix_recurrence(backend, k, v, g, beta, state, mask)
+            if middle is not None:
+                capture.recurrences.append(middle)
         if report_first_use:
             print("Local vision uses the grouped Gated DeltaNet Metal kernel", file=sys.stderr)
             report_first_use = False

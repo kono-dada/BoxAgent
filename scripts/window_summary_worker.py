@@ -294,6 +294,12 @@ def enable_vision_prefill(model: Any) -> None:
     projection = tower.patch_embed.proj
     if projection.weight.shape != (768, 2, 16, 16, 3) or tower.deepstack_visual_indexes:
         return
+
+    @dataclass
+    class VisualEmbeddings(InputEmbeddingsFeatures):
+        prefix_image: Any = None
+        image_end: int = 0
+
     language = model.language_model
     original = model.get_input_embeddings
     previous = ImageFeatures()
@@ -400,8 +406,9 @@ def enable_vision_prefill(model: Any) -> None:
         ], axis=1)
         mx.async_eval(inputs)
         position, delta = text_positions(tuple(tokens), height, width, input_ids.dtype, grid.dtype)
-        return InputEmbeddingsFeatures(
+        return VisualEmbeddings(
             inputs_embeds=inputs, position_ids=position, rope_deltas=delta,
+            prefix_image=image_features, image_end=end,
         )
 
     model.get_input_embeddings = prepare
