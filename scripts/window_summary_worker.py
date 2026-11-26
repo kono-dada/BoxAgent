@@ -402,14 +402,14 @@ def main() -> None:
         with contextlib.redirect_stdout(sys.stderr):
             from mlx_vlm.utils import load
             from vision_inputs import enable_image_inputs
-            from wuwa_mlx_prefill import enable_delta_prefill, enable_mlp_prefill
+            from wuwa_mlx_prefill import enable_delta_prefill, enable_language_prefill
 
             model, processor = load(str(args.model))
             if getattr(model.config, "model_type", None) == "qwen3_5":
                 enable_image_inputs(processor)
             enable_vision_kernel(model)
             enable_delta_prefill(model)
-            enable_mlp_prefill(model)
+            enable_language_prefill(model)
             config = model.config
             if not isinstance(config, dict):
                 config = vars(config)

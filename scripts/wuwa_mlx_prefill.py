@@ -1,12 +1,31 @@
 """Metal prefill kernels for the local Qwen worker on M3 Pro."""
 
+import ctypes
 import sys
 from importlib import import_module
+from time import monotonic
 from typing import Any
 
 
-def enable_mlp_prefill(model: Any) -> None:
-    """Project the gate and up branches together for large prompts."""
+def _normal_memory_pressure() -> bool:
+    """Darwin reports 1 at normal pressure, 2 at warning and 4 at critical."""
+    try:
+        query = ctypes.CDLL(None).sysctlbyname
+        query.argtypes = (ctypes.c_char_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t),
+                          ctypes.c_void_p, ctypes.c_size_t)
+        query.restype = ctypes.c_int
+        level = ctypes.c_int()
+        size = ctypes.c_size_t(ctypes.sizeof(level))
+        return (
+            query(b"kern.memorystatus_vm_pressure_level", ctypes.byref(level),
+                  ctypes.byref(size), None, 0) == 0 and level.value == 1
+        )
+    except (AttributeError, OSError):
+        return False
+
+
+def enable_language_prefill(model: Any) -> None:
+    """Reuse expanded Qwen projection weights for large prompts on the M3 Pro."""
     import mlx.core as mx
     import mlx.nn as nn
     from mlx_vlm.models.activations import swiglu
@@ -18,6 +37,61 @@ def enable_mlp_prefill(model: Any) -> None:
         or mx.device_info().get("architecture") != "applegpu_g15s"
     ):
         return
+
+    expanded: dict[int, tuple[mx.array, mx.array, mx.array, mx.array]] = {}
+    next_pressure_check = 0.0
+    retain = False
+
+    def cached_weight(weight: mx.array, scales: mx.array, biases: mx.array) -> mx.array | None:
+        nonlocal next_pressure_check, retain
+        now = monotonic()
+        if now >= next_pressure_check:
+            next_pressure_check = now + 1.0
+            retain = _normal_memory_pressure()
+            if not retain and expanded:
+                expanded.clear()
+                mx.clear_cache()
+        if not retain:
+            return None
+        key = id(weight)
+        entry = expanded.get(key)
+        if entry is None or entry[1] is not scales or entry[2] is not biases:
+            dense = mx.dequantize(weight, scales, biases, group_size=64, bits=4)
+            entry = (weight, scales, biases, dense)
+            expanded[key] = entry
+        return entry[3]
+
+    class DensePrefill(nn.QuantizedLinear):
+        def __init__(self, original: nn.QuantizedLinear) -> None:
+            nn.Module.__init__(self)
+            self.group_size, self.bits = original.group_size, original.bits
+            self.mode = original.mode
+            for key in ("weight", "scales", "biases"):
+                self[key] = original[key]
+            self.freeze()
+            self.train(original.training)
+
+        def __call__(self, x: mx.array) -> mx.array:
+            # MLX takes a different reduction path for shorter quantized projections.
+            if (
+                x.ndim == 3 and x.shape[0] == 1 and 512 < x.shape[1] <= 2048
+                and x.dtype == mx.bfloat16 and mx.default_device() == mx.gpu
+            ):
+                dense = cached_weight(self.weight, self.scales, self.biases)
+                if dense is not None:
+                    return x @ dense.T
+            return super().__call__(x)
+
+    def retain_projection(owner: nn.Module, name: str, shape: tuple[int, int]) -> None:
+        part = getattr(owner, name, None)
+        if (
+            type(part) is nn.QuantizedLinear and "bias" not in part and part.biases is not None
+            and (part.bits, part.group_size, part.mode) == (4, 64, "affine")
+            and part.weight.dtype == mx.uint32 and part.weight.shape == shape
+            and part.scales.shape == part.biases.shape == (shape[0], shape[1] // 8)
+            and part.scales.dtype == part.biases.dtype == mx.bfloat16
+        ):
+            setattr(owner, name, DensePrefill(part))
 
     class PackedMLP(Qwen3_5MLP):
         def __init__(self, original: Qwen3_5MLP) -> None:
@@ -38,8 +112,11 @@ def enable_mlp_prefill(model: Any) -> None:
             def project(x: mx.array) -> mx.array:
                 if x.shape[1] >= 512 and x.dtype == mx.bfloat16:
                     # MLX's dense prefill GEMM takes these same unpacked affine weights.
-                    # Keep the compact storage between requests and for the verifier.
-                    dense = mx.dequantize(weights, scales, biases, group_size=64, bits=4)
+                    # Decode still reads the original four-bit weights.
+                    dense = (cached_weight(weights, scales, biases)
+                             if mx.default_device() == mx.gpu else None)
+                    if dense is None:
+                        dense = mx.dequantize(weights, scales, biases, group_size=64, bits=4)
                     return x @ dense.T
                 return mx.quantized_matmul(
                     x, weights, scales, biases, transpose=True, group_size=64, bits=4,
@@ -56,6 +133,15 @@ def enable_mlp_prefill(model: Any) -> None:
             return self.down_proj(swiglu(gate, up))
 
     for layer in model.language_model.model.layers:
+        if getattr(layer, "is_linear", None) is True:
+            retain_projection(layer.linear_attn, "in_proj_qkv", (6144, 128))
+            retain_projection(layer.linear_attn, "in_proj_z", (2048, 128))
+            retain_projection(layer.linear_attn, "out_proj", (1024, 256))
+        elif getattr(layer, "is_linear", None) is False:
+            retain_projection(layer.self_attn, "q_proj", (4096, 128))
+            # Standalone K/V use a different reduction at some odd prompt lengths.
+            retain_projection(layer.self_attn, "o_proj", (1024, 256))
+        retain_projection(layer.mlp, "down_proj", (1024, 448))
         mlp = layer.mlp
         if type(mlp) is not Qwen3_5MLP:
             continue
