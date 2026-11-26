@@ -1,0 +1,1469 @@
+{
+  "date": "2026-11-25",
+  "hardware": "MacBook Pro, Apple M3 Pro, 18 GiB unified memory, macOS 14.7.8",
+  "runtime": {
+    "python": "3.12.9",
+    "macos": "14.7.8",
+    "machine": "arm64",
+    "packages": {
+      "mlx": "0.32.2",
+      "mlx-metal": "0.32.2",
+      "mlx-vlm": "0.7.0",
+      "safetensors": "0.8.0",
+      "transformers": "5.17.0",
+      "numpy": "2.5.3",
+      "Pillow": "12.3.0"
+    }
+  },
+  "initial": "1cf6e36908bc44dbaabee0170131ce498481a323",
+  "published_reference": "d20fb93910a95a6bb7c2431f14f0abfc567be486",
+  "source_sha256": {
+    "scripts/wuwa_cpu_draft.py": "9db195a8433da759d3f4f8a62a1d0deaac00fc85e7d7e04136892b55d92caa39",
+    "scripts/wuwa_cpu_draft_bridge.c": "ebbcaee539c2acc984b4c75efe8c944dbed672abdcfba46b4ada953c6c9adfed",
+    "scripts/vision_projection.py": "79a14f4b1ed7070fe4d8216be296c478571fe61787a1fee7a21404b3c5cc2924",
+    "scripts/build_wuwa_cpu_draft.py": "b9976e873e6ca867600a6a14341216fd86a4c942dc4f343aaf18753074ac0a03"
+  },
+  "sources": [
+    {
+      "key": "game-hud",
+      "url": "https://archive.org/details/defeat-utterance-of-marvels-1-wuthering-waves",
+      "file": ")Defeat  -Utterance of Marvels 1-Wuthering Waves.mp4",
+      "sha1": "52536e816d7b60b53f503fd4ceead13c6f7be35c",
+      "bytes": 24308988
+    },
+    {
+      "key": "combat-nohud",
+      "url": "https://archive.org/details/wuthering-waves-2025-05-02-08-13-23",
+      "file": "10 min combat no HUD 2025-05-08 17-25-04.ia.mp4",
+      "sha1": "324b52985b26c06d2a5ea54222922dd1755d1f59",
+      "bytes": 59096590
+    }
+  ],
+  "protocol": {
+    "render": "Same 1280x720 offscreen Metal renderer, target 60 Hz, 1450 shader iterations. GPU device utilization sampled every 500 ms. Frame-service p95 is for the simulated renderer.",
+    "steady_six_frames": "Two continuous gameplay recordings. Four six-second windows per recording, no repeated six-frame input within an order. Sample from the 0.5 s capture cadence and evenly select six according to the production window selection. Use the unchanged product thumbnail, Frame labels and contact sheet, byte-identical between versions.",
+    "worker": "Warm independent workers, one active request at a time. Alternate version order and reverse it in a second run of the long requests. Wall clock covers reading/writing the fixed JPEG, worker IPC, first attempt, format recovery and the final full response. Original 160-token review cap, same greedy settings.",
+    "quality": "Complete means parseable allowed scene, nonempty observation and distinct visible frame labels 1–6; strict_boxagent_observation uses the unchanged production HighlightReview parser. These are distinct measures. Time to TTS and game FPS are outside the recorded worker latency.",
+    "native": "Opt-in production GameCompanion, recorded windows and mock audio transport. The live capture loop decides which six frames to select; per-case frame hashes indicate any mismatch.",
+    "p95": "nearest rank; validation rows repeat eight distinct windows across two execution orders."
+  },
+  "steady_windows": [
+    {
+      "case": "steady-game-hud-76",
+      "source": "game-hud",
+      "sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+      "frames": [
+        "000-70.00.jpg",
+        "005-71.00.jpg",
+        "012-72.40.jpg",
+        "018-73.60.jpg",
+        "025-75.00.jpg",
+        "030-76.00.jpg"
+      ]
+    },
+    {
+      "case": "steady-game-hud-82",
+      "source": "game-hud",
+      "sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+      "frames": [
+        "030-76.00.jpg",
+        "035-77.00.jpg",
+        "042-78.40.jpg",
+        "048-79.60.jpg",
+        "055-81.00.jpg",
+        "060-82.00.jpg"
+      ]
+    },
+    {
+      "case": "steady-game-hud-88",
+      "source": "game-hud",
+      "sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+      "frames": [
+        "060-82.00.jpg",
+        "065-83.00.jpg",
+        "072-84.40.jpg",
+        "078-85.60.jpg",
+        "085-87.00.jpg",
+        "090-88.00.jpg"
+      ]
+    },
+    {
+      "case": "steady-game-hud-94",
+      "source": "game-hud",
+      "sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+      "frames": [
+        "090-88.00.jpg",
+        "095-89.00.jpg",
+        "102-90.40.jpg",
+        "108-91.60.jpg",
+        "115-93.00.jpg",
+        "120-94.00.jpg"
+      ]
+    },
+    {
+      "case": "steady-combat-nohud-178",
+      "source": "combat-nohud",
+      "sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+      "frames": [
+        "000-172.00.jpg",
+        "005-173.00.jpg",
+        "012-174.40.jpg",
+        "018-175.60.jpg",
+        "025-177.00.jpg",
+        "030-178.00.jpg"
+      ]
+    },
+    {
+      "case": "steady-combat-nohud-184",
+      "source": "combat-nohud",
+      "sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+      "frames": [
+        "030-178.00.jpg",
+        "035-179.00.jpg",
+        "042-180.40.jpg",
+        "048-181.60.jpg",
+        "055-183.00.jpg",
+        "060-184.00.jpg"
+      ]
+    },
+    {
+      "case": "steady-combat-nohud-190",
+      "source": "combat-nohud",
+      "sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+      "frames": [
+        "060-184.00.jpg",
+        "065-185.00.jpg",
+        "072-186.40.jpg",
+        "078-187.60.jpg",
+        "085-189.00.jpg",
+        "090-190.00.jpg"
+      ]
+    },
+    {
+      "case": "steady-combat-nohud-196",
+      "source": "combat-nohud",
+      "sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+      "frames": [
+        "090-190.00.jpg",
+        "095-191.00.jpg",
+        "102-192.40.jpg",
+        "108-193.60.jpg",
+        "115-195.00.jpg",
+        "120-196.00.jpg"
+      ]
+    }
+  ],
+  "latest_long": {
+    "modes": {
+      "baseline": {
+        "latency_ms": {
+          "n": 16,
+          "p50": 4554.64,
+          "p95": 6921.22
+        },
+        "chars": {
+          "n": 16,
+          "p50": 223.5,
+          "p95": 306
+        },
+        "render_ms": {
+          "n": 4184,
+          "p50": 16.16,
+          "p95": 23.48
+        },
+        "gpu_pct": {
+          "n": 150,
+          "p50": 100.0,
+          "p95": 100
+        },
+        "complete_observation": 10,
+        "strict_boxagent_observation": 0
+      },
+      "candidate": {
+        "latency_ms": {
+          "n": 16,
+          "p50": 4332.95,
+          "p95": 6447.65
+        },
+        "chars": {
+          "n": 16,
+          "p50": 223.5,
+          "p95": 306
+        },
+        "render_ms": {
+          "n": 4047,
+          "p50": 16.03,
+          "p95": 24.11
+        },
+        "gpu_pct": {
+          "n": 141,
+          "p50": 100,
+          "p95": 100
+        },
+        "complete_observation": 10,
+        "strict_boxagent_observation": 0
+      }
+    },
+    "identical_text": 16,
+    "unique_inputs": 8,
+    "faster": 12,
+    "paired_saving_ms": {
+      "n": 16,
+      "p50": 157.43,
+      "p95": 634.57
+    },
+    "median_latency_reduction_percent": 4.87,
+    "complete_in_both": {
+      "reference": {
+        "n": 10,
+        "p50": 3739.28,
+        "p95": 5302.88
+      },
+      "candidate": {
+        "n": 10,
+        "p50": 3683.74,
+        "p95": 5152.0
+      }
+    },
+    "paired_measurements": [
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-76",
+        "input_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+        "reference_ms": 3698.89,
+        "candidate_ms": 3461.88,
+        "reference_answer_sha256": "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79",
+        "candidate_answer_sha256": "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": 237.01
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-82",
+        "input_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+        "reference_ms": 5304.36,
+        "candidate_ms": 5129.65,
+        "reference_answer_sha256": "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607",
+        "candidate_answer_sha256": "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 174.71
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-88",
+        "input_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+        "reference_ms": 3779.67,
+        "candidate_ms": 3794.26,
+        "reference_answer_sha256": "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6",
+        "candidate_answer_sha256": "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": -14.59
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-94",
+        "input_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+        "reference_ms": 5972.38,
+        "candidate_ms": 5649.31,
+        "reference_answer_sha256": "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620",
+        "candidate_answer_sha256": "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 323.07
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-178",
+        "input_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+        "reference_ms": 3090.89,
+        "candidate_ms": 3134.25,
+        "reference_answer_sha256": "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960",
+        "candidate_answer_sha256": "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": -43.36
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-184",
+        "input_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+        "reference_ms": 3928.22,
+        "candidate_ms": 3678.57,
+        "reference_answer_sha256": "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc",
+        "candidate_answer_sha256": "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": 249.65
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-190",
+        "input_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+        "reference_ms": 6921.22,
+        "candidate_ms": 6286.65,
+        "reference_answer_sha256": "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643",
+        "candidate_answer_sha256": "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 634.57
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-196",
+        "input_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+        "reference_ms": 5181.06,
+        "candidate_ms": 5152.0,
+        "reference_answer_sha256": "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3",
+        "candidate_answer_sha256": "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": 29.06
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-game-hud-76",
+        "input_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+        "reference_ms": 3619.47,
+        "candidate_ms": 3596.08,
+        "reference_answer_sha256": "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79",
+        "candidate_answer_sha256": "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": 23.39
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-game-hud-82",
+        "input_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+        "reference_ms": 5223.95,
+        "candidate_ms": 5028.2,
+        "reference_answer_sha256": "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607",
+        "candidate_answer_sha256": "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 195.75
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-game-hud-88",
+        "input_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+        "reference_ms": 3663.83,
+        "candidate_ms": 3688.92,
+        "reference_answer_sha256": "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6",
+        "candidate_answer_sha256": "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": -25.09
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-game-hud-94",
+        "input_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+        "reference_ms": 5969.09,
+        "candidate_ms": 5828.95,
+        "reference_answer_sha256": "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620",
+        "candidate_answer_sha256": "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 140.14
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-combat-nohud-178",
+        "input_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+        "reference_ms": 3123.68,
+        "candidate_ms": 3163.47,
+        "reference_answer_sha256": "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960",
+        "candidate_answer_sha256": "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": -39.79
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-combat-nohud-184",
+        "input_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+        "reference_ms": 3888.61,
+        "candidate_ms": 3788.33,
+        "reference_answer_sha256": "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc",
+        "candidate_answer_sha256": "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": 100.28
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-combat-nohud-190",
+        "input_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+        "reference_ms": 6859.5,
+        "candidate_ms": 6447.65,
+        "reference_answer_sha256": "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643",
+        "candidate_answer_sha256": "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 411.85
+      },
+      {
+        "run": "final-steady-b",
+        "case": "steady-combat-nohud-196",
+        "input_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+        "reference_ms": 5302.88,
+        "candidate_ms": 4871.64,
+        "reference_answer_sha256": "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3",
+        "candidate_answer_sha256": "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3",
+        "same_text": true,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": 431.24
+      }
+    ]
+  },
+  "latest_short": {
+    "modes": {
+      "baseline": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 2065.37,
+          "p95": 2148.94
+        },
+        "chars": {
+          "n": 8,
+          "p50": 19.0,
+          "p95": 19
+        },
+        "render_ms": {
+          "n": 830,
+          "p50": 18.82,
+          "p95": 26.58
+        },
+        "gpu_pct": {
+          "n": 33,
+          "p50": 100,
+          "p95": 100
+        },
+        "complete_observation": 0,
+        "strict_boxagent_observation": 0
+      },
+      "candidate": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 2059.53,
+          "p95": 2100.72
+        },
+        "chars": {
+          "n": 8,
+          "p50": 19.0,
+          "p95": 19
+        },
+        "render_ms": {
+          "n": 841,
+          "p50": 18.8,
+          "p95": 26.72
+        },
+        "gpu_pct": {
+          "n": 32,
+          "p50": 100.0,
+          "p95": 100
+        },
+        "complete_observation": 0,
+        "strict_boxagent_observation": 0
+      }
+    },
+    "identical_text": 8,
+    "unique_inputs": 8,
+    "faster": 3,
+    "paired_saving_ms": {
+      "n": 8,
+      "p50": -4.37,
+      "p95": 156.82
+    },
+    "median_latency_reduction_percent": 0.28,
+    "complete_in_both": {},
+    "paired_measurements": [
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-76",
+        "input_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+        "reference_ms": 2072.16,
+        "candidate_ms": 2073.6,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": -1.44
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-82",
+        "input_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+        "reference_ms": 2069.69,
+        "candidate_ms": 2058.28,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 11.41
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-88",
+        "input_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+        "reference_ms": 2016.83,
+        "candidate_ms": 2033.35,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": -16.52
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-game-hud-94",
+        "input_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+        "reference_ms": 2047.72,
+        "candidate_ms": 2055.01,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": -7.29
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-178",
+        "input_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+        "reference_ms": 2012.11,
+        "candidate_ms": 2077.35,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": -65.24
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-184",
+        "input_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+        "reference_ms": 2061.05,
+        "candidate_ms": 2060.78,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 0.27
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-190",
+        "input_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+        "reference_ms": 2148.94,
+        "candidate_ms": 1992.12,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 156.82
+      },
+      {
+        "run": "final-steady-a",
+        "case": "steady-combat-nohud-196",
+        "input_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+        "reference_ms": 2070.19,
+        "candidate_ms": 2100.72,
+        "reference_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "candidate_answer_sha256": "1a4f73edecd171e14d395ed68b55703a1bb08081f63d1622222b79a8a4c717e9",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": -30.53
+      }
+    ]
+  },
+  "initial_long": {
+    "modes": {
+      "base": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 9545.92,
+          "p95": 9680.85
+        },
+        "chars": {
+          "n": 8,
+          "p50": 273.0,
+          "p95": 339
+        },
+        "render_ms": {
+          "n": 4174,
+          "p50": 15.76,
+          "p95": 19.88
+        },
+        "gpu_pct": {
+          "n": 141,
+          "p50": 100,
+          "p95": 100
+        },
+        "complete_observation": 2,
+        "strict_boxagent_observation": 0
+      },
+      "candidate": {
+        "latency_ms": {
+          "n": 8,
+          "p50": 4460.6,
+          "p95": 6279.62
+        },
+        "chars": {
+          "n": 8,
+          "p50": 223.5,
+          "p95": 306
+        },
+        "render_ms": {
+          "n": 2033,
+          "p50": 16.02,
+          "p95": 23.53
+        },
+        "gpu_pct": {
+          "n": 73,
+          "p50": 99,
+          "p95": 100
+        },
+        "complete_observation": 5,
+        "strict_boxagent_observation": 0
+      }
+    },
+    "identical_text": 3,
+    "unique_inputs": 8,
+    "faster": 8,
+    "paired_saving_ms": {
+      "n": 8,
+      "p50": 4907.61,
+      "p95": 6477.15
+    },
+    "median_latency_reduction_percent": 53.27,
+    "complete_in_both": {
+      "reference": {
+        "n": 2,
+        "p50": 8569.76,
+        "p95": 9586.78
+      },
+      "candidate": {
+        "n": 2,
+        "p50": 4392.23,
+        "p95": 5213.82
+      }
+    },
+    "paired_measurements": [
+      {
+        "run": "final-initial",
+        "case": "steady-game-hud-76",
+        "input_sha256": "b5d908ddf1309b47437f2236556e48548144504bfa5765476d2593435f56fd0d",
+        "reference_ms": 9475.5,
+        "candidate_ms": 3644.86,
+        "reference_answer_sha256": "15136ed1236226f796ead3ead23139a9ef1d0fd0a2160f446c8c66d1fa441d4a",
+        "candidate_answer_sha256": "b7f6fc633bfbcccba36b2aa1b2b502000351b6e5d604d0c3fc58d6c3a4f0ef79",
+        "same_text": false,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 5830.64
+      },
+      {
+        "run": "final-initial",
+        "case": "steady-game-hud-82",
+        "input_sha256": "3c516c90dee13dab86f0b74df9ddc4b5ce5b45f5d7249b24258650722679f3da",
+        "reference_ms": 7080.93,
+        "candidate_ms": 5318.75,
+        "reference_answer_sha256": "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607",
+        "candidate_answer_sha256": "31f419b584468d7148da39900a14d72d197a746a772ea3d4c3b2619dd22ac607",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 1762.18
+      },
+      {
+        "run": "final-initial",
+        "case": "steady-game-hud-88",
+        "input_sha256": "cf60a83a9e84d0189473fe0f370d8e59f4d13d432184c0359e28e2d94c1be0c3",
+        "reference_ms": 9620.29,
+        "candidate_ms": 3707.38,
+        "reference_answer_sha256": "b32e757e07bfb752d26cfeb224d9ff6d09474f6b65b510441445a40610c1bbfa",
+        "candidate_answer_sha256": "9f29bbaf7a56ab9b02ef871c2c661790b64959b41a6338ed88520dbf7dfe8ee6",
+        "same_text": false,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 5912.91
+      },
+      {
+        "run": "final-initial",
+        "case": "steady-game-hud-94",
+        "input_sha256": "dda41c3df1dd5d0934120e83c6161a1201ef17b67a0359742246fe50413f8914",
+        "reference_ms": 9680.85,
+        "candidate_ms": 5696.28,
+        "reference_answer_sha256": "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620",
+        "candidate_answer_sha256": "f8b342e1b77b8634ae5956d976c057fa389d36e01f717a274f52a60508c97620",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 3984.57
+      },
+      {
+        "run": "final-initial",
+        "case": "steady-combat-nohud-178",
+        "input_sha256": "a3027248bd9e78b5cd5bb0276e4c13c552c99604eaee7057379259088a02dace",
+        "reference_ms": 9505.05,
+        "candidate_ms": 3027.9,
+        "reference_answer_sha256": "7340c30d35da2cdfbfb4bb82438b175cc557db236af2669603fcb6a25c0ae241",
+        "candidate_answer_sha256": "1757f20310ee76b48cb79b4d39c9d236275bec67a89090932c8a2bfc22e4c960",
+        "same_text": false,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 6477.15
+      },
+      {
+        "run": "final-initial",
+        "case": "steady-combat-nohud-184",
+        "input_sha256": "1e933e6cd1c5ea4c3f9f0b34911a25c62b65d6de6757b02eeb7d36b048adcd78",
+        "reference_ms": 9586.78,
+        "candidate_ms": 3570.64,
+        "reference_answer_sha256": "bfb6f8e00dfd450ab7d3e6fe61653be0818c54db0feca62c20afe651ab0c5ba0",
+        "candidate_answer_sha256": "67a70fefa158c3ca70cbcfe41b55531e196ec0a35e1c9675f2b9d553f612eacc",
+        "same_text": false,
+        "both_complete": true,
+        "same_complete_values": false,
+        "saved_ms": 6016.14
+      },
+      {
+        "run": "final-initial",
+        "case": "steady-combat-nohud-190",
+        "input_sha256": "73d511e3c7ff42551615d827a3b74472a2f9f6c7f417e5a663a50549b5889382",
+        "reference_ms": 9624.61,
+        "candidate_ms": 6279.62,
+        "reference_answer_sha256": "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643",
+        "candidate_answer_sha256": "9a3a47019b3e33f672940348877a26fb460ecdfaf27308a5a1023d280d902643",
+        "same_text": true,
+        "both_complete": false,
+        "same_complete_values": false,
+        "saved_ms": 3344.99
+      },
+      {
+        "run": "final-initial",
+        "case": "steady-combat-nohud-196",
+        "input_sha256": "880f306b739bd3b8f7f14b602d3483e651a7a4857274ddd94d1f5f89f8b5d360",
+        "reference_ms": 7552.74,
+        "candidate_ms": 5213.82,
+        "reference_answer_sha256": "24e2c0934e82309c4e1700f44df63e7d6c02693e96d557ccc2af6cb1b5df1637",
+        "candidate_answer_sha256": "a37245aa25874b5731d7a3d22421d229e55cbf93557a09ed05509bce646b8df3",
+        "same_text": false,
+        "both_complete": true,
+        "same_complete_values": true,
+        "saved_ms": 2338.92
+      }
+    ]
+  },
+  "native_entry": {
+    "original": {
+      "last_frame_to_return_ms": {
+        "n": 8,
+        "p50": 3120.51,
+        "p95": 3188.69
+      },
+      "session_to_return_ms": {
+        "n": 8,
+        "p50": 5822.28,
+        "p95": 5944.8
+      },
+      "six_frame_reviews": 8,
+      "accepted_observations": 0,
+      "speech_requests": 0,
+      "timeouts": 0,
+      "render_ms": {
+        "n": 2631,
+        "p50": 16.41,
+        "p95": 21.04
+      },
+      "gpu_pct": {
+        "n": 90,
+        "p50": 100.0,
+        "p95": 100
+      }
+    },
+    "optimized": {
+      "last_frame_to_return_ms": {
+        "n": 8,
+        "p50": 2192.82,
+        "p95": 2310.75
+      },
+      "session_to_return_ms": {
+        "n": 8,
+        "p50": 4968.09,
+        "p95": 5053.29
+      },
+      "six_frame_reviews": 8,
+      "accepted_observations": 0,
+      "speech_requests": 0,
+      "timeouts": 0,
+      "render_ms": {
+        "n": 2247,
+        "p50": 16.64,
+        "p95": 22.48
+      },
+      "gpu_pct": {
+        "n": 80,
+        "p50": 100.0,
+        "p95": 100
+      }
+    },
+    "pairs": [
+      {
+        "case": "novel-combat-nohud-167",
+        "identical_six_frames": true,
+        "identical_answer": true,
+        "original_ms": 2986.75,
+        "optimized_ms": 2167.91
+      },
+      {
+        "case": "novel-combat-nohud-329",
+        "identical_six_frames": false,
+        "identical_answer": true,
+        "original_ms": 3141.96,
+        "optimized_ms": 2245.51
+      },
+      {
+        "case": "novel-combat-nohud-462",
+        "identical_six_frames": false,
+        "identical_answer": true,
+        "original_ms": 3188.69,
+        "optimized_ms": 2217.73
+      },
+      {
+        "case": "novel-combat-nohud-49",
+        "identical_six_frames": false,
+        "identical_answer": true,
+        "original_ms": 3136.75,
+        "optimized_ms": 2310.75
+      },
+      {
+        "case": "novel-game-hud-127",
+        "identical_six_frames": true,
+        "identical_answer": true,
+        "original_ms": 3104.26,
+        "optimized_ms": 2148.26
+      },
+      {
+        "case": "novel-game-hud-175",
+        "identical_six_frames": false,
+        "identical_answer": true,
+        "original_ms": 3168.89,
+        "optimized_ms": 2105.83
+      },
+      {
+        "case": "novel-game-hud-19",
+        "identical_six_frames": true,
+        "identical_answer": true,
+        "original_ms": 3037.78,
+        "optimized_ms": 2135.79
+      },
+      {
+        "case": "novel-game-hud-65",
+        "identical_six_frames": false,
+        "identical_answer": true,
+        "original_ms": 3063.94,
+        "optimized_ms": 2234.29
+      }
+    ]
+  },
+  "real_frame_questions": {
+    "base": {
+      "n": 8,
+      "correct": 8
+    },
+    "baseline": {
+      "n": 8,
+      "correct": 8
+    },
+    "candidate": {
+      "n": 8,
+      "correct": 8
+    },
+    "pairs": [
+      {
+        "case": "battle-novel-game-hud-19",
+        "input_sha256": "9cfcf2f5f5652629bdeea7761f973d1c013edec304d5a240846c7a36f0e33b7f",
+        "truth": "B",
+        "initial_prediction": "B",
+        "reference_prediction": "B",
+        "candidate_prediction": "B",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "battle-novel-game-hud-65",
+        "input_sha256": "868701dc912dde4a08eeb9026f89a4475cff9a3fac45d6ad8f9a19a5fd2ffcf0",
+        "truth": "A",
+        "initial_prediction": "A",
+        "reference_prediction": "A",
+        "candidate_prediction": "A",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "battle-novel-game-hud-127",
+        "input_sha256": "9f4ac5e2cff5c1750e5deeeb5f74a6e6f98051b67219ef6c8871cdf9d1568a86",
+        "truth": "A",
+        "initial_prediction": "A",
+        "reference_prediction": "A",
+        "candidate_prediction": "A",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "battle-novel-game-hud-175",
+        "input_sha256": "9d63de5383319868dba1289eb13a14e7fa20fef1764d32e40bdc48da7189988a",
+        "truth": "B",
+        "initial_prediction": "B",
+        "reference_prediction": "B",
+        "candidate_prediction": "B",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "battle-novel-combat-nohud-49",
+        "input_sha256": "300be60a5237bbbc9a8100d89f575a1c3919fb7b30244aff9372f2184de80b85",
+        "truth": "A",
+        "initial_prediction": "A",
+        "reference_prediction": "A",
+        "candidate_prediction": "A",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "battle-novel-combat-nohud-167",
+        "input_sha256": "20881625c477b397cfa18b75e476eeb2a64e12652c5f39f12bf4f5f4db6a4768",
+        "truth": "B",
+        "initial_prediction": "B",
+        "reference_prediction": "B",
+        "candidate_prediction": "B",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "battle-novel-combat-nohud-329",
+        "input_sha256": "858ae473618c36080a06c6ed2e429488b295754a44312b123bbb48f4dd7baac5",
+        "truth": "A",
+        "initial_prediction": "A",
+        "reference_prediction": "A",
+        "candidate_prediction": "A",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "battle-novel-combat-nohud-462",
+        "input_sha256": "104e92545cc2b3f015386674be93c2983db955a15260606f72142805cc5a4aa7",
+        "truth": "B",
+        "initial_prediction": "B",
+        "reference_prediction": "B",
+        "candidate_prediction": "B",
+        "same_text": true,
+        "initial_same_text": true
+      }
+    ],
+    "identical_answers": 8,
+    "identical_to_historical_initial": 8,
+    "historical_initial_source": "2026-11-25-vision-frame-reuse"
+  },
+  "synthetic": {
+    "base": {
+      "n": 20,
+      "correct": 14
+    },
+    "baseline": {
+      "n": 20,
+      "correct": 14
+    },
+    "candidate": {
+      "n": 20,
+      "correct": 14
+    },
+    "pairs": [
+      {
+        "case": "0-0",
+        "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+        "truth": "右",
+        "initial_prediction": "右",
+        "reference_prediction": "右",
+        "candidate_prediction": "右",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "0-1",
+        "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+        "truth": "有",
+        "initial_prediction": "有",
+        "reference_prediction": "有",
+        "candidate_prediction": "有",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "0-2",
+        "input_sha256": "f2108663ac019b0a09ff49b4ef19f5150f844a6823a249c268bd220c941ac9c8",
+        "truth": "27",
+        "initial_prediction": "27",
+        "reference_prediction": "27",
+        "candidate_prediction": "27",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "0-3",
+        "input_sha256": "f3ef179153f591b3de16fb20da7ea2af4dd00a403b9204d662706df55d5fbbf6",
+        "truth": "黄",
+        "initial_prediction": "绿",
+        "reference_prediction": "绿",
+        "candidate_prediction": "绿",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "1-0",
+        "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+        "truth": "左",
+        "initial_prediction": "右",
+        "reference_prediction": "右",
+        "candidate_prediction": "右",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "1-1",
+        "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+        "truth": "无",
+        "initial_prediction": "有",
+        "reference_prediction": "有",
+        "candidate_prediction": "有",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "1-2",
+        "input_sha256": "3084159fd7317ff2d224dc29fc3e6be710af094c68a62e7afd356599d73e5ec4",
+        "truth": "74",
+        "initial_prediction": "74",
+        "reference_prediction": "74",
+        "candidate_prediction": "74",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "1-3",
+        "input_sha256": "aa59cb48c4352a8ddf5f4b5fa08700eef0ea9c524b8a6c29b1e0abc6b7a6fe36",
+        "truth": "绿",
+        "initial_prediction": "绿",
+        "reference_prediction": "绿",
+        "candidate_prediction": "绿",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "2-0",
+        "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+        "truth": "右",
+        "initial_prediction": "右",
+        "reference_prediction": "右",
+        "candidate_prediction": "右",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "2-1",
+        "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+        "truth": "有",
+        "initial_prediction": "有",
+        "reference_prediction": "有",
+        "candidate_prediction": "有",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "2-2",
+        "input_sha256": "ff5b4c261f5ea2b53c547237464feb4b6b543def1557745dd50d6b516183080b",
+        "truth": "27",
+        "initial_prediction": "27",
+        "reference_prediction": "27",
+        "candidate_prediction": "27",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "2-3",
+        "input_sha256": "ce160c8550bf65a550071f95ed45e7e2714a86de4f03d2c2cb38e51104776e2a",
+        "truth": "黄",
+        "initial_prediction": "绿",
+        "reference_prediction": "绿",
+        "candidate_prediction": "绿",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-0",
+        "input_sha256": "6a1220e5048fa6019873ebdcaa649f56c98ae71ffa0e1864de3813416d9a77a8",
+        "truth": "有",
+        "initial_prediction": "有",
+        "reference_prediction": "有",
+        "candidate_prediction": "有",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-1",
+        "input_sha256": "488c0a9c81af1c308eede14d31c2f846e6323b1b37c30fcea35bd4cbfea2a06e",
+        "truth": "无",
+        "initial_prediction": "有",
+        "reference_prediction": "有",
+        "candidate_prediction": "有",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-2",
+        "input_sha256": "1a64497cadc39894db28e7c01c22b665b842f4877f7d0bcec6ebe3cfe393894e",
+        "truth": "有",
+        "initial_prediction": "有",
+        "reference_prediction": "有",
+        "candidate_prediction": "有",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-3",
+        "input_sha256": "2809d6a3b9afcd6a93d53ab1baa13d540b81266f8eab4e24d3b9fca15f2b8b88",
+        "truth": "无",
+        "initial_prediction": "有",
+        "reference_prediction": "有",
+        "candidate_prediction": "有",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-4",
+        "input_sha256": "14df48b83900886e7bf65f83a7e224b220c3595ab8ee699ac37b03247f57a550",
+        "truth": "36",
+        "initial_prediction": "36",
+        "reference_prediction": "36",
+        "candidate_prediction": "36",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-5",
+        "input_sha256": "e66631f20bca69f92f4d6190a0041d1afc1af9639fceda7f991f788058279b9a",
+        "truth": "63",
+        "initial_prediction": "63",
+        "reference_prediction": "63",
+        "candidate_prediction": "63",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-6",
+        "input_sha256": "23d474cdf7c13cf0890fe507879f94f3fcab0ea59bfa6270d45bc58bc64b9622",
+        "truth": "63",
+        "initial_prediction": "63",
+        "reference_prediction": "63",
+        "candidate_prediction": "63",
+        "same_text": true,
+        "initial_same_text": true
+      },
+      {
+        "case": "mid-7",
+        "input_sha256": "2a56d5a6cb227cc330fdb16fe16a69d7bad2411e34701b6af9aea240ae3ca4a6",
+        "truth": "36",
+        "initial_prediction": "36",
+        "reference_prediction": "36",
+        "candidate_prediction": "36",
+        "same_text": true,
+        "initial_same_text": true
+      }
+    ],
+    "identical_answers": 20,
+    "identical_to_historical_initial": 20,
+    "historical_initial_source": "2026-11-25-vision-prefill-cache"
+  },
+  "generic": {
+    "baseline": [
+      {
+        "mode": "baseline",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 456.47,
+        "start": 171834.710923375,
+        "end": 171835.167396291,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "baseline",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 336.42,
+        "start": 171835.172779125,
+        "end": 171835.509201125,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "baseline",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 422.65,
+        "start": 171835.517302666,
+        "end": 171835.939950125,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "baseline",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 344.2,
+        "start": 171835.944682166,
+        "end": 171836.288885625,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      },
+      {
+        "mode": "baseline",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 1481.63,
+        "start": 171838.372809,
+        "end": 171839.854437208,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "baseline",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 1335.23,
+        "start": 171839.860412958,
+        "end": 171841.195638916,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "baseline",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 1543.27,
+        "start": 171841.203601166,
+        "end": 171842.746873333,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "baseline",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 1318.25,
+        "start": 171842.754674958,
+        "end": 171844.072929291,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      }
+    ],
+    "candidate": [
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 473.9,
+        "start": 171814.455993,
+        "end": 171814.929897083,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 391.91,
+        "start": 171814.935356125,
+        "end": 171815.327264541,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 395.01,
+        "start": 171815.33576125,
+        "end": 171815.730775125,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "candidate",
+        "load": "idle",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 362.03,
+        "start": 171815.735415541,
+        "end": 171816.097445958,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-1",
+        "expected": "14:30",
+        "answer": "画面显示的开会时间是14:30。",
+        "visible_value_correct": true,
+        "ms": 1372.17,
+        "start": 171818.241162125,
+        "end": 171819.613334208,
+        "sha256": "bbb0164503138f2e9fc4ea2dad95c607eb8f9bf9a524fb4bec0368564240e971"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-2",
+        "expected": "24",
+        "answer": "画面右上方的分数是24。",
+        "visible_value_correct": true,
+        "ms": 1333.79,
+        "start": 171819.6185655,
+        "end": 171820.952359375,
+        "sha256": "25e55f08f62173810699d7adf490620f61a761a4fa3520726c882495874686de"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "editor",
+        "case": "editor-3",
+        "expected": "16:45",
+        "answer": "画面显示的开会时间是16:45。",
+        "visible_value_correct": true,
+        "ms": 1524.19,
+        "start": 171820.9606835,
+        "end": 171822.484870583,
+        "sha256": "41dd43af23adfd4a65fe38d3984e7e1eaa974221abeab35978f6da5de58fa6a7"
+      },
+      {
+        "mode": "candidate",
+        "load": "render",
+        "kind": "hud",
+        "case": "hud-4",
+        "expected": "57",
+        "answer": "画面右上方的分数是57。",
+        "visible_value_correct": true,
+        "ms": 1365.5,
+        "start": 171822.489801458,
+        "end": 171823.855303916,
+        "sha256": "338037f0ede6fc4adbb2d78f4b822084bfb415008ac3d3eb39e9ef424321b0c3"
+      }
+    ]
+  },
+  "projection_audit": {
+    "native_tokens_checked": 32,
+    "older_bundle_falls_back": true,
+    "comparison_blocks": 101,
+    "positions": 808,
+    "matching_shortlist_values": 103424,
+    "full_vocabulary_rows_checked": 200642560,
+    "smallest_excluded_score_headroom": 3.684408187866211,
+    "confirmed_without_full_projection": 748,
+    "different_selected_tokens": 0
+  },
+  "basis": "L2 norm maxima from the actual tied weights over all 248320 rows: 1.060419 for a complete row, 0.404583 for its 16 affine biases. The pinned Q4_1 CPU repack preserves all BF16 scale and bias values exactly in FP16. The same GGML Q8_1 packing function exposes the actual activation and rounded bias sums.",
+  "checks": {
+    "ruff": "All checks passed!",
+    "mypy": "Success: no issues found in 234 source files",
+    "pyright": "0 errors, 0 warnings, 0 informations",
+    "pytest": "======================= 723 passed, 13 skipped in 50.55s =======================",
+    "jev": "OK",
+    "packaged": "Packaged source contains the visual worker modules, with contents verified.",
+    "input": "Pixel tensors and image grids matched for four RGB images, including resize and retry.",
+    "original-voice": "7 passed, 20 deselected in 1.16s"
+  },
+  "weights_sha256": {
+    "target_safetensors": "f5a0d9dd3efa73510542a8023d610ff26be2b4b020d181cfc4bedaa1fcc5dd9e",
+    "cpu_gguf": "b53d7f088ef75f3d8b9de15a1ee07dbd7607bb3e08de3943ea8daf9314dc3312",
+    "cpu_runtime": "llama.cpp b12441; derived Q4_1 copy of the same target weights"
+  },
+  "quality_checks": {
+    "legacy_scoring": "Use the historical fixture-specific prediction parser, including transient objects, HUD digits, direction and color. Compare against historical initial answers only after verifying the prompt, ground truth and six-frame image hash on each question.",
+    "generic": "WindowSummary.describe with its ordinary repetition settings: two desktop values and two HUD scores in both idle and simulated renderer conditions. A separate fifth image warms the worker.",
+    "manual_observation": "No game client, FPS counter, live microphone or audio playback device was measured."
+  },
+  "spot_check": {
+    "case": "steady-combat-nohud-184",
+    "method": "Direct visual inspection of the six-frame contact sheet.",
+    "visible": "Frames 1 and 2 show Challenge Complete on grass. Frames 4 through 6 show a three-card selection including Energy Drink and Guardian’s Proof.",
+    "initial": "Correctly mentions the grass and item names but describes ongoing combat.",
+    "candidate_and_published_reference": "Correctly identify the completion message and item names. The claim about equipped energy balls is unsupported by these frames."
+  }
+}

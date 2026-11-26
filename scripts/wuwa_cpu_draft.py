@@ -18,10 +18,13 @@ from io import BytesIO
 from pathlib import Path
 from threading import Event
 from time import sleep
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import mlx.core as mx
 import numpy as np
+
+if TYPE_CHECKING:
+    from vision_projection import CandidateProjection, DraftCandidates
 
 # The pinned CPU runtime imports a separate copy of the target model's cache.
 _SEQUENCE_MAGIC = 0xAF143CD8
@@ -105,14 +108,19 @@ def greedy_tokens(logits: mx.array) -> mx.array:
     return mx.argmax(logits - mx.logsumexp(logits, axis=-1, keepdims=True), axis=-1)
 
 
-def penalize_repeated_tokens(
-    logits: mx.array, history: list[int], block: list[int], penalty: float, context: int,
-) -> mx.array:
+def repetition_rows(history: list[int], block: list[int], context: int) -> list[list[int]]:
     tokens = history[-context:] + block
     rows = []
     for end in range(len(tokens) - len(block) + 1, len(tokens) + 1):
         recent = tokens[max(0, end - context):end]
         rows.append(recent + [recent[0]] * (context - len(recent)))
+    return rows
+
+
+def penalize_repeated_tokens(
+    logits: mx.array, history: list[int], block: list[int], penalty: float, context: int,
+) -> mx.array:
+    rows = repetition_rows(history, block, context)
     indices = mx.array([rows], dtype=mx.int32)
     original = mx.take_along_axis(logits, indices, axis=-1)
     adjusted = mx.where(original < 0, original * penalty, original / penalty)
@@ -277,7 +285,30 @@ class WuwaCpuDraft:
             raise ValueError("CPU draft bundle does not match this Qwen model")
 
         self.library = ctypes.CDLL(os.fspath(directory / "libwuwa_cpu_draft.dylib"))
+        self.projection: CandidateProjection | None = None
+        self.candidate_token = None
         open_model = self.library.boxagent_draft_open
+        candidate_token = getattr(self.library, "boxagent_draft_ranked_token", None)
+        candidate_open = getattr(self.library, "boxagent_draft_open_candidates", None)
+        # The score bound is valid only for this target embedding and its exact Q4_1 repack.
+        if (
+            candidate_token is not None and candidate_open is not None
+            and fingerprints.get("model.safetensors")
+            == "f5a0d9dd3efa73510542a8023d610ff26be2b4b020d181cfc4bedaa1fcc5dd9e"
+            and mx.default_device() == mx.gpu
+            and mx.device_info().get("architecture") == "applegpu_g15s"
+        ):
+            with (directory / "weights.gguf").open("rb") as source:
+                digest = hashlib.file_digest(source, "sha256").hexdigest()
+            if digest == "b53d7f088ef75f3d8b9de15a1ee07dbd7607bb3e08de3943ea8daf9314dc3312":
+                candidate_token.argtypes = (
+                    ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32,
+                    ctypes.c_float, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t,
+                    ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p,
+                )
+                candidate_token.restype = ctypes.c_int32
+                self.candidate_token = candidate_token
+                open_model = candidate_open
         open_model.argtypes = (ctypes.c_char_p,)
         open_model.restype = ctypes.c_void_p
         self.release = self.library.boxagent_draft_close
@@ -300,6 +331,11 @@ class WuwaCpuDraft:
         self.gpu_load.argtypes = ()
         self.gpu_load.restype = ctypes.c_int
         self.handle: int | None = open_model(os.fsencode(directory / "weights.gguf"))
+        if self.handle is None and self.candidate_token is not None:
+            ordinary = self.library.boxagent_draft_open
+            ordinary.argtypes, ordinary.restype = open_model.argtypes, open_model.restype
+            self.handle = ordinary(os.fsencode(directory / "weights.gguf"))
+            self.candidate_token = None
         if self.handle is None:
             raise RuntimeError("Could not initialize the Wuwa CPU draft decoder")
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="wuwa-cpu-draft")
@@ -342,32 +378,33 @@ class WuwaCpuDraft:
         if self.restore(self.handle, state, len(state)) != len(state):
             raise RuntimeError("The CPU draft decoder rejected its prompt cache")
 
-    def _propose(self, position: int, token: int, count: int, cancel: Event) -> list[int]:
-        result = []
-        for index in range(count):
-            if cancel.is_set():
-                break
-            token = self.token(self.handle, position + index, token)
-            if token < 0:
-                raise RuntimeError("The CPU draft decoder failed during prediction")
-            result.append(token)
-        return result
-
-    def _propose_with_penalty(
-        self, position: int, token: int, count: int, cancel: Event,
-        history: list[int], penalty: float, context: int,
+    def _propose(
+        self, position: int, token: int, count: int, cancel: Event, history: list[int],
+        penalty: float | None, context: int, candidates: DraftCandidates | None,
     ) -> list[int]:
-        sample = self.penalized_token
-        if sample is None:
-            return self._propose(position, token, count, cancel)
         result = []
         for index in range(count):
             if cancel.is_set():
                 break
-            history.append(token)
-            recent = tuple(dict.fromkeys(history[-context:]))
-            ids = (ctypes.c_int32 * len(recent))(*recent)
-            token = sample(self.handle, position + index, token, penalty, ids, len(ids))
+            recent_ids = None
+            recent_count = 0
+            if penalty and self.penalized_token is not None:
+                history.append(token)
+                recent = tuple(dict.fromkeys(history[-context:]))
+                recent_count = len(recent)
+                recent_ids = (ctypes.c_int32 * recent_count)(*recent)
+            if candidates is not None:
+                token = self.candidate_token(
+                    self.handle, position + index, token, penalty or 1.0, recent_ids, recent_count,
+                    candidates.activation[index].ctypes.data, candidates.ids[index].ctypes.data,
+                    candidates.ids.shape[1], candidates.cutoff[index:index + 1].ctypes.data,
+                )
+            elif recent_ids is not None:
+                token = self.penalized_token(
+                    self.handle, position + index, token, penalty, recent_ids, recent_count,
+                )
+            else:
+                token = self.token(self.handle, position + index, token)
             if token < 0:
                 raise RuntimeError("The CPU draft decoder failed during prediction")
             result.append(token)
@@ -412,7 +449,13 @@ class WuwaCpuDraft:
                 yield from original_steps(ids, target, pixels, mask, **kwargs)
                 return
             if self.vision_logits is None:
-                _, self.vision_logits = qwen_verification_head(target.language_model)
+                head, self.vision_logits = qwen_verification_head(target.language_model)
+                if self.candidate_token is not None:
+                    from vision_projection import CandidateProjection, matrix_verifier
+
+                    project = matrix_verifier()
+                    if project is not None:
+                        self.projection = CandidateProjection(head, project)
             self.used_cpu_draft = True
             with closing(self._steps(
                 ids, target, pixels, mask, vision_logits=self.vision_logits,
@@ -491,17 +534,22 @@ class WuwaCpuDraft:
         )
         offset = 0
         cancel = Event()
-        native_penalty = bool(repetition_penalty and self.penalized_token is not None)
 
         def propose(
             position: int, token: int, count: int, stop: Event, history: list[int],
-        ) -> list[int]:
-            if native_penalty and repetition_penalty is not None:
-                return self._propose_with_penalty(
-                    position, token, count, stop, prompt_history + history,
-                    repetition_penalty, repetition_context_size,
-                )
-            return self._propose(position, token, count, stop)
+        ) -> tuple[list[int], DraftCandidates | None]:
+            from vision_projection import DraftCandidates
+
+            candidates = (
+                DraftCandidates.allocate(count)
+                if self.projection is not None and count == _BLOCK
+                and (not repetition_penalty or repetition_penalty >= 1) else None
+            )
+            proposal = self._propose(
+                position, token, count, stop, prompt_history + history, repetition_penalty,
+                repetition_context_size, candidates,
+            )
+            return proposal, candidates
 
         def sync_cpu() -> None:
             if not consumed:
@@ -523,7 +571,7 @@ class WuwaCpuDraft:
             return output, state, None
 
         next_tail_check = 30
-        pending: Future[list[int]] | None = None
+        pending: Future[tuple[list[int], DraftCandidates | None]] | None = None
         try:
             while offset < max_tokens:
                 remaining = max_tokens - offset
@@ -549,6 +597,7 @@ class WuwaCpuDraft:
                             return
                 # A previous answer is only a proposal. Re-evaluate each position against
                 # this image's target cache before yielding anything, including EOS.
+                candidates = None
                 if offset < len(hint):
                     proposal = list(hint[offset:min(offset + _BLOCK, max_tokens)])
                 else:
@@ -559,7 +608,7 @@ class WuwaCpuDraft:
                         pending = self.executor.submit(
                             propose, first_position + offset, seed, width, cancel, consumed.copy(),
                         )
-                    proposal = pending.result()
+                    proposal, candidates = pending.result()
                 width = len(proposal)
                 inputs = [seed, *proposal[:-1]]
                 if pending is not None:
@@ -578,14 +627,30 @@ class WuwaCpuDraft:
                         hidden, _, states = language.speculative_verify_hidden(block, cache)
                     finally:
                         verifier.gated_delta_update_with_states = with_states
-                    logits = vision_logits(hidden)
-                    if repetition_penalty:
-                        history = prompt_history + consumed[-repetition_context_size:]
-                        logits = penalize_repeated_tokens(
-                            logits, history, inputs, repetition_penalty, repetition_context_size,
-                        )
-                    selected = greedy_tokens(logits)
-                    target = cast(list[int], selected.flatten().tolist())
+                    target = None
+                    if candidates is not None and self.projection is not None:
+                        try:
+                            recent = (
+                                repetition_rows(
+                                    prompt_history + consumed, inputs, repetition_context_size,
+                                ) if repetition_penalty else None
+                            )
+                            target = self.projection.choose(
+                                hidden, candidates, lambda x: greedy_tokens(vision_logits(x)),
+                                repetition_penalty, recent,
+                            )
+                        except (MemoryError, RuntimeError, ValueError):
+                            self.projection = None
+                    if target is None:
+                        logits = vision_logits(hidden)
+                        if repetition_penalty:
+                            history = prompt_history + consumed[-repetition_context_size:]
+                            logits = penalize_repeated_tokens(
+                                logits, history, inputs, repetition_penalty,
+                                repetition_context_size,
+                            )
+                        selected = greedy_tokens(logits)
+                        target = cast(list[int], selected.flatten().tolist())
                 accepted = next(
                     (i for i, (draft, gold) in enumerate(zip(proposal, target, strict=True))
                      if draft != gold), width,

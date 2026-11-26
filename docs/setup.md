@@ -145,6 +145,8 @@ PYTHONPATH="$LLAMA_SOURCE/gguf-py" "$vision_python" scripts/build_wuwa_cpu_draft
 
 如需 MTP，将本地 Qwen3.5-0.8B MLX 预测头的 `config.json` 和 `model.safetensors` 放入同一包的 `text/mtp/`。在 `.env.local` 设置 `BOXAGENT_WUWA_COREML_BUNDLE=.runtime/vision-acceleration` 后重启。已有加速包可以沿用该环境变量和原路径。
 
+M3 Pro 上已有的 CPU 加速包仍可使用完整词表校验。要启用新的候选词校验，可用本版脚本把 CPU 包构建到新的 `vision_bundle` 目录，切换上述环境变量后重启。
+
 ### 《鸣潮》陪玩预览
 
 在 macOS 源码版中设置 `BOXAGENT_GAME_COMPANION=1` 后启动桌宠。点击小窗的「鸣潮」，再把游戏放到前台。预览使用上面的本地视觉环境和屏幕录制权限。切走游戏后暂停采集。

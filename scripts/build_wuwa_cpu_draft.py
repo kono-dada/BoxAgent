@@ -142,9 +142,10 @@ def build(model: Path, output: Path, source: Path, libraries: Path, template: Pa
         ], check=True)
         subprocess.run([
             "xcrun", "clang", "-Wall", "-Wextra", "-O3", "-dynamiclib",
-            f"-I{source / 'include'}", f"-I{ggml / 'include'}",
+            f"-I{source / 'include'}", f"-I{ggml / 'include'}", f"-I{ggml / 'src'}",
             str(Path(__file__).with_name("wuwa_cpu_draft_bridge.c")),
             str(staging / "libllama.1.dylib"), str(registry), str(base),
+            str(staging / "libggml-cpu.1.dylib"),
             "-Wl,-rpath,@loader_path", "-framework", "CoreFoundation", "-framework", "IOKit",
             "-o", str(staging / "libwuwa_cpu_draft.dylib"),
         ], check=True)
